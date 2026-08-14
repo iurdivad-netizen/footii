@@ -3,6 +3,11 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  # Run the checks on pull requests too, otherwise a PR gets no CI signal at
+  # all and the test suite only ever runs after a change has already landed.
+  # The build/deploy jobs below stay off for pull requests.
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -10,9 +15,10 @@ permissions:
   pages: write
   id-token: write
 
-# Allow one concurrent deployment; queued runs supersede each other.
+# Scoped per ref so a pull request's checks cannot cancel an in-flight
+# deployment of main.
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -30,6 +36,9 @@ jobs:
 
   build:
     needs: test
+    # Never publish from a pull request: a PR must not be able to overwrite the
+    # live site. Deployment happens only for main (or a manual dispatch).
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -58,6 +67,7 @@ jobs:
 
   deploy:
     needs: build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
