@@ -43,7 +43,15 @@ jobs:
       - run: npm run build
         env:
           GITHUB_PAGES: 'true'
+      # `enablement: true` lets this job turn Pages on (and set its build source
+      # to "GitHub Actions") using the pages:write permission granted above.
+      # Without it the job fails with "Get Pages site failed ... Not Found" on a
+      # repository where Pages has never been configured, or silently keeps a
+      # legacy "deploy from a branch" source that would publish the unbuilt
+      # repository root instead of dist/.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
