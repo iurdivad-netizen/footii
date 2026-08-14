@@ -2,12 +2,23 @@ import { passCompletionRate } from '../../core/match/matchStats.ts';
 import { matchResult } from '../../core/match/matchState.ts';
 import type { MatchEngine } from '../../simulation/MatchEngine.ts';
 import type { CareerRecord } from '../../persistence/storage.ts';
+import type { AttributeChange } from '../../core/career/development.ts';
 
 /** Full-time summary, including the running career totals held in localStorage. */
 export class FullTimeScreen {
   readonly element: HTMLElement;
 
-  constructor(engine: MatchEngine, career: CareerRecord, onPlayAgain: () => void) {
+  constructor(
+    engine: MatchEngine,
+    career: CareerRecord,
+    onPlayAgain: () => void,
+    options: {
+      /** Label for the continue button; defaults to the quick-match wording. */
+      continueLabel?: string;
+      /** Attribute changes earned in this match, shown in career mode. */
+      development?: AttributeChange[];
+    } = {},
+  ) {
     const { state } = engine;
     const s = state.stats;
     const rating = engine.rating();
@@ -55,10 +66,33 @@ export class FullTimeScreen {
         </div>
       </div>
 
-      <button class="primary" id="play-again">Play another match</button>`;
+      ${renderDevelopment(options.development)}
+
+      <button class="primary" id="play-again">${options.continueLabel ?? 'Play another match'}</button>`;
 
     this.element
       .querySelector<HTMLButtonElement>('#play-again')!
       .addEventListener('click', onPlayAgain);
   }
+}
+
+/** Attribute gains earned in this match — the visible payoff for playing well. */
+function renderDevelopment(changes?: AttributeChange[]): string {
+  if (!changes || changes.length === 0) return '';
+  const merged = new Map<string, { label: string; from: number; to: number }>();
+  for (const change of changes) {
+    const existing = merged.get(change.attribute);
+    if (existing) existing.to = change.to;
+    else merged.set(change.attribute, { label: change.label, from: change.from, to: change.to });
+  }
+  const items = [...merged.values()]
+    .map(
+      (c) =>
+        `<li class="${c.to > c.from ? 'up' : 'down'}">${c.label} ${c.from} → <strong>${c.to}</strong></li>`,
+    )
+    .join('');
+  return `<div class="development-banner">
+      <h2>Development</h2>
+      <ul class="development-list">${items}</ul>
+    </div>`;
 }

@@ -180,7 +180,7 @@ export class MatchScreen {
       .map(([key, value]) => `<div><dt>${key}</dt><dd>${value}</dd></div>`)
       .join('');
 
-    const fitness = this.engine.setup.player.fitness;
+    const fitness = this.engine.matchPlayer.fitness;
     const bar = this.element.querySelector<HTMLElement>('#fitness-bar')!;
     bar.style.width = `${fitness}%`;
     bar.classList.toggle('low', fitness < 40);

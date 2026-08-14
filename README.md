@@ -232,6 +232,7 @@ is what makes the engine debuggable and balanceable.
 ```
 src/
 ├── core/                  pure data models + types, no DOM, no randomness of its own
+│   ├── career/            development, league, season and career state
 │   ├── events/            situation context, action/outcome types, tactical zones
 │   ├── goalkeeper/        goalkeeper model + commit behaviour
 │   ├── match/             match state, statistics, rating
@@ -241,6 +242,7 @@ src/
 │   └── rng.ts             seeded RNG
 ├── simulation/            the engines — all head-less and testable
 │   ├── MatchEngine.ts     minute-by-minute possession loop
+│   ├── CareerService.ts   seasons, fixtures, league simulation
 │   ├── SituationGenerator.ts
 │   ├── ActionGenerator.ts contextual 1–6 option generation
 │   ├── DecisionTimer.ts
@@ -295,7 +297,7 @@ If a number in there looks wrong, the gameplay is wrong.
 npm test
 ```
 
-96 tests covering timer calibration, event pacing, build-up narration, action generation (including the invariant that every
+126 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, action generation (including the invariant that every
 situation can always fill six slots), resolution, goalkeeper effects, attribute effects, chance
 generation, randomness boundaries, position-specific behaviour, instinctive actions, rating,
 pace scaling, and full-match determinism.
@@ -313,27 +315,76 @@ One-time setup: **Settings → Pages → Build and deployment → Source: GitHub
 
 ---
 
+## Career mode
+
+Beyond the single match, a career follows **one footballer season by season**.
+
+- **A season** is a double round-robin between the eight clubs — 14 matches. Every fixture you
+  are not in is resolved probabilistically, so the league table around you is always live.
+- **After every match** your rating feeds form and morale, and development is applied.
+- **Development** is driven by age, headroom below Potential Ability, match rating, minutes
+  played and your club's coaching quality.
+- **A season ends** with a review: league position, your statistics, and a scout's view of
+  whether your ceiling has moved. Then you age a year and go again.
+
+### Why development is applied per match
+
+Because the payoff has to be felt in the core mechanic, not read on a summary screen.
+
+Awareness, Composure and Decision Making are three of the four attributes that set your decision
+window. A young player who is developing well literally gets more time to think as the seasons
+pass. Measured over five seasons of consistent 7.4 ratings, an 18-year-old prospect:
+
+| Season | Age | Ability | Decision window | Awareness | Composure |
+| ------ | --- | ------- | --------------- | --------- | --------- |
+| Start  | 18  | 54      | **1.32s**       | 45        | 42        |
+| 1      | 19  | 58      | 1.66s           | 50        | 54        |
+| 3      | 21  | 64      | 2.19s           | 61        | 76        |
+| 5      | 23  | 68      | **2.46s**       | 68        | 85        |
+
+The same situations that felt frantic in his first season become readable. That progression is
+only available because the timer is an attribute-driven formula rather than a difficulty setting.
+
+**Potential is not a hard ceiling.** A player at his potential still creeps upward slowly, and
+potential itself drifts each season based on how he has performed — so two identical prospects do
+not have identical careers.
+
+### Balancing notes worth knowing
+
+Two calibration bugs were found by measurement rather than by eye, and both are documented at
+their constants:
+
+- **Growth looked far too small.** Current Ability is a weighted average of twenty attributes, so
+  raising it by one point means spending roughly twenty attribute points. The original growth base
+  moved a potential-91 prospect from 54 to 56 over five seasons, which is not a career arc.
+- **Fatigue was inert.** A full 90 minutes cost only ~15 fitness, worth a 0.03s timer penalty, and
+  Stamina 40 differed from Stamina 78 by under 0.02s. A match now costs 30-40 fitness, so tired
+  legs are worth about a tenth of a second of thinking time and Stamina earns its place.
+
+---
+
 ## Current scope
 
-This is the **vertical slice**: the core mechanic, proven end to end.
+The core mechanic and a playable career loop.
 
 Implemented: seeded match engine, eight situation archetypes, ~40 contextual actions, dynamic
-decision timer, goalkeeper commit mechanic, action resolution with separated choice/execution,
-instinctive fallback on expiry, match statistics and rating, five playable presets across four
-positions, eight teams with tactical styles, debug mode, localStorage career totals.
+decision timer, build-up narration, goalkeeper commit mechanic, action resolution with separated
+choice/execution, instinctive fallback on expiry, match statistics and rating, five playable
+presets across four positions, eight teams with tactical styles, **season fixtures, live league
+table, per-match player development, ageing and multi-season career history**, debug mode, and a
+versioned localStorage save with migration.
 
-Deliberately **not** built yet: multiplayer, accounts, a backend, 3D, physics, a transfer market,
-large player databases.
+Deliberately **not** built yet: multiplayer, accounts, a backend, 3D, physics, large player
+databases.
 
 ## Roadmap
 
-- **Career mode** — seasons, ageing, contracts, clubs, competitions and awards on top of the
-  existing save format.
-- **Player development** — Current/Potential Ability with non-deterministic growth from training,
-  playing time, performance and injuries.
-- **More event types** — set pieces, penalties, aerial duels, pressing traps, goalkeeper play.
 - **Transfers and reputation** — clubs valuing position, ability, potential, age, form and
-  tactical suitability.
-- **Richer location model** — the tactical zone model is designed to be swapped for 2D coordinates
-  behind the same `Zone` interface.
-- **Balancing tools** — headless mass-simulation reports built on the deterministic seed.
+  tactical suitability, with offers arriving as your reputation grows. The career layer now
+  provides everything this needs.
+- **More event types** — set pieces, penalties, aerial duels, pressing traps, goalkeeper play.
+- **Squad context** — named teammates, so an assist has a recipient and a club has a shape.
+- **Injuries and squad rotation** — the fitness model now has enough bite to support them.
+- **Awards and honours** — player of the season, top scorer, international call-ups.
+- **Richer location model** — the tactical zone model is designed to be swapped for 2D
+  coordinates behind the same `Zone` interface.
