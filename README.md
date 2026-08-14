@@ -354,7 +354,7 @@ If a number in there looks wrong, the gameplay is wrong.
 npm test
 ```
 
-171 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, action generation (including the invariant that every
+168 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, action generation (including the invariant that every
 situation can always fill six slots), resolution, goalkeeper effects, attribute effects, chance
 generation, randomness boundaries, position-specific behaviour, instinctive actions, rating,
 pace scaling, and full-match determinism.
