@@ -22,6 +22,11 @@ export interface MatchSetup {
   /** Match length in minutes. */
   length: number;
   playerTeamIsHome: boolean;
+  /**
+   * Player-facing pace multiplier on every decision window (see DECISION_PACE).
+   * Defaults to 1 when omitted so existing callers and tests are unaffected.
+   */
+  paceScale?: number;
 }
 
 export interface MatchState {

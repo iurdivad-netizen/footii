@@ -1,4 +1,5 @@
 import { MatchEngine } from '../simulation/MatchEngine.ts';
+import { DECISION_PACE } from '../simulation/DecisionTimer.ts';
 import { getGoalkeeperForTeam, getPreset, getTeam } from '../data/gameData.ts';
 import { matchResult } from '../core/match/matchState.ts';
 import type { SaveData } from '../persistence/storage.ts';
@@ -52,6 +53,7 @@ export class App {
       set('opponent', last.opponentId);
       set('seed', last.seed);
       set('length', String(last.length));
+      if (last.pace) set('pace', last.pace);
       screen.element.querySelector<HTMLSelectElement>('#preset')?.dispatchEvent(new Event('change'));
     }
   }
@@ -59,6 +61,10 @@ export class App {
   private startMatch(selection: SetupSelection): void {
     this.save = { ...this.save, lastSelection: selection };
     writeSave(this.save);
+
+    const paceScale = DECISION_PACE[selection.pace] ?? 1;
+    // The reading phase scales with the same setting as the decision window.
+    this.overlay.paceScale = paceScale;
 
     const player = getPreset(selection.presetId).create();
     const playerTeam = getTeam(selection.teamId);
@@ -73,6 +79,7 @@ export class App {
         ownGoalkeeper: getGoalkeeperForTeam(playerTeam.id),
         length: selection.length,
         playerTeamIsHome: true,
+        paceScale,
       },
       selection.seed,
     );

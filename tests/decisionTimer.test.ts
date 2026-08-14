@@ -129,6 +129,50 @@ describe('decision timer', () => {
     expect(exhausted.seconds).toBeLessThan(fresh.seconds);
   });
 
+  it('never drops below a decidable floor, even for the weakest player under maximum pressure', () => {
+    const worst = calculateDecisionTime(
+      context({
+        player: prospect(),
+        defensivePressure: 1,
+        nearbyDefenders: 4,
+        goalkeeper: goalkeeperState(keeper({ aggression: 99 }), {
+          startingDepth: 1,
+          action: 'rushing',
+        }),
+      }),
+      getSituationTemplate('crossArrival'),
+    );
+    // A sub-second window is a coin flip, not a decision.
+    expect(worst.seconds).toBeGreaterThanOrEqual(1.0);
+  });
+
+  it('the pace setting stretches every window but preserves the attribute gap', () => {
+    const ctx = (player: ReturnType<typeof veteran>) =>
+      context({ player, defensivePressure: 0.15 });
+
+    const vetStandard = calculateDecisionTime(ctx(veteran()), oneOnOne, 1).seconds;
+    const proStandard = calculateDecisionTime(ctx(prospect()), oneOnOne, 1).seconds;
+    const vetRelaxed = calculateDecisionTime(ctx(veteran()), oneOnOne, 1.5).seconds;
+    const proRelaxed = calculateDecisionTime(ctx(prospect()), oneOnOne, 1.5).seconds;
+
+    expect(vetRelaxed).toBeGreaterThan(vetStandard);
+    expect(proRelaxed).toBeGreaterThan(proStandard);
+    // The veteran keeps the same proportional advantage at every setting, so
+    // the pace control is an accessibility knob and not a rebalance.
+    expect(vetRelaxed / proRelaxed).toBeCloseTo(vetStandard / proStandard, 2);
+  });
+
+  it('a relaxed pace lifts the floor too, rather than clamping back down', () => {
+    const brutal = {
+      player: prospect(),
+      defensivePressure: 1,
+      nearbyDefenders: 4,
+    };
+    const standard = calculateDecisionTime(context(brutal), oneOnOne, 1).seconds;
+    const relaxed = calculateDecisionTime(context(brutal), oneOnOne, 2.1).seconds;
+    expect(relaxed).toBeGreaterThan(standard * 1.9);
+  });
+
   it('experienceFactor is monotonic and bounded', () => {
     expect(experienceFactor(0)).toBe(-1);
     expect(experienceFactor(100)).toBe(1);

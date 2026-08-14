@@ -1,6 +1,8 @@
 import { PLAYER_PRESETS, TEAMS } from '../../data/gameData.ts';
 import { positionLabel } from '../../core/player/positions.ts';
 import { TACTICAL_STYLE_LABELS } from '../../core/team/team.ts';
+import { DECISION_PACE, DECISION_PACE_LABELS } from '../../simulation/DecisionTimer.ts';
+import type { DecisionPace } from '../../simulation/DecisionTimer.ts';
 
 export interface SetupSelection {
   presetId: string;
@@ -8,6 +10,7 @@ export interface SetupSelection {
   opponentId: string;
   seed: string;
   length: number;
+  pace: DecisionPace;
 }
 
 /** Team selection, player selection and the match seed. */
@@ -59,6 +62,22 @@ export class SetupScreen {
         </div>
 
         <div class="field">
+          <label for="pace">Decision pace</label>
+          <select id="pace">
+            ${(Object.keys(DECISION_PACE) as DecisionPace[])
+              .map(
+                (key) =>
+                  `<option value="${key}" ${key === 'standard' ? 'selected' : ''}>${DECISION_PACE_LABELS[key]}</option>`,
+              )
+              .join('')}
+          </select>
+          <p class="hint">
+            Stretches every decision window equally. Young, low-awareness players get very
+            little time — raise this while you learn them.
+          </p>
+        </div>
+
+        <div class="field">
           <label for="length">Match length</label>
           <select id="length">
             <option value="90">Full match (90 minutes)</option>
@@ -104,6 +123,7 @@ export class SetupScreen {
         opponentId,
         seed: this.element.querySelector<HTMLInputElement>('#seed')!.value.trim() || 'footii',
         length: Number(this.element.querySelector<HTMLSelectElement>('#length')!.value),
+        pace: this.element.querySelector<HTMLSelectElement>('#pace')!.value as DecisionPace,
       });
     });
   }

@@ -43,6 +43,43 @@ Requires Node 20+.
 
 Press `D` at any time for the simulation debug panel.
 
+### Reading time vs deciding time
+
+An event opens in a **"set" phase**: the situation and all six options are fully
+visible and selectable, but the decision clock has not started and the keeper
+has not moved. When it elapses, the clock starts.
+
+This exists because the decision timer models how long the *footballer* has to
+act, while the human is also paying a completely separate cost — physically
+reading six freshly generated labels. A real footballer doesn't read his
+options; he already knows them. Measured over 250 events, an 18-year-old's
+median window was **1.04s** against ~94 characters of option text, which takes
+roughly **3.8s** to read. That isn't a hard decision, it's an impossible one.
+
+Separating the two keeps the simulation honest — the window still means exactly
+what it did — while making the game fair to read. Deciding during the set phase
+counts as the fastest possible decision, so reading quickly is rewarded.
+
+The set phase lives in the UI layer (`ui/interaction/readingTime.ts`), not the
+simulation: it is a property of the interface, not of football.
+
+### Decision pace
+
+A **Decision pace** setting on the setup screen scales every window equally
+(Hardcore 0.75x / Standard 1x / Relaxed 1.5x / Very relaxed 2.1x), stretching
+the set phase with it. Because it is a flat multiplier, the *relative* gap
+between a composed veteran and a panicking teenager is identical at every
+setting — it is an accessibility and difficulty control, not a rebalance.
+
+Typical time on screen (prospect vs veteran, measured across 30 matches each):
+
+| Pace     | Player   | Ticking clock | Total on screen |
+| -------- | -------- | ------------- | --------------- |
+| Standard | Prospect | 1.03s         | ~3.0s           |
+| Standard | Veteran  | 2.36s         | ~4.3s           |
+| Relaxed  | Prospect | 1.54s         | ~4.5s           |
+| Relaxed  | Veteran  | 3.54s         | ~6.5s           |
+
 ### The goalkeeper is the mechanic
 
 The most important thing on screen is the goalkeeper. He starts **set**, and **commits partway
@@ -79,8 +116,13 @@ T = BaseSituationTime
   + 0.12 * norm(Form) + 0.08 * norm(Morale)
   - opponentPressing adjustment
 
-clamped to [0.8s, 4.5s]
+then scaled by the Decision pace multiplier,
+clamped to [1.0s, 4.5s] * pace
 ```
+
+The 1.0s floor is deliberate: a sub-second window is a coin flip rather than a
+decision. Having enough time to *read* the options is handled separately by the
+set phase, above.
 
 `norm(x) = (x - 50) / 50`, so a weight is literally "seconds gained by a 99-rated attribute", and
 every weight lives in one exported table (`TIMER_WEIGHTS` in `src/simulation/DecisionTimer.ts`).
@@ -234,10 +276,10 @@ If a number in there looks wrong, the gameplay is wrong.
 npm test
 ```
 
-83 tests covering timer calibration, action generation (including the invariant that every
+91 tests covering timer calibration, reading/set time, action generation (including the invariant that every
 situation can always fill six slots), resolution, goalkeeper effects, attribute effects, chance
-generation, randomness boundaries, position-specific behaviour, instinctive actions, rating, and
-full-match determinism.
+generation, randomness boundaries, position-specific behaviour, instinctive actions, rating,
+pace scaling, and full-match determinism.
 
 ---
 

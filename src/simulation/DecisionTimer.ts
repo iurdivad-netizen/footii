@@ -47,8 +47,42 @@ export const TIMER_WEIGHTS = {
   morale: 0.08,
 } as const;
 
-export const MIN_DECISION_TIME = 0.8;
+/**
+ * Absolute floor on the decision window.
+ *
+ * Raised from 0.8s after play-testing: a young, low-attribute player was
+ * bottoming out on the floor for ~10% of his events, and a sub-second window is
+ * not a hard decision, it is a coin flip. Note that the UI's "set" phase (see
+ * ui/interaction/readingTime.ts) handles the separate problem of having enough
+ * time to READ the options — this floor is only about having enough time to
+ * DECIDE once you have.
+ */
+export const MIN_DECISION_TIME = 1.0;
 export const MAX_DECISION_TIME = 4.5;
+
+/**
+ * Global pace multiplier applied to the final window.
+ *
+ * This is a player-facing accessibility and difficulty control, deliberately
+ * kept separate from the attribute weights: it stretches or compresses every
+ * window equally, so the RELATIVE difference between a composed veteran and a
+ * panicking teenager is preserved at every setting.
+ */
+export const DECISION_PACE = {
+  hardcore: 0.75,
+  standard: 1,
+  relaxed: 1.5,
+  veryRelaxed: 2.1,
+} as const;
+
+export type DecisionPace = keyof typeof DECISION_PACE;
+
+export const DECISION_PACE_LABELS: Record<DecisionPace, string> = {
+  hardcore: 'Hardcore — 0.75x',
+  standard: 'Standard — 1x',
+  relaxed: 'Relaxed — 1.5x',
+  veryRelaxed: 'Very relaxed — 2.1x',
+};
 
 export interface TimerModifier {
   label: string;
@@ -77,6 +111,7 @@ export function experienceFactor(experience: number): number {
 export function calculateDecisionTime(
   context: SituationContext,
   template: SituationTemplate,
+  paceScale = 1,
 ): DecisionTimerResult {
   const { attributes } = context.player;
   const modifiers: TimerModifier[] = [];
@@ -108,12 +143,21 @@ export function calculateDecisionTime(
   add('Opponent pressing', -0.2 * (pressing - 0.5) * 2 * 0.5);
 
   const raw = modifiers.reduce((total, m) => total + m.seconds, template.baseTime);
-  const seconds = clamp(raw, MIN_DECISION_TIME, MAX_DECISION_TIME);
+
+  // The pace multiplier scales the whole window, including the clamp bounds, so
+  // that a relaxed setting genuinely relaxes the floor rather than running into
+  // the same hard minimum.
+  const scaled = raw * paceScale;
+  const seconds = clamp(scaled, MIN_DECISION_TIME * paceScale, MAX_DECISION_TIME * paceScale);
+
+  if (paceScale !== 1) {
+    modifiers.push({ label: `Pace setting (x${paceScale})`, seconds: round(scaled - raw, 3) });
+  }
 
   return {
     seconds: round(seconds, 2),
     baseTime: template.baseTime,
     modifiers,
-    clamped: Math.abs(seconds - raw) > 0.001,
+    clamped: Math.abs(seconds - scaled) > 0.001,
   };
 }
