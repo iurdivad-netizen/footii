@@ -31,10 +31,16 @@ export const CREATION_CAP = 70;
  * Points available to spend above the floor.
  *
  * 20 attributes x (25 floor) is the free baseline; this pool is what shapes the
- * player. 430 points spread evenly would put every attribute at ~46, so a
- * specialist has to be deliberately lopsided — which is the interesting choice.
+ * player. Spread evenly it puts every attribute at ~51, so a specialist still
+ * has to be deliberately lopsided — which is the interesting choice.
+ *
+ * CALIBRATION NOTE: this was 430, which left a created player at roughly 46
+ * overall against the 58 of the pre-built prospect. That made the RPG path
+ * strictly worse than picking an archetype — a created 17-year-old striker
+ * struggled to score at all. Set so a created player lands in the same band as
+ * a young pre-build, and check `tests/playerBuilder.test.ts` if you change it.
  */
-export const CREATION_POINTS = 430;
+export const CREATION_POINTS = 520;
 
 export const MIN_CREATION_AGE = 16;
 export const MAX_CREATION_AGE = 34;

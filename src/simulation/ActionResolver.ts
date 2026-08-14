@@ -43,7 +43,12 @@ export const RESOLUTION_WEIGHTS = {
   tempo: 0.06,
   goalkeeper: 0.34,
   defenders: 0.3,
-  noiseSd: 0.1,
+  /**
+   * Execution jitter. Smaller than it was, because the goal probability curve
+   * below now carries most of the uncertainty; the value itself should be
+   * mostly a statement about the player and the situation.
+   */
+  noiseSd: 0.06,
   /**
    * Randomness is bounded, but the bound must not be so tight that an outcome
    * becomes arithmetically impossible — that turns thresholds into hard walls
@@ -61,6 +66,8 @@ export interface DecisionInput {
   window: number;
   /** True when the timer expired and an instinctive action was substituted. */
   expired: boolean;
+  /** True when playing without a time limit; tempo is then neutral. */
+  untimed?: boolean;
 }
 
 export interface ResolutionTerm {
@@ -123,7 +130,8 @@ export function executionQuality(
 
   // Deciding in the last sliver of the window is a rushed action.
   const lateness = decision.window > 0 ? decision.timeUsed / decision.window : 0;
-  const rushPenalty = !decision.expired && lateness > 0.85 ? 0.05 * (1 - composure) : 0;
+  const rushPenalty =
+    !decision.expired && !decision.untimed && lateness > 0.85 ? 0.05 * (1 - composure) : 0;
 
   return clamp01(raw - pressurePenalty - fatiguePenalty - expiredPenalty - rushPenalty + formBonus);
 }
@@ -139,6 +147,9 @@ export function tempoAdjustment(decision: DecisionInput): number {
   // Worse than the latest possible deliberate choice, but nowhere near a
   // guaranteed failure — see the expiry note in `executionQuality`.
   if (decision.expired) return -0.5;
+  // Without a clock there is no rushing and no dawdling: taking your time is
+  // the point of the mode, so it must not carry a hidden penalty.
+  if (decision.untimed) return 0;
   if (decision.window <= 0) return 0;
   const used = clamp01(decision.timeUsed / decision.window);
   if (used < 0.35) return 0.5;
@@ -213,6 +224,36 @@ function outcome(
   };
 }
 
+/**
+ * GOAL PROBABILITY
+ *
+ * A logistic curve over the resolution value, NOT a threshold.
+ *
+ * This replaced `value >= 0.70 -> goal`, which was quietly broken. Because the
+ * noise is clamped, a hard threshold near the top of the value distribution
+ * walls players out arithmetically rather than making them unlikely: a created
+ * 17-year-old striker converted a CLEAN one-on-one 3.7% of the time and could
+ * play two seasons without scoring, while the same threshold barely troubled a
+ * veteran. Player quality became hypersensitive — a tiny change in value swung
+ * conversion from impossible to routine.
+ *
+ * A curve keeps the same ordering (better players and better reads still score
+ * far more often) but nothing is ever impossible or certain. Calibrated so a
+ * clean one-on-one converts around 40% for a good finisher and around 20% for a
+ * raw teenager, which is roughly what real one-on-ones look like.
+ */
+export const GOAL_CURVE = { midpoint: 0.64, steepness: 11, min: 0.01, max: 0.88 } as const;
+
+export function shotGoalProbability(value: number): number {
+  const raw = 1 / (1 + Math.exp(-(value - GOAL_CURVE.midpoint) * GOAL_CURVE.steepness));
+  return clamp01(Math.min(GOAL_CURVE.max, Math.max(GOAL_CURVE.min, raw)));
+}
+
+/** Chance a completed pass into the final third actually creates something. */
+export function chanceCreationProbability(value: number): number {
+  return clamp01(1 / (1 + Math.exp(-(value - 0.6) * 9)));
+}
+
 /** Was this a chance the player really should have taken? */
 function isBigChance(context: SituationContext): boolean {
   return context.situationQuality >= 0.62;
@@ -266,9 +307,8 @@ function resolveShot(
   definition: ActionDefinition,
 ): EventOutcome {
   const big = isBigChance(context);
-  const missPenalty = big ? -0.65 : -0.25;
 
-  if (value >= 0.7) {
+  if (rng.chance(shotGoalProbability(value))) {
     return outcome('goal', `${player} goes for the ${label} — and it's in! GOAL!`, {
       goalScored: true,
       ratingDelta: 1.6,
@@ -276,15 +316,16 @@ function resolveShot(
     });
   }
 
-  if (value >= 0.655) {
+  // Not a goal. How it missed still depends on how good the attempt was.
+  if (value >= 0.55 && rng.chance(0.07)) {
     return outcome('post', `${player} tries the ${label} — off the woodwork!`, {
       ratingDelta: 0.1,
       stats: { shots: 1, bigChancesMissed: big ? 1 : 0 },
     });
   }
 
-  if (value >= 0.5) {
-    // On target, but the keeper gets there. Poor handling invites a rebound.
+  const onTarget = clamp01(0.2 + (value - 0.3) * 1.05);
+  if (rng.chance(onTarget)) {
     const handling = unit(context.goalkeeper.keeper.attributes.handling);
     const spilled = rng.chance(clamp01(0.4 - handling * 0.35));
     return outcome(
@@ -300,16 +341,9 @@ function resolveShot(
     );
   }
 
-  if (value >= 0.4 && definition.defenderRelevance >= 0.3 && context.nearbyDefenders > 0) {
+  if (context.nearbyDefenders > 0 && definition.defenderRelevance >= 0.3 && rng.chance(0.45)) {
     return outcome('blocked', `${player} shoots, but it's blocked by a defender.`, {
       ratingDelta: -0.1,
-      stats: { shots: 1, bigChancesMissed: big ? 1 : 0 },
-    });
-  }
-
-  if (value >= 0.33) {
-    return outcome('deflected', `${player}'s effort takes a deflection and loops away harmlessly.`, {
-      ratingDelta: -0.15,
       stats: { shots: 1, bigChancesMissed: big ? 1 : 0 },
     });
   }
@@ -320,7 +354,7 @@ function resolveShot(
       ? `${player} tries the ${label} — and drags it wide! A dreadful miss.`
       : `${player} tries the ${label}, but it's wide.`,
     {
-      ratingDelta: missPenalty,
+      ratingDelta: big ? -0.65 : -0.25,
       stats: { shots: 1, bigChancesMissed: big ? 1 : 0 },
     },
   );
@@ -415,7 +449,8 @@ function resolvePassOrCross(
   // including a one-on-one, which is both bad football and a degenerate
   // strategy. Creating a chance must be a good outcome, never a safer way of
   // scoring than shooting.
-  const dangerous = value >= 0.66 && context.zone.third === 'attacking';
+  const dangerous =
+    context.zone.third === 'attacking' && rng.chance(chanceCreationProbability(value));
   if (!dangerous) {
     return outcome(
       isCross ? 'crossCompleted' : 'passCompleted',

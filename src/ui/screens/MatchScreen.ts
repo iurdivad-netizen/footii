@@ -126,6 +126,7 @@ export class MatchScreen {
       const resolution = this.engine.submitDecision({
         option: decision.option,
         timeUsed: decision.timeUsed,
+        untimed: decision.untimed,
       });
       this.debug.recordResolution(resolution);
       this.overlay.hide();
