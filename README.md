@@ -59,6 +59,10 @@ Instead of a pre-built, you can build a footballer:
 
 The five pre-built players remain as ready-made archetypes.
 
+The creator is the **last** step, not a detour: club, seed and pace are chosen before you open it,
+so its button genuinely starts what it says — "Start career" begins the career, "Kick off" starts
+the match. **Back** returns to the configuration screen if you want to change club.
+
 ## How the game plays
 
 1. Choose Career or Quick match, then pick or build your player, your club and a match seed.

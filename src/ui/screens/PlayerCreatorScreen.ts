@@ -49,6 +49,8 @@ export class PlayerCreatorScreen {
   constructor(
     private readonly handlers: { onConfirm: (spec: CustomPlayerSpec) => void; onCancel: () => void },
     private readonly forCareer: boolean,
+    /** What finishing the creator will start, e.g. "Northport City". */
+    private readonly destination: string = '',
   ) {
     this.attributes = suggestedAttributes(this.position);
     this.styles = stylesForPosition(this.position);
@@ -99,11 +101,19 @@ export class PlayerCreatorScreen {
           <button id="cp-suggest" type="button">Reset to a ${''}sensible build</button>
           <button id="cp-cancel" type="button" class="ghost">Back</button>
           <button id="cp-confirm" type="button" class="primary">
-            ${this.forCareer ? 'Start career' : 'Use this player'}
+            ${this.forCareer ? 'Start career' : 'Kick off'}
           </button>
         </div>
       </div>
       <p class="creator-errors" id="cp-errors"></p>
+      ${
+        this.destination
+          ? `<p class="creator-destination">
+               ${this.forCareer ? 'Starting a career at' : 'Playing for'}
+               <strong>${this.destination}</strong>. Go back to change club.
+             </p>`
+          : ''
+      }
 
       <div class="creator-groups" id="cp-groups"></div>`;
 

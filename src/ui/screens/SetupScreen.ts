@@ -18,7 +18,11 @@ export interface SetupSelection {
 export interface SetupHandlers {
   mode: 'career' | 'quick';
   onStart: (selection: SetupSelection) => void;
-  onCreatePlayer: () => void;
+  /**
+   * Opens the creator. The current club/seed/pace selection travels with it so
+   * that finishing the creator can start the game directly.
+   */
+  onCreatePlayer: (selection: SetupSelection) => void;
   onBack: () => void;
   /** A custom player built this session, offered alongside the pre-builds. */
   customLabel?: string;
@@ -169,6 +173,6 @@ export class SetupScreen {
       .addEventListener('click', () => this.handlers.onBack());
     this.element
       .querySelector<HTMLButtonElement>('#create-player')!
-      .addEventListener('click', () => this.handlers.onCreatePlayer());
+      .addEventListener('click', () => this.handlers.onCreatePlayer(collect()));
   }
 }
