@@ -1223,3 +1223,13 @@ button.ghost {
     grid-template-columns: 1fr 28px 40px 24px 28px;
   }
 }
+
+.creator-destination {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin: 6px 0 0;
+}
+
+.creator-destination strong {
+  color: var(--accent);
+}

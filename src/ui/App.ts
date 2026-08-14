@@ -97,7 +97,7 @@ export class App {
       mode,
       onStart: (selection) =>
         mode === 'career' ? this.beginCareer(selection) : this.startQuickMatch(selection),
-      onCreatePlayer: () => this.showCreator(mode),
+      onCreatePlayer: (selection) => this.showCreator(mode, selection),
       onBack: () => this.showHome(),
       customLabel: this.customPlayer
         ? `${this.customPlayer.name} — ${this.customPlayer.position}, ${this.customPlayer.age} (yours)`
@@ -129,7 +129,16 @@ export class App {
     }
   }
 
-  private showCreator(mode: Mode): void {
+  /**
+   * The creator is the LAST step, not a detour.
+   *
+   * It used to hand you back to the configuration screen, so a button labelled
+   * "Start career" did not start a career — it dropped you on a settings page
+   * indistinguishable from the quick-match one. Club, seed and pace are already
+   * chosen before you get here, so finishing the creator now does exactly what
+   * its button says.
+   */
+  private showCreator(mode: Mode, selection: SetupSelection): void {
     this.mount(
       new PlayerCreatorScreen(
         {
@@ -137,11 +146,14 @@ export class App {
             // Potential is rolled once, here, and never shown.
             this.customPlayer = createCustomPlayer(new Rng(`${spec.name}:${Date.now()}`), spec);
             this.selectedPresetId = CUSTOM_PLAYER_ID;
-            this.showSetup(mode);
+            const withCustom: SetupSelection = { ...selection, presetId: CUSTOM_PLAYER_ID };
+            if (mode === 'career') this.beginCareer(withCustom);
+            else this.startQuickMatch(withCustom);
           },
           onCancel: () => this.showSetup(mode),
         },
         mode === 'career',
+        getTeam(selection.teamId).name,
       ).element,
     );
   }
