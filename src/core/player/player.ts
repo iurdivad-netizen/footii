@@ -31,6 +31,30 @@ export interface Player {
   fitness: number;
   /** 0-100 reputation, used later by the transfer system. */
   reputation: number;
+  /**
+   * Potential Ability, 1-99, on the same scale as `currentAbility()`.
+   * Hidden from the player. Deliberately not a hard ceiling — see
+   * core/career/development.ts.
+   */
+  potentialAbility: number;
+}
+
+/**
+ * Deep copy of a player.
+ *
+ * Career mode keeps ONE persistent player across many matches, while the match
+ * engine drains fitness as the game runs. Without a copy the engine would
+ * permanently mutate the saved career player: fitness would ratchet down and
+ * never recover, and a match abandoned halfway would leave the career in a
+ * corrupted state. The engine therefore plays a clone, and the career layer
+ * decides explicitly what carries back (see core/career/progression.ts).
+ */
+export function clonePlayer(player: Player): Player {
+  return {
+    ...player,
+    attributes: { ...player.attributes },
+    tendencies: { ...player.tendencies },
+  };
 }
 
 export interface PlayerInit {
@@ -45,6 +69,7 @@ export interface PlayerInit {
   morale?: number;
   fitness?: number;
   reputation?: number;
+  potentialAbility?: number;
   baseAttribute?: number;
 }
 
@@ -61,6 +86,7 @@ export function createPlayer(init: PlayerInit): Player {
     morale: init.morale ?? 50,
     fitness: init.fitness ?? 100,
     reputation: init.reputation ?? 40,
+    potentialAbility: init.potentialAbility ?? 70,
   };
 }
 
@@ -74,10 +100,23 @@ export function fatigueLevel(player: Player): number {
   return clamp01(raw * (1 - staminaRelief));
 }
 
+/**
+ * Fitness cost per minute of play, before stamina and intensity.
+ *
+ * CALIBRATION NOTE: this was 0.16, which cost only ~15 fitness over a full 90
+ * minutes. That left fatigue effectively inert — a 0.03s decision-timer penalty
+ * at the final whistle, and barely 0.02s between a Stamina 40 player and a
+ * Stamina 78 one — so the attribute did nothing and the career hub always
+ * reported full fitness. At 0.35 a full match costs roughly 30-40 fitness,
+ * tired legs are worth about a tenth of a second of thinking time, and Stamina
+ * is a reason to pick one player over another.
+ */
+export const EXERTION_PER_MINUTE = 0.35;
+
 /** Drain fitness for a passage of play. Higher stamina drains slower. */
 export function applyExertion(player: Player, minutes: number, intensity = 1): void {
   const staminaFactor = 1.35 - 0.7 * unit(player.attributes.stamina);
-  const drain = minutes * 0.16 * intensity * staminaFactor;
+  const drain = minutes * EXERTION_PER_MINUTE * intensity * staminaFactor;
   player.fitness = clamp(player.fitness - drain, 0, 100);
 }
 

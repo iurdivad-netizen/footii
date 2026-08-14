@@ -1,16 +1,19 @@
 import type { MatchStats } from '../core/match/matchStats.ts';
+import type { CareerState } from '../core/career/career.ts';
 
 /**
  * Persistence.
  *
- * LocalStorage only, behind a narrow interface, versioned from day one so that
- * career mode can migrate saves later instead of discarding them. Nothing in
- * `core/` or `simulation/` imports this file — the simulation never touches
- * storage directly.
+ * LocalStorage only, behind a narrow interface, versioned so saves can be
+ * migrated rather than discarded. Nothing in `core/` or `simulation/` imports
+ * this file — the simulation never touches storage directly.
+ *
+ * `CareerState` is deliberately plain data (no classes, no functions), so
+ * saving is `JSON.stringify` and loading needs no reconstruction.
  */
 
 const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export interface CareerRecord {
   matches: number;
@@ -31,6 +34,7 @@ export interface CareerRecord {
 
 export interface SaveData {
   version: number;
+  /** Running totals from one-off quick matches. */
   career: CareerRecord;
   lastSelection?: {
     presetId: string;
@@ -40,6 +44,8 @@ export interface SaveData {
     length: number;
     pace?: string;
   };
+  /** The in-progress career, if one has been started. */
+  careerState?: CareerState;
 }
 
 export function emptyCareer(): CareerRecord {
@@ -65,13 +71,35 @@ function defaultSave(): SaveData {
   return { version: SAVE_VERSION, career: emptyCareer() };
 }
 
+/**
+ * Bring an older save up to the current version.
+ * v1 had no career mode, so a v1 save is valid — it simply has no `careerState`.
+ * Returns null if the save is too damaged or too old to rescue.
+ */
+export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveData | null {
+  if (!parsed || typeof parsed !== 'object' || !parsed.career) return null;
+
+  let save = { ...defaultSave(), ...parsed } as SaveData;
+
+  if (parsed.version === 1) {
+    // v1 -> v2: quick-match totals are unchanged; there is simply no career yet.
+    save = { ...save, version: 2, careerState: undefined };
+  }
+
+  if (save.version !== SAVE_VERSION) return null;
+
+  // A career that predates a field must not crash the game.
+  if (save.careerState && !Array.isArray(save.careerState.history)) {
+    save.careerState.history = [];
+  }
+  return save;
+}
+
 export function loadSave(): SaveData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultSave();
-    const parsed = JSON.parse(raw) as Partial<SaveData>;
-    if (parsed.version !== SAVE_VERSION || !parsed.career) return defaultSave();
-    return { ...defaultSave(), ...parsed } as SaveData;
+    return migrate(JSON.parse(raw) as Partial<SaveData>) ?? defaultSave();
   } catch {
     // A corrupt save must never prevent the game from starting.
     return defaultSave();
@@ -84,6 +112,18 @@ export function writeSave(save: SaveData): void {
   } catch {
     // Storage can be unavailable (private mode, quota). The game plays on.
   }
+}
+
+export function saveCareer(save: SaveData, careerState: CareerState): SaveData {
+  const updated: SaveData = { ...save, careerState };
+  writeSave(updated);
+  return updated;
+}
+
+export function clearCareer(save: SaveData): SaveData {
+  const updated: SaveData = { ...save, careerState: undefined };
+  writeSave(updated);
+  return updated;
 }
 
 export function recordMatch(

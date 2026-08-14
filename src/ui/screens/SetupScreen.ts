@@ -13,11 +13,19 @@ export interface SetupSelection {
   pace: DecisionPace;
 }
 
-/** Team selection, player selection and the match seed. */
+export interface SetupHandlers {
+  onQuickMatch: (selection: SetupSelection) => void;
+  onStartCareer: (selection: SetupSelection) => void;
+  /** Present only when a career is already in progress. */
+  onContinueCareer?: () => void;
+  careerSummary?: string;
+}
+
+/** Team selection, player selection, match seed, and the two entry points. */
 export class SetupScreen {
   readonly element: HTMLElement;
 
-  constructor(private readonly onStart: (selection: SetupSelection) => void) {
+  constructor(private readonly handlers: SetupHandlers) {
     this.element = document.createElement('section');
     this.element.className = 'screen setup-screen';
     this.element.innerHTML = `
@@ -46,7 +54,7 @@ export class SetupScreen {
         </div>
 
         <div class="field">
-          <label for="opponent">Opponent</label>
+          <label for="opponent">Opponent <span class="field-note">(single match only)</span></label>
           <select id="opponent">
             ${TEAMS.map(
               (t) =>
@@ -87,7 +95,24 @@ export class SetupScreen {
         </div>
       </div>
 
-      <button class="primary" id="kick-off">Kick off</button>
+      <div class="setup-actions">
+        <button class="primary" id="start-career">Start a career</button>
+        <button id="kick-off">Play a single match</button>
+      </div>
+      <p class="hint">
+        A career follows one footballer season by season: your ratings drive development, and as
+        your awareness, composure and decision making grow you get measurably more time on the ball.
+      </p>
+
+      ${
+        handlers.onContinueCareer
+          ? `<div class="continue-career">
+               <h2>Career in progress</h2>
+               <p>${handlers.careerSummary ?? ''}</p>
+               <button class="primary" id="continue-career">Continue career</button>
+             </div>`
+          : ''
+      }
 
       <div class="setup-notes">
         <h2>How it works</h2>
@@ -111,20 +136,30 @@ export class SetupScreen {
     presetSelect.addEventListener('change', updateDescription);
     updateDescription();
 
-    this.element.querySelector<HTMLButtonElement>('#kick-off')!.addEventListener('click', () => {
+    const collect = (): SetupSelection => {
       const teamId = this.element.querySelector<HTMLSelectElement>('#team')!.value;
       let opponentId = this.element.querySelector<HTMLSelectElement>('#opponent')!.value;
       if (opponentId === teamId) {
         opponentId = TEAMS.find((t) => t.id !== teamId)!.id;
       }
-      this.onStart({
+      return {
         presetId: presetSelect.value,
         teamId,
         opponentId,
         seed: this.element.querySelector<HTMLInputElement>('#seed')!.value.trim() || 'footii',
         length: Number(this.element.querySelector<HTMLSelectElement>('#length')!.value),
         pace: this.element.querySelector<HTMLSelectElement>('#pace')!.value as DecisionPace,
-      });
-    });
+      };
+    };
+
+    this.element
+      .querySelector<HTMLButtonElement>('#kick-off')!
+      .addEventListener('click', () => this.handlers.onQuickMatch(collect()));
+    this.element
+      .querySelector<HTMLButtonElement>('#start-career')!
+      .addEventListener('click', () => this.handlers.onStartCareer(collect()));
+    this.element
+      .querySelector<HTMLButtonElement>('#continue-career')
+      ?.addEventListener('click', () => this.handlers.onContinueCareer?.());
   }
 }

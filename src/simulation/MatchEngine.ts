@@ -1,6 +1,7 @@
 import { clamp01, unit } from '../core/util/math.ts';
 import { Rng } from '../core/rng.ts';
-import { applyExertion } from '../core/player/player.ts';
+import { applyExertion, clonePlayer } from '../core/player/player.ts';
+import type { Player } from '../core/player/player.ts';
 import { teamStrength } from '../core/team/team.ts';
 import type { ActionOption, SituationContext } from '../core/events/types.ts';
 import type { MatchSetup, MatchState } from '../core/match/matchState.ts';
@@ -81,12 +82,18 @@ export interface EventResolution {
 export class MatchEngine {
   readonly state: MatchState;
   readonly setup: MatchSetup;
+  /**
+   * The player as he exists FOR THIS MATCH. A clone, so that draining fitness
+   * over 90 minutes never mutates the persistent career player.
+   */
+  readonly matchPlayer: Player;
   private readonly rng: Rng;
   private pendingEvent: InteractiveEvent | null = null;
   private eventCounter = 0;
 
   constructor(setup: MatchSetup, seed: string | number = 'match') {
     this.setup = setup;
+    this.matchPlayer = clonePlayer(setup.player);
     this.rng = new Rng(seed);
     this.state = createMatchState();
     pushCommentary(
@@ -120,7 +127,7 @@ export class MatchEngine {
 
     this.state.minute += 1;
     this.state.stats.minutes = this.state.minute;
-    applyExertion(this.setup.player, 1, 1 + unit(this.setup.opponent.ratings.pressing) * 0.4);
+    applyExertion(this.matchPlayer, 1, 1 + unit(this.setup.opponent.ratings.pressing) * 0.4);
 
     if (this.state.minute > this.setup.length) {
       this.state.finished = true;
@@ -131,14 +138,14 @@ export class MatchEngine {
     const playerTeamHasBall = this.rng.chance(this.possessionShare());
 
     if (playerTeamHasBall) {
-      const involvement = involvementChance(this.setup.player, this.setup.playerTeam) * EVENT_RATE;
+      const involvement = involvementChance(this.matchPlayer, this.setup.playerTeam) * EVENT_RATE;
       if (this.rng.chance(involvement)) {
         return this.createInteractiveEvent(false);
       }
       this.simulateBackgroundAttack(true);
     } else {
       const involvement =
-        involvementChance(this.setup.player, this.setup.playerTeam, true) * EVENT_RATE * 0.5;
+        involvementChance(this.matchPlayer, this.setup.playerTeam, true) * EVENT_RATE * 0.5;
       if (this.rng.chance(involvement)) {
         return this.createInteractiveEvent(true);
       }
@@ -181,7 +188,7 @@ export class MatchEngine {
     const defendingTeam = defending ? this.setup.playerTeam : this.setup.opponent;
 
     const { type, context } = generateSituation(this.rng, {
-      player: this.setup.player,
+      player: this.matchPlayer,
       attackingTeam,
       defendingTeam,
       goalkeeper: defending ? this.setup.ownGoalkeeper : this.setup.opponentGoalkeeper,

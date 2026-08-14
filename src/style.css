@@ -733,3 +733,244 @@ kbd {
   color: var(--text-dim);
   margin: 4px 0;
 }
+
+/* ------------------------------------------------------------- career --- */
+
+.setup-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.setup-actions .primary {
+  width: auto;
+  flex: 1 1 220px;
+}
+
+.setup-actions button:not(.primary) {
+  flex: 1 1 180px;
+  padding: 14px 20px;
+}
+
+.field-note {
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.7;
+}
+
+.continue-career {
+  margin-top: 22px;
+  padding: 16px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: rgba(74, 222, 128, 0.07);
+}
+
+.continue-career h2 {
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+
+.continue-career p {
+  margin: 0 0 12px;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.career-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 14px;
+}
+
+.career-header h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 5vw, 2.1rem);
+}
+
+.career-sub {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+
+.career-ability {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ability-value {
+  font-family: var(--mono);
+  font-size: 2.4rem;
+  color: var(--goal);
+  line-height: 1;
+}
+
+.ability-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+}
+
+.career-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+
+.career-grid.wide {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.career-card {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+.career-card h2 {
+  margin: 0 0 10px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+
+.fixture {
+  font-size: 1.15rem;
+  margin: 0 0 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.venue {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.career-done {
+  color: var(--goal);
+  margin-top: 0;
+}
+
+.league-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+
+.league-table th {
+  text-align: left;
+  color: var(--text-dim);
+  font-weight: 500;
+  border-bottom: 1px solid var(--line);
+  padding: 4px 3px;
+}
+
+.league-table td {
+  padding: 4px 3px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.league-table tr.own td {
+  color: var(--accent);
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.attr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.attr-row {
+  display: grid;
+  grid-template-columns: 1fr 90px 28px;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+
+.attr-name {
+  color: var(--text-dim);
+}
+
+.attr-bar {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.attr-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.attr-value {
+  font-family: var(--mono);
+  text-align: right;
+}
+
+.development-banner {
+  border: 1px solid var(--goal);
+  background: rgba(250, 204, 21, 0.08);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 16px 0;
+}
+
+.development-banner h2 {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--goal);
+}
+
+.development-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+
+.development-list .up {
+  color: var(--accent);
+}
+
+.development-list .down {
+  color: #fca5a5;
+}
+
+button.ghost {
+  background: transparent;
+  color: var(--text-dim);
+  border-color: var(--line);
+  margin-top: 8px;
+}

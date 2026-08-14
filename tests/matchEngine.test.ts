@@ -101,10 +101,27 @@ describe('match engine', () => {
     expect(perMatch).toBeLessThan(7);
   });
 
-  it('drains fitness over 90 minutes', () => {
+  it('drains the match player fitness over 90 minutes', () => {
     const { engine } = playMatch('fitness');
-    expect(engine.setup.player.fitness).toBeLessThan(100);
-    expect(engine.setup.player.fitness).toBeGreaterThanOrEqual(0);
+    expect(engine.matchPlayer.fitness).toBeLessThan(100);
+    expect(engine.matchPlayer.fitness).toBeGreaterThanOrEqual(0);
+  });
+
+  it('never mutates the persistent career player', () => {
+    const config = setup();
+    const before = JSON.parse(JSON.stringify(config.player));
+    const engine = new MatchEngine(config, 'no-mutation');
+    let guard = 0;
+    while (!engine.state.finished && guard++ < 5000) {
+      const update = engine.step();
+      if (update.kind === 'interactive') {
+        engine.submitDecision({ option: update.event.options[0]!, timeUsed: 0.5 });
+      }
+    }
+    // The engine plays a clone: fitness drained there, career player untouched.
+    expect(engine.matchPlayer.fitness).toBeLessThan(100);
+    expect(config.player).toEqual(before);
+    expect(config.player.attributes).not.toBe(engine.matchPlayer.attributes);
   });
 
   it('resolves an expired timer without a chosen option', () => {
