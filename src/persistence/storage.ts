@@ -1,5 +1,6 @@
 import type { MatchStats } from '../core/match/matchStats.ts';
 import type { CareerState } from '../core/career/career.ts';
+import { currentAbility } from '../core/player/player.ts';
 
 /**
  * Persistence.
@@ -13,7 +14,7 @@ import type { CareerState } from '../core/career/career.ts';
  */
 
 const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export interface CareerRecord {
   matches: number;
@@ -84,6 +85,20 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
   if (parsed.version === 1) {
     // v1 -> v2: quick-match totals are unchanged; there is simply no career yet.
     save = { ...save, version: 2, careerState: undefined };
+  }
+
+  if (save.version === 2) {
+    // v2 -> v3: careers gained a season-start snapshot and training points.
+    // Backfill from the current player so an in-progress career survives; its
+    // first review will simply report no change for the season already underway.
+    const career = save.careerState;
+    if (career) {
+      career.seasonStartAttributes ??= { ...career.player.attributes };
+      career.seasonStartAbility ??= currentAbility(career.player);
+      career.seasonStartExperience ??= career.player.experience;
+      career.trainingPoints ??= 0;
+    }
+    save = { ...save, version: 3 };
   }
 
   if (save.version !== SAVE_VERSION) return null;

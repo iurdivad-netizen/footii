@@ -1,4 +1,5 @@
 import type { SeasonRecord } from '../../core/career/career.ts';
+import type { SeasonProgress } from '../../core/career/training.ts';
 import { averageRating, goalContributions } from '../../core/career/seasonStats.ts';
 import { getTeam } from '../../data/gameData.ts';
 
@@ -8,7 +9,16 @@ export class SeasonReviewScreen {
 
   constructor(
     record: SeasonRecord,
-    context: { champion: string; leagueSize: number; newAge: number; potentialHint: string },
+    context: {
+      champion: string;
+      leagueSize: number;
+      newAge: number;
+      potentialHint: string;
+      progress: SeasonProgress;
+      /** The season before this one, for a like-for-like comparison. */
+      previous?: SeasonRecord;
+      trainingPoints: number;
+    },
     onContinue: () => void,
   ) {
     const stats = record.stats;
@@ -59,7 +69,16 @@ export class SeasonReviewScreen {
         </div>
       </div>
 
-      <button class="primary" id="continue-career">Start season ${record.seasonNumber + 1}</button>`;
+      ${renderProgress(context.progress)}
+      ${renderComparison(record, context.previous)}
+
+      <button class="primary" id="continue-career">
+        ${
+          context.trainingPoints > 0
+            ? `Pre-season training — ${context.trainingPoints} points`
+            : `Start season ${record.seasonNumber + 1}`
+        }
+      </button>`;
 
     this.element
       .querySelector<HTMLButtonElement>('#continue-career')!
@@ -70,4 +89,88 @@ export class SeasonReviewScreen {
 function ordinal(n: number): string {
   const suffix = ['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) || n % 10 > 3 ? 0 : n % 10];
   return `${n}${suffix}`;
+}
+
+/**
+ * How the player changed across the season.
+ *
+ * The decision window is listed first and deliberately given the most weight:
+ * ability is an abstraction, but "you now get half a second longer on the ball"
+ * is the thing you actually experience in the next match.
+ */
+function renderProgress(progress: SeasonProgress): string {
+  const windowDelta = progress.windowAfter - progress.windowBefore;
+  const abilityDelta = progress.abilityAfter - progress.abilityBefore;
+  const experienceDelta = Math.round(progress.experienceAfter - progress.experienceBefore);
+
+  const changes = progress.changes
+    .map((c) => {
+      const delta = c.to - c.from;
+      return `<li class="${delta > 0 ? 'up' : 'down'}">
+          ${c.label} ${c.from} → <strong>${c.to}</strong>
+          <span class="delta">${delta > 0 ? '+' : ''}${delta}</span>
+        </li>`;
+    })
+    .join('');
+
+  return `
+    <div class="progress-panel">
+      <h2>How you developed</h2>
+      <div class="progress-headline">
+        <div class="progress-stat ${windowDelta > 0 ? 'good' : windowDelta < 0 ? 'bad' : ''}">
+          <span class="progress-value">${progress.windowBefore.toFixed(2)}s → ${progress.windowAfter.toFixed(2)}s</span>
+          <span class="progress-label">Decision window in a standard one-on-one</span>
+        </div>
+        <div class="progress-stat ${abilityDelta > 0 ? 'good' : abilityDelta < 0 ? 'bad' : ''}">
+          <span class="progress-value">${progress.abilityBefore} → ${progress.abilityAfter}</span>
+          <span class="progress-label">Overall ability</span>
+        </div>
+        <div class="progress-stat">
+          <span class="progress-value">+${experienceDelta}</span>
+          <span class="progress-label">Experience</span>
+        </div>
+      </div>
+      ${
+        changes
+          ? `<ul class="progress-changes">${changes}</ul>`
+          : '<p class="hint">No attribute changes this season.</p>'
+      }
+    </div>`;
+}
+
+/** Season-on-season comparison, once there is something to compare against. */
+function renderComparison(record: SeasonRecord, previous?: SeasonRecord): string {
+  if (!previous) return '';
+  const rows: [string, number, number][] = [
+    ['Appearances', previous.stats.matches, record.stats.matches],
+    ['Goals', previous.stats.goals, record.stats.goals],
+    ['Assists', previous.stats.assists, record.stats.assists],
+    ['Key passes', previous.stats.keyPasses, record.stats.keyPasses],
+    ['Average rating', averageRating(previous.stats), averageRating(record.stats)],
+    ['League position', previous.position, record.position],
+  ];
+
+  return `
+    <div class="career-card">
+      <h2>Compared with season ${previous.seasonNumber}</h2>
+      <table class="league-table">
+        <thead><tr><th></th><th>S${previous.seasonNumber}</th><th>S${record.seasonNumber}</th><th></th></tr></thead>
+        <tbody>
+          ${rows
+            .map(([label, before, after]) => {
+              // For league position, lower is better.
+              const improved = label === 'League position' ? after < before : after > before;
+              const worse = label === 'League position' ? after > before : after < before;
+              const arrow = improved ? '▲' : worse ? '▼' : '–';
+              return `<tr>
+                  <td>${label}</td>
+                  <td>${before}</td>
+                  <td><strong>${after}</strong></td>
+                  <td class="${improved ? 'trend-up' : worse ? 'trend-down' : ''}">${arrow}</td>
+                </tr>`;
+            })
+            .join('')}
+        </tbody>
+      </table>
+    </div>`;
 }

@@ -1,5 +1,10 @@
 import { Rng } from '../core/rng.ts';
 import type { Player } from '../core/player/player.ts';
+import { currentAbility } from '../core/player/player.ts';
+import { ATTRIBUTE_LABELS } from '../core/player/attributes.ts';
+import type { SeasonProgress } from '../core/career/training.ts';
+import { calculateTrainingPoints, summariseProgress } from '../core/career/training.ts';
+import { benchmarkDecisionWindow } from './DecisionBenchmark.ts';
 import type { Team } from '../core/team/team.ts';
 import type { CareerState, SeasonRecord } from '../core/career/career.ts';
 import {
@@ -57,6 +62,10 @@ export function startCareer(options: StartCareerOptions): CareerState {
     seed: options.seed,
     lastDevelopment: [],
     fitness: 100,
+    seasonStartAttributes: { ...options.player.attributes },
+    seasonStartAbility: currentAbility(options.player),
+    seasonStartExperience: options.player.experience,
+    trainingPoints: 0,
   };
 }
 
@@ -162,6 +171,11 @@ export interface SeasonEnd {
   record: SeasonRecord;
   position: number;
   champion: string;
+  /** How the player changed across the season just completed. */
+  progress: SeasonProgress;
+  /** Points earned for pre-season training. */
+  trainingAwarded: number;
+  trainingNotes: string[];
 }
 
 /**
@@ -177,6 +191,27 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   const position = tablePosition(state.table, state.clubId);
   const champion = sortTable(state.table)[0]?.teamId ?? state.clubId;
 
+  // Captured BEFORE advanceSeason re-baselines the snapshot and ages the player.
+  const progress: SeasonProgress = {
+    abilityBefore: state.seasonStartAbility,
+    abilityAfter: currentAbility(state.player),
+    experienceBefore: state.seasonStartExperience,
+    experienceAfter: state.player.experience,
+    windowBefore: benchmarkDecisionWindow({
+      ...state.player,
+      attributes: state.seasonStartAttributes,
+      experience: state.seasonStartExperience,
+    }),
+    windowAfter: benchmarkDecisionWindow(state.player),
+    changes: summariseProgress(
+      state.seasonStartAttributes,
+      state.player.attributes,
+      ATTRIBUTE_LABELS,
+    ),
+  };
+
+  const award = calculateTrainingPoints(state.player, state.seasonStats);
+
   const rng = new Rng(`${state.seed}:s${state.seasonNumber}:end`);
   const nextRng = new Rng(`${state.seed}:season:${state.seasonNumber + 1}`);
   const record = advanceSeason(rng, state, position, {
@@ -185,7 +220,17 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     leagueTeamIds: state.leagueTeamIds,
   });
 
-  return { record, position, champion };
+  // Unspent points are never banked; a fresh award replaces whatever was left.
+  state.trainingPoints = award.points;
+
+  return {
+    record,
+    position,
+    champion,
+    progress,
+    trainingAwarded: award.points,
+    trainingNotes: award.notes,
+  };
 }
 
 export function playerFixtures(state: CareerState): Fixture[] {

@@ -5,6 +5,7 @@ import { currentAbility } from '../player/player.ts';
 import type { MatchStats } from '../match/matchStats.ts';
 import type { AttributeChange, DevelopmentState } from './development.ts';
 import { createDevelopmentState, developAfterMatch, driftPotential } from './development.ts';
+import type { Attributes } from '../player/attributes.ts';
 import type { Fixture, FixtureResult, TableRow } from './league.ts';
 import { createSeasonStats } from './seasonStats.ts';
 import type { SeasonStats } from './seasonStats.ts';
@@ -49,6 +50,16 @@ export interface CareerState {
   lastDevelopment: AttributeChange[];
   /** Fitness carried between matches, 0-100. */
   fitness: number;
+  /**
+   * Snapshot of the player as the season began, so the end-of-season review can
+   * show exactly how far he came. Taken here rather than derived from history,
+   * because history stores statistics, not attributes.
+   */
+  seasonStartAttributes: Attributes;
+  seasonStartAbility: number;
+  seasonStartExperience: number;
+  /** Unspent pre-season training points. */
+  trainingPoints: number;
 }
 
 /** How much fitness a player recovers between fixtures. */
@@ -192,6 +203,12 @@ export function advanceSeason(
   state.lastDevelopment = [];
   state.fitness = 100;
   state.player.fitness = 100;
+
+  // Re-baseline for the new season. Note this happens AFTER ageing and
+  // potential drift, so next season's review measures the new season only.
+  state.seasonStartAttributes = { ...state.player.attributes };
+  state.seasonStartAbility = currentAbility(state.player);
+  state.seasonStartExperience = state.player.experience;
 
   return record;
 }
