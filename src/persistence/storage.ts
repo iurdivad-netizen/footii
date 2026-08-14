@@ -38,6 +38,7 @@ export interface SaveData {
     opponentId: string;
     seed: string;
     length: number;
+    pace?: string;
   };
 }
 

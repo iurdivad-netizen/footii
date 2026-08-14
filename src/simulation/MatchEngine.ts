@@ -184,7 +184,7 @@ export class MatchEngine {
     });
 
     const template = getSituationTemplate(type);
-    const timer = calculateDecisionTime(context, template);
+    const timer = calculateDecisionTime(context, template, this.setup.paceScale ?? 1);
 
     // The keeper's commit moment was seeded from the template's base time;
     // rescale it onto the real window so it always lands inside the window.

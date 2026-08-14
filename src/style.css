@@ -443,6 +443,39 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 
+/* The "set" phase: options readable, clock not yet running. */
+.set-label {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--warn);
+  text-align: center;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  min-height: 1.1em;
+  margin: -6px 0 8px;
+}
+
+.event-overlay.setting .timer-bar span {
+  background: var(--warn);
+  opacity: 0.55;
+}
+
+/* A short flash as the clock starts, so the transition is unmissable. */
+.event-overlay:not(.setting) .timer-bar span {
+  animation: clock-start 260ms ease;
+}
+
+@keyframes clock-start {
+  from {
+    background: var(--warn);
+    filter: brightness(1.8);
+  }
+  to {
+    background: var(--accent);
+    filter: brightness(1);
+  }
+}
+
 .option-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
