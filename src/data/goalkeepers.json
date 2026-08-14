@@ -1,0 +1,122 @@
+[
+  {
+    "id": "marek-vostry",
+    "name": "Marek Vostrý",
+    "teamId": "castleford-royals",
+    "attributes": {
+      "reflexes": 88,
+      "positioning": 86,
+      "anticipation": 84,
+      "oneOnOne": 85,
+      "aggression": 62,
+      "decisionMaking": 84,
+      "handling": 86,
+      "distribution": 80
+    }
+  },
+  {
+    "id": "tomas-halle",
+    "name": "Tomas Halle",
+    "teamId": "ashford-united",
+    "attributes": {
+      "reflexes": 78,
+      "positioning": 74,
+      "anticipation": 72,
+      "oneOnOne": 70,
+      "aggression": 78,
+      "decisionMaking": 70,
+      "handling": 74,
+      "distribution": 78
+    }
+  },
+  {
+    "id": "danny-orme",
+    "name": "Danny Orme",
+    "teamId": "kingsbridge",
+    "attributes": {
+      "reflexes": 72,
+      "positioning": 58,
+      "anticipation": 62,
+      "oneOnOne": 74,
+      "aggression": 88,
+      "decisionMaking": 60,
+      "handling": 66,
+      "distribution": 70
+    }
+  },
+  {
+    "id": "peter-hallam",
+    "name": "Peter Hallam",
+    "teamId": "vale-park",
+    "attributes": {
+      "reflexes": 62,
+      "positioning": 64,
+      "anticipation": 58,
+      "oneOnOne": 60,
+      "aggression": 50,
+      "decisionMaking": 58,
+      "handling": 60,
+      "distribution": 56
+    }
+  },
+  {
+    "id": "ade-kolawole",
+    "name": "Ade Kolawole",
+    "teamId": "brackenmoor",
+    "attributes": {
+      "reflexes": 66,
+      "positioning": 48,
+      "anticipation": 50,
+      "oneOnOne": 58,
+      "aggression": 72,
+      "decisionMaking": 46,
+      "handling": 52,
+      "distribution": 60
+    }
+  },
+  {
+    "id": "grant-mccall",
+    "name": "Grant McCall",
+    "teamId": "seaton-athletic",
+    "attributes": {
+      "reflexes": 58,
+      "positioning": 70,
+      "anticipation": 66,
+      "oneOnOne": 54,
+      "aggression": 34,
+      "decisionMaking": 64,
+      "handling": 62,
+      "distribution": 44
+    }
+  },
+  {
+    "id": "leon-arbuthnot",
+    "name": "Leon Arbuthnot",
+    "teamId": "northport-city",
+    "attributes": {
+      "reflexes": 60,
+      "positioning": 56,
+      "anticipation": 54,
+      "oneOnOne": 62,
+      "aggression": 64,
+      "decisionMaking": 52,
+      "handling": 54,
+      "distribution": 58
+    }
+  },
+  {
+    "id": "wes-tunnicliffe",
+    "name": "Wes Tunnicliffe",
+    "teamId": "old-harbour",
+    "attributes": {
+      "reflexes": 54,
+      "positioning": 44,
+      "anticipation": 42,
+      "oneOnOne": 50,
+      "aggression": 58,
+      "decisionMaking": 42,
+      "handling": 46,
+      "distribution": 48
+    }
+  }
+]

@@ -1,0 +1,21 @@
+{
+  "name": "footii",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A browser-based football career game built around short, skill-based decision moments.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.4"
+  }
+}

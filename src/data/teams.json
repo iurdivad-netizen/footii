@@ -1,0 +1,168 @@
+[
+  {
+    "id": "northport-city",
+    "name": "Northport City",
+    "shortName": "NPC",
+    "style": "counterattack",
+    "colour": "#e2574c",
+    "base": 58,
+    "ratings": {
+      "attack": 62,
+      "midfield": 57,
+      "defence": 56,
+      "possession": 46,
+      "tempo": 72,
+      "counterattack": 78,
+      "creativity": 58,
+      "crossing": 55,
+      "width": 60,
+      "pressing": 58,
+      "defensiveIntensity": 60
+    }
+  },
+  {
+    "id": "ashford-united",
+    "name": "Ashford United",
+    "shortName": "ASH",
+    "style": "possession",
+    "colour": "#4aa3ff",
+    "base": 70,
+    "ratings": {
+      "attack": 74,
+      "midfield": 78,
+      "defence": 70,
+      "possession": 82,
+      "passing": 80,
+      "tempo": 55,
+      "creativity": 76,
+      "crossing": 58,
+      "width": 55,
+      "pressing": 68,
+      "defensiveIntensity": 64
+    }
+  },
+  {
+    "id": "brackenmoor",
+    "name": "Brackenmoor Rovers",
+    "shortName": "BRK",
+    "style": "widePlay",
+    "colour": "#f2c14e",
+    "base": 55,
+    "ratings": {
+      "attack": 58,
+      "midfield": 54,
+      "defence": 53,
+      "possession": 50,
+      "crossing": 78,
+      "width": 82,
+      "tempo": 62,
+      "creativity": 52,
+      "pressing": 50,
+      "defensiveIntensity": 55
+    }
+  },
+  {
+    "id": "seaton-athletic",
+    "name": "Seaton Athletic",
+    "shortName": "SEA",
+    "style": "defensive",
+    "colour": "#6c7a89",
+    "base": 50,
+    "ratings": {
+      "attack": 44,
+      "midfield": 48,
+      "defence": 62,
+      "possession": 38,
+      "tempo": 44,
+      "creativity": 40,
+      "crossing": 48,
+      "width": 44,
+      "pressing": 42,
+      "defensiveIntensity": 74
+    }
+  },
+  {
+    "id": "kingsbridge",
+    "name": "Kingsbridge FC",
+    "shortName": "KNG",
+    "style": "highPress",
+    "colour": "#2ecc71",
+    "base": 66,
+    "ratings": {
+      "attack": 70,
+      "midfield": 68,
+      "defence": 64,
+      "possession": 62,
+      "tempo": 78,
+      "pressing": 86,
+      "defensiveIntensity": 80,
+      "creativity": 64,
+      "counterattack": 66,
+      "crossing": 58,
+      "width": 62
+    }
+  },
+  {
+    "id": "old-harbour",
+    "name": "Old Harbour Town",
+    "shortName": "OHT",
+    "style": "direct",
+    "colour": "#9b59b6",
+    "base": 52,
+    "ratings": {
+      "attack": 56,
+      "midfield": 48,
+      "defence": 52,
+      "possession": 40,
+      "tempo": 74,
+      "passing": 44,
+      "crossing": 64,
+      "width": 66,
+      "creativity": 44,
+      "pressing": 54,
+      "defensiveIntensity": 58
+    }
+  },
+  {
+    "id": "vale-park",
+    "name": "Vale Park Wanderers",
+    "shortName": "VPW",
+    "style": "balanced",
+    "colour": "#e67e22",
+    "base": 60,
+    "ratings": {
+      "attack": 60,
+      "midfield": 61,
+      "defence": 59,
+      "possession": 58,
+      "tempo": 60,
+      "creativity": 60,
+      "crossing": 60,
+      "width": 58,
+      "pressing": 58,
+      "defensiveIntensity": 58
+    }
+  },
+  {
+    "id": "castleford-royals",
+    "name": "Castleford Royals",
+    "shortName": "CAS",
+    "style": "possession",
+    "colour": "#1abc9c",
+    "base": 82,
+    "ratings": {
+      "attack": 86,
+      "midfield": 88,
+      "defence": 84,
+      "possession": 88,
+      "passing": 88,
+      "tempo": 62,
+      "creativity": 88,
+      "crossing": 68,
+      "width": 62,
+      "pressing": 78,
+      "defensiveIntensity": 76,
+      "counterattack": 70
+    }
+  }
+]
