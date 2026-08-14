@@ -384,10 +384,38 @@ kbd {
   border-color: var(--danger);
 }
 
-.event-headline {
-  font-size: clamp(1rem, 3.4vw, 1.2rem);
+/* Build-up narration: beats appear one at a time before the options. */
+.event-story {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-height: 4.6em;
+}
+
+.event-story .beat {
+  font-size: clamp(0.9rem, 3vw, 1rem);
+  line-height: 1.4;
+  color: var(--text-dim);
+  margin-bottom: 3px;
+  animation: beat-in 220ms ease;
+}
+
+/* The last beat is the situation itself, and lands with the options. */
+.event-story .beat-situation {
+  color: var(--text);
   font-weight: 600;
-  line-height: 1.35;
+  font-size: clamp(1rem, 3.4vw, 1.15rem);
+}
+
+@keyframes beat-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .event-subline {
@@ -480,6 +508,36 @@ kbd {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
+}
+
+/*
+ * Concealed options: the numbered 3x2 grid is still laid out during the
+ * build-up, so the shape of the interface is familiar and nothing jumps when
+ * the labels arrive — but the labels themselves give nothing away.
+ */
+.option-grid.concealed .option-label {
+  visibility: hidden;
+}
+
+.option-grid.concealed .option {
+  opacity: 0.4;
+  border-style: dashed;
+  cursor: default;
+}
+
+.option-grid:not(.concealed) .option {
+  animation: option-reveal 200ms ease;
+}
+
+@keyframes option-reveal {
+  from {
+    opacity: 0.4;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .option {

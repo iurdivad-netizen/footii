@@ -1,56 +1,67 @@
-import type { ActionOption } from '../../core/events/types.ts';
-
 /**
- * READING TIME (the "set" phase)
+ * EVENT PACING (the three phases of an interactive moment)
  *
- * THE PROBLEM THIS SOLVES
+ *   1. BUILD-UP  — the chance's story is told a beat at a time. No options are
+ *                  visible. This is where the context arrives: where you are,
+ *                  who is near you, how fast the move is.
+ *   2. SCAN      — the six options appear. The clock is not running yet, but
+ *                  this beat is deliberately SHORT.
+ *   3. DECISION  — the attribute-driven window runs and the keeper commits.
  *
- * The decision timer models how long the FOOTBALLER has to perceive a situation
- * and act. But the human at the keyboard is paying a second, completely
- * different cost: physically reading six freshly generated option labels.
+ * WHY THE SCAN BEAT EXISTS AT ALL
  *
- * Those are not the same thing. A real footballer does not read his options —
- * he already knows them. Charging the human's reading time against the
- * player's composure budget conflates a UI cost with a simulated one, and it
- * makes low-attribute players unplayable rather than merely frantic:
- * measured over 250 events, an 18-year-old's median window was 1.04s against
- * roughly 94 characters of option text, which takes ~3.8s to read.
+ * The decision timer models how long the FOOTBALLER has to act. The human is
+ * also paying a separate cost: physically reading six freshly generated labels.
+ * Measured over 257 events, an 18-year-old's median window was 1.04s against
+ * ~94 characters of option text — around 3.8s of reading. Revealing the options
+ * at the exact instant the clock starts puts that cost straight back onto the
+ * window and makes low-attribute players unplayable again.
  *
- * THE FIX
+ * The scan beat is much shorter than the old combined "set" phase, because the
+ * build-up has already delivered the situational context that previously had to
+ * be absorbed alongside the option text. It is only the time to take in six
+ * short labels you have mostly seen before.
  *
- * The event opens in a "set" phase: the situation and all six options are fully
- * visible and selectable, but the decision clock has not started. Once it
- * elapses, the attribute-driven window begins and the keeper starts to move.
- *
- * This keeps the simulation honest — the decision window still means exactly
- * what it meant before — while making the game fair to read. It lives in the
- * UI layer on purpose: it is a property of the interface, not of football, and
- * nothing in `core/` or `simulation/` knows about it.
+ * Set SCAN_SECONDS to 0 for a pure "options and clock together" version.
  */
 
-/** Seconds of orientation before any reading, for the pitch view and headline. */
-export const BASE_SET_TIME = 0.85;
+/**
+ * Seconds each narration beat is held before the next one appears.
+ * Deliberately unhurried: the build-up is where the tension is manufactured,
+ * and a chance you watch develop has more weight than one that just appears.
+ */
+export const BEAT_SECONDS = 0.85;
+
+/** The build-up never runs shorter or longer than this, whatever the beat count. */
+export const MIN_BUILD_UP_TIME = 1.8;
+export const MAX_BUILD_UP_TIME = 3.6;
 
 /**
- * Seconds per character of option text. ~0.011 corresponds to a brisk UI
- * scanning rate of roughly 90 characters per second across six short labels
- * that the player also learns to recognise by shape over time.
+ * Time the options are visible before the clock starts.
+ * Short on purpose — see the note above.
  */
-export const SECONDS_PER_CHARACTER = 0.011;
+export const SCAN_SECONDS = 0.5;
 
-/** Never shorter than this, however terse the options are. */
-export const MIN_SET_TIME = 1.1;
-/** Never longer than this, or the pause starts to feel like dead air. */
-export const MAX_SET_TIME = 2.6;
-
-/**
- * How long to show the options before the decision clock starts.
- * Scales with how much text there is to read, so a menu of long labels does
- * not cost the player more thinking time than a menu of short ones.
- */
-export function calculateSetTime(options: readonly ActionOption[], paceScale = 1): number {
-  const characters = options.reduce((total, option) => total + option.label.length, 0);
-  const raw = BASE_SET_TIME + characters * SECONDS_PER_CHARACTER;
-  const clamped = Math.max(MIN_SET_TIME, Math.min(MAX_SET_TIME, raw));
+/** How long the narration phase runs, given its beats. */
+export function calculateBuildUpTime(beats: readonly string[], paceScale = 1): number {
+  // The final beat is the situation description, which lands together with the
+  // options, so it is not held during the build-up.
+  const held = Math.max(1, beats.length - 1);
+  const raw = held * BEAT_SECONDS;
+  const clamped = Math.max(MIN_BUILD_UP_TIME, Math.min(MAX_BUILD_UP_TIME, raw));
   return clamped * paceScale;
+}
+
+/** How long the options are shown before the decision clock starts. */
+export function calculateScanTime(paceScale = 1): number {
+  return SCAN_SECONDS * paceScale;
+}
+
+/** Index of the last narration beat that should be visible at `elapsed`. */
+export function visibleBeatCount(elapsed: number, beats: readonly string[], paceScale = 1): number {
+  if (beats.length <= 1) return 1;
+  const buildUpTime = calculateBuildUpTime(beats, paceScale);
+  const held = beats.length - 1;
+  const perBeat = buildUpTime / held;
+  return Math.min(held, Math.floor(elapsed / perBeat) + 1);
 }

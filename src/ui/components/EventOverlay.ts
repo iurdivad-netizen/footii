@@ -2,7 +2,11 @@ import type { ActionOption } from '../../core/events/types.ts';
 import type { InteractiveEvent } from '../../simulation/MatchEngine.ts';
 import { SituationRenderer } from '../../rendering/events/SituationRenderer.ts';
 import type { InputController } from '../interaction/InputController.ts';
-import { calculateSetTime } from '../interaction/readingTime.ts';
+import {
+  calculateBuildUpTime,
+  calculateScanTime,
+  visibleBeatCount,
+} from '../interaction/readingTime.ts';
 
 /**
  * The interactive event overlay — the visual centrepiece.
@@ -23,7 +27,7 @@ export class EventOverlay {
   private readonly renderer: SituationRenderer;
   private readonly timerBar: HTMLElement;
   private readonly timerValue: HTMLElement;
-  private readonly headline: HTMLElement;
+  private readonly story: HTMLElement;
   private readonly subline: HTMLElement;
   private readonly grid: HTMLElement;
   private readonly setLabel: HTMLElement;
@@ -32,9 +36,13 @@ export class EventOverlay {
   private frame = 0;
   /** Timestamp at which the event appeared (start of the "set" phase). */
   private shownAt = 0;
-  /** Length of the "set" phase in seconds; the clock starts after it. */
-  private setTime = 0;
+  /** Length of the narration phase, in seconds. */
+  private buildUpTime = 0;
+  /** Length of the options-visible-but-clock-stopped phase, in seconds. */
+  private scanTime = 0;
+  private optionsRevealed = false;
   private countdownStarted = false;
+  private beatsShown = 0;
   private active: InteractiveEvent | null = null;
   private settle: ((result: DecisionResult) => void) | null = null;
 
@@ -46,7 +54,7 @@ export class EventOverlay {
     this.element.className = 'event-overlay hidden';
     this.element.innerHTML = `
       <div class="event-panel">
-        <div class="event-headline"></div>
+        <ol class="event-story"></ol>
         <div class="event-subline"></div>
         <canvas class="event-canvas" width="480" height="240" aria-hidden="true"></canvas>
         <div class="timer">
@@ -62,7 +70,7 @@ export class EventOverlay {
     this.renderer = new SituationRenderer(this.canvas);
     this.timerBar = this.element.querySelector('.timer-bar span')!;
     this.timerValue = this.element.querySelector('.timer-value')!;
-    this.headline = this.element.querySelector('.event-headline')!;
+    this.story = this.element.querySelector('.event-story')!;
     this.subline = this.element.querySelector('.event-subline')!;
     this.grid = this.element.querySelector('.option-grid')!;
     this.setLabel = this.element.querySelector('.set-label')!;
@@ -88,25 +96,33 @@ export class EventOverlay {
     this.element.classList.remove('hidden');
     this.element.classList.toggle('defending', event.defending);
 
-    this.headline.textContent = event.description;
     const zone = event.context.zone;
     this.subline.textContent = `${event.minute}'  ·  ${zone.channel} / ${zone.box} · ${event.context.nearbyDefenders} defender${
       event.context.nearbyDefenders === 1 ? '' : 's'
     } nearby`;
 
+    // The story starts empty and fills a beat at a time.
+    this.story.innerHTML = '';
+    this.beatsShown = 0;
+
+    // Options are built now but stay concealed until the reveal: the numbered
+    // 3x2 grid is still laid out, so the shape of the interface is familiar
+    // before the labels arrive, but it gives nothing away.
     event.options.forEach((option, index) => {
       const button = this.buttons[index]!;
       button.innerHTML = `<span class="option-key">${option.slot}</span><span class="option-label">${option.label}</span>`;
-      button.disabled = false;
+      button.disabled = true;
       button.classList.remove('chosen');
     });
+    this.grid.classList.add('concealed');
+    this.optionsRevealed = false;
 
     this.renderer.resize();
     this.input.setSlotHandler((slot) => this.choose(slot));
 
-    // The "set" phase: options are readable and selectable, but the decision
-    // clock has not started yet. See ui/interaction/readingTime.ts for why.
-    this.setTime = calculateSetTime(event.options, this.paceScale);
+    // Phase lengths. See ui/interaction/readingTime.ts.
+    this.buildUpTime = calculateBuildUpTime(event.buildUp, this.paceScale);
+    this.scanTime = calculateScanTime(this.paceScale);
     this.countdownStarted = false;
     this.shownAt = performance.now();
     this.element.classList.add('setting');
@@ -121,22 +137,45 @@ export class EventOverlay {
     if (!this.active || !this.settle) return;
     const event = this.active;
     const sinceShown = (performance.now() - this.shownAt) / 1000;
+    const keeperInvolved = event.template.goalkeeperInvolved;
 
-    // --- "set" phase: read the situation, clock not yet running --------------
-    if (sinceShown < this.setTime) {
-      const countIn = this.setTime - sinceShown;
+    // --- phase 1: BUILD-UP — the story, one beat at a time, no options ------
+    if (sinceShown < this.buildUpTime) {
+      const shouldShow = visibleBeatCount(sinceShown, event.buildUp, this.paceScale);
+      while (this.beatsShown < shouldShow) {
+        this.appendBeat(event.buildUp[this.beatsShown]!);
+        this.beatsShown += 1;
+      }
       this.timerBar.style.width = '100%';
       this.timerBar.classList.remove('critical');
       this.timerValue.textContent = event.timer.seconds.toFixed(2);
-      this.setLabel.textContent = `Set… ${countIn.toFixed(1)}`;
-      // The keeper is still set and has given nothing away.
+      this.setLabel.textContent = 'Watch it develop…';
+      // The keeper has not moved and gives nothing away yet.
       this.renderer.draw({
         context: event.context,
         progress: 0,
         committed: false,
         keeperAction: 'set',
-        showGoalkeeper: event.template.goalkeeperInvolved,
+        showGoalkeeper: keeperInvolved,
       });
+      this.frame = requestAnimationFrame(this.loop);
+      return;
+    }
+
+    // --- phase 2: SCAN — options appear, clock still stopped ----------------
+    if (!this.optionsRevealed) {
+      this.optionsRevealed = true;
+      // The final beat is the situation itself, and lands with the options.
+      while (this.beatsShown < event.buildUp.length) {
+        this.appendBeat(event.buildUp[this.beatsShown]!, true);
+        this.beatsShown += 1;
+      }
+      this.grid.classList.remove('concealed');
+      for (const button of this.buttons) button.disabled = false;
+    }
+
+    if (sinceShown < this.buildUpTime + this.scanTime) {
+      this.setLabel.textContent = 'Now!';
       this.frame = requestAnimationFrame(this.loop);
       return;
     }
@@ -147,7 +186,8 @@ export class EventOverlay {
       this.setLabel.textContent = '';
     }
 
-    const elapsed = sinceShown - this.setTime;
+    // --- phase 3: DECISION — the clock runs and the keeper commits ----------
+    const elapsed = sinceShown - this.buildUpTime - this.scanTime;
     const window_ = event.timer.seconds;
     const remaining = Math.max(0, window_ - elapsed);
     const progress = window_ > 0 ? Math.min(1, elapsed / window_) : 1;
@@ -161,7 +201,6 @@ export class EventOverlay {
     this.timerBar.classList.toggle('critical', remaining < window_ * 0.3);
     this.timerValue.textContent = remaining.toFixed(2);
 
-    const keeperInvolved = event.template.goalkeeperInvolved;
     this.renderer.draw({
       context: event.context,
       progress,
@@ -178,13 +217,26 @@ export class EventOverlay {
     this.frame = requestAnimationFrame(this.loop);
   };
 
+  private appendBeat(text: string, isSituation = false): void {
+    const item = document.createElement('li');
+    item.className = isSituation ? 'beat beat-situation' : 'beat';
+    item.textContent = text;
+    this.story.appendChild(item);
+  }
+
   private choose(slot: number): void {
     if (!this.active || !this.settle) return;
+    // Input is ignored until the options are actually on screen, so a player
+    // cannot fire blind during the build-up.
+    if (!this.optionsRevealed) return;
     const option = this.active.options.find((o) => o.slot === slot);
     if (!option) return;
-    // Deciding during the "set" phase counts as the fastest possible decision
+    // Deciding during the scan beat counts as the fastest possible decision
     // (timeUsed 0), so reading quickly is rewarded rather than merely allowed.
-    const elapsed = Math.max(0, (performance.now() - this.shownAt) / 1000 - this.setTime);
+    const elapsed = Math.max(
+      0,
+      (performance.now() - this.shownAt) / 1000 - this.buildUpTime - this.scanTime,
+    );
     this.buttons[slot - 1]?.classList.add('chosen');
     this.finish(option, Math.min(elapsed, this.active.timer.seconds));
   }

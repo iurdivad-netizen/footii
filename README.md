@@ -35,50 +35,69 @@ Requires Node 20+.
 
 1. Pick a player preset, your club, an opponent and a match seed.
 2. The match runs on its own — the commentary feed and score update as it goes.
-3. Every so often **you** are the player in the moment. The screen freezes into an interactive
-   event: a short description, a minimal pitch view, a countdown, and six numbered options.
-4. Press `1`–`6` (or tap/click) before the timer runs out.
+3. Every so often **you** are the player in the moment. The match pauses and the chance's story
+   is told a beat at a time over a minimal pitch view — with the options still hidden.
+4. The six options appear, the clock starts, and you press `1`–`6` (or tap/click) before it runs out.
 5. The action resolves, the match absorbs the result, and the simulation continues.
 6. At full time you get a match rating and running career totals.
 
 Press `D` at any time for the simulation debug panel.
 
-### Reading time vs deciding time
+### The three phases of an interactive moment
 
-An event opens in a **"set" phase**: the situation and all six options are fully
-visible and selectable, but the decision clock has not started and the keeper
-has not moved. When it elapses, the clock starts.
+Every event plays out in three distinct phases:
 
-This exists because the decision timer models how long the *footballer* has to
-act, while the human is also paying a completely separate cost — physically
-reading six freshly generated labels. A real footballer doesn't read his
-options; he already knows them. Measured over 250 events, an 18-year-old's
-median window was **1.04s** against ~94 characters of option text, which takes
-roughly **3.8s** to read. That isn't a hard decision, it's an impossible one.
+1. **Build-up** (~1.8–3.6s) — the story of the chance is told a beat at a time,
+   and **no options are visible**. This is where the context arrives: how the
+   move started, what created the opening, whether you have space or bodies
+   around you. The keeper has not moved yet.
+2. **Scan** (~0.5s) — the six options appear. The clock is still stopped, but
+   this beat is deliberately short.
+3. **Decision** — the attribute-driven window runs and the keeper commits.
 
-Separating the two keeps the simulation honest — the window still means exactly
-what it did — while making the game fair to read. Deciding during the set phase
-counts as the fastest possible decision, so reading quickly is rewarded.
+Input is ignored during the build-up, so you cannot fire blind. The numbered
+3x2 grid is laid out from the start but with its labels hidden, so the shape of
+the interface is familiar and nothing jumps when the labels arrive.
 
-The set phase lives in the UI layer (`ui/interaction/readingTime.ts`), not the
-simulation: it is a property of the interface, not of football.
+The build-up isn't decoration. It delivers the situational context *before* you
+are asked to choose, which is what lets the decision window stay short without
+being unfair; it manufactures tension, because a chance you watch develop has
+more weight than one that simply appears; and it makes a team's tactical style
+legible in play rather than only in the ratings.
+
+#### Why the scan beat exists
+
+The decision timer models how long the *footballer* has to act. The human is
+also paying a separate cost: physically reading six freshly generated labels.
+Measured over 257 events, an 18-year-old's median window was **1.04s** against
+~94 characters of option text — roughly **3.8s** of reading. Revealing the
+options at the exact instant the clock starts puts that cost straight back onto
+the window and makes low-attribute players unplayable rather than merely
+frantic.
+
+The scan beat is far shorter than a full read because the build-up has already
+delivered the context that previously had to be absorbed alongside the labels.
+Set `SCAN_SECONDS` to 0 in `ui/interaction/readingTime.ts` for a pure
+"options and clock together" version.
+
+All of this lives in the UI layer — it is a property of the interface, not of
+football — while the narration beats themselves are generated from the event's
+seeded `Rng` (`data/buildUp.ts`), so a replayed match narrates identically.
 
 ### Decision pace
 
-A **Decision pace** setting on the setup screen scales every window equally
-(Hardcore 0.75x / Standard 1x / Relaxed 1.5x / Very relaxed 2.1x), stretching
-the set phase with it. Because it is a flat multiplier, the *relative* gap
-between a composed veteran and a panicking teenager is identical at every
-setting — it is an accessibility and difficulty control, not a rebalance.
+A **Decision pace** setting on the setup screen scales every phase equally
+(Hardcore 0.75x / Standard 1x / Relaxed 1.5x / Very relaxed 2.1x). Because it is
+a flat multiplier, the *relative* gap between a composed veteran and a panicking
+teenager is identical at every setting — it is an accessibility and difficulty
+control, not a rebalance.
 
-Typical time on screen (prospect vs veteran, measured across 30 matches each):
+Typical timings at Standard pace:
 
-| Pace     | Player   | Ticking clock | Total on screen |
-| -------- | -------- | ------------- | --------------- |
-| Standard | Prospect | 1.03s         | ~3.0s           |
-| Standard | Veteran  | 2.36s         | ~4.3s           |
-| Relaxed  | Prospect | 1.54s         | ~4.5s           |
-| Relaxed  | Veteran  | 3.54s         | ~6.5s           |
+| Player   | Build-up | Scan | Ticking clock |
+| -------- | -------- | ---- | ------------- |
+| Prospect | ~1.8s    | 0.5s | 1.03s         |
+| Veteran  | ~1.8s    | 0.5s | 2.36s         |
 
 ### The goalkeeper is the mechanic
 
@@ -276,7 +295,7 @@ If a number in there looks wrong, the gameplay is wrong.
 npm test
 ```
 
-91 tests covering timer calibration, reading/set time, action generation (including the invariant that every
+96 tests covering timer calibration, event pacing, build-up narration, action generation (including the invariant that every
 situation can always fill six slots), resolution, goalkeeper effects, attribute effects, chance
 generation, randomness boundaries, position-specific behaviour, instinctive actions, rating,
 pace scaling, and full-match determinism.
