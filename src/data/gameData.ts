@@ -75,6 +75,9 @@ export interface PlayerPreset {
   create: () => Player;
 }
 
+/** Marker used by the UI for "build your own" rather than a pre-built player. */
+export const CUSTOM_PLAYER_ID = '__custom__';
+
 export const PLAYER_PRESETS: PlayerPreset[] = [
   {
     id: 'veteran-striker',
@@ -88,6 +91,7 @@ export const PLAYER_PRESETS: PlayerPreset[] = [
         position: 'ST',
         experience: 88,
         reputation: 72,
+        potentialAbility: 78,
         baseAttribute: 62,
         attributes: {
           finishing: 84,
@@ -120,6 +124,7 @@ export const PLAYER_PRESETS: PlayerPreset[] = [
         position: 'ST',
         experience: 12,
         reputation: 30,
+        potentialAbility: 88,
         baseAttribute: 50,
         attributes: {
           finishing: 62,
@@ -152,6 +157,7 @@ export const PLAYER_PRESETS: PlayerPreset[] = [
         position: 'RW',
         experience: 52,
         reputation: 55,
+        potentialAbility: 84,
         baseAttribute: 58,
         attributes: {
           dribbling: 84,
@@ -183,6 +189,7 @@ export const PLAYER_PRESETS: PlayerPreset[] = [
         position: 'CM',
         experience: 70,
         reputation: 60,
+        potentialAbility: 82,
         baseAttribute: 60,
         attributes: {
           passing: 86,
@@ -213,6 +220,7 @@ export const PLAYER_PRESETS: PlayerPreset[] = [
         position: 'CB',
         experience: 64,
         reputation: 55,
+        potentialAbility: 80,
         baseAttribute: 58,
         attributes: {
           tackling: 82,

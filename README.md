@@ -31,9 +31,37 @@ Requires Node 20+.
 
 ---
 
+## Modes
+
+The game opens on a **home screen** with two ways in:
+
+- **Career** — build or pick a footballer and follow him season by season.
+- **Quick match** — a single game against any opponent. Nothing is saved to a career.
+
+The two keep **completely separate ledgers**: quick-match totals never appear inside a career, and
+career statistics never absorb one-off games.
+
+### Create your own player
+
+Instead of a pre-built, you can build a footballer:
+
+- Spend a fixed pool of **430 attribute points**. Every attribute starts at 25 and nothing may
+  begin above 70 — the rest is what a career is for. Every created player costs the same budget,
+  so none is strictly better than another; a specialist has to be deliberately lopsided.
+- Choose a **position** and a **playing style** (Poacher, False Nine, Inside Forward, Deep
+  Playmaker, Stopper, Overlapping…). Style sets your behavioural tendencies, which change the
+  situations the engine generates for you, not just your numbers.
+- Choose an **age** from 16 to 34. This is a real trade-off rather than flavour: age sets your
+  starting experience, which is a term in the decision timer, so a 17-year-old genuinely gets less
+  time on the ball than a 30-year-old with the same attributes.
+- **Your potential is hidden and never shown.** It is rolled against your age, so starting young
+  carries far more upside — you find out who you are by playing.
+
+The five pre-built players remain as ready-made archetypes.
+
 ## How the game plays
 
-1. Pick a player preset, your club, an opponent and a match seed.
+1. Choose Career or Quick match, then pick or build your player, your club and a match seed.
 2. The match runs on its own — the commentary feed and score update as it goes.
 3. Every so often **you** are the player in the moment. The match pauses and the chance's story
    is told a beat at a time over a minimal pitch view — with the options still hidden.
@@ -297,7 +325,7 @@ If a number in there looks wrong, the gameplay is wrong.
 npm test
 ```
 
-126 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, action generation (including the invariant that every
+141 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, action generation (including the invariant that every
 situation can always fill six slots), resolution, goalkeeper effects, attribute effects, chance
 generation, randomness boundaries, position-specific behaviour, instinctive actions, rating,
 pace scaling, and full-match determinism.
@@ -367,7 +395,8 @@ their constants:
 
 The core mechanic and a playable career loop.
 
-Implemented: seeded match engine, eight situation archetypes, ~40 contextual actions, dynamic
+Implemented: home screen with career and quick-match modes, custom player creation, seeded match
+engine, eight situation archetypes, ~40 contextual actions, dynamic
 decision timer, build-up narration, goalkeeper commit mechanic, action resolution with separated
 choice/execution, instinctive fallback on expiry, match statistics and rating, five playable
 presets across four positions, eight teams with tactical styles, **season fixtures, live league

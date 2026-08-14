@@ -1,27 +1,34 @@
 import { MatchEngine } from '../simulation/MatchEngine.ts';
 import { DECISION_PACE } from '../simulation/DecisionTimer.ts';
 import type { DecisionPace } from '../simulation/DecisionTimer.ts';
-import {
-  endSeason,
-  recordPlayerMatch,
-  startCareer,
-} from '../simulation/CareerService.ts';
+import { endSeason, recordPlayerMatch, startCareer } from '../simulation/CareerService.ts';
 import { nextFixture, seasonComplete } from '../core/career/career.ts';
 import type { CareerState } from '../core/career/career.ts';
-import { currentAbility } from '../core/player/player.ts';
-import { TEAMS, getGoalkeeperForTeam, getPreset, getTeam } from '../data/gameData.ts';
+import { Rng } from '../core/rng.ts';
+import { clonePlayer, currentAbility } from '../core/player/player.ts';
+import type { Player } from '../core/player/player.ts';
+import { createCustomPlayer } from '../core/player/playerBuilder.ts';
+import type { CustomPlayerSpec } from '../core/player/playerBuilder.ts';
+import { positionLabel } from '../core/player/positions.ts';
+import { CUSTOM_PLAYER_ID, TEAMS, getGoalkeeperForTeam, getPreset, getTeam } from '../data/gameData.ts';
 import { matchResult } from '../core/match/matchState.ts';
+import { averageRating } from '../core/career/seasonStats.ts';
 import type { SaveData } from '../persistence/storage.ts';
 import { clearCareer, loadSave, recordMatch, saveCareer, writeSave } from '../persistence/storage.ts';
 import { DebugPanel } from './components/DebugPanel.ts';
 import { EventOverlay } from './components/EventOverlay.ts';
 import { InputController } from './interaction/InputController.ts';
 import { CareerScreen } from './screens/CareerScreen.ts';
+import type { TotalsView } from './screens/FullTimeScreen.ts';
 import { FullTimeScreen } from './screens/FullTimeScreen.ts';
+import { HomeScreen } from './screens/HomeScreen.ts';
 import { MatchScreen } from './screens/MatchScreen.ts';
+import { PlayerCreatorScreen } from './screens/PlayerCreatorScreen.ts';
 import { SeasonReviewScreen } from './screens/SeasonReviewScreen.ts';
 import type { SetupSelection } from './screens/SetupScreen.ts';
 import { SetupScreen } from './screens/SetupScreen.ts';
+
+type Mode = 'career' | 'quick';
 
 /** Screen routing and the wiring between UI and simulation. */
 export class App {
@@ -30,15 +37,24 @@ export class App {
   private readonly overlay: EventOverlay;
   private save: SaveData;
   private matchScreen: MatchScreen | null = null;
-  /** Pace carried into career matches. */
   private paceScale = 1;
+  /** A player built in the creator this session, if any. */
+  private customPlayer: Player | null = null;
+  /**
+   * The player choice to preselect on the setup screen.
+   * Held here rather than read back from `lastSelection`, because returning
+   * from the creator would otherwise be overwritten by the previously saved
+   * selection — you would build a custom player and then start a career as a
+   * pre-build without noticing.
+   */
+  private selectedPresetId: string | null = null;
 
   constructor(private readonly root: HTMLElement) {
     this.overlay = new EventOverlay(this.input);
     this.save = loadSave();
     this.input.bindKey('d', () => this.debug.toggle());
     this.root.appendChild(this.debug.element);
-    this.showSetup();
+    this.showHome();
   }
 
   private mount(element: HTMLElement): void {
@@ -49,18 +65,50 @@ export class App {
     window.scrollTo(0, 0);
   }
 
-  // ------------------------------------------------------------- setup ---
+  // -------------------------------------------------------------- home ---
 
-  private showSetup(): void {
+  private showHome(): void {
     this.matchScreen?.stop();
     this.matchScreen = null;
+    const career = this.save.careerState;
+
+    this.mount(
+      new HomeScreen({
+        onNewCareer: () => this.showSetup('career'),
+        onQuickMatch: () => this.showSetup('quick'),
+        onContinueCareer: career ? () => this.showCareerHub() : undefined,
+        onAbandonCareer: career
+          ? () => {
+              this.save = clearCareer(this.save);
+              this.showHome();
+            }
+          : undefined,
+        careerSummary: career
+          ? `${career.player.name} · ${positionLabel(career.player.position)} · age ${career.player.age} · ${getTeam(career.clubId).name} · season ${career.seasonNumber} · ability ${currentAbility(career.player)}`
+          : undefined,
+      }).element,
+    );
+  }
+
+  // ------------------------------------------------------------- setup ---
+
+  private showSetup(mode: Mode): void {
     const screen = new SetupScreen({
-      onQuickMatch: (selection) => this.startQuickMatch(selection),
-      onStartCareer: (selection) => this.beginCareer(selection),
-      onContinueCareer: this.save.careerState ? () => this.showCareerHub() : undefined,
-      careerSummary: this.careerSummary(),
+      mode,
+      onStart: (selection) =>
+        mode === 'career' ? this.beginCareer(selection) : this.startQuickMatch(selection),
+      onCreatePlayer: () => this.showCreator(mode),
+      onBack: () => this.showHome(),
+      customLabel: this.customPlayer
+        ? `${this.customPlayer.name} — ${this.customPlayer.position}, ${this.customPlayer.age} (yours)`
+        : undefined,
     });
     this.mount(screen.element);
+
+    if (this.selectedPresetId === CUSTOM_PLAYER_ID && this.customPlayer) {
+      const select = screen.element.querySelector<HTMLSelectElement>('#preset');
+      if (select) select.value = CUSTOM_PLAYER_ID;
+    }
 
     const last = this.save.lastSelection;
     if (last) {
@@ -68,7 +116,10 @@ export class App {
         const el = screen.element.querySelector<HTMLSelectElement | HTMLInputElement>(`#${id}`);
         if (el) el.value = value;
       };
-      set('preset', last.presetId);
+      // An explicit in-session choice always wins over the saved one, and a
+      // stale custom selection is never restored once the creation is gone.
+      const desired = this.selectedPresetId ?? last.presetId;
+      if (desired !== CUSTOM_PLAYER_ID || this.customPlayer) set('preset', desired);
       set('team', last.teamId);
       set('opponent', last.opponentId);
       set('seed', last.seed);
@@ -78,11 +129,29 @@ export class App {
     }
   }
 
-  private careerSummary(): string | undefined {
-    const career = this.save.careerState;
-    if (!career) return undefined;
-    const club = getTeam(career.clubId);
-    return `${career.player.name} · age ${career.player.age} · ${club.name} · season ${career.seasonNumber} · ability ${currentAbility(career.player)}`;
+  private showCreator(mode: Mode): void {
+    this.mount(
+      new PlayerCreatorScreen(
+        {
+          onConfirm: (spec: CustomPlayerSpec) => {
+            // Potential is rolled once, here, and never shown.
+            this.customPlayer = createCustomPlayer(new Rng(`${spec.name}:${Date.now()}`), spec);
+            this.selectedPresetId = CUSTOM_PLAYER_ID;
+            this.showSetup(mode);
+          },
+          onCancel: () => this.showSetup(mode),
+        },
+        mode === 'career',
+      ).element,
+    );
+  }
+
+  /** Resolve the chosen player: a preset, or the custom creation. */
+  private resolvePlayer(presetId: string): Player {
+    if (presetId === CUSTOM_PLAYER_ID && this.customPlayer) {
+      return clonePlayer(this.customPlayer);
+    }
+    return getPreset(presetId === CUSTOM_PLAYER_ID ? 'young-prospect' : presetId).create();
   }
 
   private applyPace(pace: DecisionPace): void {
@@ -93,11 +162,12 @@ export class App {
   // ------------------------------------------------------- quick match ---
 
   private startQuickMatch(selection: SetupSelection): void {
+    this.selectedPresetId = selection.presetId;
     this.save = { ...this.save, lastSelection: selection };
     writeSave(this.save);
     this.applyPace(selection.pace);
 
-    const player = getPreset(selection.presetId).create();
+    const player = this.resolvePlayer(selection.presetId);
     const playerTeam = getTeam(selection.teamId);
     const opponent = getTeam(selection.opponentId);
 
@@ -119,7 +189,30 @@ export class App {
       (engine) => {
         const rating = engine.rating();
         this.save = recordMatch(this.save, engine.state.stats, rating, matchResult(engine.state));
-        this.mount(new FullTimeScreen(engine, this.save.career, () => this.showSetup()).element);
+        const c = this.save.career;
+        this.mount(
+          new FullTimeScreen(engine, () => this.showHome(), {
+            continueLabel: 'Back to menu',
+            totals: {
+              // Quick-match totals only. These are a SEPARATE ledger from the
+              // career, and must never be shown inside one.
+              heading: 'Quick match totals',
+              rows: [
+                ['Matches', String(c.matches)],
+                ['Goals', String(c.goals)],
+                ['Assists', String(c.assists)],
+                ['Shots', String(c.shots)],
+                ['Key passes', String(c.keyPasses)],
+                [
+                  'Average rating',
+                  c.matches > 0 ? (c.ratingTotal / c.matches).toFixed(2) : '—',
+                ],
+                ['Best rating', c.bestRating ? c.bestRating.toFixed(1) : '—'],
+                ['Record (W-D-L)', `${c.wins}-${c.draws}-${c.defeats}`],
+              ],
+            },
+          }).element,
+        );
       },
     );
   }
@@ -139,12 +232,12 @@ export class App {
   // ------------------------------------------------------------ career ---
 
   private beginCareer(selection: SetupSelection): void {
+    this.selectedPresetId = selection.presetId;
     this.save = { ...this.save, lastSelection: selection };
     this.applyPace(selection.pace);
 
-    const player = getPreset(selection.presetId).create();
     const career = startCareer({
-      player,
+      player: this.resolvePlayer(selection.presetId),
       clubId: selection.teamId,
       leagueTeamIds: TEAMS.map((t) => t.id),
       seed: selection.seed,
@@ -156,20 +249,19 @@ export class App {
   private showCareerHub(): void {
     const career = this.save.careerState;
     if (!career) {
-      this.showSetup();
+      this.showHome();
       return;
     }
     this.matchScreen?.stop();
     this.matchScreen = null;
 
-    const screen = new CareerScreen(career, {
-      onPlay: () => this.playCareerMatch(),
-      onEndSeason: () => this.reviewSeason(),
-      onQuit: () => {
-        this.showSetup();
-      },
-    });
-    this.mount(screen.element);
+    this.mount(
+      new CareerScreen(career, {
+        onPlay: () => this.playCareerMatch(),
+        onEndSeason: () => this.reviewSeason(),
+        onQuit: () => this.showHome(),
+      }).element,
+    );
   }
 
   private playCareerMatch(): void {
@@ -183,8 +275,7 @@ export class App {
     const playerTeam = getTeam(career.clubId);
     const opponent = getTeam(opponentId);
 
-    // Fitness carries between matches, so the career player starts the match
-    // wherever recovery left him.
+    // Fitness carries between matches, so the player starts where recovery left him.
     career.player.fitness = career.fitness;
 
     const seed = `${career.seed}:s${career.seasonNumber}:f${career.nextFixtureIndex}`;
@@ -223,11 +314,47 @@ export class App {
     this.save = saveCareer(this.save, career);
 
     this.mount(
-      new FullTimeScreen(engine, this.save.career, () => this.showCareerHub(), {
+      new FullTimeScreen(engine, () => this.showCareerHub(), {
         continueLabel: seasonComplete(career) ? 'End of season' : 'Back to career',
         development: career.lastDevelopment,
+        totals: this.careerTotals(career),
       }).element,
     );
+  }
+
+  /**
+   * Season-to-date totals for the career.
+   * Deliberately built from the CAREER state, not from `save.career`, which is
+   * the quick-match ledger — mixing the two was showing one-off match totals
+   * inside a career.
+   */
+  private careerTotals(career: CareerState): TotalsView {
+    const season = career.seasonStats;
+    const lifetime = [...career.history, { stats: season }].reduce(
+      (acc, entry) => ({
+        matches: acc.matches + entry.stats.matches,
+        goals: acc.goals + entry.stats.goals,
+        assists: acc.assists + entry.stats.assists,
+      }),
+      { matches: 0, goals: 0, assists: 0 },
+    );
+
+    return {
+      heading: `Season ${career.seasonNumber}`,
+      rows: [
+        ['Appearances', String(season.matches)],
+        ['Goals', String(season.goals)],
+        ['Assists', String(season.assists)],
+        ['Key passes', String(season.keyPasses)],
+        ['Average rating', season.matches ? averageRating(season).toFixed(2) : '—'],
+        ['Best rating', season.bestRating ? season.bestRating.toFixed(1) : '—'],
+        ['Record (W-D-L)', `${season.wins}-${season.draws}-${season.defeats}`],
+        [
+          'Career totals',
+          `${lifetime.matches} apps · ${lifetime.goals} G · ${lifetime.assists} A`,
+        ],
+      ],
+    };
   }
 
   private reviewSeason(): void {
@@ -258,11 +385,5 @@ export class App {
         () => this.showCareerHub(),
       ).element,
     );
-  }
-
-  /** Abandon the current career (used by the setup screen). */
-  abandonCareer(): void {
-    this.save = clearCareer(this.save);
-    this.showSetup();
   }
 }

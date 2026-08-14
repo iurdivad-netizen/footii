@@ -1,24 +1,34 @@
 import { passCompletionRate } from '../../core/match/matchStats.ts';
 import { matchResult } from '../../core/match/matchState.ts';
 import type { MatchEngine } from '../../simulation/MatchEngine.ts';
-import type { CareerRecord } from '../../persistence/storage.ts';
 import type { AttributeChange } from '../../core/career/development.ts';
 
-/** Full-time summary, including the running career totals held in localStorage. */
+/**
+ * The totals panel shown beside the match statistics.
+ *
+ * Supplied by the caller rather than read from storage, because career and
+ * quick-match totals are two SEPARATE ledgers: a career must show career
+ * numbers, and a one-off match must show one-off numbers. Reading a single
+ * global record here was showing quick-match totals inside a career.
+ */
+export interface TotalsView {
+  heading: string;
+  rows: [string, string][];
+}
+
+export interface FullTimeOptions {
+  /** Label for the continue button. */
+  continueLabel?: string;
+  /** Attribute changes earned in this match, shown in career mode. */
+  development?: AttributeChange[];
+  totals?: TotalsView;
+}
+
+/** Full-time summary for both quick matches and career fixtures. */
 export class FullTimeScreen {
   readonly element: HTMLElement;
 
-  constructor(
-    engine: MatchEngine,
-    career: CareerRecord,
-    onPlayAgain: () => void,
-    options: {
-      /** Label for the continue button; defaults to the quick-match wording. */
-      continueLabel?: string;
-      /** Attribute changes earned in this match, shown in career mode. */
-      development?: AttributeChange[];
-    } = {},
-  ) {
+  constructor(engine: MatchEngine, onContinue: () => void, options: FullTimeOptions = {}) {
     const { state } = engine;
     const s = state.stats;
     const rating = engine.rating();
@@ -36,6 +46,8 @@ export class FullTimeScreen {
         <span class="ft-rating-label">Match rating</span>
       </div>
 
+      ${renderDevelopment(options.development)}
+
       <div class="ft-columns">
         <div>
           <h2>This match</h2>
@@ -51,28 +63,23 @@ export class FullTimeScreen {
             <div><dt>Involvements</dt><dd>${s.involvements}</dd></div>
           </dl>
         </div>
-        <div>
-          <h2>Career so far</h2>
-          <dl class="stat-list">
-            <div><dt>Matches</dt><dd>${career.matches}</dd></div>
-            <div><dt>Goals</dt><dd>${career.goals}</dd></div>
-            <div><dt>Assists</dt><dd>${career.assists}</dd></div>
-            <div><dt>Shots</dt><dd>${career.shots}</dd></div>
-            <div><dt>Key passes</dt><dd>${career.keyPasses}</dd></div>
-            <div><dt>Average rating</dt><dd>${career.matches > 0 ? (career.ratingTotal / career.matches).toFixed(2) : '—'}</dd></div>
-            <div><dt>Best rating</dt><dd>${career.bestRating.toFixed(1)}</dd></div>
-            <div><dt>Record (W-D-L)</dt><dd>${career.wins}-${career.draws}-${career.defeats}</dd></div>
-          </dl>
-        </div>
+        ${
+          options.totals
+            ? `<div>
+                 <h2>${options.totals.heading}</h2>
+                 <dl class="stat-list">
+                   ${options.totals.rows
+                     .map(([key, value]) => `<div><dt>${key}</dt><dd>${value}</dd></div>`)
+                     .join('')}
+                 </dl>
+               </div>`
+            : ''
+        }
       </div>
 
-      ${renderDevelopment(options.development)}
+      <button class="primary" id="continue">${options.continueLabel ?? 'Continue'}</button>`;
 
-      <button class="primary" id="play-again">${options.continueLabel ?? 'Play another match'}</button>`;
-
-    this.element
-      .querySelector<HTMLButtonElement>('#play-again')!
-      .addEventListener('click', onPlayAgain);
+    this.element.querySelector<HTMLButtonElement>('#continue')!.addEventListener('click', onContinue);
   }
 }
 
