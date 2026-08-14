@@ -1233,3 +1233,117 @@ button.ghost {
 .creator-destination strong {
   color: var(--accent);
 }
+
+/* --------------------------------------------------- season progress ---- */
+
+.progress-panel {
+  border: 1px solid var(--goal);
+  background: rgba(250, 204, 21, 0.07);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin: 20px 0;
+}
+
+.progress-panel h2 {
+  margin: 0 0 12px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--goal);
+}
+
+.progress-headline {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.progress-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.progress-value {
+  font-family: var(--mono);
+  font-size: 1.25rem;
+}
+
+.progress-stat.good .progress-value {
+  color: var(--accent);
+}
+
+.progress-stat.bad .progress-value {
+  color: #fca5a5;
+}
+
+.progress-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+
+.progress-changes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 4px 14px;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+
+.progress-changes .up {
+  color: var(--accent);
+}
+
+.progress-changes .down {
+  color: #fca5a5;
+}
+
+.progress-changes .delta {
+  color: var(--text-dim);
+  margin-left: 4px;
+}
+
+.trend-up {
+  color: var(--accent);
+}
+
+.trend-down {
+  color: #fca5a5;
+}
+
+/* ------------------------------------------------------------ training -- */
+
+.training-notes {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.points-window {
+  margin-left: 12px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.points-window.good {
+  color: var(--accent);
+}
+
+.creator-value .gain {
+  color: var(--accent);
+  font-style: normal;
+  font-size: 0.7rem;
+  margin-left: 2px;
+}
+
+.creator-row.at-cap .creator-bar i {
+  background: var(--warn);
+}

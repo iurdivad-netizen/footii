@@ -329,7 +329,7 @@ If a number in there looks wrong, the gameplay is wrong.
 npm test
 ```
 
-141 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, action generation (including the invariant that every
+161 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, action generation (including the invariant that every
 situation can always fill six slots), resolution, goalkeeper effects, attribute effects, chance
 generation, randomness boundaries, position-specific behaviour, instinctive actions, rating,
 pace scaling, and full-match determinism.
@@ -370,9 +370,11 @@ pass. Measured over five seasons of consistent 7.4 ratings, an 18-year-old prosp
 | Season | Age | Ability | Decision window | Awareness | Composure |
 | ------ | --- | ------- | --------------- | --------- | --------- |
 | Start  | 18  | 54      | **1.32s**       | 45        | 42        |
-| 1      | 19  | 58      | 1.66s           | 50        | 54        |
-| 3      | 21  | 64      | 2.19s           | 61        | 76        |
-| 5      | 23  | 68      | **2.46s**       | 68        | 85        |
+| 1      | 19  | 57      | 1.62s           | 49        | 53        |
+| 3      | 21  | 62      | 2.06s           | 60        | 69        |
+| 5      | 23  | 65      | **2.36s**       | 66        | 82        |
+
+(Automatic development only — pre-season training is placed on top of this by hand.)
 
 The same situations that felt frantic in his first season become readable. That progression is
 only available because the timer is an attribute-driven formula rather than a difficulty setting.
@@ -380,6 +382,40 @@ only available because the timer is an attribute-driven formula rather than a di
 **Potential is not a hard ceiling.** A player at his potential still creeps upward slowly, and
 potential itself drifts each season based on how he has performed — so two identical prospects do
 not have identical careers.
+
+### End of season: progress and pre-season training
+
+A season closes with a review that shows **how you changed**, not just what you scored:
+
+```
+HOW YOU DEVELOPED
+1.27s → 1.51s          58 → 60              +20
+Decision window        Overall ability      Experience
+
+Composure 42 → 50 +8   Finishing 62 → 66 +4   Awareness 45 → 49 +4  …
+```
+
+The decision window is deliberately the headline. Ability is an abstraction; *"you now get a
+quarter of a second longer on the ball"* is the thing you will feel in the next match. It is
+measured by a fixed benchmark one-on-one (`simulation/DecisionBenchmark.ts`) where everything
+except the player is held constant. From your second season onward the review also compares the
+season just finished with the one before it.
+
+Then comes **pre-season training**: a pool of points you place yourself.
+
+- Awarded from age, headroom below potential, playing time and average rating, and the screen
+  tells you which of those helped or hurt.
+- The training screen shows a **live decision-window readout**, so putting points into Awareness,
+  Composure or Decision Making visibly moves the number that governs your time on the ball.
+- No attribute can be trained more than **25 above your overall ability**, which rises as you
+  improve. Specialising is possible and worthwhile; building a 55-ability player with 99 Finishing
+  is not.
+- Unspent points are **discarded**, not banked — pre-season is a moment, not a savings account.
+
+This is the deliberate half of progression. Per-match development is what the season did *to* you;
+training is what you chose to work on. **It is not extra progression bolted on top**: part of the
+automatic growth budget was moved into it (`GROWTH_BASE` was reduced when training was added), so
+the overall career arc stays where it was calibrated and you simply get to steer some of it.
 
 ### Balancing notes worth knowing
 
@@ -404,7 +440,8 @@ engine, eight situation archetypes, ~40 contextual actions, dynamic
 decision timer, build-up narration, goalkeeper commit mechanic, action resolution with separated
 choice/execution, instinctive fallback on expiry, match statistics and rating, five playable
 presets across four positions, eight teams with tactical styles, **season fixtures, live league
-table, per-match player development, ageing and multi-season career history**, debug mode, and a
+table, per-match player development, ageing and multi-season career history, end-of-season progress reports and pre-season
+training**, debug mode, and a
 versioned localStorage save with migration.
 
 Deliberately **not** built yet: multiplayer, accounts, a backend, 3D, physics, large player

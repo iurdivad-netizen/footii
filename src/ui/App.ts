@@ -25,6 +25,8 @@ import { HomeScreen } from './screens/HomeScreen.ts';
 import { MatchScreen } from './screens/MatchScreen.ts';
 import { PlayerCreatorScreen } from './screens/PlayerCreatorScreen.ts';
 import { SeasonReviewScreen } from './screens/SeasonReviewScreen.ts';
+import { TrainingScreen } from './screens/TrainingScreen.ts';
+import { applyTraining } from '../core/career/training.ts';
 import type { SetupSelection } from './screens/SetupScreen.ts';
 import { SetupScreen } from './screens/SetupScreen.ts';
 
@@ -374,7 +376,8 @@ export class App {
     if (!career || !seasonComplete(career)) return;
 
     const potentialBefore = career.player.potentialAbility;
-    const { record, champion } = endSeason(career, getTeam);
+    const outcome = endSeason(career, getTeam);
+    const { record, champion } = outcome;
     this.save = saveCareer(this.save, career);
 
     const drift = career.player.potentialAbility - potentialBefore;
@@ -393,9 +396,33 @@ export class App {
           leagueSize: career.leagueTeamIds.length,
           newAge: career.player.age,
           potentialHint,
+          progress: outcome.progress,
+          // history holds the season just archived last, so the one before it
+          // is the comparison point.
+          previous: career.history[career.history.length - 2],
+          trainingPoints: outcome.trainingAwarded,
         },
-        () => this.showCareerHub(),
+        () =>
+          outcome.trainingAwarded > 0
+            ? this.showTraining(career, outcome.trainingAwarded, outcome.trainingNotes)
+            : this.showCareerHub(),
       ).element,
+    );
+  }
+
+  /** Pre-season: spend the points the finished season earned. */
+  private showTraining(career: CareerState, points: number, notes: string[]): void {
+    this.mount(
+      new TrainingScreen(career.player, points, notes, (allocation) => {
+        applyTraining(career.player, allocation);
+        career.trainingPoints = 0;
+        // The new season's baseline must include what training just added,
+        // otherwise next season's review would credit itself with this work.
+        career.seasonStartAttributes = { ...career.player.attributes };
+        career.seasonStartAbility = currentAbility(career.player);
+        this.save = saveCareer(this.save, career);
+        this.showCareerHub();
+      }).element,
     );
   }
 }

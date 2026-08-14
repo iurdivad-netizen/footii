@@ -40,8 +40,14 @@ import { POSITION_PROFILES } from '../player/positions.ts';
  * An earlier value of 1.15 moved a potential-91 prospect from CA 54 to 56 over
  * five seasons, which is not a career arc. Tuned so a strong youngster gains
  * roughly 3-4 CA a season and approaches his potential in his mid-twenties.
+ *
+ * Reduced from 8 to 6.5 when pre-season training was added. Training points are
+ * NOT extra progression bolted on top — part of this budget was moved there, so
+ * the overall career arc stays where it was calibrated and the player simply
+ * gets to steer some of it. Raising this without lowering TRAINING_BASE (or the
+ * reverse) will inflate or flatten every career.
  */
-export const GROWTH_BASE = 8;
+export const GROWTH_BASE = 6.5;
 
 /** Equivalent budget for decline once past the peak. */
 export const DECLINE_BASE = 5;
