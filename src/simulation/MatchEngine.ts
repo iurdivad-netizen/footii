@@ -7,6 +7,7 @@ import type { MatchSetup, MatchState } from '../core/match/matchState.ts';
 import { createMatchState, matchResult, pushCommentary } from '../core/match/matchState.ts';
 import { applyOutcomeStats, calculateMatchRating } from '../core/match/matchStats.ts';
 import { getSituationTemplate } from '../data/situations.ts';
+import { generateBuildUp } from '../data/buildUp.ts';
 import type { SituationTemplate } from '../data/situations.ts';
 import { generateActions } from './ActionGenerator.ts';
 import { calculateDecisionTime } from './DecisionTimer.ts';
@@ -50,6 +51,11 @@ export interface InteractiveEvent {
   options: ActionOption[];
   timer: DecisionTimerResult;
   description: string;
+  /**
+   * Ordered narration beats revealed before the options appear. The last beat
+   * is the situation description itself.
+   */
+  buildUp: string[];
   /** True when the player's team is defending (a defensive duel). */
   defending: boolean;
 }
@@ -201,6 +207,7 @@ export class MatchEngine {
       options,
       timer,
       description: template.describe(context),
+      buildUp: generateBuildUp(this.rng, context, template),
       defending,
     };
 
