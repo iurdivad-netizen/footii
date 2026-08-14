@@ -1,10 +1,12 @@
 import { PLAYER_PRESETS, TEAMS } from '../../data/gameData.ts';
 import { positionLabel } from '../../core/player/positions.ts';
 import { TACTICAL_STYLE_LABELS } from '../../core/team/team.ts';
+import { CUSTOM_PLAYER_ID } from '../../data/gameData.ts';
 import { DECISION_PACE, DECISION_PACE_LABELS } from '../../simulation/DecisionTimer.ts';
 import type { DecisionPace } from '../../simulation/DecisionTimer.ts';
 
 export interface SetupSelection {
+  /** A preset id, or CUSTOM_PLAYER_ID when using a created player. */
   presetId: string;
   teamId: string;
   opponentId: string;
@@ -14,11 +16,12 @@ export interface SetupSelection {
 }
 
 export interface SetupHandlers {
-  onQuickMatch: (selection: SetupSelection) => void;
-  onStartCareer: (selection: SetupSelection) => void;
-  /** Present only when a career is already in progress. */
-  onContinueCareer?: () => void;
-  careerSummary?: string;
+  mode: 'career' | 'quick';
+  onStart: (selection: SetupSelection) => void;
+  onCreatePlayer: () => void;
+  onBack: () => void;
+  /** A custom player built this session, offered alongside the pre-builds. */
+  customLabel?: string;
 }
 
 /** Team selection, player selection, match seed, and the two entry points. */
@@ -30,17 +33,31 @@ export class SetupScreen {
     this.element.className = 'screen setup-screen';
     this.element.innerHTML = `
       <header class="setup-header">
-        <h1>FOOTII</h1>
-        <p class="tagline">One player. Ninety minutes. Six choices at a time.</p>
+        <h1>${handlers.mode === 'career' ? 'New career' : 'Quick match'}</h1>
+        <p class="tagline">
+          ${
+            handlers.mode === 'career'
+              ? 'Choose who you are and where you start. The rest is up to you.'
+              : 'A single match. Nothing is saved to a career.'
+          }
+        </p>
       </header>
 
       <div class="setup-grid">
         <div class="field">
           <label for="preset">Your player</label>
           <select id="preset">
+            ${
+              handlers.customLabel
+                ? `<option value="${CUSTOM_PLAYER_ID}" selected>${handlers.customLabel}</option>`
+                : ''
+            }
             ${PLAYER_PRESETS.map((p) => `<option value="${p.id}">${p.label}</option>`).join('')}
           </select>
           <p class="hint" id="preset-description"></p>
+          <button type="button" id="create-player" class="ghost">
+            ${handlers.customLabel ? 'Edit your custom player' : 'Create your own player'}
+          </button>
         </div>
 
         <div class="field">
@@ -53,8 +70,8 @@ export class SetupScreen {
           </select>
         </div>
 
-        <div class="field">
-          <label for="opponent">Opponent <span class="field-note">(single match only)</span></label>
+        <div class="field" ${handlers.mode === 'career' ? 'hidden' : ''}>
+          <label for="opponent">Opponent</label>
           <select id="opponent">
             ${TEAMS.map(
               (t) =>
@@ -85,7 +102,7 @@ export class SetupScreen {
           </p>
         </div>
 
-        <div class="field">
+        <div class="field" ${handlers.mode === 'career' ? 'hidden' : ''}>
           <label for="length">Match length</label>
           <select id="length">
             <option value="90">Full match (90 minutes)</option>
@@ -96,23 +113,11 @@ export class SetupScreen {
       </div>
 
       <div class="setup-actions">
-        <button class="primary" id="start-career">Start a career</button>
-        <button id="kick-off">Play a single match</button>
+        <button class="primary" id="kick-off">
+          ${handlers.mode === 'career' ? 'Start career' : 'Kick off'}
+        </button>
+        <button id="setup-back" class="ghost">Back</button>
       </div>
-      <p class="hint">
-        A career follows one footballer season by season: your ratings drive development, and as
-        your awareness, composure and decision making grow you get measurably more time on the ball.
-      </p>
-
-      ${
-        handlers.onContinueCareer
-          ? `<div class="continue-career">
-               <h2>Career in progress</h2>
-               <p>${handlers.careerSummary ?? ''}</p>
-               <button class="primary" id="continue-career">Continue career</button>
-             </div>`
-          : ''
-      }
 
       <div class="setup-notes">
         <h2>How it works</h2>
@@ -128,6 +133,10 @@ export class SetupScreen {
     const presetSelect = this.element.querySelector<HTMLSelectElement>('#preset')!;
     const description = this.element.querySelector<HTMLElement>('#preset-description')!;
     const updateDescription = () => {
+      if (presetSelect.value === CUSTOM_PLAYER_ID) {
+        description.textContent = 'Your own creation. Potential is hidden.';
+        return;
+      }
       const preset = PLAYER_PRESETS.find((p) => p.id === presetSelect.value);
       if (!preset) return;
       const player = preset.create();
@@ -154,12 +163,12 @@ export class SetupScreen {
 
     this.element
       .querySelector<HTMLButtonElement>('#kick-off')!
-      .addEventListener('click', () => this.handlers.onQuickMatch(collect()));
+      .addEventListener('click', () => this.handlers.onStart(collect()));
     this.element
-      .querySelector<HTMLButtonElement>('#start-career')!
-      .addEventListener('click', () => this.handlers.onStartCareer(collect()));
+      .querySelector<HTMLButtonElement>('#setup-back')!
+      .addEventListener('click', () => this.handlers.onBack());
     this.element
-      .querySelector<HTMLButtonElement>('#continue-career')
-      ?.addEventListener('click', () => this.handlers.onContinueCareer?.());
+      .querySelector<HTMLButtonElement>('#create-player')!
+      .addEventListener('click', () => this.handlers.onCreatePlayer());
   }
 }
