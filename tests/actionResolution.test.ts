@@ -3,11 +3,14 @@ import { Rng } from '../src/core/rng.ts';
 import type { ActionKind, ActionOption, OutcomeKind } from '../src/core/events/types.ts';
 import { getAction } from '../src/data/actionCatalogue.ts';
 import {
+  GOAL_CURVE,
   RESOLUTION_WEIGHTS,
   executionQuality,
   resolveAction,
+  shotGoalProbability,
   tempoAdjustment,
 } from '../src/simulation/ActionResolver.ts';
+import { createCustomPlayer, suggestedAttributes } from '../src/core/player/playerBuilder.ts';
 import type { SituationContext } from '../src/core/events/types.ts';
 import { context, goalkeeperState, keeper, prospect, veteran } from './helpers.ts';
 
@@ -251,5 +254,138 @@ describe('tempo', () => {
       { timeUsed: 2.0 },
     );
     expect(rate(informed, 'goal', 2000)).toBeGreaterThan(rate(instant, 'goal', 2000));
+  });
+});
+
+describe('goal probability curve', () => {
+  it('is monotonic in value and never certain or impossible', () => {
+    let previous = -1;
+    for (let v = 0; v <= 1.2; v += 0.05) {
+      const p = shotGoalProbability(v);
+      expect(p).toBeGreaterThan(0);
+      expect(p).toBeLessThan(1);
+      expect(p).toBeGreaterThanOrEqual(previous);
+      previous = p;
+    }
+    expect(shotGoalProbability(-5)).toBeGreaterThanOrEqual(GOAL_CURVE.min);
+    expect(shotGoalProbability(5)).toBeLessThanOrEqual(GOAL_CURVE.max);
+  });
+
+  it('converts a clean one-on-one at a believable rate for a good finisher', () => {
+    const counts = sample(
+      context({
+        player: veteran(),
+        nearbyDefenders: 0,
+        defensivePressure: 0.15,
+        situationQuality: 0.85,
+      }),
+      'placedFinish',
+    );
+    const goals = rate(counts, 'goal');
+    expect(goals).toBeGreaterThan(0.25);
+    expect(goals).toBeLessThan(0.65);
+  });
+
+  it('REGRESSION: a raw teenager can still score from a clean chance', () => {
+    // A created 17-year-old converted a clean one-on-one 3.7% of the time when
+    // "goal" was a hard threshold: it sat above his entire value distribution,
+    // so he could play two seasons without scoring. A curve makes him unlikely,
+    // never impossible.
+    const kid = createCustomPlayer(new Rng('kid'), {
+      name: 'Kid',
+      age: 17,
+      position: 'ST',
+      attributes: suggestedAttributes('ST'),
+      tendencies: {},
+    });
+    const counts = sample(
+      context({ player: kid, nearbyDefenders: 0, defensivePressure: 0.15, situationQuality: 0.85 }),
+      'placedFinish',
+    );
+    const goals = rate(counts, 'goal');
+    expect(goals).toBeGreaterThan(0.1);
+    // ...but still clearly worse than a seasoned finisher.
+    const senior = rate(
+      sample(
+        context({
+          player: veteran(),
+          nearbyDefenders: 0,
+          defensivePressure: 0.15,
+          situationQuality: 0.85,
+        }),
+        'placedFinish',
+      ),
+      'goal',
+    );
+    expect(senior).toBeGreaterThan(goals + 0.08);
+  });
+
+  it('no situation is walled off entirely, however poor the attempt', () => {
+    // The failure mode being guarded against is arithmetic impossibility, not
+    // improbability: every shot must retain some chance of going in.
+    const hopeless = sample(
+      context({
+        player: prospect(),
+        nearbyDefenders: 4,
+        defensivePressure: 1,
+        situationQuality: 0.1,
+        zone: { third: 'attacking', channel: 'right', box: 'outside' },
+      }),
+      'powerDrive',
+      6000,
+    );
+    expect(hopeless['goal'] ?? 0).toBeGreaterThan(0);
+    expect(rate(hopeless, 'goal', 6000)).toBeLessThan(0.1);
+  });
+});
+
+describe('untimed mode', () => {
+  it('treats tempo as neutral rather than late', () => {
+    const late = tempoAdjustment({
+      option: option('placedFinish'),
+      timeUsed: 1.95,
+      window: 2,
+      expired: false,
+    });
+    const untimed = tempoAdjustment({
+      option: option('placedFinish'),
+      timeUsed: 30,
+      window: 2,
+      expired: false,
+      untimed: true,
+    });
+    expect(late).toBeLessThan(0);
+    expect(untimed).toBe(0);
+  });
+
+  it('does not apply the rushed-execution penalty', () => {
+    const definition = getAction('placedFinish');
+    const ctx = context();
+    const timed = executionQuality(definition, ctx, {
+      option: option('placedFinish'),
+      timeUsed: 1.99,
+      window: 2,
+      expired: false,
+    });
+    const untimed = executionQuality(definition, ctx, {
+      option: option('placedFinish'),
+      timeUsed: 1.99,
+      window: 2,
+      expired: false,
+      untimed: true,
+    });
+    expect(untimed).toBeGreaterThan(timed);
+  });
+
+  it('still lets an expired timer override it', () => {
+    expect(
+      tempoAdjustment({
+        option: option('placedFinish'),
+        timeUsed: 2,
+        window: 2,
+        expired: true,
+        untimed: true,
+      }),
+    ).toBeLessThan(0);
   });
 });

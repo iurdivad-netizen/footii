@@ -70,6 +70,8 @@ export interface DecisionSubmission {
   /** The option the human picked, or null if the timer expired. */
   option: ActionOption | null;
   timeUsed: number;
+  /** True when played without a time limit. */
+  untimed?: boolean;
 }
 
 export interface EventResolution {
@@ -254,6 +256,7 @@ export class MatchEngine {
       timeUsed: submission.timeUsed,
       window: event.timer.seconds,
       expired,
+      untimed: submission.untimed ?? false,
     };
 
     const result = resolveAction(this.rng, event.context, decision);

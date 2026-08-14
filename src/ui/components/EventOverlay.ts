@@ -19,6 +19,7 @@ import {
 export interface DecisionResult {
   option: ActionOption | null;
   timeUsed: number;
+  untimed: boolean;
 }
 
 export class EventOverlay {
@@ -48,6 +49,11 @@ export class EventOverlay {
 
   /** Pace multiplier, applied to the reading phase as well as the timer. */
   paceScale = 1;
+  /**
+   * When true the clock never expires. The keeper still commits on schedule, so
+   * the read is unchanged — you simply get to take your time over it.
+   */
+  untimed = false;
 
   constructor(private readonly input: InputController) {
     this.element = document.createElement('div');
@@ -197,9 +203,17 @@ export class EventOverlay {
       ? event.context.goalkeeper.committedAction
       : event.context.goalkeeper.action;
 
-    this.timerBar.style.width = `${(1 - progress) * 100}%`;
-    this.timerBar.classList.toggle('critical', remaining < window_ * 0.3);
-    this.timerValue.textContent = remaining.toFixed(2);
+    if (this.untimed) {
+      // Show elapsed time rather than a countdown: there is nothing to run out.
+      this.timerBar.style.width = '100%';
+      this.timerBar.classList.remove('critical');
+      this.timerValue.textContent = '∞';
+      this.setLabel.textContent = `No time limit · ${elapsed.toFixed(1)}s`;
+    } else {
+      this.timerBar.style.width = `${(1 - progress) * 100}%`;
+      this.timerBar.classList.toggle('critical', remaining < window_ * 0.3);
+      this.timerValue.textContent = remaining.toFixed(2);
+    }
 
     this.renderer.draw({
       context: event.context,
@@ -209,7 +223,7 @@ export class EventOverlay {
       showGoalkeeper: keeperInvolved,
     });
 
-    if (remaining <= 0) {
+    if (!this.untimed && remaining <= 0) {
       this.finish(null, window_);
       return;
     }
@@ -239,6 +253,7 @@ export class EventOverlay {
     );
     this.buttons[slot - 1]?.classList.add('chosen');
     this.finish(option, Math.min(elapsed, this.active.timer.seconds));
+
   }
 
   private finish(option: ActionOption | null, timeUsed: number): void {
@@ -248,7 +263,7 @@ export class EventOverlay {
     const settle = this.settle;
     this.settle = null;
     this.active = null;
-    settle?.({ option, timeUsed });
+    settle?.({ option, timeUsed, untimed: this.untimed });
   }
 
   hide(): void {

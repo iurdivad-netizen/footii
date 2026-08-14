@@ -1,5 +1,5 @@
 import { MatchEngine } from '../simulation/MatchEngine.ts';
-import { DECISION_PACE } from '../simulation/DecisionTimer.ts';
+import { DECISION_PACE, UNTIMED_PACE } from '../simulation/DecisionTimer.ts';
 import type { DecisionPace } from '../simulation/DecisionTimer.ts';
 import { endSeason, recordPlayerMatch, startCareer } from '../simulation/CareerService.ts';
 import { nextFixture, seasonComplete } from '../core/career/career.ts';
@@ -171,6 +171,7 @@ export class App {
   private applyPace(pace: DecisionPace): void {
     this.paceScale = DECISION_PACE[pace] ?? 1;
     this.overlay.paceScale = this.paceScale;
+    this.overlay.untimed = pace === UNTIMED_PACE;
   }
 
   // ------------------------------------------------------- quick match ---

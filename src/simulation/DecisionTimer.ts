@@ -73,6 +73,11 @@ export const DECISION_PACE = {
   standard: 1,
   relaxed: 1.5,
   veryRelaxed: 2.1,
+  /**
+   * No time limit. The scale still applies to the NOMINAL window used by the
+   * resolver, but the on-screen clock never expires — see `UNTIMED_PACE`.
+   */
+  untimed: 2.1,
 } as const;
 
 export type DecisionPace = keyof typeof DECISION_PACE;
@@ -82,7 +87,18 @@ export const DECISION_PACE_LABELS: Record<DecisionPace, string> = {
   standard: 'Standard — 1x',
   relaxed: 'Relaxed — 1.5x',
   veryRelaxed: 'Very relaxed — 2.1x',
+  untimed: 'No time limit — take as long as you like',
 };
+
+/**
+ * The pace setting at which the clock never runs out.
+ *
+ * The goalkeeper still commits on his normal schedule, so the read is unchanged
+ * — you simply are not punished for taking your time. Tempo is treated as
+ * neutral rather than late, so there is no hidden penalty for thinking; what
+ * you give up is the small bonus for deciding quickly.
+ */
+export const UNTIMED_PACE = 'untimed' as const satisfies DecisionPace;
 
 export interface TimerModifier {
   label: string;

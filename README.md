@@ -45,7 +45,7 @@ career statistics never absorb one-off games.
 
 Instead of a pre-built, you can build a footballer:
 
-- Spend a fixed pool of **430 attribute points**. Every attribute starts at 25 and nothing may
+- Spend a fixed pool of **520 attribute points**. Every attribute starts at 25 and nothing may
   begin above 70 — the rest is what a career is for. Every created player costs the same budget,
   so none is strictly better than another; a specialist has to be deliberately lopsided.
 - Choose a **position** and a **playing style** (Poacher, False Nine, Inside Forward, Deep
@@ -123,6 +123,12 @@ A **Decision pace** setting on the setup screen scales every phase equally
 a flat multiplier, the *relative* gap between a composed veteran and a panicking
 teenager is identical at every setting — it is an accessibility and difficulty
 control, not a rebalance.
+
+There is also **No time limit**, for playing without any clock at all. The
+goalkeeper still commits on his normal schedule, so the read is unchanged — you
+simply are not punished for taking your time. Tempo is treated as neutral rather
+than late, so thinking carries no hidden penalty; what you give up is the small
+bonus for deciding quickly.
 
 Typical timings at Standard pace:
 
@@ -216,11 +222,30 @@ value = baseValue
 `value` is then mapped to an outcome through a per-family ladder (goal / woodwork / save / block /
 miss for shots; completed / dangerous / intercepted for passes; and so on).
 
-**Bounded randomness caveat, worth knowing before you tune anything:** because the noise is
-clamped, an action whose typical value sits too far below a threshold can never cross it *at all*.
-That is deliberate for a genuinely wrong read (chipping a keeper on his line should not score), but
-it made long shots and timed-out attempts impossible until the base values were corrected. If you
-change a `baseValue`, check the resulting distribution rather than assuming it just shifts the odds.
+### Goals are a probability, not a threshold
+
+`value` is mapped to an outcome through a per-family ladder — except for the single most important
+question, "did it go in", which uses a logistic curve over `value`.
+
+This matters more than it sounds. Originally a shot scored when `value >= 0.70`. Because the
+resolution noise is clamped, that threshold sat *above the entire value distribution* of a weak
+player: a created 17-year-old striker converted a **clean one-on-one 3.7%** of the time and could
+play two full seasons without scoring, while the same threshold barely inconvenienced a veteran.
+Player quality became hypersensitive — a small change in value swung conversion from impossible to
+routine.
+
+A curve keeps the ordering (better players and better reads still score far more often) while
+making nothing impossible and nothing certain:
+
+| Player in a clean one-on-one | Before | After |
+| ---------------------------- | ------ | ----- |
+| Created 17-year-old          | 3.7%   | ~24%  |
+| Pre-built prospect           | 2.8%   | ~21%  |
+| Veteran (Finishing 84)       | 17.7%  | ~41%  |
+
+**The general lesson, worth remembering before tuning anything:** with clamped randomness, a hard
+threshold near the edge of a distribution is a wall, not a long shot. If you introduce one, check
+the resulting distribution rather than assuming it merely shifts the odds.
 
 ### Timer expiry
 
@@ -329,7 +354,7 @@ If a number in there looks wrong, the gameplay is wrong.
 npm test
 ```
 
-161 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, action generation (including the invariant that every
+168 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, action generation (including the invariant that every
 situation can always fill six slots), resolution, goalkeeper effects, attribute effects, chance
 generation, randomness boundaries, position-specific behaviour, instinctive actions, rating,
 pace scaling, and full-match determinism.
