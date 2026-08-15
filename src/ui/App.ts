@@ -30,6 +30,7 @@ import { CareerScreen } from './screens/CareerScreen.ts';
 import type { TotalsView } from './screens/FullTimeScreen.ts';
 import { FullTimeScreen } from './screens/FullTimeScreen.ts';
 import { HomeScreen } from './screens/HomeScreen.ts';
+import type { CareerSummary } from './screens/HomeScreen.ts';
 import { MatchScreen } from './screens/MatchScreen.ts';
 import { PlayerCreatorScreen } from './screens/PlayerCreatorScreen.ts';
 import { SeasonReviewScreen } from './screens/SeasonReviewScreen.ts';
@@ -94,21 +95,39 @@ export class App {
               this.showHome();
             }
           : undefined,
-        career: career
-          ? {
-              name: career.player.name,
-              detail: `${positionLabel(career.player.position)} · age ${career.player.age} · ${getTeam(career.clubId).name} · season ${career.seasonNumber}`,
-              ability: currentAbility(career.player),
-              played: career.seasonStats.matches,
-              total: fixturesFor(career, career.clubId).length,
-              goals: career.seasonStats.goals,
-              assists: career.seasonStats.assists,
-            }
-          : undefined,
+        career: this.careerSummary(),
         settings: this.save.settings,
         onSettingsChange: (settings) => this.updateSettings(settings),
       }).element,
     );
+  }
+
+  /**
+   * Summarise the career for the home screen, or nothing at all.
+   *
+   * Deliberately defensive: this reads deep into a saved career (statistics,
+   * fixtures, the club it refers to), and a save written by another version —
+   * or referring to a club that no longer exists — must not stop the game from
+   * starting. A career we cannot describe is simply not offered.
+   */
+  private careerSummary(): CareerSummary | undefined {
+    const career = this.save.careerState;
+    if (!career) return undefined;
+    try {
+      return {
+        name: career.player.name,
+        detail: `${positionLabel(career.player.position)} · age ${career.player.age} · ${getTeam(career.clubId).name} · season ${career.seasonNumber}`,
+        ability: currentAbility(career.player),
+        played: career.seasonStats.matches,
+        total: fixturesFor(career, career.clubId).length,
+        goals: career.seasonStats.goals,
+        assists: career.seasonStats.assists,
+      };
+    } catch (error) {
+      console.error('Saved career could not be read; dropping it', error);
+      this.save = clearCareer(this.save);
+      return undefined;
+    }
   }
 
   // ------------------------------------------------------------- setup ---
@@ -300,6 +319,13 @@ export class App {
       this.showHome();
       return;
     }
+    // Same reasoning as careerSummary(): a career that cannot be rendered must
+    // drop the player back to a working menu, not a blank screen.
+    if (!this.canRenderCareer(career)) {
+      this.save = clearCareer(this.save);
+      this.showHome();
+      return;
+    }
     this.matchScreen?.stop();
     this.matchScreen = null;
 
@@ -310,6 +336,17 @@ export class App {
         onQuit: () => this.showHome(),
       }).element,
     );
+  }
+
+  private canRenderCareer(career: CareerState): boolean {
+    try {
+      getTeam(career.clubId);
+      for (const id of career.leagueTeamIds) getTeam(id);
+      return typeof career.seasonStats?.matches === 'number' && Array.isArray(career.fixtures);
+    } catch (error) {
+      console.error('Saved career refers to data that no longer exists', error);
+      return false;
+    }
   }
 
   private playCareerMatch(): void {
