@@ -4,12 +4,7 @@ import type { MatchEngine } from '../../simulation/MatchEngine.ts';
 import type { EventOverlay } from '../components/EventOverlay.ts';
 import type { DebugPanel } from '../components/DebugPanel.ts';
 
-/** Milliseconds of real time per simulated minute, per speed setting. */
-const SPEEDS = [
-  { label: '1x', ms: 320 },
-  { label: '2x', ms: 160 },
-  { label: '4x', ms: 70 },
-];
+import { MATCH_SPEEDS, clampSpeedIndex } from './matchSpeeds.ts';
 
 /**
  * The match screen. Drives the engine loop, renders the running state, and
@@ -20,16 +15,20 @@ const SPEEDS = [
 export class MatchScreen {
   readonly element: HTMLElement;
   private timeout: number | null = null;
-  private speedIndex = 1;
+  private speedIndex: number;
   private paused = false;
   private busy = false;
+  private readonly onSpeedChange: ((index: number) => void) | undefined;
 
   constructor(
     private readonly engine: MatchEngine,
     private readonly overlay: EventOverlay,
     private readonly debug: DebugPanel,
     private readonly onFinished: () => void,
+    options: { speedIndex?: number; onSpeedChange?: (index: number) => void } = {},
   ) {
+    this.speedIndex = clampSpeedIndex(options.speedIndex ?? 1);
+    this.onSpeedChange = options.onSpeedChange;
     this.element = document.createElement('section');
     this.element.className = 'screen match-screen';
     this.element.innerHTML = `
@@ -38,7 +37,7 @@ export class MatchScreen {
         <div class="score" id="score"></div>
         <div class="controls">
           <button type="button" id="pause">Pause</button>
-          <button type="button" id="speed">2x</button>
+          <button type="button" id="speed"></button>
           <button type="button" id="debug-toggle" title="Toggle debug (D)">Debug</button>
         </div>
       </div>
@@ -73,6 +72,7 @@ export class MatchScreen {
     this.element.querySelector<HTMLElement>('#player-name')!.textContent =
       `${engine.setup.player.name} · ${engine.setup.player.position}`;
 
+    this.renderSpeed();
     this.render();
   }
 
@@ -95,12 +95,18 @@ export class MatchScreen {
   }
 
   cycleSpeed(): void {
-    this.speedIndex = (this.speedIndex + 1) % SPEEDS.length;
-    this.element.querySelector<HTMLButtonElement>('#speed')!.textContent =
-      SPEEDS[this.speedIndex]!.label;
+    this.speedIndex = (this.speedIndex + 1) % MATCH_SPEEDS.length;
+    this.renderSpeed();
+    // Remember it: changing speed mid-match is a preference, not a one-off.
+    this.onSpeedChange?.(this.speedIndex);
   }
 
-  private scheduleTick(delay = SPEEDS[this.speedIndex]!.ms): void {
+  private renderSpeed(): void {
+    this.element.querySelector<HTMLButtonElement>('#speed')!.textContent =
+      MATCH_SPEEDS[this.speedIndex]!.label;
+  }
+
+  private scheduleTick(delay = MATCH_SPEEDS[this.speedIndex]!.ms): void {
     this.stop();
     this.timeout = window.setTimeout(() => void this.tick(), delay);
   }

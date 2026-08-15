@@ -1347,3 +1347,167 @@ button.ghost {
 .creator-row.at-cap .creator-bar i {
   background: var(--warn);
 }
+
+/* ------------------------------------------------------- home screen ---- */
+
+.home-crest {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  margin: 0 auto 6px;
+}
+
+.crest-ring,
+.crest-dot {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.crest-ring {
+  inset: 0;
+  border: 2px solid var(--accent);
+  opacity: 0.75;
+}
+
+.crest-dot {
+  inset: 40%;
+  background: var(--accent);
+}
+
+.home-header {
+  position: relative;
+  text-align: center;
+  padding: clamp(14px, 5vh, 44px) 0 10px;
+}
+
+/* A thin pitch centre-line motif behind the title. */
+.home-header::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(74, 222, 128, 0.25) 20%,
+    rgba(74, 222, 128, 0.25) 80%,
+    transparent
+  );
+  z-index: -1;
+}
+
+.mode-icon {
+  font-family: var(--mono);
+  font-size: 1.1rem;
+  color: var(--accent);
+  opacity: 0.8;
+}
+
+.career-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.career-card-name {
+  margin: 2px 0 2px;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.career-card-stats {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  margin: 10px 0 6px;
+}
+
+.career-card-stats strong {
+  color: var(--text);
+}
+
+.season-bar {
+  height: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.season-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.career-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.career-card-actions .primary {
+  width: auto;
+  max-width: none;
+  padding: 12px 28px;
+}
+
+.career-card-actions .ghost {
+  margin-top: 0;
+}
+
+.home-settings {
+  margin-top: 26px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+
+.home-settings h2 {
+  margin: 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.home-help {
+  margin-top: 24px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.home-help summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+}
+
+.home-help ul {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--text-dim);
+  line-height: 1.7;
+  font-size: 0.92rem;
+}
+
+.home-help strong {
+  color: var(--text);
+}

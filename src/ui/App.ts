@@ -1,6 +1,5 @@
 import { MatchEngine } from '../simulation/MatchEngine.ts';
 import { DECISION_PACE, UNTIMED_PACE } from '../simulation/DecisionTimer.ts';
-import type { DecisionPace } from '../simulation/DecisionTimer.ts';
 import { endSeason, recordPlayerMatch, startCareer } from '../simulation/CareerService.ts';
 import { nextFixture, seasonComplete } from '../core/career/career.ts';
 import type { CareerState } from '../core/career/career.ts';
@@ -14,7 +13,16 @@ import { CUSTOM_PLAYER_ID, TEAMS, getGoalkeeperForTeam, getPreset, getTeam } fro
 import { matchResult } from '../core/match/matchState.ts';
 import { averageRating } from '../core/career/seasonStats.ts';
 import type { SaveData } from '../persistence/storage.ts';
-import { clearCareer, loadSave, recordMatch, saveCareer, writeSave } from '../persistence/storage.ts';
+import {
+  clearCareer,
+  loadSave,
+  recordMatch,
+  saveCareer,
+  saveSettings,
+  writeSave,
+} from '../persistence/storage.ts';
+import type { GameSettings } from '../persistence/storage.ts';
+import { fixturesFor } from '../core/career/career.ts';
 import { DebugPanel } from './components/DebugPanel.ts';
 import { EventOverlay } from './components/EventOverlay.ts';
 import { InputController } from './interaction/InputController.ts';
@@ -54,6 +62,7 @@ export class App {
   constructor(private readonly root: HTMLElement) {
     this.overlay = new EventOverlay(this.input);
     this.save = loadSave();
+    this.applySettings();
     this.input.bindKey('d', () => this.debug.toggle());
     this.root.appendChild(this.debug.element);
     this.showHome();
@@ -85,9 +94,19 @@ export class App {
               this.showHome();
             }
           : undefined,
-        careerSummary: career
-          ? `${career.player.name} · ${positionLabel(career.player.position)} · age ${career.player.age} · ${getTeam(career.clubId).name} · season ${career.seasonNumber} · ability ${currentAbility(career.player)}`
+        career: career
+          ? {
+              name: career.player.name,
+              detail: `${positionLabel(career.player.position)} · age ${career.player.age} · ${getTeam(career.clubId).name} · season ${career.seasonNumber}`,
+              ability: currentAbility(career.player),
+              played: career.seasonStats.matches,
+              total: fixturesFor(career, career.clubId).length,
+              goals: career.seasonStats.goals,
+              assists: career.seasonStats.assists,
+            }
           : undefined,
+        settings: this.save.settings,
+        onSettingsChange: (settings) => this.updateSettings(settings),
       }).element,
     );
   }
@@ -126,7 +145,6 @@ export class App {
       set('opponent', last.opponentId);
       set('seed', last.seed);
       set('length', String(last.length));
-      if (last.pace) set('pace', last.pace);
       screen.element.querySelector<HTMLSelectElement>('#preset')?.dispatchEvent(new Event('change'));
     }
   }
@@ -168,10 +186,24 @@ export class App {
     return getPreset(presetId === CUSTOM_PLAYER_ID ? 'young-prospect' : presetId).create();
   }
 
-  private applyPace(pace: DecisionPace): void {
+  /**
+   * Apply the saved preferences.
+   *
+   * Called on boot and whenever they change, so EVERY entry point — a new
+   * career, a quick match, or continuing a saved career after a reload — plays
+   * at the chosen pace. Applying it only when a match was configured meant a
+   * resumed career silently reverted to Standard.
+   */
+  private applySettings(): void {
+    const pace = this.save.settings.pace;
     this.paceScale = DECISION_PACE[pace] ?? 1;
     this.overlay.paceScale = this.paceScale;
     this.overlay.untimed = pace === UNTIMED_PACE;
+  }
+
+  private updateSettings(settings: Partial<GameSettings>): void {
+    this.save = saveSettings(this.save, settings);
+    this.applySettings();
   }
 
   // ------------------------------------------------------- quick match ---
@@ -180,7 +212,6 @@ export class App {
     this.selectedPresetId = selection.presetId;
     this.save = { ...this.save, lastSelection: selection };
     writeSave(this.save);
-    this.applyPace(selection.pace);
 
     const player = this.resolvePlayer(selection.presetId);
     const playerTeam = getTeam(selection.teamId);
@@ -238,7 +269,10 @@ export class App {
     onFinished: (engine: MatchEngine) => void,
   ): void {
     this.debug.setSeed(seed);
-    const screen = new MatchScreen(engine, this.overlay, this.debug, () => onFinished(engine));
+    const screen = new MatchScreen(engine, this.overlay, this.debug, () => onFinished(engine), {
+      speedIndex: this.save.settings.matchSpeed,
+      onSpeedChange: (index) => this.updateSettings({ matchSpeed: index }),
+    });
     this.matchScreen = screen;
     this.mount(screen.element);
     screen.start();
@@ -249,7 +283,6 @@ export class App {
   private beginCareer(selection: SetupSelection): void {
     this.selectedPresetId = selection.presetId;
     this.save = { ...this.save, lastSelection: selection };
-    this.applyPace(selection.pace);
 
     const career = startCareer({
       player: this.resolvePlayer(selection.presetId),

@@ -33,7 +33,10 @@ Requires Node 20+.
 
 ## Modes
 
-The game opens on a **home screen** with two ways in:
+The game opens on a **home screen**: continue a career in progress, start a new one, or play a
+single match — plus the settings that govern how you want to play.
+
+Two ways in:
 
 - **Career** — build or pick a footballer and follow him season by season.
 - **Quick match** — a single game against any opponent. Nothing is saved to a career.
@@ -116,9 +119,16 @@ All of this lives in the UI layer — it is a property of the interface, not of
 football — while the narration beats themselves are generated from the event's
 seeded `Rng` (`data/buildUp.ts`), so a replayed match narrates identically.
 
+### Settings
+
+**Decision pace** and **match speed** live on the home screen and are **saved between sessions**,
+because they describe how *you* want to play rather than anything about a particular match. They
+were previously chosen per match and never persisted, which meant reloading and continuing a career
+silently reverted a deliberately relaxed game to Standard — the game got harder without saying so.
+
 ### Decision pace
 
-A **Decision pace** setting on the setup screen scales every phase equally
+The pace setting scales every phase equally
 (Hardcore 0.75x / Standard 1x / Relaxed 1.5x / Very relaxed 2.1x). Because it is
 a flat multiplier, the *relative* gap between a composed veteran and a panicking
 teenager is identical at every setting — it is an accessibility and difficulty
@@ -354,7 +364,7 @@ If a number in there looks wrong, the gameplay is wrong.
 npm test
 ```
 
-168 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, action generation (including the invariant that every
+175 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, save migration, action generation (including the invariant that every
 situation can always fill six slots), resolution, goalkeeper effects, attribute effects, chance
 generation, randomness boundaries, position-specific behaviour, instinctive actions, rating,
 pace scaling, and full-match determinism.
