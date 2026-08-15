@@ -14,7 +14,7 @@ import type { DecisionPace } from '../simulation/DecisionTimer.ts';
  * saving is `JSON.stringify` and loading needs no reconstruction.
  */
 
-const STORAGE_KEY = 'footii.save.v1';
+export const STORAGE_KEY = 'footii.save.v1';
 export const SAVE_VERSION = 3;
 
 export interface CareerRecord {
@@ -98,6 +98,34 @@ function defaultSave(): SaveData {
  * v1 had no career mode, so a v1 save is valid — it simply has no `careerState`.
  * Returns null if the save is too damaged or too old to rescue.
  */
+/**
+ * Is this career structurally usable?
+ *
+ * A save is loaded on every boot and read deeply by the home screen, so a
+ * single missing field used to take the whole game down with a blank page and
+ * no way back — you could not even reach the menu to abandon the career. A
+ * career that fails this check is DROPPED rather than trusted: losing one
+ * career is recoverable, an unstartable game is not.
+ */
+export function isUsableCareer(state: unknown): state is CareerState {
+  if (!state || typeof state !== 'object') return false;
+  const c = state as Partial<CareerState>;
+  return (
+    !!c.player &&
+    typeof c.player === 'object' &&
+    !!c.player.attributes &&
+    typeof c.clubId === 'string' &&
+    Array.isArray(c.leagueTeamIds) &&
+    Array.isArray(c.fixtures) &&
+    Array.isArray(c.results) &&
+    Array.isArray(c.table) &&
+    !!c.seasonStats &&
+    typeof c.seasonStats === 'object' &&
+    typeof c.seasonNumber === 'number' &&
+    typeof c.nextFixtureIndex === 'number'
+  );
+}
+
 export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveData | null {
   if (!parsed || typeof parsed !== 'object' || !parsed.career) return null;
 
@@ -131,6 +159,9 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
   // A career that predates a field must not crash the game.
   if (save.careerState && !Array.isArray(save.careerState.history)) {
     save.careerState.history = [];
+  }
+  if (save.careerState && !isUsableCareer(save.careerState)) {
+    save.careerState = undefined;
   }
   return save;
 }

@@ -1511,3 +1511,43 @@ button.ghost {
 .home-help strong {
   color: var(--text);
 }
+
+/* -------------------------------------------------------------- error --- */
+
+.error-screen {
+  max-width: 620px;
+  margin: 8vh auto 0;
+}
+
+.error-screen h1 {
+  color: var(--warn);
+}
+
+.error-lead {
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+.error-detail {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: #fca5a5;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+.error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0 10px;
+}
+
+.error-actions .primary {
+  width: auto;
+  max-width: none;
+}

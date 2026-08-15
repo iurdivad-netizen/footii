@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { SAVE_VERSION, defaultSettings, emptyCareer, migrate } from '../src/persistence/storage.ts';
+import {
+  SAVE_VERSION,
+  defaultSettings,
+  emptyCareer,
+  isUsableCareer,
+  migrate,
+} from '../src/persistence/storage.ts';
 import type { SaveData } from '../src/persistence/storage.ts';
 import { startCareer } from '../src/simulation/CareerService.ts';
 import { createPlayer } from '../src/core/player/player.ts';
@@ -92,5 +98,68 @@ describe('save migration', () => {
     expect(restored.career.goals).toBe(4);
     expect(restored.careerState!.player.name).toBe('Test');
     expect(restored.careerState!.fixtures.length).toBe(original.careerState!.fixtures.length);
+  });
+});
+
+describe('career save validation', () => {
+  it('accepts a well-formed career', () => {
+    expect(isUsableCareer(career())).toBe(true);
+  });
+
+  it('rejects anything that is not a career object', () => {
+    for (const bad of [null, undefined, 42, 'career', []]) {
+      expect(isUsableCareer(bad)).toBe(false);
+    }
+  });
+
+  it('rejects a career missing any field the UI reads', () => {
+    const required = [
+      'player',
+      'clubId',
+      'leagueTeamIds',
+      'fixtures',
+      'results',
+      'table',
+      'seasonStats',
+      'seasonNumber',
+      'nextFixtureIndex',
+    ];
+    for (const field of required) {
+      const broken = { ...career() } as Record<string, unknown>;
+      delete broken[field];
+      expect(isUsableCareer(broken), `missing ${field}`).toBe(false);
+    }
+  });
+
+  it('DROPS a broken career instead of letting it break the game', () => {
+    // The whole point: losing one career is recoverable, a game that will not
+    // start is not. A malformed career previously took the app down at boot
+    // with a blank page and no route back to a menu.
+    const broken = { ...career() } as Record<string, unknown>;
+    delete broken.seasonStats;
+
+    const migrated = migrate({
+      version: SAVE_VERSION,
+      career: { ...emptyCareer(), goals: 9 },
+      careerState: broken,
+    } as never)!;
+
+    expect(migrated).not.toBeNull();
+    expect(migrated.careerState).toBeUndefined();
+    // Everything else survives.
+    expect(migrated.career.goals).toBe(9);
+    expect(migrated.settings).toEqual(defaultSettings());
+  });
+
+  it('keeps a career that is merely missing history, since that is repairable', () => {
+    const state = { ...career() } as Record<string, unknown>;
+    delete state.history;
+    const migrated = migrate({
+      version: SAVE_VERSION,
+      career: emptyCareer(),
+      careerState: state,
+    } as never)!;
+    expect(migrated.careerState).toBeDefined();
+    expect(migrated.careerState!.history).toEqual([]);
   });
 });
