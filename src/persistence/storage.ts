@@ -1,6 +1,7 @@
 import type { MatchStats } from '../core/match/matchStats.ts';
 import type { CareerState } from '../core/career/career.ts';
 import { currentAbility } from '../core/player/player.ts';
+import type { DecisionPace } from '../simulation/DecisionTimer.ts';
 
 /**
  * Persistence.
@@ -33,10 +34,30 @@ export interface CareerRecord {
   defeats: number;
 }
 
+/**
+ * Global preferences.
+ *
+ * Decision pace lives here rather than on the match setup screen because it is
+ * a difficulty and accessibility choice about how YOU want to play, not a
+ * property of one match. It was previously passed per match and never saved, so
+ * reloading and continuing a career silently reverted it to Standard — turning
+ * a deliberately relaxed game back into a frantic one without saying so.
+ */
+export interface GameSettings {
+  pace: DecisionPace;
+  /** Index into the match screen's speed presets. */
+  matchSpeed: number;
+}
+
+export function defaultSettings(): GameSettings {
+  return { pace: 'standard', matchSpeed: 1 };
+}
+
 export interface SaveData {
   version: number;
   /** Running totals from one-off quick matches. */
   career: CareerRecord;
+  settings: GameSettings;
   lastSelection?: {
     presetId: string;
     teamId: string;
@@ -69,7 +90,7 @@ export function emptyCareer(): CareerRecord {
 }
 
 function defaultSave(): SaveData {
-  return { version: SAVE_VERSION, career: emptyCareer() };
+  return { version: SAVE_VERSION, career: emptyCareer(), settings: defaultSettings() };
 }
 
 /**
@@ -102,6 +123,10 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
   }
 
   if (save.version !== SAVE_VERSION) return null;
+
+  // Settings are additive: an older save simply had none, and a save written
+  // before a new preference existed must still load.
+  save.settings = { ...defaultSettings(), ...(save.settings ?? {}) };
 
   // A career that predates a field must not crash the game.
   if (save.careerState && !Array.isArray(save.careerState.history)) {
@@ -164,6 +189,12 @@ export function recordMatch(
   else career.draws += 1;
 
   const updated: SaveData = { ...save, career };
+  writeSave(updated);
+  return updated;
+}
+
+export function saveSettings(save: SaveData, settings: Partial<GameSettings>): SaveData {
+  const updated: SaveData = { ...save, settings: { ...save.settings, ...settings } };
   writeSave(updated);
   return updated;
 }

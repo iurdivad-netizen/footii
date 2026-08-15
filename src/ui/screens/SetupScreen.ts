@@ -2,8 +2,6 @@ import { PLAYER_PRESETS, TEAMS } from '../../data/gameData.ts';
 import { positionLabel } from '../../core/player/positions.ts';
 import { TACTICAL_STYLE_LABELS } from '../../core/team/team.ts';
 import { CUSTOM_PLAYER_ID } from '../../data/gameData.ts';
-import { DECISION_PACE, DECISION_PACE_LABELS } from '../../simulation/DecisionTimer.ts';
-import type { DecisionPace } from '../../simulation/DecisionTimer.ts';
 
 export interface SetupSelection {
   /** A preset id, or CUSTOM_PLAYER_ID when using a created player. */
@@ -12,7 +10,6 @@ export interface SetupSelection {
   opponentId: string;
   seed: string;
   length: number;
-  pace: DecisionPace;
 }
 
 export interface SetupHandlers {
@@ -90,22 +87,6 @@ export class SetupScreen {
           <p class="hint">The same seed always produces the same match.</p>
         </div>
 
-        <div class="field">
-          <label for="pace">Decision pace</label>
-          <select id="pace">
-            ${(Object.keys(DECISION_PACE) as DecisionPace[])
-              .map(
-                (key) =>
-                  `<option value="${key}" ${key === 'standard' ? 'selected' : ''}>${DECISION_PACE_LABELS[key]}</option>`,
-              )
-              .join('')}
-          </select>
-          <p class="hint">
-            Stretches every decision window equally. Young, low-awareness players get very
-            little time — raise this while you learn them.
-          </p>
-        </div>
-
         <div class="field" ${handlers.mode === 'career' ? 'hidden' : ''}>
           <label for="length">Match length</label>
           <select id="length">
@@ -161,7 +142,6 @@ export class SetupScreen {
         opponentId,
         seed: this.element.querySelector<HTMLInputElement>('#seed')!.value.trim() || 'footii',
         length: Number(this.element.querySelector<HTMLSelectElement>('#length')!.value),
-        pace: this.element.querySelector<HTMLSelectElement>('#pace')!.value as DecisionPace,
       };
     };
 
