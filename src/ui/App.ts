@@ -1,6 +1,12 @@
 import { MatchEngine } from '../simulation/MatchEngine.ts';
 import { DECISION_PACE, UNTIMED_PACE } from '../simulation/DecisionTimer.ts';
-import { endSeason, recordPlayerMatch, startCareer } from '../simulation/CareerService.ts';
+import {
+  acceptOffer,
+  declineOffers,
+  endSeason,
+  recordPlayerMatch,
+  startCareer,
+} from '../simulation/CareerService.ts';
 import { nextFixture, seasonComplete } from '../core/career/career.ts';
 import type { CareerState } from '../core/career/career.ts';
 import { Rng } from '../core/rng.ts';
@@ -35,6 +41,7 @@ import { MatchScreen } from './screens/MatchScreen.ts';
 import { PlayerCreatorScreen } from './screens/PlayerCreatorScreen.ts';
 import { SeasonReviewScreen } from './screens/SeasonReviewScreen.ts';
 import { TrainingScreen } from './screens/TrainingScreen.ts';
+import { TransferScreen } from './screens/TransferScreen.ts';
 import { applyTraining } from '../core/career/training.ts';
 import type { SetupSelection } from './screens/SetupScreen.ts';
 import { SetupScreen } from './screens/SetupScreen.ts';
@@ -329,6 +336,14 @@ export class App {
     this.matchScreen?.stop();
     this.matchScreen = null;
 
+    // An open transfer window is resumed rather than lost. Closing the tab on
+    // the offer screen used to leave the offers sitting in the save with no
+    // route back to them, so a summer's work simply vanished.
+    if (career.offers.length > 0) {
+      this.showTransferWindow(career, career.trainingPoints, []);
+      return;
+    }
+
     this.mount(
       new CareerScreen(career, {
         onPlay: () => this.playCareerMatch(),
@@ -472,12 +487,49 @@ export class App {
           // is the comparison point.
           previous: career.history[career.history.length - 2],
           trainingPoints: outcome.trainingAwarded,
+          reputation: outcome.reputation,
+          offers: outcome.offers.length,
         },
-        () =>
-          outcome.trainingAwarded > 0
-            ? this.showTraining(career, outcome.trainingAwarded, outcome.trainingNotes)
-            : this.showCareerHub(),
+        () => this.afterReview(career, outcome.trainingAwarded, outcome.trainingNotes),
       ).element,
+    );
+  }
+
+  /**
+   * The summer, in order: the window first, then training.
+   *
+   * Transfers come first deliberately — where you will be playing is the
+   * decision that gives the training screen its context, and a player who has
+   * just joined a wide-play side may well spend his points differently.
+   */
+  private afterReview(career: CareerState, points: number, notes: string[]): void {
+    if (career.offers.length > 0) {
+      this.showTransferWindow(career, points, notes);
+      return;
+    }
+    if (points > 0) this.showTraining(career, points, notes);
+    else this.showCareerHub();
+  }
+
+  /** Summer: decide where you are playing next season. */
+  private showTransferWindow(career: CareerState, points: number, notes: string[]): void {
+    const close = () => {
+      this.save = saveCareer(this.save, career);
+      if (points > 0) this.showTraining(career, points, notes);
+      else this.showCareerHub();
+    };
+
+    this.mount(
+      new TransferScreen(career.player, getTeam(career.clubId), career.offers, {
+        onAccept: (offerId) => {
+          acceptOffer(career, offerId, getTeam);
+          close();
+        },
+        onStay: () => {
+          declineOffers(career);
+          close();
+        },
+      }).element,
     );
   }
 

@@ -15,7 +15,7 @@ import type { DecisionPace } from '../simulation/DecisionTimer.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 export interface CareerRecord {
   matches: number;
@@ -150,6 +150,18 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
     save = { ...save, version: 3 };
   }
 
+  if (save.version === 3) {
+    // v3 -> v4: careers gained transfers. An in-progress career simply starts
+    // with an empty window and no move history; the first end of season will
+    // fill it in.
+    const career = save.careerState;
+    if (career) {
+      career.offers ??= [];
+      career.transfers ??= [];
+    }
+    save = { ...save, version: 4 };
+  }
+
   if (save.version !== SAVE_VERSION) return null;
 
   // Settings are additive: an older save simply had none, and a save written
@@ -159,6 +171,12 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
   // A career that predates a field must not crash the game.
   if (save.careerState && !Array.isArray(save.careerState.history)) {
     save.careerState.history = [];
+  }
+  if (save.careerState && !Array.isArray(save.careerState.offers)) {
+    save.careerState.offers = [];
+  }
+  if (save.careerState && !Array.isArray(save.careerState.transfers)) {
+    save.careerState.transfers = [];
   }
   if (save.careerState && !isUsableCareer(save.careerState)) {
     save.careerState = undefined;

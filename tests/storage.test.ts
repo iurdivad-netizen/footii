@@ -58,6 +58,24 @@ describe('save migration', () => {
     expect(restored.trainingPoints).toBe(0);
   });
 
+  it('backfills a v3 career with an empty transfer window and no move history', () => {
+    const state = career();
+    // Simulate a v3 save: transfers did not exist yet.
+    const legacy = { ...state } as Record<string, unknown>;
+    delete legacy.offers;
+    delete legacy.transfers;
+
+    const migrated = migrate({
+      version: 3,
+      career: emptyCareer(),
+      careerState: legacy,
+    } as never)!;
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.careerState!.offers).toEqual([]);
+    expect(migrated.careerState!.transfers).toEqual([]);
+  });
+
   it('preserves settings that already exist and fills in ones that do not', () => {
     const migrated = migrate({
       version: SAVE_VERSION,
@@ -149,6 +167,20 @@ describe('career save validation', () => {
     // Everything else survives.
     expect(migrated.career.goals).toBe(9);
     expect(migrated.settings).toEqual(defaultSettings());
+  });
+
+  it('keeps a career whose transfer fields are damaged, since those are repairable', () => {
+    const state = { ...career() } as Record<string, unknown>;
+    state.offers = 'not an array';
+    delete state.transfers;
+    const migrated = migrate({
+      version: SAVE_VERSION,
+      career: emptyCareer(),
+      careerState: state,
+    } as never)!;
+    expect(migrated.careerState).toBeDefined();
+    expect(migrated.careerState!.offers).toEqual([]);
+    expect(migrated.careerState!.transfers).toEqual([]);
   });
 
   it('keeps a career that is merely missing history, since that is repairable', () => {

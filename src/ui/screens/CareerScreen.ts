@@ -6,6 +6,9 @@ import type { CareerState } from '../../core/career/career.ts';
 import { matchesRemaining, nextFixture, seasonComplete } from '../../core/career/career.ts';
 import { goalDifference, sortTable } from '../../core/career/league.ts';
 import { averageRating } from '../../core/career/seasonStats.ts';
+import { reputationTier } from '../../core/career/reputation.ts';
+import { marketValue, scoutingInterest } from '../../core/career/transfers.ts';
+import type { ClubInterest } from '../../core/career/transfers.ts';
 import { getTeam } from '../../data/gameData.ts';
 
 /**
@@ -91,8 +94,17 @@ export class CareerScreen {
             <div><dt>Form</dt><dd>${Math.round(player.form)}</dd></div>
             <div><dt>Morale</dt><dd>${Math.round(player.morale)}</dd></div>
             <div><dt>Experience</dt><dd>${Math.round(player.experience)}</dd></div>
-            <div><dt>Reputation</dt><dd>${Math.round(player.reputation)}</dd></div>
           </dl>
+        </div>
+
+        <div class="career-card">
+          <h2>Standing</h2>
+          <dl class="stat-list">
+            <div><dt>Reputation</dt><dd>${Math.round(player.reputation)}</dd></div>
+            <div><dt>Known as</dt><dd>${reputationTier(player.reputation).label}</dd></div>
+            <div><dt>Market value</dt><dd>£${marketValue(player)}m</dd></div>
+          </dl>
+          ${this.renderWatchers()}
         </div>
 
         <div class="career-card">
@@ -120,6 +132,7 @@ export class CareerScreen {
       </div>
 
       ${this.renderHistory()}
+      ${this.renderTransfers()}
 
       <button id="quit-career" class="ghost">Leave career</button>`;
   }
@@ -196,6 +209,60 @@ export class CareerScreen {
       <p class="hint">Awareness, Composure and Decision Making set your decision window.</p>`;
   }
 
+  /**
+   * Clubs watching but not yet bidding.
+   *
+   * This is the visible half of the reputation model: interest builds across a
+   * season, so a run of goals reads as going somewhere long before the window
+   * opens. Without it, an offer in the summer would arrive from nowhere.
+   */
+  private renderWatchers(): string {
+    const watching: ClubInterest[] = scoutingInterest(
+      this.state.player,
+      this.state.leagueTeamIds.map(getTeam),
+      this.state.clubId,
+      this.state.seasonStats,
+    ).slice(0, 3);
+
+    if (watching.length === 0) {
+      return `<p class="hint">Nobody is watching you yet. Reputation is built on goals, assists and ratings.</p>`;
+    }
+    const items = watching
+      .map(
+        (interest) =>
+          `<li>
+            <span>${getTeam(interest.clubId).name}</span>
+            <span class="watch-level">${describeInterest(interest.score)}</span>
+          </li>`,
+      )
+      .join('');
+    return `<h3 class="watch-heading">Scouts watching</h3><ul class="watch-list">${items}</ul>`;
+  }
+
+  /** Every move made, so a career reads as a journey rather than a table. */
+  private renderTransfers(): string {
+    if (this.state.transfers.length === 0) return '';
+    const rows = this.state.transfers
+      .map(
+        (t) =>
+          `<tr>
+            <td>${t.season}</td>
+            <td>${t.age}</td>
+            <td>${getTeam(t.fromClubId).shortName} → ${getTeam(t.toClubId).shortName}</td>
+            <td>£${t.fee}m</td>
+            <td>£${t.wage}k</td>
+          </tr>`,
+      )
+      .join('');
+    return `<div class="career-card">
+        <h2>Transfers</h2>
+        <table class="league-table">
+          <thead><tr><th>S</th><th>Age</th><th>Move</th><th>Fee</th><th>Wages</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+
   private renderHistory(): string {
     if (this.state.history.length === 0) return '';
     const rows = this.state.history
@@ -221,4 +288,12 @@ export class CareerScreen {
         </table>
       </div>`;
   }
+}
+
+/** Scouting interest as a phrase rather than a probability. */
+function describeInterest(score: number): string {
+  if (score >= 0.5) return 'Very keen';
+  if (score >= 0.36) return 'Ready to bid';
+  if (score >= 0.28) return 'Keeping tabs';
+  return 'Aware of you';
 }
