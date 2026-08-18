@@ -20,3 +20,13 @@ try {
   console.error('Footii failed to start', error);
   renderFatalError(root, error, STORAGE_KEY);
 }
+
+// Tell the boot watchdog in index.html that the module ran. Set after the try
+// block rather than inside it: reaching the error boundary still counts as
+// "the code loaded", and that screen is far more useful than the watchdog's.
+declare global {
+  interface Window {
+    __footiiStarted?: boolean;
+  }
+}
+window.__footiiStarted = true;

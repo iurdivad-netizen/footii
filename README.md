@@ -399,10 +399,10 @@ If a number in there looks wrong, the gameplay is wrong.
 npm test
 ```
 
-185 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, save migration, save validation, action generation (including the invariant that every
+190 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, save migration, save validation, action generation (including the invariant that every
 situation can always fill six slots), resolution, goalkeeper effects, attribute effects, chance
 generation, randomness boundaries, position-specific behaviour, instinctive actions, rating,
-pace scaling, option colour coding, and full-match determinism.
+pace scaling, option colour coding, boot recovery, and full-match determinism.
 
 ---
 
@@ -414,6 +414,29 @@ vite's `base` to `/footii/`), and publishes `dist/` via GitHub Pages.
 One-time setup: **Settings → Pages → Build and deployment → Source: GitHub Actions**. Pushes to
 `main` then deploy automatically. If you fork or rename the repository, update `base` in
 `vite.config.ts` to match the new repository name.
+
+### If the page comes up blank after a deploy
+
+Every build writes a new content-hashed bundle (`assets/index-<hash>.js`) and a fresh
+`index.html` pointing at it. A browser holding a **cached copy of the previous `index.html`**
+therefore asks for a filename that no longer exists, the request 404s, and none of the game's
+code ever runs — a blank page immediately after a deploy that was working minutes earlier.
+
+Nothing in `src/` can report that, because nothing in `src/` has loaded. So `index.html`
+carries a small **boot watchdog**: a plain (non-module) script that records resource load
+failures and, if the app has not mounted after six seconds, replaces the blank page with what
+actually failed and a **"Reload, ignoring the cache"** button. The button reloads with a
+changed query string, which forces a fresh document request rather than the cached one.
+
+There are now two layers, and they cover different failures:
+
+| Failure | Caught by | What you see |
+| --- | --- | --- |
+| The game's code throws while starting | error boundary in `main.ts` | Error screen with the message and save-clearing options |
+| The game's code never loads at all | boot watchdog in `index.html` | "Footii did not load", the failed URL, cache-busting reload |
+
+`main.ts` sets `window.__footiiStarted` after its try/catch, so reaching the error boundary
+counts as a successful load — that screen is more useful than the watchdog's.
 
 ---
 
