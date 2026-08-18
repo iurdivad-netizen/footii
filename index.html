@@ -17,6 +17,71 @@
   </head>
   <body>
     <main id="app"></main>
+    <!--
+      BOOT WATCHDOG.
+
+      This is a plain (non-module) script on purpose: it has to survive the very
+      failure it reports. If the module below never loads — a stale cached
+      index.html pointing at an asset hash that no longer exists after a deploy,
+      a network blip, a browser that rejects the bundle — then nothing in
+      src/ ever runs, no error boundary fires, and the player is left staring at
+      a blank page with no idea what happened or what to do.
+
+      So: capture load errors, and if the app has not mounted after a few
+      seconds, say so and offer a reload that bypasses the HTTP cache (the
+      query string forces a fresh document request, which is the fix when a
+      stale index.html is the cause).
+    -->
+    <script>
+      (function () {
+        var failures = [];
+        // Capture phase, because resource load errors do not bubble.
+        window.addEventListener(
+          'error',
+          function (event) {
+            var target = event.target;
+            if (target && target !== window && (target.src || target.href)) {
+              failures.push('failed to load ' + (target.src || target.href));
+            } else if (event.message) {
+              failures.push(event.message);
+            }
+          },
+          true,
+        );
+        window.addEventListener('unhandledrejection', function (event) {
+          failures.push(String((event.reason && event.reason.message) || event.reason));
+        });
+
+        setTimeout(function () {
+          if (window.__footiiStarted) return;
+          var root = document.getElementById('app');
+          if (!root || root.childElementCount > 0) return;
+          var detail = failures.length
+            ? failures.slice(0, 3).join('\n')
+            : 'The game files did not finish loading.';
+          root.innerHTML =
+            '<div style="max-width:34rem;margin:12vh auto;padding:24px;font-family:system-ui,sans-serif;' +
+            'color:#e8edf2;background:#111c16;border:1px solid #2b3a32;border-radius:10px">' +
+            '<h1 style="margin:0 0 12px;font-size:1.3rem;letter-spacing:0.06em">FOOTII DID NOT LOAD</h1>' +
+            '<p style="margin:0 0 14px;line-height:1.5;color:#9fb0a5">' +
+            'The page opened but the game code never started. This is almost always a cached ' +
+            'copy of an old build; reloading past the cache usually fixes it.</p>' +
+            '<pre style="margin:0 0 16px;padding:10px;background:#0b1a12;border-radius:6px;' +
+            'font-size:0.75rem;color:#f2a5a5;white-space:pre-wrap;overflow-wrap:anywhere">' +
+            detail.replace(/[<&]/g, function (c) { return c === '<' ? '&lt;' : '&amp;'; }) +
+            '</pre>' +
+            '<button id="footii-hard-reload" style="font:inherit;padding:10px 16px;border-radius:6px;' +
+            'border:1px solid #4ade80;background:#4ade80;color:#05140b;cursor:pointer">' +
+            'Reload, ignoring the cache</button></div>';
+          var button = document.getElementById('footii-hard-reload');
+          if (button) {
+            button.addEventListener('click', function () {
+              location.replace(location.pathname + '?reload=' + Date.now());
+            });
+          }
+        }, 6000);
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
