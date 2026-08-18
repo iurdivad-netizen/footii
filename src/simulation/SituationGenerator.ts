@@ -57,6 +57,18 @@ function tendencyBias(player: Player, type: SituationType): number {
       return tendencyFactor(t, 'comesShort') * 0.5 + tendencyFactor(t, 'dropsDeep') * 0.5;
     case 'defensiveDuel':
       return tendencyFactor(t, 'presses') * 0.6 + tendencyFactor(t, 'holdsPosition') * 0.4;
+    case 'penalty':
+      // Winning a penalty is mostly a consequence of getting in behind people.
+      return tendencyFactor(t, 'runsBehind') * 0.5 + tendencyFactor(t, 'attacksSpace') * 0.5;
+    case 'freeKickDirect':
+      // Free kicks in shooting range are won by players who carry the ball in.
+      return tendencyFactor(t, 'cutsInside') * 0.5 + tendencyFactor(t, 'comesShort') * 0.5;
+    case 'cornerAttack':
+      return tendencyFactor(t, 'attacksSpace') * 0.6 + tendencyFactor(t, 'holdsPosition') * 0.4;
+    case 'aerialDuel':
+      return tendencyFactor(t, 'holdsPosition') * 0.7 + tendencyFactor(t, 'presses') * 0.3;
+    case 'pressingTrap':
+      return tendencyFactor(t, 'presses') * 0.8 + tendencyFactor(t, 'attacksSpace') * 0.2;
   }
 }
 
@@ -86,6 +98,30 @@ function styleBias(team: Team, type: SituationType): number {
       return 1 + unit(r.possession) * 0.4 + unit(r.passing) * 0.3;
     case 'defensiveDuel':
       return 1;
+    case 'penalty':
+      // Teams that get into the box get fouled in it.
+      return 1 + unit(r.attack) * 0.3 + unit(r.creativity) * 0.2;
+    case 'freeKickDirect':
+      return 1 + unit(r.creativity) * 0.25 + (team.style === 'possession' ? 0.15 : 0);
+    case 'cornerAttack':
+      return 1 + unit(r.crossing) * 0.4 + (team.style === 'widePlay' ? 0.35 : 0);
+    // For the defensive archetypes `team` is the OPPOSITION — these read as
+    // "what does the side attacking you like to do", which is why a direct team
+    // makes you head balls all afternoon and a possession team invites a press.
+    case 'aerialDuel':
+      return (
+        1 +
+        unit(r.crossing) * 0.35 +
+        (team.style === 'direct' ? 0.7 : 0) +
+        (team.style === 'widePlay' ? 0.4 : 0)
+      );
+    case 'pressingTrap':
+      return (
+        1 +
+        unit(r.possession) * 0.4 +
+        (team.style === 'possession' ? 0.4 : 0) -
+        (team.style === 'direct' ? 0.3 : 0)
+      );
   }
 }
 
@@ -95,10 +131,13 @@ export function chooseSituationType(
   attackingTeam: Team,
   options: { defending?: boolean } = {},
 ): SituationType {
-  if (options.defending) return 'defensiveDuel';
+  // Attacking and defending draw from disjoint pools, and which pool a template
+  // belongs to is a property of the template — not a list kept in here — so a
+  // new defensive archetype needs no change to this function.
+  const defending = options.defending ?? false;
 
   const entries = (Object.keys(SITUATION_TEMPLATES) as SituationType[])
-    .filter((type) => type !== 'defensiveDuel')
+    .filter((type) => SITUATION_TEMPLATES[type].defensive === defending)
     .map((type) => {
       const template = SITUATION_TEMPLATES[type];
       const positionWeight = template.positionWeights[player.position] ?? 0;
@@ -109,7 +148,7 @@ export function chooseSituationType(
     })
     .filter((entry) => entry.weight > 0);
 
-  if (entries.length === 0) return 'midfieldProgression';
+  if (entries.length === 0) return defending ? 'defensiveDuel' : 'midfieldProgression';
   return rng.weighted(entries);
 }
 
@@ -141,8 +180,18 @@ export function createGoalkeeperState(
   const commitFraction = clamp01(rng.range(0.35, 0.85) - aggression * 0.2);
   const commitAt = commitFraction * decisionWindowEstimate;
 
-  const committedAction = rng.weighted<GoalkeeperAction>(
-    situation === 'oneOnOne' || situation === 'throughBallRun'
+  // A set piece dictates what the keeper is choosing between, so its template
+  // supplies the distribution. Note the commit TIMING above still comes from his
+  // aggression: the penalty taker's read is unchanged, only the odds of what he
+  // eventually does.
+  const templateCommit = SITUATION_TEMPLATES[situation].keeperCommit;
+
+  const commitWeights: { value: GoalkeeperAction; weight: number }[] = templateCommit
+    ? (Object.entries(templateCommit) as [GoalkeeperAction, number][]).map(([value, weight]) => ({
+        value,
+        weight,
+      }))
+    : situation === 'oneOnOne' || situation === 'throughBallRun'
       ? [
           { value: 'rushing', weight: 2 + aggression * 4 },
           { value: 'advancing', weight: 2.5 },
@@ -158,8 +207,9 @@ export function createGoalkeeperState(
           { value: 'divingFar', weight: 1.2 },
           { value: 'rushing', weight: 0.6 + aggression * 1.5 },
           { value: 'goingToGround', weight: 0.6 },
-        ],
-  );
+        ];
+
+  const committedAction = rng.weighted<GoalkeeperAction>(commitWeights);
 
   return {
     keeper,

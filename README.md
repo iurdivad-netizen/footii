@@ -196,6 +196,52 @@ That creates the central tension:
 
 There is no universally optimal button. That's the point.
 
+### Set pieces
+
+Three of the thirteen archetypes are dead balls, and they exist because they are the moments where
+the commit mechanic is at its purest.
+
+**A penalty** has no defenders, no angle and no build-up to read. The only variable is the
+goalkeeper, and the template puts him on his line and makes him *commit* — he dives, goes to
+ground or stands up, and he never rushes out. So the entire decision is how long you dare to wait:
+
+| You chose                        | He had already gone | He was still stood up |
+| -------------------------------- | ------------------- | --------------------- |
+| Side-foot it into the corner     | ~79%                | ~75%                  |
+| Wait, then open the body the other way | ~78%          | ~35%                  |
+| Chip it down the middle          | ~75% (gone to ground) | ~25%                |
+
+The percentage penalty is barely affected by the read. The two spectacular ones are almost entirely
+the read. That is the whole game in one event: waiting costs you nothing here except nerve, so a
+penalty is the one situation where the correct play is always to hold your decision — and the
+options that punish you for holding it wrong are the two that look best when they come off.
+
+**A direct free kick** converts in single digits even for a specialist, which is deliberate: the
+interesting choice is usually whether to shoot at all, and the delivery options are genuinely
+competitive with the shot rather than a consolation.
+
+**A corner** inverts the keeper read. He is not deciding how to face a striker, he is deciding
+whether to come and claim, so attacking the near post is strong exactly while he stays and awful
+once he moves, and peeling to the far post is the mirror image.
+
+### The defending you are asked to do
+
+Defensive events used to be one archetype — the last-ditch duel. There are now three, and which of
+them you get is a statement about both you and the opposition:
+
+- **The defensive duel** — a runner at you, and you are the last line.
+- **The aerial duel** — the ball is launched forward and has to be won or dealt with. A **direct**
+  opponent generates far more of these than a possession side, so playing a long-ball team really
+  does mean an afternoon of heading.
+- **The pressing trap** — they are playing out from the back and you are the first man. A
+  **possession** side invites these; a direct side rarely offers one.
+
+The consequence is that a striker's defensive work is now the press rather than the tackle, and a
+centre back's is the duel and the header, without either being coded as a special case: it falls
+out of the position and tendency weights. The one action in the game that reads your **own**
+goalkeeper lives here too — leaving a ball for a brave, decisive keeper is free, and leaving it for
+a passive one is how defenders end up apologising to the crowd.
+
 ---
 
 ## Design model
@@ -369,7 +415,19 @@ head-lessly in tests.
 3. Add any new actions to `src/data/actionCatalogue.ts`.
 
 No engine file needs editing — the generator, timer, resolver and UI all read from those
-definitions.
+definitions. Three template flags carry the cases that used to be hard-coded in the generator:
+
+- `defensive` — whether the archetype belongs to the defending pool. The generator routes on this
+  flag, so a new defensive archetype is added exactly like an attacking one.
+- `setPiece` — a dead ball. Set pieces get their own opening narration beat, because "they break at
+  pace" and "the referee points to the spot" cannot both describe the same moment.
+- `keeperCommit` — an optional override of what the goalkeeper commits to. A keeper facing a
+  penalty dives far more often than he does in open play; one facing a corner is deciding whether
+  to come and claim. Commit *timing* still comes from his aggression either way.
+
+TypeScript enforces most of the rest: `SITUATION_LABELS`, the template record, and the tendency,
+style and narration switches are all exhaustive over `SituationType`, so a half-added archetype
+fails to compile rather than failing quietly at runtime.
 
 ---
 
@@ -399,10 +457,13 @@ If a number in there looks wrong, the gameplay is wrong.
 npm test
 ```
 
-190 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, save migration, save validation, action generation (including the invariant that every
+211 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, save migration, save validation, action generation (including the invariant that every
 situation can always fill six slots), resolution, goalkeeper effects, attribute effects, chance
 generation, randomness boundaries, position-specific behaviour, instinctive actions, rating,
-pace scaling, option colour coding, boot recovery, and full-match determinism.
+pace scaling, option colour coding, boot recovery, set-piece conversion rates, the penalty commit
+read, defensive archetype routing, the invariant that a defending player is never offered an action
+that could score, the invariant that no catalogue action is unreachable, and full-match
+determinism.
 
 ---
 
@@ -529,7 +590,8 @@ their constants:
 The core mechanic and a playable career loop.
 
 Implemented: home screen with career and quick-match modes, custom player creation, seeded match
-engine, eight situation archetypes, ~40 contextual actions, dynamic
+engine, thirteen situation archetypes (including penalties, direct free kicks, corners, aerial
+duels and pressing traps), ~60 contextual actions, dynamic
 decision timer, build-up narration, goalkeeper commit mechanic, action resolution with separated
 choice/execution, instinctive fallback on expiry, match statistics and rating, five playable
 presets across four positions, eight teams with tactical styles, **season fixtures, live league
@@ -545,7 +607,10 @@ databases.
 - **Transfers and reputation** — clubs valuing position, ability, potential, age, form and
   tactical suitability, with offers arriving as your reputation grows. The career layer now
   provides everything this needs.
-- **More event types** — set pieces, penalties, aerial duels, pressing traps, goalkeeper play.
+- **Playable goalkeeper** — the last event type on the original list, and the only one that needs
+  more than a template: `GK` exists as a position but has no playable match loop, so it needs its
+  own situations (shot-stopping, claiming a cross, sweeping, distribution) and its own involvement
+  model rather than a share of an outfielder's.
 - **Squad context** — named teammates, so an assist has a recipient and a club has a shape.
 - **Injuries and squad rotation** — the fitness model now has enough bite to support them.
 - **Awards and honours** — player of the season, top scorer, international call-ups.

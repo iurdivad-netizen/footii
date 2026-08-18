@@ -657,6 +657,284 @@ export const ACTION_CATALOGUE: Record<ActionKind, ActionDefinition> = Object.fro
     fit: (c) => clamp01(0.4 + unit(c.attackingTeam.ratings.creativity) * 0.2),
   }),
 
+  // --------------------------------------------------------- corner runs ---
+  // Two halves of one read. The keeper at a corner is choosing whether to come
+  // and claim, and these two options are worth the opposite of each other
+  // depending on what he does — which is the commit mechanic in the air.
+  action('attackNearPost', {
+    label: 'Attack it at the near post',
+    family: 'header',
+    baseValue: 0.5,
+    execution: { movement: 0.35, heading: 0.4, acceleration: 0.25 },
+    gkRelevance: 0.6, // the near post is the keeper's own six-yard box
+    gkAttributes: { positioning: 0.4, handling: 0.35, decisionMaking: 0.25 },
+    defenderRelevance: 0.4,
+    risk: 0.3,
+    fit: (c) => {
+      // Getting in front of your marker only works while the keeper stays put.
+      // The moment he comes to claim, the near post is the worst place to be.
+      let value = 0.62 - keeperExposure(c) * 0.45;
+      value -= (c.nearbyDefenders - 1) * 0.05;
+      return clamp01(value);
+    },
+    fitNote: (c) => (keeperExposure(c) > 0.5 ? 'The keeper is coming for it' : 'The keeper stays'),
+  }),
+
+  action('peelToFarPost', {
+    label: 'Peel off to the far post',
+    family: 'header',
+    baseValue: 0.44,
+    execution: { positioning: 0.35, heading: 0.35, movement: 0.3 },
+    gkRelevance: 0.25,
+    gkAttributes: { positioning: 0.5, decisionMaking: 0.3, handling: 0.2 },
+    defenderRelevance: 0.2,
+    risk: 0.25,
+    fit: (c) => {
+      // The mirror image of the near post: a keeper who commits to the ball
+      // leaves the back of the six-yard box completely unguarded.
+      let value = 0.42 + keeperExposure(c) * 0.35;
+      value += unit(c.player.attributes.heading) * 0.1;
+      return clamp01(value);
+    },
+    fitNote: (c) => (keeperExposure(c) > 0.5 ? 'Nobody is on the back post' : 'The keeper is set'),
+  }),
+
+  // ------------------------------------------------------------ penalties ---
+  // Penalties are the purest form of the commit mechanic: no defenders, no
+  // angle, only whether you moved before the keeper did.
+  //
+  // CALIBRATION: a penalty already collects a large constant bonus from chance
+  // quality (~0.9, the highest in the game) and loses almost nothing to
+  // defenders, so these base values are LOWER than the open-play shots and
+  // still land a competent taker at roughly the real three-in-four. The spread
+  // between the options is almost entirely `fit`, which is to say the read: the
+  // same taker converts about four in five having waited for the keeper to go,
+  // and closer to two in five having guessed.
+  action('penaltyPlaced', {
+    label: 'Side-foot it into the corner',
+    family: 'shot',
+    baseValue: 0.55,
+    execution: { composure: 0.4, technique: 0.3, finishing: 0.3 },
+    gkRelevance: 0.5,
+    gkAttributes: { anticipation: 0.4, reflexes: 0.35, positioning: 0.25 },
+    defenderRelevance: 0,
+    risk: 0.15,
+    fit: (c) => {
+      // The percentage penalty. Never wrong, never devastating.
+      const committed = keeperCommitted(c);
+      let value = 0.62;
+      if (committed !== 'none') value += 0.1;
+      return clamp01(value - predictabilityPenalty(c, 0.35));
+    },
+    fitNote: () => 'The percentage penalty',
+  }),
+
+  action('penaltyNearPost', {
+    label: 'Hard and low to the near corner',
+    family: 'shot',
+    baseValue: 0.54,
+    execution: { finishing: 0.4, technique: 0.3, composure: 0.3 },
+    gkRelevance: 0.6, // the corner keepers actually reach
+    gkAttributes: { anticipation: 0.45, reflexes: 0.35, positioning: 0.2 },
+    defenderRelevance: 0,
+    risk: 0.2,
+    fit: (c) => {
+      const committed = keeperCommitted(c);
+      let value = 0.55;
+      if (committed === 'far') value += 0.3;
+      if (committed === 'near') value -= 0.35;
+      if (committed === 'ground') value += 0.1;
+      return clamp01(value - predictabilityPenalty(c, 0.55));
+    },
+    fitNote: (c) =>
+      keeperCommitted(c) === 'near' ? 'He has gone that way' : 'That corner is open',
+  }),
+
+  action('penaltyPower', {
+    label: 'Blast it down the middle',
+    family: 'shot',
+    baseValue: 0.53,
+    execution: { shooting: 0.4, strength: 0.3, composure: 0.3 },
+    gkRelevance: 0.25, // power beats a keeper who guessed right
+    gkAttributes: { reflexes: 0.5, positioning: 0.3, anticipation: 0.2 },
+    defenderRelevance: 0,
+    risk: 0.3,
+    fit: (c) => {
+      // Down the middle is empty the instant he dives — and a wall if he doesn't.
+      const committed = keeperCommitted(c);
+      let value = 0.35;
+      if (committed === 'near' || committed === 'far') value += 0.4;
+      if (committed === 'ground') value += 0.3;
+      if (c.goalkeeper.action === 'holdingLine') value -= 0.2;
+      return clamp01(value - predictabilityPenalty(c, 0.5));
+    },
+    fitNote: (c) => (keeperCommitted(c) !== 'none' ? 'The middle is empty' : 'He is still stood up'),
+  }),
+
+  action('penaltyTopCorner', {
+    label: 'Go for the top corner',
+    family: 'shot',
+    baseValue: 0.5,
+    execution: { technique: 0.45, composure: 0.3, shooting: 0.25 },
+    gkRelevance: 0.12, // unsaveable if it lands — the risk is missing the goal
+    gkAttributes: { reflexes: 0.7, positioning: 0.3 },
+    defenderRelevance: 0,
+    risk: 0.4,
+    fit: () => 0.6,
+    fitNote: () => 'Unsaveable if it lands — all on the technique',
+  }),
+
+  action('penaltyOpenBody', {
+    label: 'Wait, then open the body the other way',
+    family: 'shot',
+    baseValue: 0.52,
+    execution: { composure: 0.4, technique: 0.3, anticipation: 0.3 },
+    gkRelevance: 0.2,
+    gkAttributes: { anticipation: 0.6, reflexes: 0.4 },
+    defenderRelevance: 0,
+    risk: 0.35,
+    fit: (c) => {
+      // Only exists as an idea once he has actually moved. Choose it while he
+      // is still balanced and you have simply passed it to him.
+      const committed = keeperCommitted(c);
+      if (committed === 'none') return 0.12;
+      return clamp01(0.85 - predictabilityPenalty(c, 0.2));
+    },
+    fitNote: (c) =>
+      keeperCommitted(c) === 'none' ? 'He has not moved yet' : 'He has thrown himself one way',
+  }),
+
+  action('penaltyPanenka', {
+    label: 'Chip it down the middle',
+    family: 'shot',
+    baseValue: 0.48,
+    execution: { technique: 0.45, composure: 0.4, finishing: 0.15 },
+    gkRelevance: 0.3,
+    gkAttributes: { anticipation: 0.5, reflexes: 0.3, decisionMaking: 0.2 },
+    defenderRelevance: 0,
+    risk: 0.55, // the most public way to fail in football
+    fit: (c) => {
+      const committed = keeperCommitted(c);
+      let value = 0.2;
+      if (committed === 'ground') value += 0.65;
+      else if (committed !== 'none') value += 0.5;
+      if (c.goalkeeper.action === 'holdingLine') value -= 0.15;
+      return clamp01(value - predictabilityPenalty(c, 0.3));
+    },
+    fitNote: (c) =>
+      keeperCommitted(c) === 'none' ? 'He is still on his feet — this is madness' : 'He has gone',
+  }),
+
+  // ------------------------------------------------------- direct free kicks ---
+  // Direct free kicks convert at well under one in ten, so the shooting options
+  // carry deliberately low base values: the interesting choice is usually
+  // whether to shoot at all, and the delivery options are genuinely competitive.
+  action('freeKickCurl', {
+    label: 'Curl it over the wall',
+    family: 'shot',
+    baseValue: 0.34,
+    execution: { technique: 0.4, shooting: 0.35, composure: 0.25 },
+    gkRelevance: 0.7,
+    gkAttributes: { reflexes: 0.45, positioning: 0.35, anticipation: 0.2 },
+    defenderRelevance: 0.1, // the wall, not the defenders around him
+    risk: 0.25,
+    fit: (c) => {
+      let value = 0.6 - goalAngleFactor(c.zone) * 0.35 - goalDistanceFactor(c.zone) * 0.25;
+      value += unit(c.player.attributes.technique) * 0.2;
+      return clamp01(value);
+    },
+    fitNote: (c) => (goalAngleFactor(c.zone) > 0.5 ? 'A tight angle to bend it in' : 'Central range'),
+  }),
+
+  action('freeKickDrive', {
+    label: 'Drive it under the wall',
+    family: 'shot',
+    baseValue: 0.32,
+    execution: { shooting: 0.45, technique: 0.3, strength: 0.25 },
+    gkRelevance: 0.8,
+    gkAttributes: { reflexes: 0.5, positioning: 0.25, handling: 0.25 },
+    defenderRelevance: 0.15,
+    risk: 0.3,
+    fit: (c) => {
+      // A shot that trades placement for surprise: worth more from further out,
+      // where the keeper expects a cross, and against a keeper who reads poorly.
+      let value = 0.4 + goalDistanceFactor(c.zone) * 0.2;
+      value -= unit(c.goalkeeper.keeper.attributes.anticipation) * 0.15;
+      return clamp01(value);
+    },
+  }),
+
+  action('freeKickWhipped', {
+    label: 'Whip it into the six-yard box',
+    family: 'cross',
+    baseValue: 0.52,
+    execution: { crossing: 0.5, technique: 0.3, awareness: 0.2 },
+    gkRelevance: 0.5, // straight into the area he is allowed to punch
+    gkAttributes: { positioning: 0.35, handling: 0.35, decisionMaking: 0.3 },
+    defenderRelevance: 0.3,
+    risk: 0.3,
+    fit: (c) => {
+      let value = 0.45 + goalAngleFactor(c.zone) * 0.25 + goalDistanceFactor(c.zone) * 0.15;
+      value += unit(c.attackingTeam.ratings.crossing) * 0.15;
+      value -= keeperExposure(c) * 0.2;
+      return clamp01(value);
+    },
+    fitNote: (c) =>
+      goalAngleFactor(c.zone) > 0.5 ? 'Too wide to shoot — deliver it' : 'Shooting range',
+  }),
+
+  action('freeKickFarPost', {
+    label: 'Hang it up to the far post',
+    family: 'cross',
+    baseValue: 0.5,
+    execution: { crossing: 0.45, technique: 0.3, awareness: 0.25 },
+    gkRelevance: 0.2, // beyond where he can realistically come
+    gkAttributes: { positioning: 0.5, decisionMaking: 0.3, handling: 0.2 },
+    defenderRelevance: 0.25,
+    risk: 0.25,
+    fit: (c) => {
+      let value = 0.45 + unit(c.attackingTeam.ratings.crossing) * 0.15;
+      value += keeperExposure(c) * 0.2;
+      value -= c.nearbyDefenders * 0.03;
+      return clamp01(value);
+    },
+  }),
+
+  action('freeKickRolled', {
+    label: 'Roll it sideways for the shot',
+    family: 'pass',
+    baseValue: 0.55,
+    execution: { passing: 0.4, awareness: 0.35, composure: 0.25 },
+    gkRelevance: 0.1,
+    gkAttributes: { anticipation: 1 },
+    defenderRelevance: 0.2,
+    risk: 0.25,
+    fit: (c) => {
+      // Worth it when the angle is good enough that the second player has a
+      // shot, and when the side around you can actually strike a ball.
+      let value = 0.5 - goalAngleFactor(c.zone) * 0.3;
+      value += unit(c.attackingTeam.ratings.creativity) * 0.2;
+      return clamp01(value);
+    },
+  }),
+
+  action('freeKickShort', {
+    label: 'Play it short and rebuild',
+    family: 'pass',
+    baseValue: 0.68,
+    execution: { passing: 0.4, composure: 0.35, awareness: 0.25 },
+    gkRelevance: 0,
+    gkAttributes: {},
+    defenderRelevance: 0.15,
+    risk: 0.1,
+    fit: (c) => {
+      let value = 0.45 + unit(c.attackingTeam.ratings.possession) * 0.2;
+      value -= c.situationQuality * 0.3; // wasteful from a shooting position
+      return clamp01(value);
+    },
+    fitNote: (c) => (c.situationQuality > 0.5 ? 'Wastes the set piece' : 'Keeps the ball'),
+  }),
+
   // ------------------------------------------------------------ defending ---
   action('stepInAndTackle', {
     label: 'Step in and tackle',
@@ -717,6 +995,134 @@ export const ACTION_CATALOGUE: Record<ActionKind, ActionDefinition> = Object.fro
     defenderRelevance: 0,
     risk: 0.2,
     fit: (c) => clamp01(0.5 + (c.zone.channel === 'central' ? 0.15 : -0.1)),
+  }),
+
+  // ------------------------------------------------- defending a ball in the air ---
+  // NOTE: in a defensive event the goalkeeper in context is the player's OWN
+  // keeper, so `gkRelevance` must stay at zero — it is an opposition term. Where
+  // the keeper matters to a defender he is read inside `fit` instead.
+  action('headerClear', {
+    label: 'Attack it and head it clear',
+    family: 'defend',
+    baseValue: 0.6,
+    execution: { heading: 0.45, strength: 0.3, defensiveAwareness: 0.25 },
+    gkRelevance: 0,
+    gkAttributes: {},
+    defenderRelevance: 0,
+    risk: 0.2,
+    fit: (c) => clamp01(0.62 - c.situationQuality * 0.12),
+    fitNote: () => 'The defender’s first instinct, and usually right',
+  }),
+
+  action('blockRunner', {
+    label: 'Get across the runner',
+    family: 'defend',
+    baseValue: 0.52,
+    execution: { strength: 0.4, positioning: 0.35, anticipation: 0.25 },
+    gkRelevance: 0,
+    gkAttributes: {},
+    defenderRelevance: 0,
+    risk: 0.5, // in the box this is how penalties are given away
+    fit: (c) => clamp01(0.45 + c.defensivePressure * 0.2 - (c.zone.box === 'inside' ? 0.15 : 0)),
+    fitNote: (c) => (c.zone.box === 'inside' ? 'Inside the box — careful' : 'Fair contact'),
+  }),
+
+  action('dropOffAndCover', {
+    label: 'Drop off and cover the space',
+    family: 'defend',
+    baseValue: 0.57,
+    execution: { defensiveAwareness: 0.45, positioning: 0.3, pace: 0.25 },
+    gkRelevance: 0,
+    gkAttributes: {},
+    defenderRelevance: 0,
+    risk: 0.15,
+    fit: (c) => clamp01(0.45 + c.situationQuality * 0.25),
+    fitNote: () => 'Concedes the ball, protects the goal',
+  }),
+
+  action('leaveItForTheKeeper', {
+    label: 'Leave it for the keeper',
+    family: 'defend',
+    baseValue: 0.58,
+    execution: { awareness: 0.4, decisionMaking: 0.35, composure: 0.25 },
+    gkRelevance: 0,
+    gkAttributes: {},
+    defenderRelevance: 0,
+    risk: 0.45, // a mix-up with your own keeper is a goal
+    fit: (c) => {
+      // The one action whose read is your OWN goalkeeper: leaving it to a
+      // decisive, aggressive keeper is free, leaving it to a passive one is how
+      // defenders end up apologising to the crowd.
+      const a = c.goalkeeper.keeper.attributes;
+      return clamp01(0.2 + unit(a.aggression) * 0.35 + unit(a.decisionMaking) * 0.3);
+    },
+    fitNote: (c) =>
+      unit(c.goalkeeper.keeper.attributes.aggression) > 0.55
+        ? 'He comes for these'
+        : 'He tends to stay',
+  }),
+
+  // ------------------------------------------------------- pressing traps ---
+  action('pressTheCarrier', {
+    label: 'Sprint at the man on the ball',
+    family: 'defend',
+    baseValue: 0.48,
+    execution: { acceleration: 0.4, tackling: 0.3, stamina: 0.3 },
+    gkRelevance: 0,
+    gkAttributes: {},
+    defenderRelevance: 0,
+    risk: 0.55, // beaten by the press and the shape is gone
+    fit: (c) => {
+      let value = 0.4 + (c.player.tendencies.presses - 50) / 200;
+      value += unit(c.defendingTeam.ratings.pressing) * 0.25;
+      value -= c.situationQuality * 0.2; // pressing while exposed is how goals start
+      return clamp01(value);
+    },
+    fitNote: (c) =>
+      c.situationQuality > 0.55 ? 'They are already dangerous' : 'The moment to go',
+  }),
+
+  action('screenThePass', {
+    label: 'Cut the passing lane',
+    family: 'defend',
+    baseValue: 0.54,
+    execution: { anticipation: 0.4, defensiveAwareness: 0.35, positioning: 0.25 },
+    gkRelevance: 0,
+    gkAttributes: {},
+    defenderRelevance: 0,
+    risk: 0.25,
+    fit: (c) => clamp01(0.45 + unit(c.player.attributes.anticipation) * 0.25),
+  }),
+
+  action('springTheTrap', {
+    label: 'Show him inside to the cover',
+    family: 'defend',
+    baseValue: 0.5,
+    execution: { defensiveAwareness: 0.35, positioning: 0.35, anticipation: 0.3 },
+    gkRelevance: 0,
+    gkAttributes: {},
+    defenderRelevance: 0,
+    risk: 0.35,
+    fit: (c) => {
+      // A trap only exists if there is somebody to trap him against.
+      let value = 0.35 + c.defensivePressure * 0.35;
+      value += unit(c.defendingTeam.ratings.defensiveIntensity) * 0.15;
+      return clamp01(value);
+    },
+    fitNote: (c) => (c.defensivePressure > 0.45 ? 'Support is there' : 'He would be on his own'),
+  }),
+
+  action('holdShape', {
+    label: 'Hold your shape',
+    family: 'defend',
+    baseValue: 0.6,
+    execution: { defensiveAwareness: 0.4, positioning: 0.35, composure: 0.25 },
+    gkRelevance: 0,
+    gkAttributes: {},
+    defenderRelevance: 0,
+    risk: 0.08,
+    fit: (c) => clamp01(0.55 - unit(c.defendingTeam.ratings.pressing) * 0.15),
+    fitNote: () => 'Nothing gained, nothing given away',
   }),
 ]) as Record<ActionKind, ActionDefinition>;
 
