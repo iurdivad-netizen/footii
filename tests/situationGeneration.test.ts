@@ -92,12 +92,79 @@ describe('situation generation — position behaviour', () => {
     expect(wideCounts['wideAttack'] ?? 0).toBeGreaterThan(possCounts['wideAttack'] ?? 0);
   });
 
-  it('a defending request always produces a defensive duel', () => {
-    for (let i = 0; i < 50; i++) {
-      expect(chooseSituationType(new Rng(`def-${i}`), playerAt('CB'), team(), { defending: true })).toBe(
-        'defensiveDuel',
-      );
+  it('defending and attacking draw from disjoint pools', () => {
+    for (let i = 0; i < 200; i++) {
+      const defending = chooseSituationType(new Rng(`def-${i}`), playerAt('CB'), team(), {
+        defending: true,
+      });
+      expect(SITUATION_TEMPLATES[defending].defensive, defending).toBe(true);
+
+      const attacking = chooseSituationType(new Rng(`att-${i}`), playerAt('CB'), team());
+      expect(SITUATION_TEMPLATES[attacking].defensive, attacking).toBe(false);
     }
+  });
+
+  it('a defending striker presses; a defending centre back defends his box', () => {
+    const defensive = (seedPrefix: string, position: 'ST' | 'CB') => {
+      const counts: Record<string, number> = {};
+      for (let i = 0; i < 1500; i++) {
+        const type = chooseSituationType(new Rng(`${seedPrefix}-${i}`), playerAt(position), team(), {
+          defending: true,
+        });
+        counts[type] = (counts[type] ?? 0) + 1;
+      }
+      return counts;
+    };
+
+    const striker = defensive('press-st', 'ST');
+    const centreBack = defensive('press-cb', 'CB');
+
+    // The striker's defensive work is the press, not the last-ditch tackle.
+    expect(striker['pressingTrap'] ?? 0).toBeGreaterThan(striker['defensiveDuel'] ?? 0);
+    expect(centreBack['defensiveDuel'] ?? 0).toBeGreaterThan(centreBack['pressingTrap'] ?? 0);
+    expect(centreBack['aerialDuel'] ?? 0).toBeGreaterThan(striker['aerialDuel'] ?? 0);
+  });
+
+  it('the opponent\u2019s style shapes the defending you are asked to do', () => {
+    const defensiveCounts = (seedPrefix: string, opponent: ReturnType<typeof createTeam>) => {
+      const counts: Record<string, number> = {};
+      for (let i = 0; i < 1500; i++) {
+        const type = chooseSituationType(new Rng(`${seedPrefix}-${i}`), playerAt('CB'), opponent, {
+          defending: true,
+        });
+        counts[type] = (counts[type] ?? 0) + 1;
+      }
+      return counts;
+    };
+
+    const direct = createTeam({
+      name: 'Long Ball',
+      base: 60,
+      style: 'direct',
+      ratings: { crossing: 85 },
+    });
+    const possession = createTeam({
+      name: 'Passers',
+      base: 60,
+      style: 'possession',
+      ratings: { possession: 90, crossing: 30 },
+    });
+
+    const vsDirect = defensiveCounts('vs-direct', direct);
+    const vsPossession = defensiveCounts('vs-poss', possession);
+
+    // A direct side makes you head balls; a possession side invites the press.
+    expect(vsDirect['aerialDuel'] ?? 0).toBeGreaterThan(vsPossession['aerialDuel'] ?? 0);
+    expect(vsPossession['pressingTrap'] ?? 0).toBeGreaterThan(vsDirect['pressingTrap'] ?? 0);
+  });
+
+  it('set pieces are rare enough to stay special', () => {
+    const counts = distribution('rare', playerAt('ST'), team(), 4000);
+    const setPieces =
+      (counts['penalty'] ?? 0) + (counts['freeKickDirect'] ?? 0);
+    // A penalty every few matches, not every few minutes.
+    expect(setPieces / 4000).toBeLessThan(0.05);
+    expect(counts['penalty'] ?? 0).toBeGreaterThan(0);
   });
 });
 

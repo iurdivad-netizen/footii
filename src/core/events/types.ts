@@ -19,7 +19,14 @@ export type SituationType =
   | 'wideAttack'
   | 'crossArrival'
   | 'midfieldProgression'
-  | 'defensiveDuel';
+  | 'defensiveDuel'
+  // set pieces
+  | 'penalty'
+  | 'freeKickDirect'
+  | 'cornerAttack'
+  // defensive archetypes beyond the straight duel
+  | 'aerialDuel'
+  | 'pressingTrap';
 
 export const SITUATION_LABELS: Record<SituationType, string> = {
   oneOnOne: 'One-on-one',
@@ -30,6 +37,11 @@ export const SITUATION_LABELS: Record<SituationType, string> = {
   crossArrival: 'Arriving on a cross',
   midfieldProgression: 'Midfield in possession',
   defensiveDuel: 'Defensive challenge',
+  penalty: 'Penalty',
+  freeKickDirect: 'Direct free kick',
+  cornerAttack: 'Attacking a corner',
+  aerialDuel: 'Aerial duel',
+  pressingTrap: 'Pressing trap',
 };
 
 /** The action families the resolver knows how to score and narrate. */
@@ -76,12 +88,36 @@ export type ActionKind =
   | 'headerDown'
   | 'headerCorner'
   | 'headerFlickOn'
+  | 'attackNearPost'
+  | 'peelToFarPost'
+  // penalties
+  | 'penaltyPlaced'
+  | 'penaltyNearPost'
+  | 'penaltyPower'
+  | 'penaltyTopCorner'
+  | 'penaltyOpenBody'
+  | 'penaltyPanenka'
+  // direct free kicks
+  | 'freeKickCurl'
+  | 'freeKickDrive'
+  | 'freeKickWhipped'
+  | 'freeKickFarPost'
+  | 'freeKickRolled'
+  | 'freeKickShort'
   // defending
   | 'stepInAndTackle'
   | 'jockey'
   | 'interceptLine'
   | 'clearFirstTime'
-  | 'shepherdWide';
+  | 'shepherdWide'
+  | 'headerClear'
+  | 'blockRunner'
+  | 'dropOffAndCover'
+  | 'leaveItForTheKeeper'
+  | 'pressTheCarrier'
+  | 'screenThePass'
+  | 'springTheTrap'
+  | 'holdShape';
 
 /** Immutable definition of an action, from the catalogue. */
 export interface ActionDefinition {

@@ -27,6 +27,33 @@ import type { SituationTemplate } from './situations.ts';
  * the moment the options appear.
  */
 
+/**
+ * How a dead ball came about. A set piece cannot inherit the open-play opening
+ * beat — "they break at pace" and "the referee points to the spot" cannot both
+ * be true of the same moment.
+ */
+function setPieceOriginBeat(rng: Rng, context: SituationContext): string {
+  switch (context.situation) {
+    case 'penalty':
+      return rng.pick([
+        'A trip in the box — the referee points to the spot!',
+        'He goes down under the challenge, and the whistle goes. Penalty!',
+        'A hand blocks it on the line — the referee has no choice.',
+      ]);
+    case 'freeKickDirect':
+      return rng.pick([
+        'The runner is hauled down twenty-odd yards out.',
+        'A cynical foul stops the attack, and the free kick is in range.',
+        'The referee spots the shirt-pull, and this is a shooting position.',
+      ]);
+    default:
+      return rng.pick([
+        `${context.attackingTeam.name} force it behind for a corner.`,
+        'It deflects off a defender and out for a corner.',
+      ]);
+  }
+}
+
 function originBeat(rng: Rng, context: SituationContext): string {
   const team = context.attackingTeam.name;
 
@@ -128,15 +155,51 @@ function progressionBeat(rng: Rng, context: SituationContext): string {
         'A ball in behind, and the attacker is onto it.',
         'The attack builds dangerously.',
       ]);
+    case 'penalty':
+      return rng.pick([
+        'The protests die down. The spot is wiped clean.',
+        'The wait is the worst part. The whole ground goes quiet.',
+        'The keeper takes his time on the line, trying to stretch it out.',
+      ]);
+    case 'freeKickDirect':
+      return rng.pick([
+        'The wall is set, and the referee steps it back.',
+        'Two men stand over it, and neither has moved yet.',
+        'The wall shuffles across. The keeper points, and points again.',
+      ]);
+    case 'cornerAttack':
+      return rng.pick([
+        'Bodies jostle for position at the near post…',
+        'The flag kick is taken short, then swung back in…',
+        'It is whipped in towards the six-yard box…',
+      ]);
+    case 'aerialDuel':
+      return rng.pick([
+        `The ${context.attackingTeam.shortName} keeper goes long, and it hangs in the sky.`,
+        'It is hooked forward into the channel, and the striker is favourite.',
+        'The delivery is aimed at the far post, over everybody.',
+      ]);
+    case 'pressingTrap':
+      return rng.pick([
+        `The ${context.attackingTeam.shortName} keeper rolls it to a centre back, who takes a touch.`,
+        'They try to work it out through the middle.',
+        'A short goal kick — they want to play through you.',
+      ]);
   }
 }
 
 /** A closing pressure cue, only when the situation is genuinely fraught. */
-function pressureBeat(rng: Rng, context: SituationContext): string | null {
+function pressureBeat(
+  rng: Rng,
+  context: SituationContext,
+  template: SituationTemplate,
+): string | null {
   if (context.nearbyDefenders >= 3) {
     return rng.pick(['Bodies everywhere in the box.', 'The area is packed.']);
   }
-  if (context.nearbyDefenders === 0 && context.situation !== 'defensiveDuel') {
+  // An empty penalty area is the normal state of a dead ball, not a huge
+  // chance, and space around a defender is the opposite of good news.
+  if (context.nearbyDefenders === 0 && !template.defensive && !template.setPiece) {
     return rng.pick(['There is nobody near him.', 'Acres of space — this is a huge chance.']);
   }
   if (context.goalkeeper.startingDepth > 0.6) {
@@ -154,9 +217,12 @@ export function generateBuildUp(
   context: SituationContext,
   template: SituationTemplate,
 ): string[] {
-  const beats = [originBeat(rng, context), progressionBeat(rng, context)];
+  const beats = [
+    template.setPiece ? setPieceOriginBeat(rng, context) : originBeat(rng, context),
+    progressionBeat(rng, context),
+  ];
 
-  const pressure = pressureBeat(rng, context);
+  const pressure = pressureBeat(rng, context, template);
   if (pressure) beats.push(pressure);
 
   beats.push(template.describe(context));
