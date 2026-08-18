@@ -1,0 +1,271 @@
+import { clamp, round } from '../util/math.ts';
+import type { Rng } from '../rng.ts';
+import type { Player } from '../player/player.ts';
+import type { TableRow } from './league.ts';
+import { sortTable } from './league.ts';
+import type { SeasonStats } from './seasonStats.ts';
+import { averageRating } from './seasonStats.ts';
+import type { DivisionMovement } from './divisions.ts';
+import { divisionInfo } from './divisions.ts';
+
+/**
+ * AWARDS AND HONOURS
+ *
+ * A career needs a record of the things that cannot be taken back. Ability
+ * decays, reputation settles, a club can relegate you — but a title is a title
+ * ten seasons later, and an honours list is the only part of the save that only
+ * ever grows.
+ *
+ * THE PROBLEM: individual awards need rivals, and the game has no other
+ * footballers. There is no squad, no opposition scorer, nobody to finish second
+ * in a vote. Inventing a full league of players to award one trophy would be a
+ * simulation the rest of the game does not have and could not keep consistent.
+ *
+ * THE ANSWER: derive the rivals from the football that actually happened. Every
+ * club's goals are already in the table, so the division's leading scorer is a
+ * plausible SHARE of the goals its club really scored. That gives a golden boot
+ * that responds to the season — a division full of 4-3s produces a higher bar
+ * than a division of 1-0s — without pretending to know anyone's name.
+ *
+ * The benchmark is deterministic from the season seed, so an honour is never a
+ * reroll away, and the player's own goals are removed from his club's total
+ * before the bar is set: you are never competing against yourself.
+ */
+
+export type HonourKind =
+  | 'title'
+  | 'promotion'
+  | 'relegation'
+  | 'topScorer'
+  | 'playerOfTheSeason'
+  | 'youngPlayerOfTheSeason'
+  | 'internationalDebut'
+  | 'capMilestone';
+
+export interface Honour {
+  kind: HonourKind;
+  season: number;
+  clubId: string;
+  /** The division it was won in, so a second-tier title reads as one. */
+  division: number;
+  /** Short name for the honours list. */
+  label: string;
+  /** One line of context, for the season review. */
+  detail: string;
+}
+
+/** Reputation at which a player starts being picked for his country. */
+export const INTERNATIONAL_REPUTATION = 58;
+
+/** Caps that count as a career landmark. */
+export const CAP_MILESTONES: readonly number[] = [1, 25, 50, 75, 100];
+
+/**
+ * The best individual season somebody else had in this division.
+ *
+ * Not a player — a bar. Everything here is inferred from the table, so it moves
+ * with the division's real football rather than from a fixed threshold that a
+ * strong career would sail past every year.
+ */
+export interface LeagueBenchmark {
+  /** Goals scored by the division's leading scorer. */
+  goldenBoot: number;
+  /** Best average match rating in the division, 1-10. */
+  bestRating: number;
+  /** Best goals-plus-assists total in the division. */
+  bestContributions: number;
+}
+
+/**
+ * Share of a club's goals its leading scorer gets.
+ * A real top scorer is somewhere between a quarter and two-fifths of the side.
+ */
+const TOP_SCORER_SHARE = { min: 0.24, max: 0.4 } as const;
+
+export interface BenchmarkInput {
+  table: readonly TableRow[];
+  /** The player's club, whose goals are discounted by his own. */
+  playerClubId: string;
+  /** The player's goals, removed so he never sets his own bar. */
+  playerGoals: number;
+}
+
+export function leagueBenchmark(rng: Rng, input: BenchmarkInput): LeagueBenchmark {
+  const ranked = sortTable(input.table);
+  let goldenBoot = 0;
+
+  for (const row of ranked) {
+    const scored =
+      row.teamId === input.playerClubId
+        ? Math.max(0, row.goalsFor - input.playerGoals)
+        : row.goalsFor;
+    const share = rng.range(TOP_SCORER_SHARE.min, TOP_SCORER_SHARE.max);
+    goldenBoot = Math.max(goldenBoot, Math.round(scored * share));
+  }
+
+  // The best rating in a division tracks how good the best team is: a runaway
+  // champion usually has somebody playing very well indeed.
+  const champion = ranked[0];
+  const perGame = champion && champion.played > 0 ? champion.points / champion.played : 1.5;
+  const bestRating = round(clamp(6.85 + (perGame - 1.2) * 0.42 + rng.range(0, 0.18), 6.8, 8), 2);
+
+  // Assists roughly half again on top of goals for a division's best attacker.
+  const bestContributions = Math.round(goldenBoot * 1.45);
+
+  return { goldenBoot, bestRating, bestContributions };
+}
+
+export interface HonoursInput {
+  player: Player;
+  stats: SeasonStats;
+  season: number;
+  clubId: string;
+  division: number;
+  /** Final league position, 1 = champions. */
+  position: number;
+  /** Whether the club went up or down this season. */
+  movement: DivisionMovement | null;
+  benchmark: LeagueBenchmark;
+  /** Matches in a full season, so a part-season cannot win an award. */
+  seasonLength: number;
+}
+
+export interface HonoursResult {
+  honours: Honour[];
+  /** International appearances added this season. */
+  capsGained: number;
+}
+
+/**
+ * Minimum share of a season a player must have played to win an individual
+ * award. Nobody is player of the season on nine appearances.
+ */
+export const AWARD_MINIMUM_SHARE = 0.6;
+
+/**
+ * Everything the completed season is worth putting on the record.
+ *
+ * Team honours are facts — you either won it or you did not. Individual ones
+ * are measured against the division benchmark, and all of them require having
+ * actually played most of the season.
+ */
+export function evaluateHonours(input: HonoursInput): HonoursResult {
+  const { player, stats, season, clubId, division } = input;
+  const info = divisionInfo(division);
+  const honours: Honour[] = [];
+  const at = (kind: HonourKind, label: string, detail: string): Honour => ({
+    kind,
+    season,
+    clubId,
+    division,
+    label,
+    detail,
+  });
+
+  if (input.position === 1) {
+    honours.push(
+      at('title', `${info.shortName} champions`, `You finished top of ${info.name}.`),
+    );
+  }
+  if (input.movement === 'promoted') {
+    honours.push(at('promotion', 'Promoted', `Your club is going up out of ${info.name}.`));
+  }
+  if (input.movement === 'relegated') {
+    honours.push(at('relegation', 'Relegated', `Your club is going down out of ${info.name}.`));
+  }
+
+  const played =
+    input.seasonLength > 0 ? stats.matches / input.seasonLength : 0;
+  const rating = averageRating(stats);
+  const contributions = stats.goals + stats.assists;
+
+  if (played >= AWARD_MINIMUM_SHARE) {
+    if (stats.goals > 0 && stats.goals >= input.benchmark.goldenBoot) {
+      honours.push(
+        at(
+          'topScorer',
+          `${info.shortName} top scorer`,
+          `${stats.goals} goals, more than anyone else in ${info.name}.`,
+        ),
+      );
+    }
+
+    const outplayedTheDivision =
+      rating >= input.benchmark.bestRating && contributions >= input.benchmark.bestContributions;
+    const wonSeniorAward = outplayedTheDivision && input.position <= 4;
+    if (wonSeniorAward) {
+      honours.push(
+        at(
+          'playerOfTheSeason',
+          `${info.shortName} player of the season`,
+          `A ${rating.toFixed(2)} average rating and ${contributions} goal contributions.`,
+        ),
+      );
+    }
+
+    // A separate, gentler bar, because a teenager is being judged against men.
+    // Gated on the SENIOR AWARD rather than on the benchmark: a young player
+    // who cleared both bars at a club that finished nowhere used to win
+    // nothing at all, while a strictly worse season won the young player award.
+    if (
+      player.age <= 21 &&
+      !wonSeniorAward &&
+      rating >= input.benchmark.bestRating - 0.35 &&
+      contributions >= input.benchmark.bestContributions * 0.6
+    ) {
+      honours.push(
+        at(
+          'youngPlayerOfTheSeason',
+          `${info.shortName} young player of the season`,
+          `The best season anyone under 22 had in ${info.name}.`,
+        ),
+      );
+    }
+  }
+
+  // International football is a consequence of fame, not of a fixture list.
+  const capsGained = capsForSeason(player, input.division);
+  if (capsGained > 0) {
+    const before = player.caps;
+    const after = before + capsGained;
+    if (before === 0) {
+      honours.push(
+        at('internationalDebut', 'International debut', 'You have been called up by your country.'),
+      );
+    }
+    for (const milestone of CAP_MILESTONES) {
+      if (milestone > 1 && before < milestone && after >= milestone) {
+        honours.push(
+          at('capMilestone', `${milestone} caps`, `You reached ${milestone} international caps.`),
+        );
+      }
+    }
+  }
+
+  return { honours, capsGained };
+}
+
+/**
+ * Caps won in a season.
+ *
+ * Reputation decides selection; the division decides how closely anyone was
+ * watching. A brilliant second-division season gets you looked at, but the
+ * squad is picked from the top flight first.
+ */
+export function capsForSeason(player: Player, division: number): number {
+  const prestige = divisionInfo(division).prestige;
+  const over = player.reputation - INTERNATIONAL_REPUTATION;
+  if (over < 0) return 0;
+  return Math.round(clamp(2 + over * 0.16, 0, 10) * prestige);
+}
+
+/** Group an honours list by kind, for a hub that shows "3× champions". */
+export function summariseHonours(honours: readonly Honour[]): { label: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const honour of honours) {
+    counts.set(honour.label, (counts.get(honour.label) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}

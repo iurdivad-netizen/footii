@@ -75,6 +75,8 @@ export interface MatchReputationInput {
   clubStature: number;
   /** Reputation before the match; fame is harder to add the more you have. */
   reputation: number;
+  /** How closely the division is watched, 0-1. */
+  divisionPrestige?: number;
 }
 
 /**
@@ -100,7 +102,10 @@ export function matchReputationGain(input: MatchReputationInput): number {
     input.goals * 0.6 + input.assists * 0.35 + Math.max(0, input.rating - 7.2) * 0.5;
   const lost = Math.max(0, 5.9 - input.rating) * 0.25;
   const saturation = 0.35 + 0.65 * (1 - unit(input.reputation));
-  const visibility = 0.85 + input.clubStature * 0.35;
+  // Both halves of visibility: who you play for, and what you play in. A
+  // second-division hat-trick is still a hat-trick, but fewer people saw it.
+  const stage = 0.55 + (input.divisionPrestige ?? 1) * 0.45;
+  const visibility = (0.85 + input.clubStature * 0.35) * stage;
   return round((gained * saturation - lost) * visibility, 3);
 }
 
@@ -113,6 +118,8 @@ export interface ReputationSettlementInput {
   clubStature: number;
   /** Matches in a full season, so playing time can be judged. */
   seasonLength: number;
+  /** How closely the division is watched, 0-1. */
+  divisionPrestige?: number;
 }
 
 export interface ReputationSettlement {
@@ -133,8 +140,11 @@ export interface ReputationSettlement {
  * contributed, how much you played, how big the stage was) is added on top.
  */
 export function reputationTarget(player: Player, input: ReputationSettlementInput): number {
+  const prestige = input.divisionPrestige ?? 1;
   const ability = currentAbility(player);
-  const baseline = remap(ability, 40, 88, 10, 86);
+  // The floor a good footballer keeps is itself lower out of the top flight:
+  // ability nobody watches is ability nobody talks about.
+  const baseline = remap(ability, 40, 88, 10, 86) * (0.72 + prestige * 0.28);
 
   // 1 for champions, 0 for bottom. A one-team league is treated as a win.
   const finishShare =
@@ -147,7 +157,7 @@ export function reputationTarget(player: Player, input: ReputationSettlementInpu
   const contribution = Math.min(1, contributions / 16) * 15;
 
   // A big stage amplifies both the good and the bad of a season.
-  const visibility = 0.75 + input.clubStature * 0.5;
+  const visibility = (0.75 + input.clubStature * 0.5) * (0.6 + prestige * 0.4);
 
   // You cannot be famous for football you did not play.
   const playingTime = clamp(
@@ -188,6 +198,9 @@ export function settleReputation(
     notes.push('Your standing in the game is broadly unchanged.');
   }
   if (input.leaguePosition === 1) notes.push('Winning the league puts every player in it on show.');
+  if ((input.divisionPrestige ?? 1) < 1) {
+    notes.push('Fewer people are watching at this level than the one above it.');
+  }
   if (input.stats.goals + input.stats.assists >= 12) {
     notes.push(`${input.stats.goals} goals and ${input.stats.assists} assists are hard to ignore.`);
   }

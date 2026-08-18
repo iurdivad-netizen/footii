@@ -2,11 +2,14 @@ import { MatchEngine } from '../simulation/MatchEngine.ts';
 import { DECISION_PACE, UNTIMED_PACE } from '../simulation/DecisionTimer.ts';
 import {
   acceptOffer,
-  declineOffers,
+  canStay,
+  careerTeams,
   endSeason,
   recordPlayerMatch,
   startCareer,
+  stayAtClub,
 } from '../simulation/CareerService.ts';
+import { divisionInfo, divisionOf, divisionPrestige } from '../core/career/divisions.ts';
 import { nextFixture, seasonComplete } from '../core/career/career.ts';
 import type { CareerState } from '../core/career/career.ts';
 import { Rng } from '../core/rng.ts';
@@ -123,7 +126,7 @@ export class App {
     try {
       return {
         name: career.player.name,
-        detail: `${positionLabel(career.player.position)} · age ${career.player.age} · ${getTeam(career.clubId).name} · season ${career.seasonNumber}`,
+        detail: `${positionLabel(career.player.position)} · age ${career.player.age} · ${getTeam(career.clubId).name} · ${divisionInfo(career.division).shortName} · season ${career.seasonNumber}`,
         ability: currentAbility(career.player),
         played: career.seasonStats.matches,
         total: fixturesFor(career, career.clubId).length,
@@ -313,7 +316,7 @@ export class App {
     const career = startCareer({
       player: this.resolvePlayer(selection.presetId),
       clubId: selection.teamId,
-      leagueTeamIds: TEAMS.map((t) => t.id),
+      teams: TEAMS,
       seed: selection.seed,
     });
     this.save = saveCareer(this.save, career);
@@ -339,7 +342,7 @@ export class App {
     // An open transfer window is resumed rather than lost. Closing the tab on
     // the offer screen used to leave the offers sitting in the save with no
     // route back to them, so a summer's work simply vanished.
-    if (career.offers.length > 0) {
+    if (this.summerNeedsADecision(career)) {
       this.showTransferWindow(career, career.trainingPoints, []);
       return;
     }
@@ -353,10 +356,29 @@ export class App {
     );
   }
 
+  /**
+   * Clubs as this career currently knows them, drift included.
+   *
+   * The career SERVICE always takes the raw `getTeam` and applies drift itself,
+   * because it owns the drifted values. Everything outside the service — the
+   * match engine, the screens — has to ask for them, or it would play against
+   * a league that stopped existing several summers ago.
+   */
+  private clubs(career: CareerState) {
+    return careerTeams(career, getTeam);
+  }
+
   private canRenderCareer(career: CareerState): boolean {
     try {
       getTeam(career.clubId);
       for (const id of career.leagueTeamIds) getTeam(id);
+      // Every division, not just the player's own. The hub lists clubs watching
+      // from across the pyramid and the end of a season simulates the division
+      // he is NOT in, so a stale id anywhere in `divisions` is just as fatal as
+      // one in his own league — and used to reach the screen before throwing.
+      for (const division of career.divisions ?? []) {
+        for (const id of division) getTeam(id);
+      }
       return typeof career.seasonStats?.matches === 'number' && Array.isArray(career.fixtures);
     } catch (error) {
       console.error('Saved career refers to data that no longer exists', error);
@@ -372,8 +394,9 @@ export class App {
 
     const isHome = fixture.homeId === career.clubId;
     const opponentId = isHome ? fixture.awayId : fixture.homeId;
-    const playerTeam = getTeam(career.clubId);
-    const opponent = getTeam(opponentId);
+    const clubs = this.clubs(career);
+    const playerTeam = clubs(career.clubId);
+    const opponent = clubs(opponentId);
 
     // Fitness carries between matches, so the player starts where recovery left him.
     career.player.fitness = career.fitness;
@@ -489,6 +512,15 @@ export class App {
           trainingPoints: outcome.trainingAwarded,
           reputation: outcome.reputation,
           offers: outcome.offers.length,
+          division: outcome.division,
+          nextDivision: outcome.nextDivision,
+          movement: outcome.movement,
+          honours: outcome.honours,
+          capsGained: outcome.capsGained,
+          earnings: outcome.earnings,
+          outOfContract: outcome.outOfContract,
+          fellBackOnClub: outcome.fellBackOnClub,
+          contractDecision: career.offers.length === 0 && this.summerNeedsADecision(career),
         },
         () => this.afterReview(career, outcome.trainingAwarded, outcome.trainingNotes),
       ).element,
@@ -503,7 +535,7 @@ export class App {
    * just joined a wide-play side may well spend his points differently.
    */
   private afterReview(career: CareerState, points: number, notes: string[]): void {
-    if (career.offers.length > 0) {
+    if (this.summerNeedsADecision(career)) {
       this.showTransferWindow(career, points, notes);
       return;
     }
@@ -511,8 +543,22 @@ export class App {
     else this.showCareerHub();
   }
 
+  /**
+   * Is there anything to decide this summer?
+   *
+   * Two separate things can open the window, and either alone is enough: a club
+   * has bid for you, or your own contract has run out. The second matters even
+   * with no offers on the table — a player out of contract has to sign
+   * something, and skipping straight past that would resume a career with no
+   * deal behind it.
+   */
+  private summerNeedsADecision(career: CareerState): boolean {
+    return career.offers.length > 0 || career.renewal !== null || !canStay(career);
+  }
+
   /** Summer: decide where you are playing next season. */
   private showTransferWindow(career: CareerState, points: number, notes: string[]): void {
+    const clubs = this.clubs(career);
     const close = () => {
       this.save = saveCareer(this.save, career);
       if (points > 0) this.showTraining(career, points, notes);
@@ -520,16 +566,31 @@ export class App {
     };
 
     this.mount(
-      new TransferScreen(career.player, getTeam(career.clubId), career.offers, {
-        onAccept: (offerId) => {
-          acceptOffer(career, offerId, getTeam);
-          close();
+      new TransferScreen(
+        career.player,
+        clubs(career.clubId),
+        career.offers,
+        {
+          currentDivision: career.division,
+          divisionOf: (id) => divisionOf(career.divisions, id) || career.division,
+          prestigeOf: (id) =>
+            divisionPrestige(divisionOf(career.divisions, id) || career.division),
+          renewal: career.renewal,
+          outOfContract: career.contract.yearsRemaining <= 0,
+          canStay: canStay(career),
+          club: clubs,
         },
-        onStay: () => {
-          declineOffers(career);
-          close();
+        {
+          onAccept: (offerId: string) => {
+            acceptOffer(career, offerId, getTeam);
+            close();
+          },
+          onStay: () => {
+            stayAtClub(career);
+            close();
+          },
         },
-      }).element,
+      ).element,
     );
   }
 

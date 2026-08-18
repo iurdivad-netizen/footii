@@ -379,7 +379,8 @@ is what makes the engine debuggable and balanceable.
 ```
 src/
 ├── core/                  pure data models + types, no DOM, no randomness of its own
-│   ├── career/            development, league, season state, reputation and transfers
+│   ├── career/            development, league, divisions, club drift, season state,
+│   │                      reputation, transfers, contracts and honours
 │   ├── events/            situation context, action/outcome types, tactical zones
 │   ├── goalkeeper/        goalkeeper model + commit behaviour
 │   ├── match/             match state, statistics, rating
@@ -389,7 +390,7 @@ src/
 │   └── rng.ts             seeded RNG
 ├── simulation/            the engines — all head-less and testable
 │   ├── MatchEngine.ts     minute-by-minute possession loop
-│   ├── CareerService.ts   seasons, fixtures, league simulation
+│   ├── CareerService.ts   seasons, fixtures, league simulation, the summer
 │   ├── SituationGenerator.ts
 │   ├── ActionGenerator.ts contextual 1–6 option generation
 │   ├── DecisionTimer.ts
@@ -457,13 +458,22 @@ If a number in there looks wrong, the gameplay is wrong.
 npm test
 ```
 
-251 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, player valuation, club interest and offer generation, reputation gain and settlement, save migration, save validation, action generation (including the invariant that every
+351 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, player valuation, club interest and offer generation, reputation gain and settlement, division prestige, background
+simulation of the division you are not in, promotion and relegation, club drift, wage demands and
+the wage gate, contract expiry, renewals and free transfers, the award benchmark and every honour,
+save migration, save validation, action generation (including the invariant that every
 situation can always fill six slots), resolution, goalkeeper effects, attribute effects, chance
 generation, randomness boundaries, position-specific behaviour, instinctive actions, rating,
 pace scaling, option colour coding, boot recovery, set-piece conversion rates, the penalty commit
 read, defensive archetype routing, the invariant that a defending player is never offered an action
 that could score, the invariant that no catalogue action is unreachable, and full-match
 determinism.
+
+`tests/longCareer.test.ts` plays whole careers to their end and asserts the invariants that only
+break over time — that a player is never left without a club, that a division never loses or
+duplicates a team, that the market never goes permanently silent, and that the same seed produces
+the same career. Every other career test looks at one season in isolation, which is exactly where a
+career model hides its problems.
 
 ---
 
@@ -505,14 +515,17 @@ counts as a successful load — that screen is more useful than the watchdog's.
 
 Beyond the single match, a career follows **one footballer season by season**.
 
-- **A season** is a double round-robin between the eight clubs — 14 matches. Every fixture you
-  are not in is resolved probabilistically, so the league table around you is always live.
+- **A season** is a double round-robin between the eight clubs in your division — 14 matches. Every
+  fixture you are not in is resolved probabilistically, so the league table around you is always
+  live, and the other division is played out in the background so promotion and relegation are
+  decided by real tables.
 - **After every match** your rating feeds form and morale, and development is applied.
 - **Development** is driven by age, headroom below Potential Ability, match rating, minutes
   played and your club's coaching quality.
-- **A season ends** with a review: league position, your statistics, a scout's view of whether
-  your ceiling has moved, and where your reputation now sits. Then comes the summer — the
-  transfer window, then pre-season training — and you age a year and go again.
+- **A season ends** with a review: league position, promotion or relegation, anything you won,
+  your statistics, a scout's view of whether your ceiling has moved, and where your reputation now
+  sits. Then comes the summer — the transfer window and any contract decision, then pre-season
+  training — and you age a year and go again.
 
 ### Why development is applied per match
 
@@ -614,7 +627,11 @@ would ask, each of them answerable from state the career layer already keeps:
 They are **multiplied, not averaged**, so any one of them can veto a move: a club that has never
 heard of you does not care how well you would fit, and one that cannot pay does not bid at all.
 
-The eight clubs therefore form a ladder, and climbing it is the point of a career:
+The sixteen clubs therefore form a ladder across two divisions, and climbing it is the point of a
+career. A club expects less of a signing when it plays a division lower, which is what makes the
+bottom of the pyramid a reachable starting point rather than a dead end:
+
+**The Premier Division**
 
 | Club | Style | Squad level | Expects | Budget |
 | ---- | ----- | ----------- | ------- | ------ |
@@ -626,6 +643,22 @@ The eight clubs therefore form a ladder, and climbing it is the point of a caree
 | Brackenmoor Rovers | Wide Play | 55 | *Established* (rep 34) | £10m |
 | Old Harbour Town | Direct | 52 | *Known locally* (rep 30) | £7m |
 | Seaton Athletic | Defensive | 51 | *Known locally* (rep 28) | £7m |
+
+**The Championship**
+
+| Club | Style | Squad level | Expects | Budget |
+| ---- | ----- | ----------- | ------- | ------ |
+| Cheltley Rangers | Possession | 58 | *Known locally* (rep 32) | £13m |
+| Marsden Athletic | High Press | 54 | *Known locally* (rep 28) | £9m |
+| Portmere Rovers | Counterattack | 52 | *Known locally* (rep 26) | £7m |
+| Bexley Wanderers | Wide Play | 50 | *Known locally* (rep 23) | £6m |
+| Fenwick Town | Direct | 48 | *Known locally* (rep 21) | £5m |
+| Hollowfield | Balanced | 46 | *Known locally* (rep 18) | £4m |
+| Ravensworth Park | Defensive | 44 | *Unknown* (rep 17) | £3m |
+| Stapleton Vale | Direct | 40 | *Unknown* (rep 17) | £2m |
+
+These are the *starting* positions. Clubs drift and swap divisions as seasons pass, so the ladder
+you climb is not the one printed here.
 
 Two rules keep the market honest rather than noisy:
 
@@ -661,6 +694,106 @@ Market value is a pure function of the player — ability (exponentially: the ga
 the young command, a hard age cliff after 30, and reputation and form at the margins. Because it is
 pure, the hub can show it at any moment and the market can never disagree with the screen.
 
+### Divisions, promotion and relegation
+
+The game is a two-division pyramid of sixteen clubs. **The Premier Division** is the top flight;
+**The Championship** below it is where most careers start and some of them end.
+
+This exists because a single division gave the transfer market a ladder with nothing at the top of
+it. A player who signed for the best club in the game had reached the end of the world: reputation
+kept climbing, nobody better could ever bid, and every remaining summer was silent.
+
+Two divisions change three things at once:
+
+- **Where you play is a level, not a badge.** Winning the second division is a real season with a
+  real prize, and the club you join in it may not be there next year.
+- **Your club can move without you.** Relegation is the one career event you do not choose, and it
+  is the strongest reason the game can give you to take an offer you would otherwise turn down.
+- **Fame is scaled by the stage.** A hat-trick in the Championship is worth less than a hat-trick
+  in the Premier Division — to your reputation, to your wages, and to your country's selectors.
+
+Two clubs go down and two come up every season. The division you are *not* in is played out in the
+background at the end of each season, using the same fixture generator and scoreline model as the
+neutral fixtures in your own league — so the two tables are decided by the same football and are
+comparable with each other. Offers come from the **whole pyramid**, which is the point of having
+one: a good season in the Championship is watched from the division above.
+
+### Clubs drift
+
+Clubs used to be constants: every rating came from the data file and never moved. That quietly
+broke the market in a way no single formula was responsible for, because `squadLevel`,
+`positionalNeed`, `transferBudget` and `reputationRequired` are all derived from those ratings. The
+same clubs wanted you every summer for the same reason, and once you had seen one window you had
+seen all of them.
+
+Now a club's **quality** moves and its **identity** does not. Only attack, midfield and defence
+drift — the three ratings that decide the table, the market and the coaching. Possession, tempo,
+width and the rest are left alone, because they are what makes a wide-play side a wide-play side,
+and a club that gradually forgot how it plays would make tactical fit meaningless.
+
+The model is mean-reverting: finishing well pulls a club up, finishing badly pulls it down, the
+pull is toward a target rather than a jump, and everything is leashed to the club's own baseline.
+Without the leash, twenty seasons of noise turns the smallest club in the game into the biggest and
+the ladder stops meaning anything. Promotion and relegation need no special case — a promoted club
+won its division and drifts up, a relegated one finished bottom and drifts down.
+
+### Contracts
+
+Wages used to be a number printed on the offer card and then forgotten. The club's side of the
+market was fully modelled — what it could afford, what it needed, how it played — and the player's
+side was not modelled at all, so every decision came down to football and money never once changed
+an answer.
+
+A contract makes it a two-sided deal:
+
+- **Wage** is a demand as well as an offer. A club that will not pay what you expect does not sign
+  you, however much it likes you. Reputation dominates the demand deliberately: ability appears on
+  both sides of the gate and very nearly cancels, so what actually decides affordability is how
+  well known you are against how big they are. Fame is expensive to live up to.
+- **Length** is the clock. Deals get shorter as you age — five seasons at 21, one at 33 — so the
+  back half of a career is a series of one-year proofs rather than a settled job.
+- **Expiry** is the event. When a deal runs out you must resolve the summer, and if nobody renews
+  you leave on a **free transfer**, which is the one time the whole market can afford you.
+
+Your own club offers new terms only when the old deal has actually expired; anything else and you
+are simply still under contract, and staying needs no decision. A club renewing its own player is
+exempt from the *fee* gate but not the *wage* one — otherwise every small club would lose the
+academy graduate it had been playing for years the moment he outgrew its transfer budget.
+
+The career can never softlock on a contract. Out of contract, with no renewal and no offers, your
+club puts up a reduced one-year deal rather than leaving you with no season to play, and the review
+screen says exactly that.
+
+### Awards and honours
+
+A career needs a record of the things that cannot be taken back. Ability decays, reputation
+settles, a club can relegate you — but a title is a title ten seasons later, and an honours list is
+the only part of the save that only ever grows.
+
+The problem is that individual awards need rivals, and the game has no other footballers. There is
+no squad, no opposition scorer, nobody to finish second in a vote. Inventing a full league of
+players to award one trophy would be a simulation the rest of the game does not have and could not
+keep consistent.
+
+So the rivals are derived from the football that actually happened. Every club's goals are already
+in the table, so the division's leading scorer is a plausible **share** of the goals its club really
+scored. That gives a golden boot which responds to the season — a division full of 4-3s produces a
+higher bar than a division of 1-0s — without pretending to know anyone's name. Your own goals are
+removed from your club's total first, so you are never competing against yourself, and the whole
+benchmark is deterministic from the season seed, so an honour is never a reroll away.
+
+| Honour | How it is won |
+| ------ | ------------- |
+| Champions | Finish top of your division |
+| Promoted / relegated | Your club goes up or down |
+| Top scorer | Outscore the division's leading scorer |
+| Player of the season | Beat the division's best rating *and* its best goal contribution, from a top-four club |
+| Young player of the season | The same, at 21 or under, against a gentler bar |
+| International debut / caps | Reputation above 58 gets you picked; the top flight is watched more closely |
+
+Individual awards require having played at least 60% of the season. Nobody is player of the season
+on nine appearances.
+
 ### Balancing notes worth knowing
 
 Two calibration bugs were found by measurement rather than by eye, and both are documented at
@@ -679,6 +812,13 @@ their constants:
 - **Reputation ran away from itself.** With unsaturated per-match gains a decent striker reached 98
   by his mid-twenties on volume alone, and the summer settlement then dragged him back ten points
   every year — which read as the game taking something away rather than as fame having a ceiling.
+- **The wage gate never fired.** As first written, what a club offered and what a player demanded
+  scaled with ability at almost the same rate, so ability cancelled and the gate came down to a
+  constant that was always on the accepting side of the line. Money was decorative — exactly the
+  problem contracts were added to fix. Reputation now dominates the demand and the club-standing
+  spread is wider, so a household name really is priced out of a small club. The division scales
+  both sides *identically*: when wages fell faster than demands in the lower division, dropping
+  down became impossible for everyone, which fired the gate on the division rather than the player.
 
 ---
 
@@ -691,10 +831,13 @@ engine, thirteen situation archetypes (including penalties, direct free kicks, c
 duels and pressing traps), ~60 contextual actions, dynamic
 decision timer, build-up narration, goalkeeper commit mechanic, action resolution with separated
 choice/execution, instinctive fallback on expiry, match statistics and rating, five playable
-presets across four positions, eight teams with tactical styles, **season fixtures, live league
+presets across four positions, sixteen teams with tactical styles across **two divisions with
+promotion and relegation**, season fixtures, live league
 table, per-match player development, ageing and multi-season career history, end-of-season progress reports, pre-season
 training, a reputation model and a transfer market with club valuation, scouting interest and
-summer offers**, debug mode, and a
+summer offers, **clubs that strengthen and decline season to season, contracts with wages, terms,
+expiry and free transfers, and an honours list covering titles, promotion, top scorer, player of
+the season and international caps**, debug mode, and a
 versioned localStorage save with migration.
 
 Deliberately **not** built yet: multiplayer, accounts, a backend, 3D, physics, large player
@@ -702,12 +845,19 @@ databases.
 
 ## Roadmap
 
+- **Squad context** — named teammates, so an assist has a recipient and a club has a shape. This is
+  now the biggest single gap: several models are already written for a world that has it. The
+  reputation settlement weights playing time, and awards require having played 60% of a season, but
+  you currently start every fixture forever, so neither can ever bite.
+- **Injuries and squad rotation** — the fitness model has enough bite to support them, and they are
+  what would make the playing-time half of reputation real.
 - **Playable goalkeeper** — the last event type on the original list, and the only one that needs
   more than a template: `GK` exists as a position but has no playable match loop, so it needs its
   own situations (shot-stopping, claiming a cross, sweeping, distribution) and its own involvement
-  model rather than a share of an outfielder's.
-- **Squad context** — named teammates, so an assist has a recipient and a club has a shape.
-- **Injuries and squad rotation** — the fitness model now has enough bite to support them.
-- **Awards and honours** — player of the season, top scorer, international call-ups.
+  model rather than a share of an outfielder's. It also needs its own department in the transfer
+  model — `positionalNeed` currently reads a keeper against the outfield defence rating, and every
+  tactical-style weighting is an outfield profile.
+- **Cup competitions** — the pyramid gives the league somewhere to go; a knockout would give a
+  season a second thing to win, and the honours list somewhere else to grow.
 - **Richer location model** — the tactical zone model is designed to be swapped for 2D
   coordinates behind the same `Zone` interface.

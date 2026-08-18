@@ -1,6 +1,8 @@
 import { PLAYER_PRESETS, TEAMS } from '../../data/gameData.ts';
 import { positionLabel } from '../../core/player/positions.ts';
 import { TACTICAL_STYLE_LABELS } from '../../core/team/team.ts';
+import type { Team } from '../../core/team/team.ts';
+import { divisionInfo } from '../../core/career/divisions.ts';
 import { CUSTOM_PLAYER_ID } from '../../data/gameData.ts';
 
 export interface SetupSelection {
@@ -66,7 +68,7 @@ export class SetupScreen {
           <select id="team">
             ${TEAMS.map(
               (t) =>
-                `<option value="${t.id}" ${t.id === 'northport-city' ? 'selected' : ''}>${t.name} — ${TACTICAL_STYLE_LABELS[t.style]}</option>`,
+                `<option value="${t.id}" ${t.id === 'northport-city' ? 'selected' : ''}>${clubOption(t)}</option>`,
             ).join('')}
           </select>
         </div>
@@ -76,7 +78,7 @@ export class SetupScreen {
           <select id="opponent">
             ${TEAMS.map(
               (t) =>
-                `<option value="${t.id}" ${t.id === 'ashford-united' ? 'selected' : ''}>${t.name} — ${TACTICAL_STYLE_LABELS[t.style]}</option>`,
+                `<option value="${t.id}" ${t.id === 'ashford-united' ? 'selected' : ''}>${clubOption(t)}</option>`,
             ).join('')}
           </select>
         </div>
@@ -155,4 +157,17 @@ export class SetupScreen {
       .querySelector<HTMLButtonElement>('#create-player')!
       .addEventListener('click', () => this.handlers.onCreatePlayer(collect()));
   }
+}
+
+/**
+ * A club in a dropdown.
+ *
+ * The division belongs here rather than in a separate control: starting in the
+ * second division is the closest thing the game has to a difficulty setting —
+ * worse team-mates, weaker chances, and a promotion to earn before anyone in
+ * the division above will look at you — so it has to be visible at the moment
+ * you pick a club, not discovered a season later.
+ */
+function clubOption(team: Team): string {
+  return `${team.name} — ${TACTICAL_STYLE_LABELS[team.style]} (${divisionInfo(team.division).shortName})`;
 }

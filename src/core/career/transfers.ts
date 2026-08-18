@@ -132,8 +132,21 @@ export function transferBudget(team: Team): number {
  * The ladder this produces is the spine of the career: the bottom clubs will
  * take a nobody, the champions want a name. Climbing it is the point.
  */
-export function reputationRequired(team: Team): number {
-  return round(remap(clubStature(team), 0.45, 0.9, 20, 82), 1);
+export function reputationRequired(team: Team, prestige = 1): number {
+  // A second-division club, however well run, does not expect a household name.
+  return round(remap(clubStature(team), 0.45, 0.9, 20, 82) * (0.62 + prestige * 0.38), 1);
+}
+
+/**
+ * How attractive a club is to a player weighing a move, 0-1.
+ *
+ * Standing plus the stage it plays on. Two clubs with identical squads are not
+ * identical propositions when one of them is a division higher, and without
+ * this a promoted side and a relegated one would look the same on the offer
+ * screen the summer they swap places.
+ */
+export function clubAppeal(team: Team, prestige = 1): number {
+  return clamp01(clubStature(team) * (0.55 + prestige * 0.45));
 }
 
 // ----------------------------------------------------------- squad need ---
@@ -225,6 +238,36 @@ export interface InterestInput {
    * current club knows it is unlikely to tempt him and mostly does not try.
    */
   currentClub?: Team;
+  /** Prestige of the bidding club's division, 0-1. */
+  prestige?: number;
+  /** Prestige of the division he currently plays in, 0-1. */
+  currentPrestige?: number;
+  /**
+   * True when his contract has run out. A free transfer is the cheapest signing
+   * in football, so clubs that were watching from a distance come forward.
+   */
+  outOfContract?: boolean;
+  /**
+   * True when the club already has him and is deciding whether to KEEP him
+   * rather than whether to buy him.
+   *
+   * Both acquisition gates are lifted, because both ask questions that only
+   * make sense about a signing:
+   *
+   *   - the FEE gate asks whether the club could afford to buy him. A small
+   *     club plainly could not afford its own best player, and without this it
+   *     would lose the academy graduate it had been playing for years the
+   *     moment he outgrew its transfer budget.
+   *   - the ROLE gate exists because the game cannot simulate a bench, so a
+   *     club must not sign someone it would not play. A club that already
+   *     plays him every week is not making that promise — it is keeping one.
+   *     Leaving this gate up meant a declining player was never renewed by
+   *     anyone and lived permanently on the fallback contract.
+   *
+   * The wage gate still applies, and is the right money question for a
+   * renewal: a club that cannot meet his demands loses him.
+   */
+  retaining?: boolean;
 }
 
 export interface ClubInterest {
@@ -274,11 +317,17 @@ export function squadRole(player: Player, team: Team): SquadRole {
  */
 export function clubInterest(input: InterestInput): ClubInterest {
   const { player, team } = input;
+  const prestige = input.prestige ?? 1;
   const notes: string[] = [];
 
-  const required = reputationRequired(team);
+  const required = reputationRequired(team, prestige);
   const reputationShortfall = round(required - player.reputation, 1);
-  const standing = clamp01(remap(player.reputation, required - 12, required + 10, 0, 1));
+  // "Have we heard of him" is the third acquisition question, and it is
+  // meaningless about a player already in your own dressing room. A club
+  // keeping its own knows exactly who he is.
+  const standing = input.retaining
+    ? 1
+    : clamp01(remap(player.reputation, required - 12, required + 10, 0, 1));
 
   const ability = effectiveAbility(player);
   const level = squadLevel(team);
@@ -300,22 +349,32 @@ export function clubInterest(input: InterestInput): ClubInterest {
   // because a side he would walk into always wants him most.
   if (input.currentClub) {
     const ambition = clamp01(
-      remap(clubStature(team) - clubStature(input.currentClub), -0.15, 0, 0.35, 1),
+      remap(
+        clubAppeal(team, prestige) - clubAppeal(input.currentClub, input.currentPrestige ?? 1),
+        -0.15,
+        0,
+        0.35,
+        1,
+      ),
     );
     score *= ambition;
   }
 
-  // A club only bids for a player it intends to play, and only for one it can
-  // pay for. Both are hard gates rather than penalties.
-  if (role === 'squad') score = 0;
-  if (!affordable) score = 0;
+  // A club only signs a player it intends to play, and only one it can pay for.
+  // Both are hard gates rather than penalties — and both are about ACQUIRING a
+  // player, so neither applies to a club deciding whether to keep its own.
+  if (role === 'squad' && !input.retaining) score = 0;
+  if (!affordable && !input.retaining) score = 0;
 
   // A season of goals gets a club over the line it was already standing on.
   const contributions = input.stats.goals + input.stats.assists;
   if (contributions >= 10) score *= 1.12;
 
+  // Nothing widens a market like a player costing nothing.
+  if (input.outOfContract) score = clamp01(score * 1.25);
+
   if (reputationShortfall > 12) notes.push(`${team.name} have not heard enough about you yet.`);
-  else if (!affordable) notes.push(`${team.name} cannot afford you.`);
+  else if (!affordable && !input.retaining) notes.push(`${team.name} cannot afford you.`);
   else if (role === 'squad') notes.push(`${team.name} have better players in your position.`);
   else {
     if (need > 0.7) notes.push('They need exactly what you play.');
@@ -323,6 +382,7 @@ export function clubInterest(input: InterestInput): ClubInterest {
     else if (fit < 0.35) notes.push('You are not really the type of player they build around.');
     if (role === 'star') notes.push('You would be the best player at the club.');
     else notes.push('They see you going straight into their side.');
+    if (input.outOfContract) notes.push('You would cost them nothing but wages.');
   }
 
   return {
@@ -344,31 +404,107 @@ export interface TransferOffer {
   /** Stable within a summer, so the UI can key on it. */
   id: string;
   clubId: string;
-  /** Fee offered to the current club, in millions. */
+  /** Fee offered to the current club, in millions. Zero on a free transfer. */
   fee: number;
   /** Weekly wage, in thousands. */
   wage: number;
+  /** Length of the deal, in seasons. */
+  years: number;
   role: SquadRole;
   /** The interest that produced it, 0-1. */
   interest: number;
   /** Season at the end of which the offer was made. */
   season: number;
+  /** True when he is leaving on a free rather than for a fee. */
+  free: boolean;
   notes: string[];
 }
 
-/** Weekly wage a club would pay, in thousands. */
-export function offeredWage(player: Player, team: Team, role: SquadRole): number {
+/**
+ * Weekly wage a club would pay, in thousands.
+ *
+ * Scaled by the division as well as the club, because the money in the game is
+ * where the attention is. A second-division side that has somehow assembled a
+ * strong squad still cannot pay first-division wages, which is what stops the
+ * bottom of the pyramid from hoarding good players.
+ */
+export function offeredWage(player: Player, team: Team, role: SquadRole, prestige = 1): number {
   const ability = currentAbility(player);
   const roleFactor = role === 'star' ? 1.25 : role === 'starter' ? 1 : 0.75;
-  const wage = 2 ** ((ability - 40) / 9) * (0.6 + clubStature(team)) * roleFactor;
+  const wage =
+    2 ** ((ability - 40) / 9) *
+    (0.35 + clubStature(team) * 1.05) *
+    roleFactor *
+    divisionPay(prestige);
   return round(clamp(wage, 1, 500), 1);
+}
+
+/**
+ * How the division scales money, applied identically to what a club offers and
+ * what a player expects.
+ *
+ * Deliberately the SAME factor on both sides. When wages fell faster than
+ * demands in the lower division, dropping down became impossible for anyone —
+ * the gate fired on the division rather than on the player, which is not what
+ * it is for. Sharing the factor means the wage gate asks one question only: is
+ * this club big enough for someone as well known as you?
+ */
+function divisionPay(prestige: number): number {
+  return 0.45 + prestige * 0.55;
+}
+
+/**
+ * The wage a player expects, in thousands per week.
+ *
+ * Driven by reputation as much as ability — a footballer prices himself on what
+ * the game thinks he is worth, which is exactly what makes a reputation built
+ * on one loud season expensive to live up to. Deliberately independent of any
+ * particular club, so it is a demand rather than a negotiation.
+ */
+export function wageDemand(player: Player, prestige = 1): number {
+  const ability = currentAbility(player);
+  // Reputation dominates deliberately. Ability appears on both sides of the
+  // gate and very nearly cancels, so what actually decides whether a club can
+  // afford you is how well known you are against how big they are — which is
+  // the question the gate exists to ask.
+  const profile = 0.6 + unit(player.reputation) * 0.85;
+  const demand = 2 ** ((ability - 42) / 9) * profile * divisionPay(prestige);
+  return round(clamp(demand, 1, 520), 1);
+}
+
+/**
+ * How far below his demand a player will still sign.
+ *
+ * Not zero tolerance: footballers take slightly less to join a club they want,
+ * and a hard equality test would have made the wage gate a coin flip on
+ * rounding rather than a decision about money.
+ */
+export const WAGE_TOLERANCE = 0.85;
+
+export function wageAcceptable(offered: number, demand: number): boolean {
+  return offered >= demand * WAGE_TOLERANCE;
+}
+
+/**
+ * Length of deal a club offers, in seasons.
+ *
+ * Long for the young, short for the old, which is the mechanism that makes the
+ * back half of a career feel different: at 33 nobody will commit to you beyond
+ * next summer, so every season has to be earned again.
+ */
+export function contractYears(player: Player): number {
+  if (player.age <= 21) return 5;
+  if (player.age <= 25) return 4;
+  if (player.age <= 29) return 3;
+  if (player.age <= 32) return 2;
+  return 1;
 }
 
 export interface OfferGenerationInput {
   player: Player;
   /** The club he currently plays for; it does not bid for its own player. */
   currentClubId: string;
-  /** Every club that could bid. */
+  /** Every club that could bid, across every division. */
   clubs: readonly Team[];
   stats: SeasonStats;
   season: number;
@@ -378,6 +514,10 @@ export interface OfferGenerationInput {
    * rated him, being sold and re-signed in alternate windows.
    */
   excludeClubIds?: readonly string[];
+  /** Prestige of a club's division, 0-1. Defaults to a single-division game. */
+  prestigeOf?: (clubId: string) => number;
+  /** True when his contract has run out, so he leaves for nothing. */
+  outOfContract?: boolean;
 }
 
 /**
@@ -394,12 +534,22 @@ export interface OfferGenerationInput {
  */
 export function generateOffers(rng: Rng, input: OfferGenerationInput): TransferOffer[] {
   const current = input.clubs.find((team) => team.id === input.currentClubId);
+  const prestigeOf = input.prestigeOf ?? (() => 1);
+  const currentPrestige = current ? prestigeOf(current.id) : 1;
 
   const interested = input.clubs
     .filter((team) => team.id !== input.currentClubId)
     .filter((team) => !input.excludeClubIds?.includes(team.id))
     .map((team) =>
-      clubInterest({ player: input.player, team, stats: input.stats, currentClub: current }),
+      clubInterest({
+        player: input.player,
+        team,
+        stats: input.stats,
+        currentClub: current,
+        prestige: prestigeOf(team.id),
+        currentPrestige,
+        outOfContract: input.outOfContract,
+      }),
     )
     .filter((interest) => interest.score >= OFFER_THRESHOLD)
     .sort((a, b) => b.score - a.score);
@@ -407,21 +557,35 @@ export function generateOffers(rng: Rng, input: OfferGenerationInput): TransferO
   const value = marketValue(input.player);
   const offers: TransferOffer[] = [];
 
-  for (const [index, interest] of interested.entries()) {
-    if (index > 0 && !rng.chance(interest.score)) continue;
-
+  for (const interest of interested) {
     const team = input.clubs.find((candidate) => candidate.id === interest.clubId)!;
+    const prestige = prestigeOf(team.id);
+
+    // Money is the last gate, and it is a hard one: a club that wants a player,
+    // needs him and would play him still cannot sign him if it will not pay
+    // what he expects. This is what stops a well-drilled small club from
+    // assembling a squad of stars it has no business affording.
+    const wage = offeredWage(input.player, team, interest.role, prestige);
+    if (!wageAcceptable(wage, wageDemand(input.player, prestige))) continue;
+
+    // The keenest club that CAN pay always comes; everyone else rolls.
+    if (offers.length > 0 && !rng.chance(interest.score)) continue;
+
     const budget = transferBudget(team);
-    const fee = round(clamp(value * (0.85 + interest.score * 0.6), 0.1, budget), 2);
+    const fee = input.outOfContract
+      ? 0
+      : round(clamp(value * (0.85 + interest.score * 0.6), 0.1, budget), 2);
 
     offers.push({
       id: `s${input.season}:${team.id}`,
       clubId: team.id,
       fee,
-      wage: offeredWage(input.player, team, interest.role),
+      wage,
+      years: contractYears(input.player),
       role: interest.role,
       interest: interest.score,
       season: input.season,
+      free: !!input.outOfContract,
       notes: interest.notes,
     });
     if (offers.length >= MAX_OFFERS) break;
@@ -436,11 +600,22 @@ export function scoutingInterest(
   clubs: readonly Team[],
   currentClubId: string,
   stats: SeasonStats,
+  prestigeOf: (clubId: string) => number = () => 1,
 ): ClubInterest[] {
   const current = clubs.find((team) => team.id === currentClubId);
+  const currentPrestige = current ? prestigeOf(current.id) : 1;
   return clubs
     .filter((team) => team.id !== currentClubId)
-    .map((team) => clubInterest({ player, team, stats, currentClub: current }))
+    .map((team) =>
+      clubInterest({
+        player,
+        team,
+        stats,
+        currentClub: current,
+        prestige: prestigeOf(team.id),
+        currentPrestige,
+      }),
+    )
     .filter((interest) => interest.score >= SCOUTING_THRESHOLD)
     .sort((a, b) => b.score - a.score);
 }
@@ -451,8 +626,11 @@ export interface TransferRecord {
   toClubId: string;
   fee: number;
   wage: number;
+  years: number;
   role: SquadRole;
   age: number;
+  /** True when he moved for nothing at the end of a contract. */
+  free: boolean;
 }
 
 /**
@@ -464,10 +642,10 @@ export interface TransferRecord {
  * standing of the club you joined, since a shirt confers a little fame of its
  * own before you have kicked a ball in it.
  */
-export function applyTransferEffects(player: Player, to: Team): void {
+export function applyTransferEffects(player: Player, to: Team, prestige = 1): void {
   player.form = round(player.form * 0.6 + 50 * 0.4, 1);
   player.morale = clamp(round(player.morale * 0.6 + 74 * 0.4, 1), 0, 100);
-  const standing = reputationRequired(to);
+  const standing = reputationRequired(to, prestige);
   if (standing > player.reputation) {
     player.reputation = round(player.reputation + (standing - player.reputation) * 0.25, 1);
   }

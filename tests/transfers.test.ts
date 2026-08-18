@@ -12,7 +12,9 @@ import {
   OFFER_THRESHOLD,
   abilityValue,
   applyTransferEffects,
+  clubAppeal,
   clubInterest,
+  contractYears,
   effectiveAbility,
   generateOffers,
   marketValue,
@@ -35,14 +37,13 @@ import {
 import {
   acceptOffer,
   clubsWatching,
-  declineOffers,
+  stayAtClub,
   endSeason,
   recordPlayerMatch,
   startCareer,
 } from '../src/simulation/CareerService.ts';
 import { seasonComplete } from '../src/core/career/career.ts';
 
-const LEAGUE = TEAMS.map((t) => t.id);
 const lookup = (id: string) => getTeam(id);
 
 /** A serviceable senior striker, with anything the test cares about overridden. */
@@ -256,6 +257,48 @@ describe('offers', () => {
     expect(offeredWage(player, big, 'star')).toBeGreaterThan(offeredWage(player, big, 'starter'));
   });
 
+  it('comes for nothing when he is out of contract', () => {
+    const free = generateOffers(new Rng('free'), {
+      player,
+      currentClubId: 'seaton-athletic',
+      clubs: TEAMS,
+      stats: season({ goals: 11, assists: 3 }),
+      season: 4,
+      outOfContract: true,
+    });
+    expect(free.length).toBeGreaterThan(0);
+    for (const offer of free) {
+      expect(offer.fee).toBe(0);
+      expect(offer.free).toBe(true);
+    }
+  });
+
+  it('brings MORE clubs out for a free transfer than for one with a fee', () => {
+    // The point of expiry: a player costing nothing is affordable to clubs that
+    // could never have paid for him.
+    let withFee = 0;
+    let free = 0;
+    for (const seed of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
+      const base = {
+        player,
+        currentClubId: 'seaton-athletic',
+        clubs: TEAMS,
+        stats: season({ goals: 11, assists: 3 }),
+        season: 4,
+      };
+      withFee += generateOffers(new Rng(seed), base).length;
+      free += generateOffers(new Rng(seed), { ...base, outOfContract: true }).length;
+    }
+    expect(free).toBeGreaterThanOrEqual(withFee);
+  });
+
+  it('gives every offer a contract length that suits the player\'s age', () => {
+    for (const offer of offers('terms')) {
+      expect(offer.years).toBe(contractYears(player));
+      expect(offer.years).toBeGreaterThan(0);
+    }
+  });
+
   it('lists the clubs that are watching before any of them bid', () => {
     const watching = scoutingInterest(player, TEAMS, 'seaton-athletic', season());
     expect(watching.length).toBeGreaterThan(0);
@@ -263,6 +306,67 @@ describe('offers', () => {
     for (let i = 1; i < watching.length; i++) {
       expect(watching[i - 1]!.score).toBeGreaterThanOrEqual(watching[i]!.score);
     }
+  });
+});
+
+describe('what a division does to the market', () => {
+  const player = striker({ baseAttribute: 62, reputation: 55, attributes: { finishing: 72 } });
+
+  it('lowers what a club expects of a signing when it plays a division down', () => {
+    const club = getTeam('ashford-united');
+    expect(reputationRequired(club, 0.62)).toBeLessThan(reputationRequired(club, 1));
+  });
+
+  it('makes the same club a smaller draw in a lower division', () => {
+    const club = getTeam('ashford-united');
+    expect(clubAppeal(club, 0.62)).toBeLessThan(clubAppeal(club, 1));
+  });
+
+  it('knows a club below his own division is a harder sell', () => {
+    // The ambition gate reads the whole proposition, division included: the
+    // same club is a weaker draw when it would mean dropping a level, which is
+    // what stops a relegated side signing the player who just outgrew it.
+    const suitor = getTeam('vale-park');
+    const current = getTeam('old-harbour');
+    const stats = season({ goals: 11, assists: 3 });
+
+    const dropping = clubInterest({
+      player, team: suitor, stats, currentClub: current, prestige: 0.62, currentPrestige: 1,
+    });
+    const alongside = clubInterest({
+      player, team: suitor, stats, currentClub: current, prestige: 1, currentPrestige: 1,
+    });
+    expect(dropping.score).toBeLessThan(alongside.score);
+  });
+
+  it('lets a club renew a player it could never afford to buy', () => {
+    // The fee gate is about BUYING. A club that already has him has no fee to
+    // find, and without the exemption every small club lost its best player.
+    const star = striker({ baseAttribute: 78, reputation: 62, attributes: { finishing: 88 } });
+    const small = getTeam('stapleton-vale');
+    const stats = season({ goals: 18, assists: 6 });
+
+    const buying = clubInterest({ player: star, team: small, stats });
+    const keeping = clubInterest({ player: star, team: small, stats, retaining: true });
+    expect(buying.affordable).toBe(false);
+    expect(buying.score).toBe(0);
+    expect(keeping.score).toBeGreaterThan(0);
+  });
+
+  it('lets a club keep a player it would no longer sign', () => {
+    // The role gate stops a club BUYING someone it would not play. A club that
+    // has been playing him every week is not making that promise, it is
+    // keeping one — and leaving the gate up left a declining player permanently
+    // on the fallback contract because nobody would ever renew him.
+    const fading = striker({ baseAttribute: 40, age: 34, reputation: 30 });
+    const big = getTeam('ashford-united');
+    const stats = season({ goals: 2, assists: 1 });
+
+    const signing = clubInterest({ player: fading, team: big, stats });
+    const keeping = clubInterest({ player: fading, team: big, stats, retaining: true });
+    expect(signing.role).toBe('squad');
+    expect(signing.score).toBe(0);
+    expect(keeping.score).toBeGreaterThan(0);
   });
 });
 
@@ -365,7 +469,7 @@ describe('reputation', () => {
 
 describe('transfers within a career', () => {
   function career(player = striker({ baseAttribute: 60, reputation: 50, attributes: {} })) {
-    return startCareer({ player, clubId: 'seaton-athletic', leagueTeamIds: LEAGUE, seed: 'move' });
+    return startCareer({ player, clubId: 'seaton-athletic', teams: TEAMS, seed: 'move' });
   }
 
   function playSeason(state: ReturnType<typeof startCareer>, rating: number, goals: number) {
@@ -433,7 +537,7 @@ describe('transfers within a career', () => {
     playSeason(state, 8.2, 1);
     endSeason(state, lookup);
 
-    declineOffers(state);
+    stayAtClub(state);
     expect(state.clubId).toBe('seaton-athletic');
     expect(state.offers).toEqual([]);
     expect(state.transfers).toEqual([]);

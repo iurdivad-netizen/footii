@@ -18,7 +18,6 @@ import { TEAMS, getTeam } from '../src/data/gameData.ts';
 import { endSeason, playerFixtures, recordPlayerMatch, startCareer } from '../src/simulation/CareerService.ts';
 import { createMatchStats } from '../src/core/match/matchStats.ts';
 
-const LEAGUE = TEAMS.map((t) => t.id);
 const lookup = (id: string) => getTeam(id);
 
 function player(overrides: Partial<Player> = {}): Player {
@@ -160,7 +159,7 @@ describe('season progress reporting', () => {
     const state = startCareer({
       player: player(),
       clubId: 'northport-city',
-      leagueTeamIds: LEAGUE,
+      teams: TEAMS,
       seed: 'progress',
     });
     const stats = createMatchStats();
@@ -188,7 +187,7 @@ describe('season progress reporting', () => {
     const state = startCareer({
       player: player(),
       clubId: 'northport-city',
-      leagueTeamIds: LEAGUE,
+      teams: TEAMS,
       seed: 'per-season',
     });
     const stats = createMatchStats();

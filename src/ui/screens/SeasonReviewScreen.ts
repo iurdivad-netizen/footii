@@ -3,6 +3,9 @@ import type { SeasonProgress } from '../../core/career/training.ts';
 import { averageRating, goalContributions } from '../../core/career/seasonStats.ts';
 import type { ReputationSettlement } from '../../core/career/reputation.ts';
 import { reputationTier } from '../../core/career/reputation.ts';
+import type { Honour } from '../../core/career/awards.ts';
+import type { DivisionMovement } from '../../core/career/divisions.ts';
+import { divisionInfo } from '../../core/career/divisions.ts';
 import { getTeam } from '../../data/gameData.ts';
 
 /** End-of-season summary, shown once the final fixture has been played. */
@@ -24,6 +27,28 @@ export class SeasonReviewScreen {
       reputation: ReputationSettlement;
       /** Number of clubs that have made an offer for the summer. */
       offers: number;
+      /** The division the season was played in. */
+      division: number;
+      /** The division the club plays in next season. */
+      nextDivision: number;
+      /** Whether the club went up, went down, or stayed put. */
+      movement: DivisionMovement | null;
+      /** Anything the season put on the honours list. */
+      honours: readonly Honour[];
+      /** International caps won this season. */
+      capsGained: number;
+      /** Wages banked for the season, in millions. */
+      earnings: number;
+      /** True when the old deal ran out this summer. */
+      outOfContract: boolean;
+      /** True when nobody wanted him and his club put up a reduced deal. */
+      fellBackOnClub: boolean;
+      /**
+       * True when the summer opens a window even with no offers, because his
+       * contract needs resolving. The continue button reads this so it never
+       * promises the next season and then shows the transfer window.
+       */
+      contractDecision: boolean;
     },
     onContinue: () => void,
   ) {
@@ -31,6 +56,7 @@ export class SeasonReviewScreen {
     const club = getTeam(record.clubId);
     const champion = getTeam(context.champion);
     const won = context.champion === record.clubId;
+    const division = divisionInfo(context.division);
 
     this.element = document.createElement('section');
     this.element.className = 'screen fulltime-screen';
@@ -38,9 +64,11 @@ export class SeasonReviewScreen {
       <h1>Season ${record.seasonNumber} review</h1>
       <p class="ft-score">
         ${club.name} finished <strong>${ordinal(record.position)}</strong> of ${context.leagueSize}
+        in ${division.name}
         ${won ? '<span class="verdict win">Champions</span>' : ''}
       </p>
-      ${won ? '' : `<p class="hint">${champion.name} won the league.</p>`}
+      ${won ? '' : `<p class="hint">${champion.name} won ${division.name}.</p>`}
+      ${renderMovement(context.movement, context.nextDivision)}
 
       <div class="ft-rating">
         <span class="ft-rating-value">${stats.matches ? averageRating(stats).toFixed(2) : '—'}</span>
@@ -75,12 +103,14 @@ export class SeasonReviewScreen {
         </div>
       </div>
 
+      ${renderHonours(context.honours, context.capsGained)}
       ${renderProgress(context.progress)}
       ${renderReputation(context.reputation)}
+      ${renderContractNews(context)}
       ${renderComparison(record, context.previous)}
 
       <button class="primary" id="continue-career">
-        ${continueLabel(context.offers, context.trainingPoints, record.seasonNumber)}
+        ${continueLabel(context, record.seasonNumber)}
       </button>`;
 
     this.element
@@ -89,12 +119,111 @@ export class SeasonReviewScreen {
   }
 }
 
-/** What the next screen will be, so the button never lies about where it goes. */
-function continueLabel(offers: number, trainingPoints: number, seasonNumber: number): string {
-  if (offers > 0) {
-    return offers === 1 ? 'You have an offer' : `You have ${offers} offers`;
+/**
+ * Promotion and relegation, given the weight they deserve.
+ *
+ * This is the one thing on the screen the player did not choose and cannot
+ * undo, and it changes more about next season than any transfer will: the level
+ * of football, the money, and who is watching. It goes directly under the
+ * finishing position rather than into a panel further down.
+ */
+function renderMovement(movement: DivisionMovement | null, nextDivision: number): string {
+  if (!movement) return '';
+  const arriving = divisionInfo(nextDivision);
+  if (movement === 'promoted') {
+    return `<p class="division-move up">
+        <strong>Promoted.</strong> You will be playing in ${arriving.name} next season.
+      </p>`;
   }
-  if (trainingPoints > 0) return `Pre-season training — ${trainingPoints} points`;
+  return `<p class="division-move down">
+      <strong>Relegated.</strong> Your club drops into ${arriving.name} next season — a smaller
+      stage, smaller wages and fewer people watching you play.
+    </p>`;
+}
+
+/**
+ * What the season put on the record.
+ *
+ * Honours are the only thing in a career that a later season cannot take away,
+ * so they are announced rather than tabulated — the hub keeps the running list.
+ */
+function renderHonours(honours: readonly Honour[], capsGained: number): string {
+  if (honours.length === 0 && capsGained === 0) return '';
+
+  const items = honours
+    .map(
+      (honour) =>
+        `<li class="honour honour-${honour.kind}">
+          <strong>${honour.label}</strong>
+          <span>${honour.detail}</span>
+        </li>`,
+    )
+    .join('');
+
+  const caps =
+    capsGained > 0
+      ? `<p class="hint">${capsGained} international ${capsGained === 1 ? 'cap' : 'caps'} this season.</p>`
+      : '';
+
+  return `
+    <div class="career-card honours-panel">
+      <h2>Honours</h2>
+      ${items ? `<ul class="honours-won">${items}</ul>` : ''}
+      ${caps}
+    </div>`;
+}
+
+/**
+ * The money and the contract clock.
+ *
+ * Wages are only interesting when they are about to matter, so this leads with
+ * the expiry rather than the earnings: a player being told his deal has run out
+ * needs that before he is told what he banked.
+ */
+function renderContractNews(context: {
+  earnings: number;
+  outOfContract: boolean;
+  fellBackOnClub: boolean;
+  offers: number;
+}): string {
+  const lines: string[] = [];
+  if (context.fellBackOnClub) {
+    lines.push(
+      `Your contract expired and nobody — including your own club — offered you terms worth the
+       name. They have put up a reduced one-year deal rather than leave you without a season to
+       play. Next year you have to earn a better one.`,
+    );
+  } else if (context.outOfContract) {
+    lines.push(
+      `Your contract has run out. You can leave for nothing this summer, which makes you a great
+       deal cheaper than your market value — expect clubs that could not afford a fee for you to
+       come forward.`,
+    );
+  }
+
+  if (lines.length === 0 && context.earnings <= 0) return '';
+
+  return `
+    <div class="career-card">
+      <h2>Wages</h2>
+      <dl class="stat-list">
+        <div><dt>Earned this season</dt><dd>£${context.earnings}m</dd></div>
+      </dl>
+      ${lines.map((line) => `<p class="hint">${line}</p>`).join('')}
+    </div>`;
+}
+
+/** What the next screen will be, so the button never lies about where it goes. */
+function continueLabel(
+  context: { offers: number; trainingPoints: number; contractDecision: boolean },
+  seasonNumber: number,
+): string {
+  if (context.offers > 0) {
+    return context.offers === 1 ? 'You have an offer' : `You have ${context.offers} offers`;
+  }
+  // No bids, but the window still opens: his deal is up and has to be settled.
+  if (context.contractDecision) return 'Your contract is up';
+  if (context.trainingPoints > 0) return `Pre-season training — ${context.trainingPoints} points`;
   return `Start season ${seasonNumber + 1}`;
 }
 

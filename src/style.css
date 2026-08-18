@@ -1758,3 +1758,112 @@ button.ghost {
   letter-spacing: 0.06em;
   white-space: nowrap;
 }
+
+/* ------------------------------------------- divisions and honours ----- */
+
+.watch-division {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin-left: 6px;
+}
+
+/*
+ * Promotion and relegation are the loudest thing on the review screen, because
+ * they are the one outcome the player did not choose.
+ */
+.division-move {
+  margin: 4px 0 18px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  line-height: 1.55;
+}
+
+.division-move.up {
+  border-color: var(--accent);
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.division-move.down {
+  border-color: var(--warn);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.honours-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.honours-list li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: rgba(74, 222, 128, 0.1);
+  font-size: 0.78rem;
+}
+
+.honours-list em {
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 0.72rem;
+  color: var(--accent);
+}
+
+.honours-won {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.honours-won .honour {
+  padding: 10px 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--bg-panel);
+  border-radius: 0 5px 5px 0;
+}
+
+.honours-won .honour strong {
+  display: block;
+  color: var(--accent);
+}
+
+.honours-won .honour span {
+  color: var(--text-dim);
+  font-size: 0.84rem;
+}
+
+/* A relegation is an honour in the record-keeping sense only. */
+.honours-won .honour-relegation {
+  border-left-color: var(--warn);
+}
+
+.honours-won .honour-relegation strong {
+  color: var(--warn);
+}
+
+/* ------------------------------------------------------- contracts ----- */
+
+.career-card.contract-final {
+  border-color: var(--warn);
+}
+
+.stay-card.unavailable {
+  border-color: var(--warn);
+  opacity: 0.85;
+}

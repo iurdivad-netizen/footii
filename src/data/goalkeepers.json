@@ -118,5 +118,125 @@
       "handling": 46,
       "distribution": 48
     }
+  },
+  {
+    "id": "teodor-brandt",
+    "name": "Teodor Brandt",
+    "teamId": "cheltley-rangers",
+    "attributes": {
+      "reflexes": 64,
+      "positioning": 66,
+      "anticipation": 62,
+      "oneOnOne": 61,
+      "aggression": 55,
+      "decisionMaking": 64,
+      "handling": 63,
+      "distribution": 70
+    }
+  },
+  {
+    "id": "callum-ferris",
+    "name": "Callum Ferris",
+    "teamId": "marsden-athletic",
+    "attributes": {
+      "reflexes": 63,
+      "positioning": 58,
+      "anticipation": 60,
+      "oneOnOne": 64,
+      "aggression": 74,
+      "decisionMaking": 57,
+      "handling": 60,
+      "distribution": 58
+    }
+  },
+  {
+    "id": "nikola-pavic",
+    "name": "Nikola Pavić",
+    "teamId": "portmere-rovers",
+    "attributes": {
+      "reflexes": 62,
+      "positioning": 60,
+      "anticipation": 58,
+      "oneOnOne": 60,
+      "aggression": 60,
+      "decisionMaking": 58,
+      "handling": 59,
+      "distribution": 56
+    }
+  },
+  {
+    "id": "desmond-oyelaran",
+    "name": "Desmond Oyelaran",
+    "teamId": "bexley-wanderers",
+    "attributes": {
+      "reflexes": 60,
+      "positioning": 57,
+      "anticipation": 55,
+      "oneOnOne": 58,
+      "aggression": 58,
+      "decisionMaking": 55,
+      "handling": 57,
+      "distribution": 54
+    }
+  },
+  {
+    "id": "artur-melnyk",
+    "name": "Artur Melnyk",
+    "teamId": "fenwick-town",
+    "attributes": {
+      "reflexes": 58,
+      "positioning": 55,
+      "anticipation": 54,
+      "oneOnOne": 56,
+      "aggression": 52,
+      "decisionMaking": 54,
+      "handling": 55,
+      "distribution": 50
+    }
+  },
+  {
+    "id": "barry-nuttall",
+    "name": "Barry Nuttall",
+    "teamId": "hollowfield",
+    "attributes": {
+      "reflexes": 55,
+      "positioning": 54,
+      "anticipation": 52,
+      "oneOnOne": 53,
+      "aggression": 50,
+      "decisionMaking": 53,
+      "handling": 52,
+      "distribution": 49
+    }
+  },
+  {
+    "id": "joris-vandermeer",
+    "name": "Joris Vandermeer",
+    "teamId": "ravensworth-park",
+    "attributes": {
+      "reflexes": 56,
+      "positioning": 58,
+      "anticipation": 54,
+      "oneOnOne": 52,
+      "aggression": 42,
+      "decisionMaking": 56,
+      "handling": 54,
+      "distribution": 46
+    }
+  },
+  {
+    "id": "eddie-swainson",
+    "name": "Eddie Swainson",
+    "teamId": "stapleton-vale",
+    "attributes": {
+      "reflexes": 51,
+      "positioning": 49,
+      "anticipation": 47,
+      "oneOnOne": 50,
+      "aggression": 54,
+      "decisionMaking": 47,
+      "handling": 48,
+      "distribution": 45
+    }
   }
 ]

@@ -49,6 +49,12 @@ export interface Team {
   ratings: TeamRatings;
   /** Primary colour, used by the UI only. */
   colour: string;
+  /**
+   * The division this club STARTS in. Once a career is under way the live
+   * division comes from the career's own promotion/relegation record, not from
+   * here — see core/career/divisions.ts.
+   */
+  division: number;
 }
 
 export interface TeamInit {
@@ -59,6 +65,7 @@ export interface TeamInit {
   ratings?: Partial<TeamRatings>;
   base?: number;
   colour?: string;
+  division?: number;
 }
 
 export function createTeam(init: TeamInit): Team {
@@ -69,6 +76,7 @@ export function createTeam(init: TeamInit): Team {
     shortName: init.shortName ?? init.name.slice(0, 3).toUpperCase(),
     style: init.style ?? 'balanced',
     colour: init.colour ?? '#4aa3ff',
+    division: init.division ?? 1,
     ratings: {
       attack: base,
       midfield: base,

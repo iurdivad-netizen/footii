@@ -15,7 +15,7 @@ function career() {
   return startCareer({
     player: createPlayer({ name: 'Test', position: 'ST', attributes: {} }),
     clubId: 'northport-city',
-    leagueTeamIds: TEAMS.map((t) => t.id),
+    teams: TEAMS,
     seed: 'save',
   });
 }
@@ -74,6 +74,64 @@ describe('save migration', () => {
     expect(migrated.version).toBe(SAVE_VERSION);
     expect(migrated.careerState!.offers).toEqual([]);
     expect(migrated.careerState!.transfers).toEqual([]);
+  });
+
+  it('backfills a v4 career with a pyramid, a contract and an honours list', () => {
+    const state = career();
+    // Simulate a v4 save: one division, no contracts, no honours, no caps.
+    const legacy = { ...state } as Record<string, unknown>;
+    delete legacy.division;
+    delete legacy.divisions;
+    delete legacy.clubStrengths;
+    delete legacy.contract;
+    delete legacy.renewal;
+    delete legacy.honours;
+    delete legacy.careerEarnings;
+    delete (legacy.player as Record<string, unknown>).caps;
+
+    const migrated = migrate({
+      version: 4,
+      career: emptyCareer(),
+      careerState: legacy,
+    } as never)!;
+
+    expect(migrated).not.toBeNull();
+    expect(migrated.version).toBe(SAVE_VERSION);
+
+    const restored = migrated.careerState!;
+    // The career keeps its club, and is placed in whichever division it is in.
+    expect(restored.clubId).toBe('northport-city');
+    expect(restored.division).toBe(1);
+    expect(restored.divisions.flat()).toHaveLength(TEAMS.length);
+    expect(restored.clubStrengths['northport-city']).toBeTruthy();
+    expect(restored.contract.clubId).toBe('northport-city');
+    expect(restored.contract.yearsRemaining).toBeGreaterThan(0);
+    expect(restored.honours).toEqual([]);
+    expect(restored.careerEarnings).toBe(0);
+    expect(restored.renewal).toBeNull();
+    expect(restored.player.caps).toBe(0);
+  });
+
+  it('gives an old career\'s archived seasons a division rather than leaving them blank', () => {
+    const state = career();
+    const legacy = { ...state, history: [{ seasonNumber: 1, clubId: 'northport-city', position: 3, stats: state.seasonStats, age: 24 }] } as Record<string, unknown>;
+    delete legacy.division;
+    delete legacy.divisions;
+    delete legacy.contract;
+
+    const migrated = migrate({ version: 4, career: emptyCareer(), careerState: legacy } as never)!;
+    expect(migrated.careerState!.history[0]!.division).toBe(1);
+  });
+
+  it('drops a v4 career whose club no longer exists rather than half-migrating it', () => {
+    const state = career();
+    const legacy = { ...state, clubId: 'a-club-that-was-deleted' } as Record<string, unknown>;
+    delete legacy.contract;
+    delete legacy.division;
+    delete legacy.divisions;
+
+    const migrated = migrate({ version: 4, career: emptyCareer(), careerState: legacy } as never)!;
+    expect(migrated.careerState).toBeUndefined();
   });
 
   it('preserves settings that already exist and fills in ones that do not', () => {

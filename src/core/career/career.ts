@@ -11,6 +11,9 @@ import { createSeasonStats } from './seasonStats.ts';
 import type { SeasonStats } from './seasonStats.ts';
 import { matchReputationGain } from './reputation.ts';
 import type { TransferOffer, TransferRecord } from './transfers.ts';
+import type { Contract, ContractOffer } from './contracts.ts';
+import type { ClubStrengths } from './clubDrift.ts';
+import type { Honour } from './awards.ts';
 
 /**
  * CAREER STATE
@@ -30,6 +33,8 @@ export interface SeasonRecord {
   position: number;
   stats: SeasonStats;
   age: number;
+  /** The division it was played in, so a history reads at the right level. */
+  division: number;
 }
 
 export interface CareerState {
@@ -70,6 +75,31 @@ export interface CareerState {
   offers: TransferOffer[];
   /** Every move made, oldest first. */
   transfers: TransferRecord[];
+  /** The division the player is currently in; 1 is the top flight. */
+  division: number;
+  /**
+   * Membership of every division, index 0 being the top flight.
+   * Reshaped each summer by promotion and relegation, which is why it lives in
+   * the save rather than being read back from the data file.
+   */
+  divisions: string[][];
+  /**
+   * Live club ratings, which drift season by season. Held here rather than
+   * mutating the loaded teams, so two careers in the same browser cannot
+   * contaminate each other and a save restores the league it remembers.
+   */
+  clubStrengths: ClubStrengths;
+  /** The deal he is on. Always present — a career is never contract-less. */
+  contract: Contract;
+  /**
+   * Terms his own club has put up this summer, if any. Sits alongside `offers`
+   * so the transfer window can present staying as a deal rather than a refusal.
+   */
+  renewal: ContractOffer | null;
+  /** Everything won, oldest first. The only part of a career that only grows. */
+  honours: Honour[];
+  /** Total wages banked across the career, in millions. */
+  careerEarnings: number;
 }
 
 /** How much fitness a player recovers between fixtures. */
@@ -104,6 +134,8 @@ export interface MatchOutcomeInput {
   coaching: number;
   /** Standing of the player's club, 0-1; how widely the match was watched. */
   clubStature: number;
+  /** How closely the division is watched, 0-1. */
+  divisionPrestige: number;
   /** Fitness left at the final whistle. */
   fitnessAtEnd: number;
 }
@@ -173,6 +205,7 @@ export function applyMatchToCareer(
     rating,
     clubStature: input.clubStature,
     reputation: state.player.reputation,
+    divisionPrestige: input.divisionPrestige,
   });
   state.player.reputation = clamp(state.player.reputation + reputationGain, 0, 100);
 
@@ -193,7 +226,7 @@ export function advanceSeason(
   rng: Rng,
   state: CareerState,
   position: number,
-  next: { fixtures: Fixture[]; table: TableRow[]; leagueTeamIds: string[] },
+  next: { fixtures: Fixture[]; table: TableRow[]; leagueTeamIds: string[]; division: number },
 ): SeasonRecord {
   const record: SeasonRecord = {
     seasonNumber: state.seasonNumber,
@@ -201,6 +234,7 @@ export function advanceSeason(
     position,
     stats: state.seasonStats,
     age: state.player.age,
+    division: state.division,
   };
   state.history.push(record);
 
@@ -215,6 +249,7 @@ export function advanceSeason(
   state.fixtures = next.fixtures;
   state.table = next.table;
   state.leagueTeamIds = next.leagueTeamIds;
+  state.division = next.division;
   state.results = [];
   state.nextFixtureIndex = 0;
   state.development = createDevelopmentState();
