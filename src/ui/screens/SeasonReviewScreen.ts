@@ -1,6 +1,8 @@
 import type { SeasonRecord } from '../../core/career/career.ts';
 import type { SeasonProgress } from '../../core/career/training.ts';
 import { averageRating, goalContributions } from '../../core/career/seasonStats.ts';
+import type { ReputationSettlement } from '../../core/career/reputation.ts';
+import { reputationTier } from '../../core/career/reputation.ts';
 import { getTeam } from '../../data/gameData.ts';
 
 /** End-of-season summary, shown once the final fixture has been played. */
@@ -18,6 +20,10 @@ export class SeasonReviewScreen {
       /** The season before this one, for a like-for-like comparison. */
       previous?: SeasonRecord;
       trainingPoints: number;
+      /** How the season moved the player's standing in the game. */
+      reputation: ReputationSettlement;
+      /** Number of clubs that have made an offer for the summer. */
+      offers: number;
     },
     onContinue: () => void,
   ) {
@@ -70,20 +76,26 @@ export class SeasonReviewScreen {
       </div>
 
       ${renderProgress(context.progress)}
+      ${renderReputation(context.reputation)}
       ${renderComparison(record, context.previous)}
 
       <button class="primary" id="continue-career">
-        ${
-          context.trainingPoints > 0
-            ? `Pre-season training — ${context.trainingPoints} points`
-            : `Start season ${record.seasonNumber + 1}`
-        }
+        ${continueLabel(context.offers, context.trainingPoints, record.seasonNumber)}
       </button>`;
 
     this.element
       .querySelector<HTMLButtonElement>('#continue-career')!
       .addEventListener('click', onContinue);
   }
+}
+
+/** What the next screen will be, so the button never lies about where it goes. */
+function continueLabel(offers: number, trainingPoints: number, seasonNumber: number): string {
+  if (offers > 0) {
+    return offers === 1 ? 'You have an offer' : `You have ${offers} offers`;
+  }
+  if (trainingPoints > 0) return `Pre-season training — ${trainingPoints} points`;
+  return `Start season ${seasonNumber + 1}`;
 }
 
 function ordinal(n: number): string {
@@ -135,6 +147,35 @@ function renderProgress(progress: SeasonProgress): string {
           ? `<ul class="progress-changes">${changes}</ul>`
           : '<p class="hint">No attribute changes this season.</p>'
       }
+    </div>`;
+}
+
+/**
+ * What the season did to the player's standing in the game.
+ *
+ * Shown separately from ability because the two genuinely diverge: a good
+ * footballer at a club that finishes bottom every year slides out of view, and
+ * the screen has to say so before the empty transfer window does.
+ */
+function renderReputation(settlement: ReputationSettlement): string {
+  const tier = reputationTier(settlement.after);
+  const direction = settlement.delta > 0.5 ? 'good' : settlement.delta < -0.5 ? 'bad' : '';
+  const sign = settlement.delta > 0 ? '+' : '';
+
+  return `
+    <div class="career-card reputation-panel">
+      <h2>Your standing in the game</h2>
+      <div class="progress-headline">
+        <div class="progress-stat ${direction}">
+          <span class="progress-value">${settlement.before} → ${settlement.after}</span>
+          <span class="progress-label">Reputation (${sign}${settlement.delta})</span>
+        </div>
+        <div class="progress-stat">
+          <span class="progress-value">${tier.label}</span>
+          <span class="progress-label">${tier.description}</span>
+        </div>
+      </div>
+      <ul class="training-notes">${settlement.notes.map((n) => `<li>${n}</li>`).join('')}</ul>
     </div>`;
 }
 

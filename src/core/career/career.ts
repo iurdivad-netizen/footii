@@ -9,6 +9,8 @@ import type { Attributes } from '../player/attributes.ts';
 import type { Fixture, FixtureResult, TableRow } from './league.ts';
 import { createSeasonStats } from './seasonStats.ts';
 import type { SeasonStats } from './seasonStats.ts';
+import { matchReputationGain } from './reputation.ts';
+import type { TransferOffer, TransferRecord } from './transfers.ts';
 
 /**
  * CAREER STATE
@@ -60,6 +62,14 @@ export interface CareerState {
   seasonStartExperience: number;
   /** Unspent pre-season training points. */
   trainingPoints: number;
+  /**
+   * Offers on the table this summer. Written at the end of a season and
+   * cleared as soon as one is taken or the window is closed, so a career that
+   * is mid-season never carries a stale offer.
+   */
+  offers: TransferOffer[];
+  /** Every move made, oldest first. */
+  transfers: TransferRecord[];
 }
 
 /** How much fitness a player recovers between fixtures. */
@@ -92,6 +102,8 @@ export interface MatchOutcomeInput {
   goalsAgainst: number;
   /** Coaching quality of the player's club, 0-1. */
   coaching: number;
+  /** Standing of the player's club, 0-1; how widely the match was watched. */
+  clubStature: number;
   /** Fitness left at the final whistle. */
   fitnessAtEnd: number;
 }
@@ -153,9 +165,15 @@ export function applyMatchToCareer(
     coaching: input.coaching,
   });
 
-  // Reputation grows with goals, assists and strong ratings.
-  const reputationGain =
-    stats.goals * 0.6 + stats.assists * 0.35 + Math.max(0, rating - 7.2) * 0.5;
+  // Reputation moves fast on goals and standout ratings; the summer settles it
+  // back toward what the season as a whole justifies (see reputation.ts).
+  const reputationGain = matchReputationGain({
+    goals: stats.goals,
+    assists: stats.assists,
+    rating,
+    clubStature: input.clubStature,
+    reputation: state.player.reputation,
+  });
   state.player.reputation = clamp(state.player.reputation + reputationGain, 0, 100);
 
   // Fitness: what was left at the whistle, plus recovery before the next game.

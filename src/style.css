@@ -1638,3 +1638,123 @@ button.ghost {
   border-radius: 2px;
   background: currentColor;
 }
+
+/* ----------------------------------------------------------- transfers -- */
+
+.transfer-standing {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  padding: 14px 16px;
+  margin: 16px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-raised);
+}
+
+.offer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  margin-bottom: 8px;
+}
+
+.offer-card {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+}
+
+.offer-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.offer-head h2 {
+  color: var(--text);
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.offer-step {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.offer-step.up {
+  color: var(--accent);
+}
+
+.offer-step.down {
+  color: var(--warn);
+}
+
+.offer-notes {
+  margin: 10px 0 14px;
+  padding-left: 18px;
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.offer-card .primary {
+  margin-top: auto;
+  width: 100%;
+}
+
+.stay-card .primary {
+  width: 100%;
+}
+
+/* ---------------------------------------------------------- reputation -- */
+
+.reputation-panel .progress-headline {
+  margin-bottom: 0;
+}
+
+.reputation-panel .training-notes {
+  margin-top: 12px;
+}
+
+.watch-heading {
+  margin: 14px 0 6px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+}
+
+.watch-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.85rem;
+}
+
+.watch-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.watch-list li:last-child {
+  border-bottom: none;
+}
+
+.watch-level {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}

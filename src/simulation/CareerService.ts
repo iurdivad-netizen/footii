@@ -15,6 +15,10 @@ import {
   seasonComplete,
 } from '../core/career/career.ts';
 import { createDevelopmentState } from '../core/career/development.ts';
+import { clubStature, settleReputation } from '../core/career/reputation.ts';
+import type { ReputationSettlement } from '../core/career/reputation.ts';
+import { applyTransferEffects, generateOffers, scoutingInterest } from '../core/career/transfers.ts';
+import type { ClubInterest, TransferOffer, TransferRecord } from '../core/career/transfers.ts';
 import type { Fixture, FixtureResult, TableRow } from '../core/career/league.ts';
 import {
   applyResult,
@@ -66,6 +70,8 @@ export function startCareer(options: StartCareerOptions): CareerState {
     seasonStartAbility: currentAbility(options.player),
     seasonStartExperience: options.player.experience,
     trainingPoints: 0,
+    offers: [],
+    transfers: [],
   };
 }
 
@@ -152,6 +158,7 @@ export function recordPlayerMatch(
     goalsFor: input.playerTeamScore,
     goalsAgainst: input.opponentScore,
     coaching: coachingQuality(lookup(state.clubId)),
+    clubStature: clubStature(lookup(state.clubId)),
     fitnessAtEnd: input.fitnessAtEnd,
   });
 
@@ -176,6 +183,10 @@ export interface SeasonEnd {
   /** Points earned for pre-season training. */
   trainingAwarded: number;
   trainingNotes: string[];
+  /** How the season moved the player's standing in the game. */
+  reputation: ReputationSettlement;
+  /** Offers on the table this summer, best first. */
+  offers: TransferOffer[];
 }
 
 /**
@@ -212,6 +223,19 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
 
   const award = calculateTrainingPoints(state.player, state.seasonStats);
 
+  // Settle reputation on the season just played, BEFORE the club can change and
+  // before the player ages, so it is judged on the football that actually
+  // happened. Match-by-match gains have already been applied; this is the
+  // correction back toward what the whole season justifies.
+  const club = lookup(state.clubId);
+  const reputation = settleReputation(state.player, {
+    stats: state.seasonStats,
+    leaguePosition: position,
+    leagueSize: state.leagueTeamIds.length,
+    clubStature: clubStature(club),
+    seasonLength: fixturesFor(state, state.clubId).length,
+  });
+
   const rng = new Rng(`${state.seed}:s${state.seasonNumber}:end`);
   const nextRng = new Rng(`${state.seed}:season:${state.seasonNumber + 1}`);
   const record = advanceSeason(rng, state, position, {
@@ -223,6 +247,21 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   // Unspent points are never banked; a fresh award replaces whatever was left.
   state.trainingPoints = award.points;
 
+  // Offers come AFTER the birthday: clubs buy the player who will turn out for
+  // them next season, not the one who finished last season.
+  const offerRng = new Rng(`${state.seed}:s${record.seasonNumber}:transfers`);
+  const lastMove = state.transfers[state.transfers.length - 1];
+  state.offers = generateOffers(offerRng, {
+    player: state.player,
+    currentClubId: state.clubId,
+    clubs: state.leagueTeamIds.map(lookup),
+    stats: record.stats,
+    season: record.seasonNumber,
+    // A club he left last summer does not come straight back for him.
+    excludeClubIds:
+      lastMove && lastMove.season === record.seasonNumber - 1 ? [lastMove.fromClubId] : [],
+  });
+
   return {
     record,
     position,
@@ -230,7 +269,64 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     progress,
     trainingAwarded: award.points,
     trainingNotes: award.notes,
+    reputation,
+    offers: state.offers,
   };
+}
+
+/**
+ * Take an offer.
+ *
+ * The move itself is a single field — `clubId` — but everything downstream
+ * changes with it: the quality of the chances the engine generates, the
+ * coaching that drives development, the standing that decides who watches you
+ * next, and where you finish in the table. The window closes on acceptance, so
+ * a summer produces exactly one decision.
+ */
+export function acceptOffer(
+  state: CareerState,
+  offerId: string,
+  lookup: TeamLookup,
+): TransferRecord {
+  const offer = state.offers.find((o) => o.id === offerId);
+  if (!offer) throw new Error(`No such offer: ${offerId}`);
+
+  const record: TransferRecord = {
+    season: offer.season,
+    fromClubId: state.clubId,
+    toClubId: offer.clubId,
+    fee: offer.fee,
+    wage: offer.wage,
+    role: offer.role,
+    age: state.player.age,
+  };
+
+  state.clubId = offer.clubId;
+  state.transfers.push(record);
+  applyTransferEffects(state.player, lookup(offer.clubId));
+  state.offers = [];
+  return record;
+}
+
+/** Turn everything down and stay where you are. */
+export function declineOffers(state: CareerState): void {
+  state.offers = [];
+}
+
+/**
+ * Clubs watching but not yet bidding.
+ *
+ * Shown in the hub during the season so the transfer window is something you
+ * can see coming: interest builds as reputation does, and the list is the
+ * feedback loop that makes a run of goals feel like it is going somewhere.
+ */
+export function clubsWatching(state: CareerState, lookup: TeamLookup): ClubInterest[] {
+  return scoutingInterest(
+    state.player,
+    state.leagueTeamIds.map(lookup),
+    state.clubId,
+    state.seasonStats,
+  );
 }
 
 export function playerFixtures(state: CareerState): Fixture[] {

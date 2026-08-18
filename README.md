@@ -379,7 +379,7 @@ is what makes the engine debuggable and balanceable.
 ```
 src/
 ├── core/                  pure data models + types, no DOM, no randomness of its own
-│   ├── career/            development, league, season and career state
+│   ├── career/            development, league, season state, reputation and transfers
 │   ├── events/            situation context, action/outcome types, tactical zones
 │   ├── goalkeeper/        goalkeeper model + commit behaviour
 │   ├── match/             match state, statistics, rating
@@ -457,7 +457,7 @@ If a number in there looks wrong, the gameplay is wrong.
 npm test
 ```
 
-211 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, save migration, save validation, action generation (including the invariant that every
+251 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, player valuation, club interest and offer generation, reputation gain and settlement, save migration, save validation, action generation (including the invariant that every
 situation can always fill six slots), resolution, goalkeeper effects, attribute effects, chance
 generation, randomness boundaries, position-specific behaviour, instinctive actions, rating,
 pace scaling, option colour coding, boot recovery, set-piece conversion rates, the penalty commit
@@ -510,8 +510,9 @@ Beyond the single match, a career follows **one footballer season by season**.
 - **After every match** your rating feeds form and morale, and development is applied.
 - **Development** is driven by age, headroom below Potential Ability, match rating, minutes
   played and your club's coaching quality.
-- **A season ends** with a review: league position, your statistics, and a scout's view of
-  whether your ceiling has moved. Then you age a year and go again.
+- **A season ends** with a review: league position, your statistics, a scout's view of whether
+  your ceiling has moved, and where your reputation now sits. Then comes the summer — the
+  transfer window, then pre-season training — and you age a year and go again.
 
 ### Why development is applied per match
 
@@ -571,6 +572,95 @@ training is what you chose to work on. **It is not extra progression bolted on t
 automatic growth budget was moved into it (`GROWTH_BASE` was reduced when training was added), so
 the overall career arc stays where it was calibrated and you simply get to steer some of it.
 
+### Reputation and transfers
+
+Reputation is what the football world thinks you are, as distinct from what you actually are
+(Current Ability) and what you might become (Potential Ability). It is the currency of the transfer
+market, and it moves at **two speeds**:
+
+- **Per match** — goals, assists and standout ratings push it up quickly, scaled by how big a stage
+  you played on. A poor performance costs a little. Gains **saturate** as you climb, so the first
+  ten goals of a career make a name and the two hundredth adds nothing to one.
+- **Per season** — the summer settles it back toward what your career actually justifies: ability,
+  league finish, goal contribution and how much you played. It is a partial move, not a jump, so
+  one quiet season does not erase a name and one loud season does not make one.
+
+Without the settlement, reputation could only ever climb, and every career ended with a
+world-famous 34-year-old who had not started a match in a year.
+
+| Reputation | You are | What it means |
+| ---------- | ------- | ------------- |
+| 0–17 | Unknown | Nobody outside your own dressing room knows your name |
+| 18–33 | Known locally | Your own supporters know you; scouts do not |
+| 34–49 | Established | A recognised name in this division |
+| 50–64 | Well known | Clubs above you have started watching |
+| 65–79 | Star | One of the names this league is known for |
+| 80–91 | Household name | The sort of signing that sells season tickets |
+| 92+ | World class | Anyone would take you, if they could afford you |
+
+#### What a club asks before it bids
+
+An offer is not a dice roll dressed as a market. It is the answer to five questions a real club
+would ask, each of them answerable from state the career layer already keeps:
+
+| Question | Answered by |
+| -------- | ----------- |
+| Have we heard of him? | reputation against the club's own standing |
+| Would he improve us? | ability — plus potential, if he is young — against the level of the squad |
+| Do we need him? | his position against the club's weakest department, read off its own ratings |
+| Does he suit how we play? | his attributes against the club's tactical style |
+| Can we afford him? | market value against the budget |
+
+They are **multiplied, not averaged**, so any one of them can veto a move: a club that has never
+heard of you does not care how well you would fit, and one that cannot pay does not bid at all.
+
+The eight clubs therefore form a ladder, and climbing it is the point of a career:
+
+| Club | Style | Squad level | Expects | Budget |
+| ---- | ----- | ----------- | ------- | ------ |
+| Castleford Royals | Possession | 86 | a *Star* (rep 78) | £210m |
+| Ashford United | Possession | 74 | *Well known* (rep 61) | £64m |
+| Kingsbridge FC | High Press | 68 | *Well known* (rep 52) | £35m |
+| Vale Park Wanderers | Balanced | 60 | *Established* (rep 41) | £16m |
+| Northport City | Counterattack | 58 | *Established* (rep 39) | £13m |
+| Brackenmoor Rovers | Wide Play | 55 | *Established* (rep 34) | £10m |
+| Old Harbour Town | Direct | 52 | *Known locally* (rep 30) | £7m |
+| Seaton Athletic | Defensive | 51 | *Known locally* (rep 28) | £7m |
+
+Two rules keep the market honest rather than noisy:
+
+- **A club only bids for a player it intends to play.** Squad rotation is not modelled yet, so an
+  offer that quietly meant "you will sit on the bench" would be a promise the simulation cannot
+  keep. Clubs that would only use you as cover simply do not come.
+- **The keenest interested club always bids**; the rest roll against their own interest. A season
+  good enough to have a side ready to move should never be met with silence because of a dice
+  roll, and the hub shows you the interest building all season (*"Scouts watching"*) so the window
+  is something you can see coming.
+
+Clubs well below your current one mostly do not try, so the flow of offers from the bottom of the
+league dries up as you climb — and a club you walked out of last summer does not come straight back
+for you.
+
+#### Why a transfer matters mechanically
+
+Moving club is one field — `clubId` — but almost everything downstream changes with it:
+
+- your club's ratings feed the **situation generator**, so a better side hands you better chances,
+  and its **style** decides *which* situations you get (a wide-play club produces crossing
+  situations, a counterattacking one produces transition one-on-ones)
+- its standing sets your **coaching quality**, which drives development
+- where it finishes drives your **reputation settlement**, which decides who watches you next
+
+Which is why the transfer screen shows the squad level, the style, the need in your position and
+where you would sit in the side, rather than a fee and a badge. **Staying is a first-class choice**:
+the club that wants you most is usually the one you would be best at, and that is not always the
+club worth joining.
+
+Market value is a pure function of the player — ability (exponentially: the gap between a 60 and a
+70 is a few million, the gap between an 80 and a 90 is most of a stadium), a potential premium only
+the young command, a hard age cliff after 30, and reputation and form at the margins. Because it is
+pure, the hub can show it at any moment and the market can never disagree with the screen.
+
 ### Balancing notes worth knowing
 
 Two calibration bugs were found by measurement rather than by eye, and both are documented at
@@ -582,6 +672,13 @@ their constants:
 - **Fatigue was inert.** A full 90 minutes cost only ~15 fitness, worth a 0.03s timer penalty, and
   Stamina 40 differed from Stamina 78 by under 0.02s. A match now costs 30-40 fitness, so tired
   legs are worth about a tenth of a second of thinking time and Stamina earns its place.
+- **The bottom of the transfer market was dead.** Budgets pitched at a club's own squad level left
+  the smallest sides unable to afford anybody who would improve them, because a market value
+  carries premiums a bare ability does not. Affordability is meant to stop a struggling club buying
+  a star, not to stop it signing a decent footballer.
+- **Reputation ran away from itself.** With unsaturated per-match gains a decent striker reached 98
+  by his mid-twenties on volume alone, and the summer settlement then dragged him back ten points
+  every year — which read as the game taking something away rather than as fame having a ceiling.
 
 ---
 
@@ -595,8 +692,9 @@ duels and pressing traps), ~60 contextual actions, dynamic
 decision timer, build-up narration, goalkeeper commit mechanic, action resolution with separated
 choice/execution, instinctive fallback on expiry, match statistics and rating, five playable
 presets across four positions, eight teams with tactical styles, **season fixtures, live league
-table, per-match player development, ageing and multi-season career history, end-of-season progress reports and pre-season
-training**, debug mode, and a
+table, per-match player development, ageing and multi-season career history, end-of-season progress reports, pre-season
+training, a reputation model and a transfer market with club valuation, scouting interest and
+summer offers**, debug mode, and a
 versioned localStorage save with migration.
 
 Deliberately **not** built yet: multiplayer, accounts, a backend, 3D, physics, large player
@@ -604,9 +702,6 @@ databases.
 
 ## Roadmap
 
-- **Transfers and reputation** — clubs valuing position, ability, potential, age, form and
-  tactical suitability, with offers arriving as your reputation grows. The career layer now
-  provides everything this needs.
 - **Playable goalkeeper** — the last event type on the original list, and the only one that needs
   more than a template: `GK` exists as a position but has no playable match loop, so it needs its
   own situations (shot-stopping, claiming a cross, sweeping, distribution) and its own involvement
