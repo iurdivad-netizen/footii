@@ -1,6 +1,10 @@
 import type { MatchStats } from '../core/match/matchStats.ts';
 import type { CareerState } from '../core/career/career.ts';
 import { currentAbility } from '../core/player/player.ts';
+import { TEAMS } from '../data/gameData.ts';
+import { divisionOf, initialDivisions } from '../core/career/divisions.ts';
+import { initialStrengths } from '../core/career/clubDrift.ts';
+import { contractYears, offeredWage, squadRole } from '../core/career/transfers.ts';
 import type { DecisionPace } from '../simulation/DecisionTimer.ts';
 
 /**
@@ -15,7 +19,7 @@ import type { DecisionPace } from '../simulation/DecisionTimer.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 export interface CareerRecord {
   matches: number;
@@ -122,7 +126,16 @@ export function isUsableCareer(state: unknown): state is CareerState {
     !!c.seasonStats &&
     typeof c.seasonStats === 'object' &&
     typeof c.seasonNumber === 'number' &&
-    typeof c.nextFixtureIndex === 'number'
+    typeof c.nextFixtureIndex === 'number' &&
+    // A career with no contract cannot open a summer, and a career with no
+    // pyramid cannot promote or relegate anyone. Both are cheaper to drop than
+    // to guess at.
+    !!c.contract &&
+    typeof c.contract === 'object' &&
+    typeof c.division === 'number' &&
+    Array.isArray(c.divisions) &&
+    !!c.clubStrengths &&
+    typeof c.clubStrengths === 'object'
   );
 }
 
@@ -162,6 +175,39 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
     save = { ...save, version: 4 };
   }
 
+  if (save.version === 4) {
+    // v4 -> v5: careers gained a second division, drifting clubs, contracts and
+    // an honours list. A career saved before any of it keeps its club and its
+    // statistics; the pyramid is rebuilt from the data file, the player is
+    // placed in whichever division his club starts in, and he is given the deal
+    // that club would offer him today. He loses no progress, only history he
+    // never had.
+    const career = save.careerState;
+    if (career) {
+      career.divisions ??= initialDivisions(TEAMS);
+      career.division ??= divisionOf(career.divisions, career.clubId) || 1;
+      career.clubStrengths ??= initialStrengths(TEAMS);
+      career.honours ??= [];
+      career.careerEarnings ??= 0;
+      career.renewal ??= null;
+      career.player.caps ??= 0;
+      if (!career.contract) {
+        const club = TEAMS.find((team) => team.id === career.clubId);
+        career.contract = club
+          ? {
+              clubId: club.id,
+              wage: offeredWage(career.player, club, squadRole(career.player, club)),
+              yearsRemaining: contractYears(career.player),
+              signedSeason: career.seasonNumber,
+              role: squadRole(career.player, club),
+            }
+          : undefined!;
+      }
+      for (const season of career.history ?? []) season.division ??= career.division;
+    }
+    save = { ...save, version: 5 };
+  }
+
   if (save.version !== SAVE_VERSION) return null;
 
   // Settings are additive: an older save simply had none, and a save written
@@ -177,6 +223,9 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
   }
   if (save.careerState && !Array.isArray(save.careerState.transfers)) {
     save.careerState.transfers = [];
+  }
+  if (save.careerState && !Array.isArray(save.careerState.honours)) {
+    save.careerState.honours = [];
   }
   if (save.careerState && !isUsableCareer(save.careerState)) {
     save.careerState = undefined;

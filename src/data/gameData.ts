@@ -16,6 +16,7 @@ interface TeamJson {
   style: string;
   colour: string;
   base: number;
+  division: number;
   ratings: Record<string, number>;
 }
 
@@ -34,9 +35,15 @@ export const TEAMS: Team[] = (teamsJson as TeamJson[]).map((entry) =>
     style: entry.style as TacticalStyle,
     colour: entry.colour,
     base: entry.base,
+    division: entry.division,
     ratings: entry.ratings,
   }),
 );
+
+/** Every club in a given starting division. */
+export function teamsInDivision(division: number): Team[] {
+  return TEAMS.filter((team) => team.division === division);
+}
 
 interface GoalkeeperEntry {
   goalkeeper: Goalkeeper;

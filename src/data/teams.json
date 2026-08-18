@@ -6,6 +6,7 @@
     "style": "counterattack",
     "colour": "#e2574c",
     "base": 58,
+    "division": 1,
     "ratings": {
       "attack": 62,
       "midfield": 57,
@@ -27,6 +28,7 @@
     "style": "possession",
     "colour": "#4aa3ff",
     "base": 70,
+    "division": 1,
     "ratings": {
       "attack": 74,
       "midfield": 78,
@@ -48,6 +50,7 @@
     "style": "widePlay",
     "colour": "#f2c14e",
     "base": 55,
+    "division": 1,
     "ratings": {
       "attack": 58,
       "midfield": 54,
@@ -68,6 +71,7 @@
     "style": "defensive",
     "colour": "#6c7a89",
     "base": 50,
+    "division": 1,
     "ratings": {
       "attack": 44,
       "midfield": 48,
@@ -88,6 +92,7 @@
     "style": "highPress",
     "colour": "#2ecc71",
     "base": 66,
+    "division": 1,
     "ratings": {
       "attack": 70,
       "midfield": 68,
@@ -109,6 +114,7 @@
     "style": "direct",
     "colour": "#9b59b6",
     "base": 52,
+    "division": 1,
     "ratings": {
       "attack": 56,
       "midfield": 48,
@@ -130,6 +136,7 @@
     "style": "balanced",
     "colour": "#e67e22",
     "base": 60,
+    "division": 1,
     "ratings": {
       "attack": 60,
       "midfield": 61,
@@ -150,6 +157,7 @@
     "style": "possession",
     "colour": "#1abc9c",
     "base": 82,
+    "division": 1,
     "ratings": {
       "attack": 86,
       "midfield": 88,
@@ -163,6 +171,177 @@
       "pressing": 78,
       "defensiveIntensity": 76,
       "counterattack": 70
+    }
+  },
+  {
+    "id": "cheltley-rangers",
+    "name": "Cheltley Rangers",
+    "shortName": "CHR",
+    "style": "possession",
+    "colour": "#3d5a98",
+    "base": 56,
+    "division": 2,
+    "ratings": {
+      "attack": 58,
+      "midfield": 60,
+      "defence": 54,
+      "possession": 68,
+      "passing": 64,
+      "tempo": 50,
+      "creativity": 62,
+      "crossing": 48,
+      "width": 48,
+      "pressing": 56,
+      "defensiveIntensity": 52
+    }
+  },
+  {
+    "id": "marsden-athletic",
+    "name": "Marsden Athletic",
+    "shortName": "MRS",
+    "style": "highPress",
+    "colour": "#d35400",
+    "base": 54,
+    "division": 2,
+    "ratings": {
+      "attack": 56,
+      "midfield": 55,
+      "defence": 52,
+      "possession": 50,
+      "tempo": 70,
+      "creativity": 50,
+      "crossing": 52,
+      "width": 56,
+      "pressing": 76,
+      "defensiveIntensity": 70,
+      "counterattack": 60
+    }
+  },
+  {
+    "id": "portmere-rovers",
+    "name": "Portmere Rovers",
+    "shortName": "PTM",
+    "style": "counterattack",
+    "colour": "#16a085",
+    "base": 52,
+    "division": 2,
+    "ratings": {
+      "attack": 56,
+      "midfield": 50,
+      "defence": 50,
+      "possession": 40,
+      "tempo": 68,
+      "counterattack": 72,
+      "creativity": 48,
+      "crossing": 50,
+      "width": 54,
+      "pressing": 48,
+      "defensiveIntensity": 54
+    }
+  },
+  {
+    "id": "bexley-wanderers",
+    "name": "Bexley Wanderers",
+    "shortName": "BXW",
+    "style": "widePlay",
+    "colour": "#c0392b",
+    "base": 50,
+    "division": 2,
+    "ratings": {
+      "attack": 53,
+      "midfield": 49,
+      "defence": 48,
+      "possession": 46,
+      "tempo": 58,
+      "creativity": 50,
+      "crossing": 68,
+      "width": 72,
+      "pressing": 48,
+      "defensiveIntensity": 50
+    }
+  },
+  {
+    "id": "fenwick-town",
+    "name": "Fenwick Town",
+    "shortName": "FEN",
+    "style": "direct",
+    "colour": "#8e44ad",
+    "base": 48,
+    "division": 2,
+    "ratings": {
+      "attack": 52,
+      "midfield": 45,
+      "defence": 47,
+      "possession": 34,
+      "tempo": 62,
+      "creativity": 38,
+      "crossing": 58,
+      "width": 58,
+      "pressing": 46,
+      "defensiveIntensity": 54
+    }
+  },
+  {
+    "id": "hollowfield",
+    "name": "Hollowfield",
+    "shortName": "HLW",
+    "style": "balanced",
+    "colour": "#7f8c8d",
+    "base": 46,
+    "division": 2,
+    "ratings": {
+      "attack": 46,
+      "midfield": 47,
+      "defence": 45,
+      "possession": 48,
+      "tempo": 52,
+      "creativity": 46,
+      "crossing": 46,
+      "width": 50,
+      "pressing": 48,
+      "defensiveIntensity": 48
+    }
+  },
+  {
+    "id": "ravensworth-park",
+    "name": "Ravensworth Park",
+    "shortName": "RVP",
+    "style": "defensive",
+    "colour": "#2c3e50",
+    "base": 44,
+    "division": 2,
+    "ratings": {
+      "attack": 38,
+      "midfield": 42,
+      "defence": 54,
+      "possession": 34,
+      "tempo": 40,
+      "creativity": 34,
+      "crossing": 42,
+      "width": 40,
+      "pressing": 38,
+      "defensiveIntensity": 66
+    }
+  },
+  {
+    "id": "stapleton-vale",
+    "name": "Stapleton Vale",
+    "shortName": "STV",
+    "style": "direct",
+    "colour": "#a04000",
+    "base": 41,
+    "division": 2,
+    "ratings": {
+      "attack": 42,
+      "midfield": 39,
+      "defence": 40,
+      "possession": 32,
+      "tempo": 58,
+      "creativity": 34,
+      "crossing": 52,
+      "width": 54,
+      "pressing": 44,
+      "defensiveIntensity": 46
     }
   }
 ]

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Rng } from '../src/core/rng.ts';
 import { applyExertion, createPlayer, currentAbility, fatigueLevel } from '../src/core/player/player.ts';
 import type { Player } from '../src/core/player/player.ts';
-import { TEAMS, getTeam } from '../src/data/gameData.ts';
+import { TEAMS, getTeam, teamsInDivision } from '../src/data/gameData.ts';
 import {
   endSeason,
   playerFixtures,
@@ -31,7 +31,8 @@ import { calculateDecisionTime } from '../src/simulation/DecisionTimer.ts';
 import { getSituationTemplate } from '../src/data/situations.ts';
 import { context } from './helpers.ts';
 
-const LEAGUE = TEAMS.map((t) => t.id);
+/** The player's own division. A career league is one division, not the pyramid. */
+const LEAGUE = teamsInDivision(1).map((t) => t.id);
 const lookup = (id: string) => getTeam(id);
 
 function prospect(overrides: Partial<Player> = {}): Player {
@@ -279,7 +280,7 @@ describe('career progression', () => {
     const state = startCareer({
       player: prospect(),
       clubId: 'northport-city',
-      leagueTeamIds: LEAGUE,
+      teams: TEAMS,
       seed: 'c1',
     });
     expect(playerFixtures(state)).toHaveLength((LEAGUE.length - 1) * 2);
@@ -292,7 +293,7 @@ describe('career progression', () => {
     const state = startCareer({
       player: prospect(),
       clubId: 'northport-city',
-      leagueTeamIds: LEAGUE,
+      teams: TEAMS,
       seed: 'c2',
     });
     const fixture = nextFixture(state)!;
@@ -314,7 +315,7 @@ describe('career progression', () => {
     const state = startCareer({
       player: prospect(),
       clubId: 'northport-city',
-      leagueTeamIds: LEAGUE,
+      teams: TEAMS,
       seed: 'c3',
     });
     for (let i = 0; i < 6; i++) {
@@ -325,8 +326,8 @@ describe('career progression', () => {
   });
 
   it('moves form with performances', () => {
-    const good = startCareer({ player: prospect(), clubId: 'northport-city', leagueTeamIds: LEAGUE, seed: 'f1' });
-    const bad = startCareer({ player: prospect(), clubId: 'northport-city', leagueTeamIds: LEAGUE, seed: 'f2' });
+    const good = startCareer({ player: prospect(), clubId: 'northport-city', teams: TEAMS, seed: 'f1' });
+    const bad = startCareer({ player: prospect(), clubId: 'northport-city', teams: TEAMS, seed: 'f2' });
     for (let i = 0; i < 5; i++) {
       playMatch(good, 8.5, 2);
       playMatch(bad, 4.5, 0);
@@ -339,7 +340,7 @@ describe('career progression', () => {
     const state = startCareer({
       player: prospect(),
       clubId: 'northport-city',
-      leagueTeamIds: LEAGUE,
+      teams: TEAMS,
       seed: 'season',
     });
     const total = playerFixtures(state).length;
@@ -373,7 +374,7 @@ describe('career progression', () => {
     const state = startCareer({
       player: prospect(),
       clubId: 'northport-city',
-      leagueTeamIds: LEAGUE,
+      teams: TEAMS,
       seed: 'complete',
     });
     for (let i = 0; i < playerFixtures(state).length; i++) playMatch(state, 6.8, 1);
@@ -389,7 +390,7 @@ describe('career progression', () => {
       const state = startCareer({
         player: prospect(),
         clubId: 'northport-city',
-        leagueTeamIds: LEAGUE,
+        teams: TEAMS,
         seed: 'determinism',
       });
       for (let i = 0; i < 6; i++) playMatch(state, 7.2, 1);
@@ -406,7 +407,7 @@ describe('career progression', () => {
     const state = startCareer({
       player: prospect(),
       clubId: 'northport-city',
-      leagueTeamIds: LEAGUE,
+      teams: TEAMS,
       seed: 'dupes',
     });
     const fixture = nextFixture(state)!;
@@ -424,7 +425,7 @@ describe('career progression', () => {
     const state = startCareer({
       player: prospect(),
       clubId: 'northport-city',
-      leagueTeamIds: LEAGUE,
+      teams: TEAMS,
       seed: 'early',
     });
     expect(() => endSeason(state, lookup)).toThrow();
@@ -434,7 +435,7 @@ describe('career progression', () => {
     const state = startCareer({
       player: prospect(),
       clubId: 'northport-city',
-      leagueTeamIds: LEAGUE,
+      teams: TEAMS,
       seed: 'multi',
     });
     const startAbility = currentAbility(state.player);
@@ -471,7 +472,7 @@ describe('condition', () => {
     const state = startCareer({
       player: prospect(),
       clubId: 'northport-city',
-      leagueTeamIds: LEAGUE,
+      teams: TEAMS,
       seed: 'recover',
     });
     const stats = createMatchStats();

@@ -7,8 +7,13 @@ import { matchesRemaining, nextFixture, seasonComplete } from '../../core/career
 import { goalDifference, sortTable } from '../../core/career/league.ts';
 import { averageRating } from '../../core/career/seasonStats.ts';
 import { reputationTier } from '../../core/career/reputation.ts';
-import { marketValue, scoutingInterest } from '../../core/career/transfers.ts';
+import { SQUAD_ROLE_LABELS, marketValue, scoutingInterest } from '../../core/career/transfers.ts';
 import type { ClubInterest } from '../../core/career/transfers.ts';
+import { describeContract } from '../../core/career/contracts.ts';
+import { divisionInfo, divisionOf, divisionPrestige } from '../../core/career/divisions.ts';
+import { applyStrength } from '../../core/career/clubDrift.ts';
+import { summariseHonours } from '../../core/career/awards.ts';
+import type { Team } from '../../core/team/team.ts';
 import { getTeam } from '../../data/gameData.ts';
 
 /**
@@ -40,9 +45,26 @@ export class CareerScreen {
       ?.addEventListener('click', handlers.onQuit);
   }
 
+  /**
+   * A club as this career currently knows it.
+   *
+   * Ratings drift season by season, so reading them straight from the data file
+   * would show a league that stopped existing several summers ago — and would
+   * quietly disagree with the market, which uses the drifted values.
+   */
+  private club(id: string): Team {
+    return applyStrength(getTeam(id), this.state.clubStrengths);
+  }
+
+  /** Prestige of the division a club is currently in. */
+  private prestigeOf(id: string): number {
+    return divisionPrestige(divisionOf(this.state.divisions, id) || this.state.division);
+  }
+
   private render(): string {
     const { player } = this.state;
-    const club = getTeam(this.state.clubId);
+    const club = this.club(this.state.clubId);
+    const division = divisionInfo(this.state.division);
     const fixture = nextFixture(this.state);
     const done = seasonComplete(this.state);
     const stats = this.state.seasonStats;
@@ -60,7 +82,7 @@ export class CareerScreen {
           <h1>${player.name}</h1>
           <p class="career-sub">
             ${positionLabel(player.position)} · age ${player.age} · ${club.name}
-            · Season ${this.state.seasonNumber}
+            · ${division.name} · Season ${this.state.seasonNumber}
           </p>
         </div>
         <div class="career-ability">
@@ -103,9 +125,12 @@ export class CareerScreen {
             <div><dt>Reputation</dt><dd>${Math.round(player.reputation)}</dd></div>
             <div><dt>Known as</dt><dd>${reputationTier(player.reputation).label}</dd></div>
             <div><dt>Market value</dt><dd>£${marketValue(player)}m</dd></div>
+            ${player.caps > 0 ? `<div><dt>Caps</dt><dd>${player.caps}</dd></div>` : ''}
           </dl>
           ${this.renderWatchers()}
         </div>
+
+        ${this.renderContract()}
 
         <div class="career-card">
           <h2>Season ${this.state.seasonNumber}</h2>
@@ -122,7 +147,7 @@ export class CareerScreen {
 
       <div class="career-grid wide">
         <div class="career-card">
-          <h2>League table</h2>
+          <h2>${division.name}</h2>
           ${this.renderTable()}
         </div>
         <div class="career-card">
@@ -131,6 +156,7 @@ export class CareerScreen {
         </div>
       </div>
 
+      ${this.renderHonours()}
       ${this.renderHistory()}
       ${this.renderTransfers()}
 
@@ -163,7 +189,7 @@ export class CareerScreen {
   private renderTable(): string {
     const rows = sortTable(this.state.table)
       .map((row, index) => {
-        const team = getTeam(row.teamId);
+        const team = this.club(row.teamId);
         const isPlayer = row.teamId === this.state.clubId;
         const gd = goalDifference(row);
         return `<tr class="${isPlayer ? 'own' : ''}">
@@ -217,11 +243,14 @@ export class CareerScreen {
    * opens. Without it, an offer in the summer would arrive from nowhere.
    */
   private renderWatchers(): string {
+    // Every club in the game, not just this division: the whole point of a
+    // pyramid is that a good season down here is watched from up there.
     const watching: ClubInterest[] = scoutingInterest(
       this.state.player,
-      this.state.leagueTeamIds.map(getTeam),
+      this.state.divisions.flat().map((id) => this.club(id)),
       this.state.clubId,
       this.state.seasonStats,
+      (id) => this.prestigeOf(id),
     ).slice(0, 3);
 
     if (watching.length === 0) {
@@ -231,12 +260,89 @@ export class CareerScreen {
       .map(
         (interest) =>
           `<li>
-            <span>${getTeam(interest.clubId).name}</span>
+            <span>${getTeam(interest.clubId).name}
+              <em class="watch-division">${divisionInfo(
+                divisionOf(this.state.divisions, interest.clubId) || this.state.division,
+              ).shortName}</em>
+            </span>
             <span class="watch-level">${describeInterest(interest.score)}</span>
           </li>`,
       )
       .join('');
     return `<h3 class="watch-heading">Scouts watching</h3><ul class="watch-list">${items}</ul>`;
+  }
+
+  /**
+   * The deal you are on.
+   *
+   * Shown every week rather than only in the summer, because the number that
+   * matters is the one counting down: a player in his final season needs to
+   * know it now, while there are still matches left to change somebody's mind.
+   */
+  private renderContract(): string {
+    const contract = this.state.contract;
+    if (!contract) return '';
+    const club = this.club(contract.clubId);
+    const final = contract.yearsRemaining <= 1;
+
+    return `
+        <div class="career-card${final ? ' contract-final' : ''}">
+          <h2>Contract</h2>
+          <dl class="stat-list">
+            <div><dt>Club</dt><dd>${club.shortName}</dd></div>
+            <div><dt>Terms</dt><dd>${describeContract(contract)}</dd></div>
+            <div><dt>Role</dt><dd>${SQUAD_ROLE_LABELS[contract.role]}</dd></div>
+            <div><dt>Career earnings</dt><dd>£${this.state.careerEarnings}m</dd></div>
+          </dl>
+          ${
+            final
+              ? `<p class="hint">Your deal is up at the end of this season. Play well and somebody
+                 will offer you another one — play badly and you may be leaving for nothing.</p>`
+              : ''
+          }
+        </div>`;
+  }
+
+  /**
+   * The honours list.
+   *
+   * Deliberately the one part of the hub that only ever grows. Ability declines,
+   * reputation settles, clubs come and go — a title you won eight seasons ago
+   * is still there at 34, and it is the only record the game keeps that a bad
+   * year cannot touch.
+   */
+  private renderHonours(): string {
+    const honours = this.state.honours ?? [];
+    if (honours.length === 0) return '';
+
+    const summary = summariseHonours(honours)
+      .map(
+        (entry) =>
+          `<li><span>${entry.label}</span>${entry.count > 1 ? `<em>×${entry.count}</em>` : ''}</li>`,
+      )
+      .join('');
+
+    const recent = [...honours]
+      .reverse()
+      .slice(0, 6)
+      .map(
+        (honour) =>
+          `<tr>
+            <td>${honour.season}</td>
+            <td>${getTeam(honour.clubId).shortName}</td>
+            <td>${honour.label}</td>
+          </tr>`,
+      )
+      .join('');
+
+    return `<div class="career-card">
+        <h2>Honours</h2>
+        <ul class="honours-list">${summary}</ul>
+        <table class="league-table">
+          <thead><tr><th>S</th><th>Club</th><th>Won</th></tr></thead>
+          <tbody>${recent}</tbody>
+        </table>
+      </div>`;
   }
 
   /** Every move made, so a career reads as a journey rather than a table. */
@@ -249,7 +355,7 @@ export class CareerScreen {
             <td>${t.season}</td>
             <td>${t.age}</td>
             <td>${getTeam(t.fromClubId).shortName} → ${getTeam(t.toClubId).shortName}</td>
-            <td>£${t.fee}m</td>
+            <td>${t.free ? 'Free' : `£${t.fee}m`}</td>
             <td>£${t.wage}k</td>
           </tr>`,
       )
@@ -271,6 +377,7 @@ export class CareerScreen {
           `<tr>
             <td>${h.seasonNumber}</td>
             <td>${getTeam(h.clubId).shortName}</td>
+            <td>${divisionInfo(h.division ?? 1).shortName}</td>
             <td>${h.age}</td>
             <td>${h.position}</td>
             <td>${h.stats.matches}</td>
@@ -283,7 +390,7 @@ export class CareerScreen {
     return `<div class="career-card">
         <h2>Career history</h2>
         <table class="league-table">
-          <thead><tr><th>S</th><th>Club</th><th>Age</th><th>Pos</th><th>Apps</th><th>G</th><th>A</th><th>Rating</th></tr></thead>
+          <thead><tr><th>S</th><th>Club</th><th>Div</th><th>Age</th><th>Pos</th><th>Apps</th><th>G</th><th>A</th><th>Rating</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>`;

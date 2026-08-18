@@ -37,6 +37,12 @@ export interface Player {
    * core/career/development.ts.
    */
   potentialAbility: number;
+  /**
+   * International appearances. Awarded by the honours model once reputation is
+   * high enough to be picked, and never by playing — there is no international
+   * fixture list, so caps are a consequence of fame rather than a competition.
+   */
+  caps: number;
 }
 
 /**
@@ -70,6 +76,7 @@ export interface PlayerInit {
   fitness?: number;
   reputation?: number;
   potentialAbility?: number;
+  caps?: number;
   baseAttribute?: number;
 }
 
@@ -87,6 +94,7 @@ export function createPlayer(init: PlayerInit): Player {
     fitness: init.fitness ?? 100,
     reputation: init.reputation ?? 40,
     potentialAbility: init.potentialAbility ?? 70,
+    caps: init.caps ?? 0,
   };
 }
 

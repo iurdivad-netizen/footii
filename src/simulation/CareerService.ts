@@ -1,3 +1,4 @@
+import { round } from '../core/util/math.ts';
 import { Rng } from '../core/rng.ts';
 import type { Player } from '../core/player/player.ts';
 import { currentAbility } from '../core/player/player.ts';
@@ -17,8 +18,33 @@ import {
 import { createDevelopmentState } from '../core/career/development.ts';
 import { clubStature, settleReputation } from '../core/career/reputation.ts';
 import type { ReputationSettlement } from '../core/career/reputation.ts';
-import { applyTransferEffects, generateOffers, scoutingInterest } from '../core/career/transfers.ts';
+import {
+  applyTransferEffects,
+  generateOffers,
+  scoutingInterest,
+  squadRole,
+} from '../core/career/transfers.ts';
 import type { ClubInterest, TransferOffer, TransferRecord } from '../core/career/transfers.ts';
+import {
+  acceptRenewal,
+  advanceContract,
+  createContract,
+  fallbackContract,
+  isExpired,
+  renewalOffer,
+} from '../core/career/contracts.ts';
+import type { Contract, ContractOffer } from '../core/career/contracts.ts';
+import {
+  divisionOf,
+  divisionPrestige,
+  initialDivisions,
+  movementFor,
+  resolveDivisions,
+} from '../core/career/divisions.ts';
+import type { DivisionMovement } from '../core/career/divisions.ts';
+import { applyStrength, driftSeason, initialStrengths } from '../core/career/clubDrift.ts';
+import { evaluateHonours, leagueBenchmark } from '../core/career/awards.ts';
+import type { Honour, LeagueBenchmark } from '../core/career/awards.ts';
 import type { Fixture, FixtureResult, TableRow } from '../core/career/league.ts';
 import {
   applyResult,
@@ -40,25 +66,60 @@ import type { MatchStats } from '../core/match/matchStats.ts';
  * team lookup, so the whole career can be fast-forwarded head-lessly in tests.
  */
 
+/**
+ * Resolves a club id to the club as the DATA FILE describes it.
+ * Everything that plays football goes through `clubIn` instead, which layers
+ * the career's own drift on top — see core/career/clubDrift.ts.
+ */
 export type TeamLookup = (id: string) => Team;
+
+/**
+ * The club as it currently is, this many seasons into this career.
+ *
+ * Every consumer — the market, the table, the match engine, the development
+ * model — must go through here, or half the game would be balancing against
+ * ratings the other half had already moved on from.
+ */
+export function clubIn(state: CareerState, lookup: TeamLookup, id: string): Team {
+  return applyStrength(lookup(id), state.clubStrengths);
+}
+
+/** A lookup bound to one career, for callers that hold on to it (the UI). */
+export function careerTeams(state: CareerState, lookup: TeamLookup): TeamLookup {
+  return (id) => clubIn(state, lookup, id);
+}
+
+/** Prestige of the division a club is currently in, 0-1. */
+export function prestigeOfClub(state: CareerState, clubId: string): number {
+  return divisionPrestige(divisionOf(state.divisions, clubId) || state.division);
+}
 
 export interface StartCareerOptions {
   player: Player;
   clubId: string;
-  leagueTeamIds: string[];
+  /** Every club in the game. The pyramid is read from their `division`. */
+  teams: readonly Team[];
   seed: string;
 }
 
 export function startCareer(options: StartCareerOptions): CareerState {
   const rng = new Rng(`${options.seed}:season:1`);
+  const divisions = initialDivisions(options.teams);
+  const division = divisionOf(divisions, options.clubId) || 1;
+  const leagueTeamIds = (divisions[division - 1] ?? []).slice();
+  const club = options.teams.find((team) => team.id === options.clubId);
+  if (!club) throw new Error(`startCareer: unknown club ${options.clubId}`);
+
+  const prestige = divisionPrestige(division);
+
   return {
     player: options.player,
     clubId: options.clubId,
-    leagueTeamIds: options.leagueTeamIds.slice(),
+    leagueTeamIds,
     seasonNumber: 1,
-    fixtures: generateFixtures(options.leagueTeamIds, rng),
+    fixtures: generateFixtures(leagueTeamIds, rng),
     results: [],
-    table: emptyTable(options.leagueTeamIds),
+    table: emptyTable(leagueTeamIds),
     nextFixtureIndex: 0,
     seasonStats: createSeasonStats(),
     development: createDevelopmentState(),
@@ -72,6 +133,20 @@ export function startCareer(options: StartCareerOptions): CareerState {
     trainingPoints: 0,
     offers: [],
     transfers: [],
+    division,
+    divisions,
+    clubStrengths: initialStrengths(options.teams),
+    // Season 0: the deal he was already on when the career opened.
+    contract: createContract(
+      options.player,
+      club,
+      squadRole(options.player, club),
+      0,
+      prestige,
+    ),
+    renewal: null,
+    honours: [],
+    careerEarnings: 0,
   };
 }
 
@@ -103,8 +178,8 @@ export function simulateRound(state: CareerState, round: number, lookup: TeamLoo
 
     const { homeGoals, awayGoals } = simulateFixture(
       rng,
-      lookup(fixture.homeId),
-      lookup(fixture.awayId),
+      clubIn(state, lookup, fixture.homeId),
+      clubIn(state, lookup, fixture.awayId),
     );
     const result: FixtureResult = { ...fixture, homeGoals, awayGoals };
     state.results.push(result);
@@ -150,6 +225,7 @@ export function recordPlayerMatch(
         ? -1
         : 0;
 
+  const club = clubIn(state, lookup, state.clubId);
   const rng = new Rng(`${state.seed}:s${state.seasonNumber}:m${state.nextFixtureIndex}`);
   const changes = applyMatchToCareer(rng, state, {
     stats: input.stats,
@@ -157,8 +233,9 @@ export function recordPlayerMatch(
     result: outcome,
     goalsFor: input.playerTeamScore,
     goalsAgainst: input.opponentScore,
-    coaching: coachingQuality(lookup(state.clubId)),
-    clubStature: clubStature(lookup(state.clubId)),
+    coaching: coachingQuality(club),
+    clubStature: clubStature(club),
+    divisionPrestige: divisionPrestige(state.division),
     fitnessAtEnd: input.fitnessAtEnd,
   });
 
@@ -187,6 +264,29 @@ export interface SeasonEnd {
   reputation: ReputationSettlement;
   /** Offers on the table this summer, best first. */
   offers: TransferOffer[];
+  /** The division the season was played in. */
+  division: number;
+  /** The division the club will play in next season. */
+  nextDivision: number;
+  /** Whether the club went up, went down, or stayed put. */
+  movement: DivisionMovement | null;
+  /** What the season put on the honours list. */
+  honours: Honour[];
+  /** International appearances won this season. */
+  capsGained: number;
+  /** The bar the individual awards were judged against. */
+  benchmark: LeagueBenchmark;
+  /** Terms his own club has offered to keep him, if any. */
+  renewal: ContractOffer | null;
+  /** Wages banked for the season just played, in millions. */
+  earnings: number;
+  /** True when the old deal ran out and he is free to leave for nothing. */
+  outOfContract: boolean;
+  /**
+   * True when nobody wanted him and his club put up a reduced deal rather than
+   * leave him without a season to play. The review screen says so plainly.
+   */
+  fellBackOnClub: boolean;
 }
 
 /**
@@ -227,40 +327,123 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   // before the player ages, so it is judged on the football that actually
   // happened. Match-by-match gains have already been applied; this is the
   // correction back toward what the whole season justifies.
-  const club = lookup(state.clubId);
+  const club = clubIn(state, lookup, state.clubId);
+  const division = state.division;
+  const prestige = divisionPrestige(division);
   const reputation = settleReputation(state.player, {
     stats: state.seasonStats,
     leaguePosition: position,
     leagueSize: state.leagueTeamIds.length,
     clubStature: clubStature(club),
     seasonLength: fixturesFor(state, state.clubId).length,
+    divisionPrestige: prestige,
   });
+
+  // The pyramid moves before anything reads a club's division again: promotion
+  // and relegation decide which league the summer's offers are actually in.
+  const outcome = resolveDivisions(new Rng(`${state.seed}:s${state.seasonNumber}:divisions`), {
+    divisions: state.divisions,
+    playerDivision: division,
+    playerTable: state.table,
+    lookup: (id) => clubIn(state, lookup, id),
+  });
+  const movement = movementFor(outcome, state.clubId);
+
+  // Awards are judged on the division just played, against a bar inferred from
+  // the football that happened in it (see core/career/awards.ts).
+  const benchmark = leagueBenchmark(new Rng(`${state.seed}:s${state.seasonNumber}:awards`), {
+    table: state.table,
+    playerClubId: state.clubId,
+    playerGoals: state.seasonStats.goals,
+  });
+  const honoursResult = evaluateHonours({
+    player: state.player,
+    stats: state.seasonStats,
+    season: state.seasonNumber,
+    clubId: state.clubId,
+    division,
+    position,
+    movement,
+    benchmark,
+    seasonLength: fixturesFor(state, state.clubId).length,
+  });
+  state.honours.push(...honoursResult.honours);
+  state.player.caps += honoursResult.capsGained;
+
+  // Wages for the season just played are banked, then the clock runs down one.
+  const earnings = advanceContract(state.contract);
+  state.careerEarnings = round(state.careerEarnings + earnings, 2);
+
+  // Clubs are only as good as their last season. Drift uses the BASE ratings as
+  // its anchor, so this takes the raw lookup rather than the drifted one.
+  state.clubStrengths = driftSeason(new Rng(`${state.seed}:s${state.seasonNumber}:drift`), {
+    strengths: state.clubStrengths,
+    tables: outcome.tables,
+    lookup,
+  });
+
+  state.divisions = outcome.divisions;
+  const nextDivision = divisionOf(outcome.divisions, state.clubId) || division;
+  const nextLeague = (outcome.divisions[nextDivision - 1] ?? state.leagueTeamIds).slice();
 
   const rng = new Rng(`${state.seed}:s${state.seasonNumber}:end`);
   const nextRng = new Rng(`${state.seed}:season:${state.seasonNumber + 1}`);
   const record = advanceSeason(rng, state, position, {
-    fixtures: generateFixtures(state.leagueTeamIds, nextRng),
-    table: emptyTable(state.leagueTeamIds),
-    leagueTeamIds: state.leagueTeamIds,
+    fixtures: generateFixtures(nextLeague, nextRng),
+    table: emptyTable(nextLeague),
+    leagueTeamIds: nextLeague,
+    division: nextDivision,
   });
 
   // Unspent points are never banked; a fresh award replaces whatever was left.
   state.trainingPoints = award.points;
 
   // Offers come AFTER the birthday: clubs buy the player who will turn out for
-  // them next season, not the one who finished last season.
+  // them next season, not the one who finished last season. They also come from
+  // the WHOLE pyramid, which is the point of having one — a good season in the
+  // second division is seen by clubs in the first.
+  const outOfContract = isExpired(state.contract);
+  const nextPrestige = divisionPrestige(nextDivision);
   const offerRng = new Rng(`${state.seed}:s${record.seasonNumber}:transfers`);
   const lastMove = state.transfers[state.transfers.length - 1];
   state.offers = generateOffers(offerRng, {
     player: state.player,
     currentClubId: state.clubId,
-    clubs: state.leagueTeamIds.map(lookup),
+    clubs: allClubs(state, lookup),
     stats: record.stats,
     season: record.seasonNumber,
     // A club he left last summer does not come straight back for him.
     excludeClubIds:
       lastMove && lastMove.season === record.seasonNumber - 1 ? [lastMove.fromClubId] : [],
+    prestigeOf: (id) => prestigeOfClub(state, id),
+    outOfContract,
   });
+
+  // His own club only puts terms up when the old deal has actually run out.
+  // Anything else and he is simply still under contract, and staying needs no
+  // decision at all.
+  state.renewal = outOfContract
+    ? renewalOffer({
+        player: state.player,
+        club: clubIn(state, lookup, state.clubId),
+        stats: record.stats,
+        season: record.seasonNumber,
+        prestige: nextPrestige,
+      })
+    : null;
+
+  // The safety net: out of contract, unwanted by everyone including his own
+  // club. Rather than a career with no club to play for, the club it is puts a
+  // reduced one-year deal up and the review screen says exactly that.
+  const fellBackOnClub = outOfContract && !state.renewal && state.offers.length === 0;
+  if (fellBackOnClub) {
+    state.contract = fallbackContract(
+      state.player,
+      clubIn(state, lookup, state.clubId),
+      record.seasonNumber,
+      nextPrestige,
+    );
+  }
 
   return {
     record,
@@ -271,7 +454,33 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     trainingNotes: award.notes,
     reputation,
     offers: state.offers,
+    division,
+    nextDivision,
+    movement,
+    honours: honoursResult.honours,
+    capsGained: honoursResult.capsGained,
+    benchmark,
+    renewal: state.renewal,
+    earnings,
+    outOfContract,
+    fellBackOnClub,
   };
+}
+
+/** Every club in the game, drift applied, across every division. */
+export function allClubs(state: CareerState, lookup: TeamLookup): Team[] {
+  return state.divisions.flat().map((id) => clubIn(state, lookup, id));
+}
+
+/**
+ * Can he simply stay where he is?
+ *
+ * Only when there is still a deal to stay on. A player whose contract has run
+ * out and whose club has not offered new terms has no club to stay at, which is
+ * the whole reason expiry is worth modelling — see core/career/contracts.ts.
+ */
+export function canStay(state: CareerState): boolean {
+  return !isExpired(state.contract) || state.renewal !== null;
 }
 
 /**
@@ -297,20 +506,61 @@ export function acceptOffer(
     toClubId: offer.clubId,
     fee: offer.fee,
     wage: offer.wage,
+    years: offer.years,
     role: offer.role,
     age: state.player.age,
+    free: offer.free,
   };
 
   state.clubId = offer.clubId;
   state.transfers.push(record);
-  applyTransferEffects(state.player, lookup(offer.clubId));
+
+  // A move can cross a division, which changes the whole season ahead: a new
+  // league, a new fixture list and a new table. Rebuilding them here is what
+  // makes "signing for a club in the division above" a real transfer rather
+  // than a change of badge.
+  const division = divisionOf(state.divisions, offer.clubId) || state.division;
+  if (division !== state.division || !state.leagueTeamIds.includes(offer.clubId)) {
+    const league = (state.divisions[division - 1] ?? state.leagueTeamIds).slice();
+    const rng = new Rng(`${state.seed}:season:${state.seasonNumber}:${offer.clubId}`);
+    state.division = division;
+    state.leagueTeamIds = league;
+    state.fixtures = generateFixtures(league, rng);
+    state.table = emptyTable(league);
+    state.results = [];
+    state.nextFixtureIndex = 0;
+  }
+
+  const prestige = divisionPrestige(division);
+  applyTransferEffects(state.player, clubIn(state, lookup, offer.clubId), prestige);
+  state.contract = {
+    clubId: offer.clubId,
+    wage: offer.wage,
+    yearsRemaining: offer.years,
+    signedSeason: offer.season,
+    role: offer.role,
+  };
   state.offers = [];
+  state.renewal = null;
   return record;
 }
 
-/** Turn everything down and stay where you are. */
-export function declineOffers(state: CareerState): void {
+/**
+ * Turn everything down and stay where you are.
+ *
+ * When the old deal has expired this takes the club's renewal, so "stay" is an
+ * agreement rather than a refusal. Throws if there is nothing to stay on — the
+ * UI is expected to check `canStay` first, and a silent no-op here would leave
+ * a career playing a season it has no contract for.
+ */
+export function stayAtClub(state: CareerState): Contract {
+  if (!canStay(state)) {
+    throw new Error('stayAtClub called with an expired contract and no renewal offered');
+  }
+  if (state.renewal) state.contract = acceptRenewal(state.renewal);
   state.offers = [];
+  state.renewal = null;
+  return state.contract;
 }
 
 /**
@@ -323,9 +573,10 @@ export function declineOffers(state: CareerState): void {
 export function clubsWatching(state: CareerState, lookup: TeamLookup): ClubInterest[] {
   return scoutingInterest(
     state.player,
-    state.leagueTeamIds.map(lookup),
+    allClubs(state, lookup),
     state.clubId,
     state.seasonStats,
+    (id) => prestigeOfClub(state, id),
   );
 }
 
