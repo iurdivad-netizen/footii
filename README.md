@@ -119,6 +119,40 @@ All of this lives in the UI layer — it is a property of the interface, not of
 football — while the narration beats themselves are generated from the event's
 seeded `Rng` (`data/buildUp.ts`), so a replayed match narrates identically.
 
+#### Colour-coded options
+
+Each option is tinted by the **kind** of action it is, so a six-option menu can
+be grouped at a glance instead of read word by word. Under a one-second window,
+"the red ones are shots" is far faster than parsing six labels.
+
+| Family | Colour | Tag |
+| --- | --- | --- |
+| Shot | red | `SHOT` |
+| Header | orange | `HEAD` |
+| Dribble | yellow | `RUN` |
+| Pass | blue | `PASS` |
+| Cross | teal | `CROSS` |
+| Defend / tackle | white | `DEF` |
+| Hold up | grey | `HOLD` |
+
+Two constraints make this help rather than hand-holding:
+
+1. **Colour encodes category, never quality.** It must not hint at which option
+   is correct — that read is the whole game. Grouping is help; grading would be
+   cheating. Two shots in the same menu can be a tap-in and a hopeless one, and
+   they are the same red.
+2. **Colour is never the only channel.** Every option also carries its short
+   family tag, and a legend under the grid lists only the families actually on
+   offer, so the grouping works without colour vision and is learnable rather
+   than memorised.
+
+The colours stay suppressed during the build-up. The grid is laid out from the
+first frame, but tinting it early would leak "there are three shots here" before
+the options themselves appear, which is exactly the information the build-up
+phase exists to withhold. The palette lives in `ui/actionFamilyStyle.ts` — it is
+presentation only, which is why it sits in `ui/` rather than beside the action
+catalogue.
+
 ### Settings
 
 **Decision pace** and **match speed** live on the home screen and are **saved between sessions**,
@@ -317,6 +351,7 @@ src/
 │   └── InstinctiveAction.ts
 ├── rendering/             canvas drawing only
 ├── ui/                    screens, components, input
+│   └── actionFamilyStyle.ts  option colour/tag palette (presentation only)
 ├── data/                  static game data (JSON) + action catalogue + situation templates
 ├── persistence/           versioned localStorage save
 └── main.ts
@@ -364,10 +399,10 @@ If a number in there looks wrong, the gameplay is wrong.
 npm test
 ```
 
-175 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, save migration, action generation (including the invariant that every
+185 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, save migration, save validation, action generation (including the invariant that every
 situation can always fill six slots), resolution, goalkeeper effects, attribute effects, chance
 generation, randomness boundaries, position-specific behaviour, instinctive actions, rating,
-pace scaling, and full-match determinism.
+pace scaling, option colour coding, and full-match determinism.
 
 ---
 
