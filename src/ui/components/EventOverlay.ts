@@ -2,6 +2,7 @@ import type { ActionOption } from '../../core/events/types.ts';
 import type { InteractiveEvent } from '../../simulation/MatchEngine.ts';
 import { SituationRenderer } from '../../rendering/events/SituationRenderer.ts';
 import type { InputController } from '../interaction/InputController.ts';
+import { LEGEND_ORDER, familyStyle } from '../actionFamilyStyle.ts';
 import {
   calculateBuildUpTime,
   calculateScanTime,
@@ -32,6 +33,7 @@ export class EventOverlay {
   private readonly subline: HTMLElement;
   private readonly grid: HTMLElement;
   private readonly setLabel: HTMLElement;
+  private readonly legend: HTMLElement;
   private readonly buttons: HTMLButtonElement[] = [];
 
   private frame = 0;
@@ -69,6 +71,7 @@ export class EventOverlay {
         </div>
         <div class="set-label" aria-live="polite"></div>
         <div class="option-grid" role="group" aria-label="Choose an action"></div>
+        <p class="family-legend" id="family-legend"></p>
         <p class="event-hint">Press <kbd>1</kbd>-<kbd>6</kbd> or tap an option</p>
       </div>`;
 
@@ -80,6 +83,7 @@ export class EventOverlay {
     this.subline = this.element.querySelector('.event-subline')!;
     this.grid = this.element.querySelector('.option-grid')!;
     this.setLabel = this.element.querySelector('.set-label')!;
+    this.legend = this.element.querySelector('.family-legend')!;
 
     for (let slot = 1; slot <= 6; slot++) {
       const button = document.createElement('button');
@@ -116,12 +120,36 @@ export class EventOverlay {
     // before the labels arrive, but it gives nothing away.
     event.options.forEach((option, index) => {
       const button = this.buttons[index]!;
-      button.innerHTML = `<span class="option-key">${option.slot}</span><span class="option-label">${option.label}</span>`;
+      const style = familyStyle(option.family);
+      button.innerHTML =
+        `<span class="option-key">${option.slot}</span>` +
+        `<span class="option-family">${style.tag}</span>` +
+        `<span class="option-label">${option.label}</span>`;
+      // The colour is set here but suppressed by CSS while the grid is
+      // concealed: revealing it during the build-up would give away how many
+      // shots or passes are on offer before the options themselves appear.
+      button.style.setProperty('--family-colour', style.colour);
+      button.dataset.family = option.family;
+      button.setAttribute('aria-label', `${option.slot}. ${style.label}: ${option.label}`);
       button.disabled = true;
       button.classList.remove('chosen');
     });
     this.grid.classList.add('concealed');
     this.optionsRevealed = false;
+
+    // The legend lists only the families actually on offer, which makes it a
+    // useful summary rather than a wall of keys. Hidden until the reveal for
+    // the same reason the colours are.
+    const families = LEGEND_ORDER.filter((family) =>
+      event.options.some((option) => option.family === family),
+    );
+    this.legend.innerHTML = families
+      .map((family) => {
+        const style = familyStyle(family);
+        return `<span style="color:${style.colour}"><i></i>${style.tag}</span>`;
+      })
+      .join('');
+    this.legend.classList.add('hidden');
 
     this.renderer.resize();
     this.input.setSlotHandler((slot) => this.choose(slot));
@@ -177,6 +205,7 @@ export class EventOverlay {
         this.beatsShown += 1;
       }
       this.grid.classList.remove('concealed');
+      this.legend.classList.remove('hidden');
       for (const button of this.buttons) button.disabled = false;
     }
 

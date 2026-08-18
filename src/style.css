@@ -1551,3 +1551,90 @@ button.ghost {
   width: auto;
   max-width: none;
 }
+
+/* ------------------------------------------------ action family colours -- */
+
+/*
+ * Options are tinted by what kind of action they are (shot / pass / defend …)
+ * so the six can be grouped at a glance rather than read one by one.
+ *
+ * Colour encodes CATEGORY, never QUALITY — it must not hint at which option is
+ * right. Every option also carries a short text tag, so the grouping survives
+ * for a colour-blind player.
+ */
+.option {
+  position: relative;
+  border-left: 3px solid var(--family-colour, var(--line));
+}
+
+.option .option-key {
+  color: var(--family-colour, var(--accent));
+}
+
+.option-family {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  color: var(--family-colour, var(--text-dim));
+  opacity: 0.85;
+}
+
+.option:hover:not(:disabled) {
+  border-color: var(--family-colour, var(--accent));
+}
+
+.option.chosen {
+  background: var(--family-colour, var(--accent-dim));
+  border-color: var(--family-colour, var(--accent));
+  color: #05140b;
+}
+
+.option.chosen .option-key,
+.option.chosen .option-family {
+  color: #05140b;
+}
+
+/*
+ * Concealed during the build-up: the colours and tags must stay hidden too,
+ * otherwise you could count the shooting options before they are revealed.
+ */
+.option-grid.concealed .option {
+  border-left-color: var(--line);
+}
+
+.option-grid.concealed .option .option-key {
+  color: var(--accent);
+}
+
+.option-grid.concealed .option-family {
+  visibility: hidden;
+}
+
+/* The legend below the grid: small, static, learnable. */
+.family-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  justify-content: center;
+  margin: 10px 0 0;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+
+.family-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.family-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: currentColor;
+}
