@@ -343,31 +343,41 @@ describe('career progression', () => {
       teams: TEAMS,
       seed: 'season',
     });
-    const total = playerFixtures(state).length;
-    for (let i = 0; i < total; i++) playMatch(state, 7, 1);
+    // A season is no longer just the league: it runs until nothing is left to
+    // play across all three competitions, so it is played out rather than
+    // counted out.
+    const leagueMatches = playerFixtures(state).length;
+    let played = 0;
+    while (!seasonComplete(state)) {
+      playMatch(state, 7, 1);
+      played += 1;
+      expect(played, 'season should terminate').toBeLessThan(60);
+    }
 
     expect(seasonComplete(state)).toBe(true);
-    expect(state.seasonStats.matches).toBe(total);
+    // Every league match, plus however far the two cup runs went.
+    expect(state.leagueStats.matches).toBe(leagueMatches);
+    expect(state.seasonStats.matches).toBe(played);
+    expect(played).toBeGreaterThanOrEqual(leagueMatches);
 
     const { record, position, champion } = endSeason(state, lookup);
 
-    // Every club has played every fixture.
-    const expectedPerTeam = (LEAGUE.length - 1) * 2;
-    for (const row of state.history.length ? [] : []) expect(row).toBeDefined();
     expect(position).toBeGreaterThanOrEqual(1);
     expect(position).toBeLessThanOrEqual(LEAGUE.length);
     expect(champion).toBeTruthy();
-    expect(record.stats.matches).toBe(total);
-    expect(expectedPerTeam).toBe(total);
+    expect(record.stats.matches).toBe(played);
+    expect(leagueMatches).toBe((LEAGUE.length - 1) * 2);
 
     // A new season is ready: aged, reset, refixtured.
     expect(state.seasonNumber).toBe(2);
     expect(state.player.age).toBe(19);
     expect(state.seasonStats.matches).toBe(0);
+    expect(state.leagueStats.matches).toBe(0);
     expect(state.nextFixtureIndex).toBe(0);
+    expect(state.calendarIndex).toBe(0);
     expect(state.fitness).toBe(100);
     expect(state.history).toHaveLength(1);
-    expect(playerFixtures(state)).toHaveLength(total);
+    expect(playerFixtures(state)).toHaveLength(leagueMatches);
   });
 
   it('every team plays the same number of matches by season end', () => {
@@ -377,7 +387,7 @@ describe('career progression', () => {
       teams: TEAMS,
       seed: 'complete',
     });
-    for (let i = 0; i < playerFixtures(state).length; i++) playMatch(state, 6.8, 1);
+    while (!seasonComplete(state)) playMatch(state, 6.8, 1);
     const table = [...state.table];
     endSeason(state, lookup);
     const played = table.map((r) => r.played);
@@ -440,7 +450,7 @@ describe('career progression', () => {
     });
     const startAbility = currentAbility(state.player);
     for (let season = 0; season < 3; season++) {
-      for (let i = 0; i < playerFixtures(state).length; i++) playMatch(state, 7.6, 1);
+      while (!seasonComplete(state)) playMatch(state, 7.6, 1);
       endSeason(state, lookup);
     }
     expect(state.history).toHaveLength(3);

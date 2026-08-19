@@ -13,6 +13,7 @@ import {
   applyMatchToCareer,
   fixturesFor,
   nextFixture,
+  nextMatch,
   seasonComplete,
 } from '../core/career/career.ts';
 import { createDevelopmentState } from '../core/career/development.ts';
@@ -35,6 +36,17 @@ import {
 } from '../core/career/contracts.ts';
 import type { Contract, ContractOffer } from '../core/career/contracts.ts';
 import { movementFor, resolveDivisions, simulateDivisionThrough } from '../core/career/divisions.ts';
+import {
+  CUP_KINDS,
+  applyPlayerResult,
+  backgroundCupWinner,
+  closeRound,
+  createCup,
+  finishCup,
+  openRound,
+  stillIn,
+} from '../core/career/cups.ts';
+import type { CupKind, CupState } from '../core/career/cups.ts';
 import type { DivisionMovement } from '../core/career/divisions.ts';
 import {
   allClubIds,
@@ -164,6 +176,36 @@ function roundsPlayed(state: CareerState): number {
   return next ? Math.max(0, next.round - 1) : Number.POSITIVE_INFINITY;
 }
 
+/**
+ * Who won a cup in any country, at the end of the season just played.
+ *
+ * The player's own country returns the real bracket he took part in; every
+ * other is computed from the seed, in the same spirit as the background league
+ * tables. Nothing is stored, so this can never disagree with itself.
+ */
+export function cupWinner(
+  state: CareerState,
+  kind: CupKind,
+  countryId: string,
+  lookup: TeamLookup,
+): string | null {
+  if (countryId === state.countryId) return state.cups[kind]?.winnerId ?? null;
+  return backgroundCupWinner(
+    state.seed,
+    state.seasonNumber,
+    kind,
+    countryId,
+    leagueMembers(state.leagues, countryId, 1),
+    (id) => clubIn(state, lookup, id),
+  );
+}
+
+/** Is the player's club still in this cup? */
+export function stillInCup(state: CareerState, kind: CupKind): boolean {
+  const cup = state.cups?.[kind];
+  return !!cup && stillIn(cup, state.clubId);
+}
+
 /** Every country that has a league this career knows about. */
 export function worldCountries(state: CareerState): string[] {
   return playedCountries(state.leagues);
@@ -197,7 +239,9 @@ export function startCareer(options: StartCareerOptions): CareerState {
     results: [],
     table: emptyTable(leagueTeamIds),
     nextFixtureIndex: 0,
+    calendarIndex: 0,
     seasonStats: createSeasonStats(),
+    leagueStats: createSeasonStats(),
     development: createDevelopmentState(),
     history: [],
     seed: options.seed,
@@ -225,6 +269,21 @@ export function startCareer(options: StartCareerOptions): CareerState {
     honours: [],
     careerEarnings: 0,
     lastResult: null,
+    cups: newCups(countryId, leagueTeamIds),
+  };
+}
+
+/**
+ * A fresh pair of knockouts for a country, entered by every club in its league.
+ *
+ * Drawn lazily: the bracket is empty until the first round is reached, because
+ * a draw made in July for a tie played in October would be a promise the cup
+ * has no reason to make.
+ */
+function newCups(countryId: string, clubIds: readonly string[]): Record<CupKind, CupState> {
+  return {
+    nationalCup: createCup('nationalCup', countryId, clubIds),
+    leagueCup: createCup('leagueCup', countryId, clubIds),
   };
 }
 
@@ -286,18 +345,15 @@ export function recordPlayerMatch(
   input: PlayedMatchInput,
   lookup: TeamLookup,
 ) {
-  const fixture = nextFixture(state);
-  if (!fixture) throw new Error('recordPlayerMatch called with no fixture remaining');
+  // Idempotent, and called here as well as by the UI before it builds the match
+  // engine. A cup round has to be drawn before its tie can be recorded, and
+  // making that the caller's job means every future caller can forget to do it.
+  prepareNextMatch(state, lookup);
 
-  const isHome = fixture.homeId === state.clubId;
-  const result: FixtureResult = {
-    ...fixture,
-    homeGoals: isHome ? input.playerTeamScore : input.opponentScore,
-    awayGoals: isHome ? input.opponentScore : input.playerTeamScore,
-  };
-  state.results.push(result);
-  applyResult(state.table, result);
+  const scheduled = nextMatch(state);
+  if (!scheduled) throw new Error('recordPlayerMatch called with no match remaining');
 
+  const isHome = scheduled.home;
   const outcome =
     input.playerTeamScore > input.opponentScore
       ? 1
@@ -305,8 +361,26 @@ export function recordPlayerMatch(
         ? -1
         : 0;
 
+  // A league match feeds the table; a cup tie feeds its bracket. Both are real
+  // matches for the player and both are folded into his season below.
+  // Captured before `applyMatchToCareer` advances the fixture index. The round
+  // to simulate is the FIXTURE's own, never the calendar slot's: the two are
+  // equal only while nothing has been skipped, and once they diverge the round
+  // the player actually played would never be resolved for anybody else.
+  const leagueFixture = scheduled.competition === 'league' ? nextFixture(state) : null;
+  if (leagueFixture) {
+    const result: FixtureResult = {
+      ...leagueFixture,
+      homeGoals: isHome ? input.playerTeamScore : input.opponentScore,
+      awayGoals: isHome ? input.opponentScore : input.playerTeamScore,
+    };
+    state.results.push(result);
+    applyResult(state.table, result);
+  }
+
   state.lastResult = {
-    opponentId: isHome ? fixture.awayId : fixture.homeId,
+    opponentId: scheduled.opponentId,
+    competition: scheduled.competition,
     home: isHome,
     goalsFor: input.playerTeamScore,
     goalsAgainst: input.opponentScore,
@@ -317,7 +391,9 @@ export function recordPlayerMatch(
   };
 
   const club = clubIn(state, lookup, state.clubId);
-  const rng = new Rng(`${state.seed}:s${state.seasonNumber}:m${state.nextFixtureIndex}`);
+  const rng = new Rng(
+    `${state.seed}:s${state.seasonNumber}:m${state.calendarIndex}:${scheduled.competition}`,
+  );
   const changes = applyMatchToCareer(rng, state, {
     stats: input.stats,
     rating: input.rating,
@@ -328,12 +404,67 @@ export function recordPlayerMatch(
     clubStature: clubStature(club),
     divisionPrestige: countryPrestige(state.countryId),
     fitnessAtEnd: input.fitnessAtEnd,
+    competition: scheduled.competition,
+    slotIndex: scheduled.slotIndex,
   });
 
-  // `applyMatchToCareer` advances the fixture index, so resolve the round the
-  // player just played using the fixture's own round number.
-  simulateRound(state, fixture.round, lookup);
+  if (leagueFixture) {
+    simulateRound(state, leagueFixture.round, lookup);
+  } else if (scheduled.competition !== 'league') {
+    settlePlayerTie(state, scheduled.competition, input, lookup);
+  }
+
   return changes;
+}
+
+/**
+ * Fold the player's cup result into the bracket and move the round on.
+ *
+ * Called after the tie has been played or skipped. Losing here is what ends a
+ * cup run: `closeRound` notices he is no longer among the survivors and the
+ * calendar stops offering him that competition's remaining rounds.
+ */
+function settlePlayerTie(
+  state: CareerState,
+  kind: CupKind,
+  input: PlayedMatchInput,
+  lookup: TeamLookup,
+): void {
+  const cup = state.cups[kind];
+  const rng = new Rng(`${state.seed}:s${state.seasonNumber}:${kind}:r${cup.rounds.length}:result`);
+  applyPlayerResult(rng, cup, {
+    clubId: state.clubId,
+    goalsFor: input.playerTeamScore,
+    goalsAgainst: input.opponentScore,
+    lookup: (id) => clubIn(state, lookup, id),
+  });
+  closeRound(cup, state.clubId);
+}
+
+/**
+ * Make sure the competition the player is about to play in is ready for him.
+ *
+ * A cup round cannot be drawn until the one before it has been settled, so the
+ * draw happens at the last possible moment: when the match is about to be
+ * played. IDEMPOTENT — a round that has already been drawn is left alone — so
+ * both the UI (which needs the opponent to build a match) and
+ * `recordPlayerMatch` (which needs the bracket to record a result) can call it
+ * without either having to know the other did.
+ */
+export function prepareNextMatch(state: CareerState, lookup: TeamLookup): void {
+  const scheduled = nextMatch(state);
+  if (!scheduled || scheduled.competition === 'league') return;
+
+  const cup = state.cups[scheduled.competition];
+  if (cup.rounds.length >= scheduled.round) return;
+
+  const rng = new Rng(`${state.seed}:s${state.seasonNumber}:${scheduled.competition}:r${scheduled.round}`);
+  openRound({
+    rng,
+    cup,
+    lookup: (id) => clubIn(state, lookup, id),
+    playerClubId: state.clubId,
+  });
 }
 
 /** Play out every remaining round in the season (used when a season ends). */
@@ -377,6 +508,10 @@ export interface SeasonEnd {
   earnings: number;
   /** True when the old deal ran out and he is free to leave for nothing. */
   outOfContract: boolean;
+  /** Both knockouts as they finished, for the review to report the runs. */
+  cups: Record<CupKind, CupState>;
+  /** Which of them the player's club won. */
+  cupsWon: CupKind[];
   /**
    * True when nobody wanted him and his club put up a reduced deal rather than
    * leave him without a season to play. The review screen says so plainly.
@@ -393,6 +528,20 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     throw new Error('endSeason called before the season was complete');
   }
   flushRemainingRounds(state, lookup);
+
+  // Both knockouts are played out to a winner FIRST, before anything reads a
+  // result off the season. A cup the player went out of carries on without him,
+  // because "who won the one you lost" is part of knowing where you stand — and
+  // the honours below cannot judge a cup that has not finished.
+  for (const kind of CUP_KINDS) {
+    finishCup(
+      new Rng(`${state.seed}:s${state.seasonNumber}:${kind}:finish`),
+      state.cups[kind],
+      (id) => clubIn(state, lookup, id),
+      state.clubId,
+    );
+  }
+  const cupsWon = CUP_KINDS.filter((kind) => state.cups[kind].winnerId === state.clubId);
 
   const position = tablePosition(state.table, state.clubId);
   const champion = sortTable(state.table)[0]?.teamId ?? state.clubId;
@@ -468,20 +617,24 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
 
   // Awards are judged on the division just played, against a bar inferred from
   // the football that happened in it (see core/career/awards.ts).
+  // Judged on LEAGUE football against a benchmark inferred from the LEAGUE
+  // table. Counting cup goals toward the golden boot would let a good cup run
+  // win an award the league never saw.
   const benchmark = leagueBenchmark(new Rng(`${state.seed}:s${state.seasonNumber}:awards`), {
     table: state.table,
     playerClubId: state.clubId,
-    playerGoals: state.seasonStats.goals,
+    playerGoals: state.leagueStats.goals,
   });
   const honoursResult = evaluateHonours({
     player: state.player,
-    stats: state.seasonStats,
+    stats: state.leagueStats,
     season: state.seasonNumber,
     clubId: state.clubId,
     division,
     countryId,
     position,
     movement,
+    cupsWon,
     benchmark,
     seasonLength: fixturesFor(state, state.clubId).length,
   });
@@ -517,6 +670,12 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     division: nextDivision,
     countryId: nextCountry,
   });
+
+  // A new season needs new knockouts, entered by whoever is in the league now.
+  // The finished ones are handed back on the season end so the review can
+  // report the runs that have just been erased from the live state.
+  const finishedCups = state.cups;
+  state.cups = newCups(nextCountry, nextLeague);
 
   // Unspent points are never banked; a fresh award replaces whatever was left.
   state.trainingPoints = award.points;
@@ -590,6 +749,8 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     earnings,
     outOfContract,
     fellBackOnClub,
+    cups: finishedCups,
+    cupsWon,
   };
 }
 
@@ -667,6 +828,10 @@ export function acceptOffer(
     state.table = emptyTable(state.leagueTeamIds);
     state.results = [];
     state.nextFixtureIndex = 0;
+    state.calendarIndex = 0;
+    // A new country means new knockouts: the cups he was entered in belong to
+    // the league he has just left.
+    state.cups = newCups(countryId, state.leagueTeamIds);
   }
 
   const prestige = countryPrestige(countryId);

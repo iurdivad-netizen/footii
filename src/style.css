@@ -1977,3 +1977,41 @@ button.ghost {
 .world-screen .career-card {
   overflow-x: auto;
 }
+
+/* ------------------------------------------------------------ cups ----- */
+
+/*
+ * Which competition the next match is in. A cup tie has to look different from
+ * a league fixture before you click play, not after: it is the one match that
+ * can end a run.
+ */
+.competition-tag {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin: 0 0 6px;
+}
+
+.competition-tag.nationalCup,
+.competition-tag.leagueCup {
+  color: var(--goal);
+}
+
+.cup-row dd {
+  font-size: 0.86rem;
+}
+
+.cup-row.alive dd {
+  color: var(--accent);
+}
+
+.cup-row.won dd {
+  color: var(--goal);
+  font-weight: 600;
+}
+
+.cup-row.out dd {
+  color: var(--text-dim);
+}

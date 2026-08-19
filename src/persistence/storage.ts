@@ -5,6 +5,8 @@ import { TEAMS } from '../data/gameData.ts';
 import { initialLeagues, locateClub } from '../core/career/countries.ts';
 import { emptyTable, generateFixtures } from '../core/career/league.ts';
 import { createSeasonStats } from '../core/career/seasonStats.ts';
+import { createCup } from '../core/career/cups.ts';
+import { seasonCalendar } from '../core/career/calendar.ts';
 import { Rng } from '../core/rng.ts';
 import { initialStrengths } from '../core/career/clubDrift.ts';
 import { contractYears, offeredWage, squadRole } from '../core/career/transfers.ts';
@@ -22,7 +24,7 @@ import type { DecisionPace } from '../simulation/DecisionTimer.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 export interface CareerRecord {
   matches: number;
@@ -140,7 +142,11 @@ export function isUsableCareer(state: unknown): state is CareerState {
     !!c.leagues &&
     typeof c.leagues === 'object' &&
     !!c.clubStrengths &&
-    typeof c.clubStrengths === 'object'
+    typeof c.clubStrengths === 'object' &&
+    // A season with no knockouts cannot walk its own calendar.
+    !!c.cups &&
+    typeof c.cups === 'object' &&
+    typeof c.calendarIndex === 'number'
   );
 }
 
@@ -256,6 +262,52 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
       career.seasonStats = createSeasonStats();
     }
     save = { ...save, version: 6 };
+  }
+
+  if (save.version === 6) {
+    // v6 -> v7: seasons gained two domestic knockouts and a calendar that
+    // interleaves them with the league. A career in progress keeps its league
+    // season exactly as it stands — the calendar is derived, and its cup slots
+    // all sit ahead of wherever the player has got to, so he simply joins both
+    // cups at the next round rather than losing the league form he has built.
+    const career = save.careerState;
+    if (career) {
+      career.leagueStats ??= { ...career.seasonStats };
+      career.cups ??= {
+        nationalCup: createCup('nationalCup', career.countryId, career.leagueTeamIds),
+        leagueCup: createCup('leagueCup', career.countryId, career.leagueTeamIds),
+      };
+      // The two indexes count different things: `nextFixtureIndex` counts league
+      // matches, `calendarIndex` counts calendar slots, and a slot may be a cup
+      // round. Setting one from the other desynchronises any save more than a
+      // few matches in — the league round comes out wrong AND the first cup slot
+      // reached has no drawn tie, so the fixture card asks for a club with no id.
+      //
+      // Instead, walk the calendar to the slot holding his next league match.
+      // Cup rounds scheduled before that point are simply never played this
+      // season, which is the honest outcome for a season already underway.
+      if (career.calendarIndex === undefined) {
+        const calendar = seasonCalendar(
+          career.fixtures.filter(
+            (f) => f.homeId === career.clubId || f.awayId === career.clubId,
+          ).length,
+        );
+        let leagueSeen = 0;
+        let slot = calendar.length;
+        for (let i = 0; i < calendar.length; i++) {
+          if (calendar[i]!.competition !== 'league') continue;
+          if (leagueSeen === career.nextFixtureIndex) {
+            slot = i;
+            break;
+          }
+          leagueSeen += 1;
+        }
+        career.calendarIndex = slot;
+      }
+      for (const season of career.history ?? []) season.cupsWon ??= [];
+      if (career.lastResult) career.lastResult.competition ??= 'league';
+    }
+    save = { ...save, version: 7 };
   }
 
   if (save.version !== SAVE_VERSION) return null;

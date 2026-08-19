@@ -3,7 +3,7 @@ import { createPlayer } from '../src/core/player/player.ts';
 import type { Player } from '../src/core/player/player.ts';
 import { TEAMS, getTeam } from '../src/data/gameData.ts';
 import type { CareerState } from '../src/core/career/career.ts';
-import { seasonComplete } from '../src/core/career/career.ts';
+import { nextMatch, seasonComplete } from '../src/core/career/career.ts';
 import {
   acceptOffer,
   canStay,
@@ -15,6 +15,8 @@ import {
 import type { SeasonEnd } from '../src/simulation/CareerService.ts';
 import { isExpired } from '../src/core/career/contracts.ts';
 import { allClubIds, locateClub } from '../src/core/career/countries.ts';
+import { CUP_KINDS } from '../src/core/career/cups.ts';
+import { maximumMatches } from '../src/core/career/calendar.ts';
 import { createMatchStats } from '../src/core/match/matchStats.ts';
 
 /**
@@ -206,6 +208,102 @@ describe('a whole career, played out', () => {
       expect(Math.abs(drifted.defence - team.ratings.defence)).toBeLessThanOrEqual(12);
       expect(drifted.attack).toBeGreaterThan(0);
     }
+  });
+
+  it('finishes both knockouts every season, whoever went out when', () => {
+    // A season that archived an unfinished cup would leave a hole in the
+    // history and an honour nobody could have won.
+    for (const career of [star, journeyman]) {
+      for (const outcome of career.seasons) {
+        for (const kind of CUP_KINDS) {
+          const cup = outcome.cups[kind];
+          expect(cup.winnerId, kind).toBeTruthy();
+          expect(cup.survivors, kind).toHaveLength(1);
+        }
+      }
+    }
+  });
+
+  it('never plays more matches in a season than the calendar allows', () => {
+    for (const career of [star, journeyman]) {
+      for (const outcome of career.seasons) {
+        const league = outcome.record.stats.matches;
+        expect(league).toBeLessThanOrEqual(maximumMatches(30));
+        expect(league).toBeGreaterThanOrEqual(30);
+      }
+    }
+  });
+
+  it('only credits a cup win to a club that actually won it', () => {
+    for (const career of [star, journeyman]) {
+      for (const outcome of career.seasons) {
+        for (const kind of outcome.cupsWon) {
+          expect(outcome.cups[kind].winnerId).toBe(outcome.record.clubId);
+        }
+      }
+    }
+  });
+
+  it('starts every season with a clean pair of cups', () => {
+    for (const career of [star, journeyman]) {
+      for (const kind of CUP_KINDS) {
+        expect(career.state.cups[kind].winnerId, kind).toBeNull();
+        expect(career.state.cups[kind].countryId).toBe(career.state.countryId);
+        expect(career.state.cups[kind].survivors).toEqual(career.state.leagueTeamIds);
+      }
+    }
+  });
+
+  it('never offers the same calendar slot twice', () => {
+    // The bug this exists to catch: `nextMatch` walks forward past slots that
+    // are not the player's, so advancing the index by one leaves it trailing
+    // and a match already played gets offered again. A won cup final was being
+    // replayed, and losing the replay handed the trophy to the opponent.
+    const state = startCareer({
+      player: prospect(),
+      clubId: 'kingsbridge',
+      teams: TEAMS,
+      seed: 'slots',
+    });
+
+    const seen = new Set<number>();
+    while (!seasonComplete(state)) {
+      const scheduled = nextMatch(state)!;
+      expect(seen.has(scheduled.slotIndex), `slot ${scheduled.slotIndex} replayed`).toBe(false);
+      seen.add(scheduled.slotIndex);
+
+      const stats = createMatchStats();
+      stats.minutes = 90;
+      recordPlayerMatch(
+        state,
+        { stats, rating: 7, playerTeamScore: 2, opponentScore: 1, fitnessAtEnd: 45 },
+        lookup,
+      );
+      expect(state.calendarIndex).toBe(scheduled.slotIndex + 1);
+    }
+  });
+
+  it('leaves every club in the league on the same number of matches', () => {
+    // Simulating the calendar slot's round rather than the fixture's own meant
+    // the player finished on 30 and everyone else on 27 or 28.
+    const state = startCareer({
+      player: prospect(),
+      clubId: 'vale-park',
+      teams: TEAMS,
+      seed: 'rounds',
+    });
+    while (!seasonComplete(state)) {
+      const stats = createMatchStats();
+      stats.minutes = 90;
+      recordPlayerMatch(
+        state,
+        { stats, rating: 6.8, playerTeamScore: 1, opponentScore: 1, fitnessAtEnd: 45 },
+        lookup,
+      );
+    }
+    const played = state.table.map((row) => row.played);
+    expect(new Set(played).size).toBe(1);
+    expect(played[0]).toBe(30);
   });
 
   it('records a season of history for every season played', () => {

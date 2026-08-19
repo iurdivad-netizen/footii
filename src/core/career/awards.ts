@@ -7,6 +7,7 @@ import type { SeasonStats } from './seasonStats.ts';
 import { averageRating } from './seasonStats.ts';
 import type { DivisionMovement } from './divisions.ts';
 import { countryPrestige, getCountry } from './countries.ts';
+import type { CupKind } from './cups.ts';
 
 /**
  * AWARDS AND HONOURS
@@ -34,6 +35,10 @@ import { countryPrestige, getCountry } from './countries.ts';
 
 export type HonourKind =
   | 'title'
+  | 'nationalCup'
+  | 'leagueCup'
+  | 'domesticDouble'
+  | 'domesticTreble'
   | 'promotion'
   | 'relegation'
   | 'topScorer'
@@ -151,6 +156,8 @@ export interface HonoursInput {
   position: number;
   /** Whether the club went up or down this season. */
   movement: DivisionMovement | null;
+  /** Which of the two domestic knockouts the club won. */
+  cupsWon: readonly CupKind[];
   benchmark: LeagueBenchmark;
   /** Matches in a full season, so a part-season cannot win an award. */
   seasonLength: number;
@@ -196,6 +203,33 @@ export function evaluateHonours(input: HonoursInput): HonoursResult {
       at('title', `${info.adjective} champions`, `You finished top of ${info.league}.`),
     );
   }
+  // Cups are the club's, not the player's, so they are recorded whatever kind of
+  // season he personally had — you do not have to have been good to have won it.
+  const wonNational = input.cupsWon.includes('nationalCup');
+  const wonLeagueCup = input.cupsWon.includes('leagueCup');
+  if (wonNational) {
+    honours.push(
+      at('nationalCup', `${info.adjective} Cup`, `You won the ${info.adjective} Cup.`),
+    );
+  }
+  if (wonLeagueCup) {
+    honours.push(
+      at('leagueCup', `${info.adjective} League Cup`, `You won the ${info.adjective} League Cup.`),
+    );
+  }
+
+  // A domestic double or treble is recorded as its own thing rather than left
+  // to be inferred from three separate lines, because that is how football
+  // talks about it and because it is the rarest thing on the list.
+  const trophies = (input.position === 1 ? 1 : 0) + input.cupsWon.length;
+  if (trophies === 3) {
+    honours.push(
+      at('domesticTreble', 'The treble', `League, Cup and League Cup in ${info.league}.`),
+    );
+  } else if (trophies === 2) {
+    honours.push(at('domesticDouble', 'The double', `Two of the three domestic trophies.`));
+  }
+
   if (input.movement === 'promoted') {
     honours.push(at('promotion', 'Promoted', `Your club is going up out of ${info.league}.`));
   }

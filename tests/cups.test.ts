@@ -1,0 +1,383 @@
+import { describe, expect, it } from 'vitest';
+import { Rng } from '../src/core/rng.ts';
+import { TEAMS, getTeam, teamsInCountry } from '../src/data/gameData.ts';
+import '../src/data/gameData.ts';
+import {
+  CUP_KINDS,
+  CUP_ROUNDS,
+  applyPlayerResult,
+  backgroundCupWinner,
+  closeRound,
+  createCup,
+  cupName,
+  drawRound,
+  finishCup,
+  openRound,
+  opponentIn,
+  resolveTie,
+  roundName,
+  stillIn,
+  tieFor,
+  totalRounds,
+} from '../src/core/career/cups.ts';
+import type { CupState } from '../src/core/career/cups.ts';
+import {
+  LEAGUE_CUP_SCHEDULE,
+  NATIONAL_CUP_SCHEDULE,
+  competitionLabel,
+  isCup,
+  maximumMatches,
+  seasonCalendar,
+} from '../src/core/career/calendar.ts';
+
+const lookup = (id: string) => getTeam(id);
+const ENGLAND = teamsInCountry('england').map((t) => t.id);
+
+function freshCup(kind: 'nationalCup' | 'leagueCup' = 'nationalCup'): CupState {
+  return createCup(kind, 'england', ENGLAND);
+}
+
+describe('naming a knockout', () => {
+  it('names rounds from the end, so the last tie is always the final', () => {
+    expect(roundName(4)).toBe('Final');
+    expect(roundName(3)).toBe('Semi-final');
+    expect(roundName(2)).toBe('Quarter-final');
+    // Early rounds get an ordinal, because these read in running prose.
+    expect(roundName(1)).toBe('First round');
+    expect(roundName(1, 6)).toBe('First round');
+    expect(roundName(2, 6)).toBe('Second round');
+  });
+
+  it('names a smaller cup correctly too', () => {
+    expect(roundName(2, 2)).toBe('Final');
+    expect(roundName(1, 2)).toBe('Semi-final');
+  });
+
+  it('names the cup after the country it is played in', () => {
+    expect(cupName('nationalCup', 'england')).toBe('The English Cup');
+    expect(cupName('leagueCup', 'spain')).toBe('The Spanish League Cup');
+  });
+
+  it('works out how many rounds sixteen clubs take', () => {
+    expect(totalRounds(freshCup())).toBe(CUP_ROUNDS);
+  });
+});
+
+describe('the draw', () => {
+  it('pairs everybody exactly once', () => {
+    const cup = freshCup();
+    const round = drawRound(new Rng('draw'), cup);
+    expect(round.ties).toHaveLength(8);
+
+    const involved = round.ties.flatMap((tie) => [tie.homeId, tie.awayId]);
+    expect(new Set(involved).size).toBe(16);
+    for (const id of ENGLAND) expect(involved).toContain(id);
+  });
+
+  it('never draws a club against itself', () => {
+    for (let seed = 0; seed < 20; seed++) {
+      const round = drawRound(new Rng(`s${seed}`), freshCup());
+      for (const tie of round.ties) expect(tie.homeId).not.toBe(tie.awayId);
+    }
+  });
+
+  it('is open: the two strongest clubs can and do meet early', () => {
+    // Seeding would make the cup a second, shorter league. Across many draws
+    // the top two must sometimes be paired in the first round.
+    const [best, second] = [...ENGLAND].sort(
+      (a, b) => getTeam(b).ratings.attack - getTeam(a).ratings.attack,
+    );
+    let met = 0;
+    for (let seed = 0; seed < 200; seed++) {
+      const round = drawRound(new Rng(`open${seed}`), freshCup());
+      const tie = tieFor(round, best!)!;
+      if (opponentIn(tie, best!) === second) met += 1;
+    }
+    expect(met).toBeGreaterThan(0);
+  });
+
+  it('is deterministic from its rng', () => {
+    expect(drawRound(new Rng('same'), freshCup())).toEqual(
+      drawRound(new Rng('same'), freshCup()),
+    );
+  });
+
+  it('carries an odd club through rather than dropping it', () => {
+    const odd = createCup('nationalCup', 'england', ENGLAND.slice(0, 5));
+    const round = drawRound(new Rng('odd'), odd);
+    const involved = round.ties.flatMap((tie) => [tie.homeId, tie.awayId]);
+    expect(new Set(involved).size).toBe(5);
+    // The bye is already resolved, so it goes through untouched.
+    expect(round.ties.filter((tie) => tie.homeId === tie.awayId)).toHaveLength(1);
+  });
+});
+
+describe('settling a tie', () => {
+  const home = getTeam('castleford-royals');
+  const away = getTeam('stapleton-vale');
+
+  it('always produces a winner, because a knockout cannot be drawn', () => {
+    for (let seed = 0; seed < 60; seed++) {
+      const tie = resolveTie(new Rng(`t${seed}`), { homeId: home.id, awayId: away.id }, home, away);
+      expect(tie.winnerId).toBeTruthy();
+      expect([home.id, away.id]).toContain(tie.winnerId);
+    }
+  });
+
+  it('goes to penalties only when the ninety minutes were level', () => {
+    for (let seed = 0; seed < 60; seed++) {
+      const tie = resolveTie(new Rng(`p${seed}`), { homeId: home.id, awayId: away.id }, home, away);
+      expect(tie.penalties).toBe(tie.homeGoals === tie.awayGoals);
+    }
+  });
+
+  it('lets the underdog win a shootout, so a knockout is worth playing', () => {
+    // A shootout the favourite always won would remove the reason knockouts
+    // exist at all. Counted over the ties that ACTUALLY went to penalties —
+    // resolveTie plays its own ninety minutes, so a level score cannot be
+    // forced by passing one in.
+    let shootouts = 0;
+    let underdogWins = 0;
+    for (let seed = 0; seed < 600; seed++) {
+      const tie = resolveTie(new Rng(`s${seed}`), { homeId: home.id, awayId: away.id }, home, away);
+      if (!tie.penalties) continue;
+      shootouts += 1;
+      if (tie.winnerId === away.id) underdogWins += 1;
+    }
+    expect(shootouts).toBeGreaterThan(20);
+    expect(underdogWins).toBeGreaterThan(0);
+    // ...and the favourite still has the edge it has earned.
+    expect(underdogWins).toBeLessThan(shootouts);
+  });
+
+  it('leaves an already-decided tie alone', () => {
+    const decided = { homeId: home.id, awayId: away.id, homeGoals: 2, awayGoals: 0, winnerId: home.id };
+    expect(resolveTie(new Rng('x'), decided, home, away)).toEqual(decided);
+  });
+});
+
+describe('running a cup', () => {
+  it('halves the field every round and ends with one club standing', () => {
+    const cup = freshCup();
+    const sizes: number[] = [cup.survivors.length];
+    finishCup(new Rng('run'), cup, lookup);
+    expect(cup.rounds).toHaveLength(CUP_ROUNDS);
+    for (const round of cup.rounds) {
+      sizes.push(round.ties.length);
+      for (const tie of round.ties) expect(tie.winnerId).toBeTruthy();
+    }
+    expect(sizes).toEqual([16, 8, 4, 2, 1]);
+    expect(cup.winnerId).toBeTruthy();
+    expect(cup.survivors).toHaveLength(1);
+  });
+
+  it('only ever advances clubs that actually won a tie', () => {
+    const cup = freshCup();
+    finishCup(new Rng('honest'), cup, lookup);
+    for (let i = 1; i < cup.rounds.length; i++) {
+      const previous = cup.rounds[i - 1]!.ties.map((tie) => tie.winnerId!);
+      const involved = cup.rounds[i]!.ties.flatMap((tie) => [tie.homeId, tie.awayId]);
+      for (const id of involved) expect(previous).toContain(id);
+    }
+  });
+
+  it('is deterministic from its seed', () => {
+    const a = freshCup();
+    const b = freshCup();
+    finishCup(new Rng('same'), a, lookup);
+    finishCup(new Rng('same'), b, lookup);
+    expect(a.winnerId).toBe(b.winnerId);
+    expect(a.rounds).toEqual(b.rounds);
+  });
+
+  it('produces different winners from different seeds', () => {
+    const winners = new Set<string>();
+    for (let seed = 0; seed < 25; seed++) {
+      const cup = freshCup();
+      finishCup(new Rng(`w${seed}`), cup, lookup);
+      winners.add(cup.winnerId!);
+    }
+    expect(winners.size).toBeGreaterThan(3);
+  });
+
+  it('favours the stronger clubs without guaranteeing them', () => {
+    const strongest = [...ENGLAND].sort(
+      (a, b) => getTeam(b).ratings.attack - getTeam(a).ratings.attack,
+    )[0]!;
+    let wins = 0;
+    for (let seed = 0; seed < 100; seed++) {
+      const cup = freshCup();
+      finishCup(new Rng(`f${seed}`), cup, lookup);
+      if (cup.winnerId === strongest) wins += 1;
+    }
+    // More than its one-in-sixteen share, and a long way short of every time.
+    expect(wins).toBeGreaterThan(6);
+    expect(wins).toBeLessThan(70);
+  });
+});
+
+describe('the player in a cup', () => {
+  const club = ENGLAND[0]!;
+
+  it('leaves the player\'s tie for him and settles the rest', () => {
+    const cup = freshCup();
+    const round = openRound({ rng: new Rng('open'), cup, lookup, playerClubId: club });
+
+    const own = tieFor(round, club)!;
+    expect(own.winnerId).toBeUndefined();
+    for (const tie of round.ties) {
+      if (tie === own) continue;
+      expect(tie.winnerId).toBeTruthy();
+    }
+  });
+
+  it('carries him through when he wins, and knocks him out when he does not', () => {
+    for (const [goalsFor, goalsAgainst, through] of [[2, 0, true], [0, 2, false]] as const) {
+      const cup = freshCup();
+      openRound({ rng: new Rng('r1'), cup, lookup, playerClubId: club });
+      applyPlayerResult(new Rng('res'), cup, { clubId: club, goalsFor, goalsAgainst, lookup });
+      closeRound(cup, club);
+
+      expect(stillIn(cup, club)).toBe(through);
+      expect(cup.eliminatedInRound).toBe(through ? null : 1);
+    }
+  });
+
+  it('settles his tie from the spot when it finishes level', () => {
+    const cup = freshCup();
+    const round = openRound({ rng: new Rng('level'), cup, lookup, playerClubId: club });
+    const tie = applyPlayerResult(new Rng('pens'), cup, {
+      clubId: club,
+      goalsFor: 1,
+      goalsAgainst: 1,
+      lookup,
+    });
+    expect(tie.penalties).toBe(true);
+    expect(tie.winnerId).toBeTruthy();
+    expect(round.ties.every((t) => t.winnerId)).toBe(true);
+  });
+
+  it('refuses to close a round that still has an unresolved tie', () => {
+    const cup = freshCup();
+    openRound({ rng: new Rng('half'), cup, lookup, playerClubId: club });
+    expect(() => closeRound(cup, club)).toThrow(/unresolved/);
+  });
+
+  it('records the round he went out in, and keeps it once set', () => {
+    const cup = freshCup();
+    openRound({ rng: new Rng('a'), cup, lookup, playerClubId: club });
+    applyPlayerResult(new Rng('a'), cup, { clubId: club, goalsFor: 3, goalsAgainst: 0, lookup });
+    closeRound(cup, club);
+    expect(cup.eliminatedInRound).toBeNull();
+
+    openRound({ rng: new Rng('b'), cup, lookup, playerClubId: club });
+    applyPlayerResult(new Rng('b'), cup, { clubId: club, goalsFor: 0, goalsAgainst: 1, lookup });
+    closeRound(cup, club);
+    expect(cup.eliminatedInRound).toBe(2);
+
+    // The cup runs on without him and still finds a winner.
+    finishCup(new Rng('rest'), cup, lookup);
+    expect(cup.winnerId).toBeTruthy();
+    expect(cup.winnerId).not.toBe(club);
+    expect(cup.eliminatedInRound).toBe(2);
+  });
+});
+
+describe('a cup nobody was watching', () => {
+  it('produces a winner for any country, from the seed alone', () => {
+    const winner = backgroundCupWinner('seed', 3, 'nationalCup', 'spain', teamsInCountry('spain').map((t) => t.id), lookup);
+    expect(winner).toBeTruthy();
+    expect(teamsInCountry('spain').map((t) => t.id)).toContain(winner!);
+  });
+
+  it('gives the same answer every time it is asked', () => {
+    const ask = () =>
+      backgroundCupWinner('seed', 3, 'leagueCup', 'italy', teamsInCountry('italy').map((t) => t.id), lookup);
+    expect(ask()).toBe(ask());
+  });
+
+  it('gives the two cups different winners more often than not', () => {
+    let differ = 0;
+    for (let season = 0; season < 20; season++) {
+      const ids = teamsInCountry('germany').map((t) => t.id);
+      const a = backgroundCupWinner('s', season, 'nationalCup', 'germany', ids, lookup);
+      const b = backgroundCupWinner('s', season, 'leagueCup', 'germany', ids, lookup);
+      if (a !== b) differ += 1;
+    }
+    expect(differ).toBeGreaterThan(10);
+  });
+
+  it('returns nothing for a country with no clubs rather than throwing', () => {
+    expect(backgroundCupWinner('s', 1, 'nationalCup', 'atlantis', [], lookup)).toBeNull();
+  });
+});
+
+describe('the season calendar', () => {
+  const calendar = seasonCalendar(30);
+
+  it('runs every league round in order', () => {
+    const league = calendar.filter((slot) => slot.competition === 'league');
+    expect(league).toHaveLength(30);
+    expect(league.map((slot) => slot.round)).toEqual(
+      Array.from({ length: 30 }, (_, i) => i + 1),
+    );
+  });
+
+  it('gives both cups all their rounds', () => {
+    for (const kind of CUP_KINDS) {
+      const rounds = calendar.filter((slot) => slot.competition === kind);
+      expect(rounds, kind).toHaveLength(CUP_ROUNDS);
+      expect(rounds.map((slot) => slot.round)).toEqual([1, 2, 3, 4]);
+    }
+  });
+
+  it('is the longest a season can be, if both runs go all the way', () => {
+    expect(calendar).toHaveLength(maximumMatches(30));
+    expect(maximumMatches(30)).toBe(38);
+  });
+
+  it('never schedules the two cups in the same slot', () => {
+    expect(new Set(NATIONAL_CUP_SCHEDULE).size).toBe(CUP_ROUNDS);
+    for (const round of NATIONAL_CUP_SCHEDULE) {
+      expect(LEAGUE_CUP_SCHEDULE).not.toContain(round);
+    }
+  });
+
+  it('spreads the cups through the season rather than bunching them', () => {
+    const positions = CUP_KINDS.flatMap((kind) =>
+      calendar.map((slot, i) => (slot.competition === kind ? i : -1)).filter((i) => i >= 0),
+    );
+    expect(Math.min(...positions)).toBeGreaterThan(3);
+    // The season does not end on a cup tie the player may not even be in.
+    expect(Math.max(...positions)).toBeLessThan(calendar.length - 1);
+  });
+
+  it('keeps every cup round inside a short league too', () => {
+    // A league of a different size must not lose a cup round off the end.
+    for (const rounds of [6, 10, 14, 30, 38]) {
+      const short = seasonCalendar(rounds);
+      for (const kind of CUP_KINDS) {
+        expect(short.filter((slot) => slot.competition === kind), `${rounds}/${kind}`).toHaveLength(
+          CUP_ROUNDS,
+        );
+      }
+      expect(short.filter((slot) => slot.competition === 'league')).toHaveLength(rounds);
+    }
+  });
+
+  it('labels competitions for a screen', () => {
+    expect(competitionLabel('league')).toBe('League');
+    expect(competitionLabel('nationalCup')).toBe('Cup');
+    expect(competitionLabel('leagueCup')).toBe('League Cup');
+    expect(isCup('league')).toBe(false);
+    expect(isCup('nationalCup')).toBe(true);
+  });
+});
+
+describe('the world of cups', () => {
+  it('has a cup for every country in it', () => {
+    for (const team of TEAMS.slice(0, 8)) {
+      expect(cupName('nationalCup', team.country)).toContain('Cup');
+    }
+  });
+});

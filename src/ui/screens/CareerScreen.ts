@@ -3,7 +3,9 @@ import type { AttributeKey } from '../../core/player/attributes.ts';
 import { currentAbility } from '../../core/player/player.ts';
 import { positionLabel } from '../../core/player/positions.ts';
 import type { CareerState } from '../../core/career/career.ts';
-import { matchesRemaining, nextFixture, seasonComplete } from '../../core/career/career.ts';
+import { matchesRemaining, nextMatch, seasonComplete } from '../../core/career/career.ts';
+import { CUP_KINDS, cupName, roundName, stillIn, totalRounds } from '../../core/career/cups.ts';
+import { competitionLabel } from '../../core/career/calendar.ts';
 import { goalDifference, sortTable } from '../../core/career/league.ts';
 import { averageRating } from '../../core/career/seasonStats.ts';
 import { reputationTier } from '../../core/career/reputation.ts';
@@ -82,16 +84,10 @@ export class CareerScreen {
     const { player } = this.state;
     const club = this.club(this.state.clubId);
     const country = getCountry(this.state.countryId);
-    const fixture = nextFixture(this.state);
+    const scheduled = nextMatch(this.state);
     const done = seasonComplete(this.state);
     const stats = this.state.seasonStats;
-
-    const opponentId = fixture
-      ? fixture.homeId === this.state.clubId
-        ? fixture.awayId
-        : fixture.homeId
-      : null;
-    const venue = fixture ? (fixture.homeId === this.state.clubId ? 'Home' : 'Away') : '';
+    const venue = scheduled ? (scheduled.home ? 'Home' : 'Away') : '';
 
     return `
       <header class="career-header">
@@ -118,8 +114,19 @@ export class CareerScreen {
             done
               ? `<p class="career-done">Season complete — ${this.state.seasonStats.matches} matches played.</p>
                  <button class="primary" id="end-season">End of season review</button>`
-              : `<p class="fixture">
-                   <strong>${this.club(opponentId!).name}</strong>
+              : `<p class="competition-tag ${scheduled!.competition}">
+                   ${
+                     scheduled!.competition === 'league'
+                       ? `${country.league} · round ${scheduled!.round}`
+                       : `${cupName(scheduled!.competition, this.state.countryId)} · ${scheduled!.roundLabel}`
+                   }
+                 </p>
+                 <p class="fixture">
+                   <strong>${
+                     scheduled!.opponentId
+                       ? this.club(scheduled!.opponentId).name
+                       : 'Awaiting the draw'
+                   }</strong>
                    <span class="venue">${venue}</span>
                  </p>
                  <p class="hint">${matchesRemaining(this.state)} matches left this season</p>
@@ -150,6 +157,7 @@ export class CareerScreen {
         </div>
 
         ${this.renderContract()}
+        ${this.renderCups()}
 
         <div class="career-card">
           <h2>Season ${this.state.seasonNumber}</h2>
@@ -206,6 +214,7 @@ export class CareerScreen {
           ${last.goalsFor}–${last.goalsAgainst}
         </span>
         <span class="last-result-detail">
+          ${competitionLabel(last.competition ?? 'league')} ·
           ${last.home ? 'v' : 'away to'} ${this.club(last.opponentId).name} ·
           rated ${last.rating.toFixed(1)}${contributions.length ? ` · ${contributions.join(', ')}` : ''}
         </span>
@@ -324,6 +333,55 @@ export class CareerScreen {
   }
 
   /**
+   * How the two knockouts are going.
+   *
+   * A cup run is the only part of a season that can end abruptly, so it needs
+   * showing while it is still alive rather than only in the review — the whole
+   * point of a knockout is knowing, before you play, that this is the one that
+   * could finish it.
+   */
+  private renderCups(): string {
+    const cups = this.state.cups;
+    if (!cups) return '';
+
+    const rows = CUP_KINDS.map((kind) => {
+      const cup = cups[kind];
+      if (!cup) return '';
+      const rounds = totalRounds(cup);
+      const reached = cup.rounds.length;
+
+      let status: string;
+      let tone = '';
+      if (cup.winnerId === this.state.clubId) {
+        status = 'Won it';
+        tone = 'won';
+      } else if (cup.eliminatedInRound !== null) {
+        status = `Out in the ${roundName(cup.eliminatedInRound, rounds).toLowerCase()}`;
+        tone = 'out';
+      } else if (!stillIn(cup, this.state.clubId)) {
+        status = 'Not involved';
+        tone = 'out';
+      } else if (reached === 0) {
+        status = 'Not started';
+      } else {
+        status = `In the ${roundName(reached, rounds).toLowerCase()}`;
+        tone = 'alive';
+      }
+
+      return `<div class="cup-row ${tone}">
+          <dt>${cupName(kind, this.state.countryId)}</dt>
+          <dd>${status}</dd>
+        </div>`;
+    }).join('');
+
+    return `
+        <div class="career-card">
+          <h2>Cups</h2>
+          <dl class="stat-list">${rows}</dl>
+        </div>`;
+  }
+
+  /**
    * The deal you are on.
    *
    * Shown every week rather than only in the summer, because the number that
@@ -435,13 +493,14 @@ export class CareerScreen {
             <td>${h.stats.goals}</td>
             <td>${h.stats.assists}</td>
             <td>${averageRating(h.stats).toFixed(2)}</td>
+            <td>${(h.cupsWon ?? []).map((k) => (k === 'nationalCup' ? '🏆' : '🥈')).join('') || '—'}</td>
           </tr>`,
       )
       .join('');
     return `<div class="career-card">
         <h2>Career history</h2>
         <table class="league-table">
-          <thead><tr><th>S</th><th>Club</th><th>Div</th><th>Age</th><th>Pos</th><th>Apps</th><th>G</th><th>A</th><th>Rating</th></tr></thead>
+          <thead><tr><th>S</th><th>Club</th><th>Div</th><th>Age</th><th>Pos</th><th>Apps</th><th>G</th><th>A</th><th>Rating</th><th>Cups</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>`;

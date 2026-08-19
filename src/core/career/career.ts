@@ -13,6 +13,10 @@ import { matchReputationGain } from './reputation.ts';
 import type { TransferOffer, TransferRecord } from './transfers.ts';
 import type { Contract, ContractOffer } from './contracts.ts';
 import type { WorldLeagues } from './countries.ts';
+import type { CupKind, CupState } from './cups.ts';
+import { CUP_KINDS, opponentIn, roundName, stillIn, tieFor } from './cups.ts';
+import type { CalendarSlot, CompetitionKind } from './calendar.ts';
+import { seasonCalendar } from './calendar.ts';
 import type { ClubStrengths } from './clubDrift.ts';
 import type { Honour } from './awards.ts';
 
@@ -38,6 +42,8 @@ export interface SeasonRecord {
   division: number;
   /** The country it was played in. */
   countryId: string;
+  /** Cups won that season, for a history that shows more than a league position. */
+  cupsWon: CupKind[];
 }
 
 export interface CareerState {
@@ -49,9 +55,25 @@ export interface CareerState {
   fixtures: Fixture[];
   results: FixtureResult[];
   table: TableRow[];
-  /** Index of the player's club's next fixture within `fixtures`. */
+  /** Index of the player's club's next LEAGUE fixture within `fixtures`. */
   nextFixtureIndex: number;
+  /**
+   * How far through the season's calendar the player is, counting cup rounds as
+   * well as league rounds. `nextFixtureIndex` counts only league matches, so the
+   * two advance together on a league slot and only this one advances on a cup
+   * slot — see core/career/calendar.ts.
+   */
+  calendarIndex: number;
+  /** Every competition's statistics added together: his season, in full. */
   seasonStats: SeasonStats;
+  /**
+   * League matches only.
+   *
+   * Awards are judged against a benchmark inferred from the LEAGUE table, so
+   * they have to be judged on league football. Counting cup goals toward the
+   * golden boot would let a good cup run win an award the league never saw.
+   */
+  leagueStats: SeasonStats;
   development: DevelopmentState;
   history: SeasonRecord[];
   /** Seed for this career; every season derives its own stream from it. */
@@ -110,6 +132,14 @@ export interface CareerState {
   /** Total wages banked across the career, in millions. */
   careerEarnings: number;
   /**
+   * The player's country's two knockouts, this season.
+   *
+   * Only his own country's cups are kept. Every other country's are a pure
+   * function of the seed and are computed when somebody asks who won one, in
+   * the same spirit as the background league tables.
+   */
+  cups: Record<CupKind, CupState>;
+  /**
    * The last match played, for the hub to report.
    *
    * Exists because a skipped match returns straight to the hub rather than to a
@@ -122,6 +152,7 @@ export interface CareerState {
 /** Enough of a finished match to describe it in one line. */
 export interface MatchResultSummary {
   opponentId: string;
+  competition: CompetitionKind;
   home: boolean;
   goalsFor: number;
   goalsAgainst: number;
@@ -139,18 +170,124 @@ export function fixturesFor(state: CareerState, teamId: string): Fixture[] {
   return state.fixtures.filter((f) => f.homeId === teamId || f.awayId === teamId);
 }
 
-/** The player's club's next fixture, or null when the season is complete. */
+/** The player's club's next LEAGUE fixture, or null once they are all played. */
 export function nextFixture(state: CareerState): Fixture | null {
   const own = fixturesFor(state, state.clubId);
   return own[state.nextFixtureIndex] ?? null;
 }
 
+/** The season's shape: league rounds and cup rounds in playing order. */
+export function calendarFor(state: CareerState): CalendarSlot[] {
+  return seasonCalendar(fixturesFor(state, state.clubId).length);
+}
+
+/** One entry in the season, resolved to an actual match the player will play. */
+export interface ScheduledMatch {
+  competition: CompetitionKind;
+  /**
+   * Where this match sits in the season calendar.
+   *
+   * Load-bearing. `nextMatch` walks FORWARD past slots that are not the
+   * player's — a cup he is out of — so the slot he plays is frequently not the
+   * one the index currently points at. Advancing the index by one after a match
+   * therefore leaves it trailing, and the season starts offering matches that
+   * have already been played: a won cup final gets replayed, and losing the
+   * replay hands the trophy to the opponent.
+   */
+  slotIndex: number;
+  /** League round, or cup round. */
+  round: number;
+  opponentId: string;
+  home: boolean;
+  /** Present for cup ties; names the round as "Semi-final" and so on. */
+  roundLabel?: string;
+}
+
+/**
+ * What the player actually plays next, across all three competitions.
+ *
+ * Cup slots for a cup he is out of are SKIPPED rather than played, which is why
+ * this walks the calendar rather than indexing it: being knocked out means the
+ * rest of that competition's slots simply are not his matches. Returns null
+ * once nothing is left, which is what ends the season.
+ */
+export function nextMatch(state: CareerState): ScheduledMatch | null {
+  const calendar = calendarFor(state);
+  const fixtures = fixturesFor(state, state.clubId);
+
+  for (let i = state.calendarIndex; i < calendar.length; i++) {
+    const slot = calendar[i]!;
+
+    if (slot.competition === 'league') {
+      const fixture = fixtures[state.nextFixtureIndex];
+      if (!fixture) continue;
+      return {
+        competition: 'league',
+        slotIndex: i,
+        round: slot.round,
+        opponentId: fixture.homeId === state.clubId ? fixture.awayId : fixture.homeId,
+        home: fixture.homeId === state.clubId,
+      };
+    }
+
+    const cup = state.cups?.[slot.competition];
+    if (!cup || !stillIn(cup, state.clubId)) continue;
+
+    // The tie itself is only drawn when the round is opened, which the career
+    // service does at the moment the match is about to be played. Until then
+    // all that is known is that there IS a match — the opponent is decided by
+    // the round before it, which may only just have finished.
+    const drawn = cup.rounds[slot.round - 1];
+    const tie = drawn ? tieFor(drawn, state.clubId) : null;
+    return {
+      competition: slot.competition,
+      slotIndex: i,
+      round: slot.round,
+      opponentId: tie ? opponentIn(tie, state.clubId) : '',
+      home: tie ? tie.homeId === state.clubId : true,
+      roundLabel: roundName(slot.round),
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Where the calendar actually stands, skipping slots that are not the player's.
+ * The season is over when nothing playable is left.
+ */
 export function seasonComplete(state: CareerState): boolean {
-  return nextFixture(state) === null;
+  return nextMatch(state) === null;
 }
 
 export function matchesRemaining(state: CareerState): number {
-  return Math.max(0, fixturesFor(state, state.clubId).length - state.nextFixtureIndex);
+  const calendar = calendarFor(state);
+  const fixtures = fixturesFor(state, state.clubId);
+  let remaining = 0;
+  let leaguePlayed = state.nextFixtureIndex;
+  const counted = new Set<CompetitionKind>();
+
+  for (let i = state.calendarIndex; i < calendar.length; i++) {
+    const slot = calendar[i]!;
+    if (slot.competition === 'league') {
+      if (fixtures[leaguePlayed]) {
+        remaining += 1;
+        leaguePlayed += 1;
+      }
+      continue;
+    }
+    // Only the NEXT round of each live cup counts. Whether he plays the round
+    // after that depends on a result nobody has yet, so counting every
+    // remaining round would advertise a 38-match season to a player whose cup
+    // runs will almost certainly end sooner.
+    const cup = state.cups?.[slot.competition];
+    if (cup && stillIn(cup, state.clubId) && !counted.has(slot.competition)) {
+      counted.add(slot.competition);
+      remaining += 1;
+    }
+  }
+
+  return remaining;
 }
 
 export interface MatchOutcomeInput {
@@ -168,23 +305,19 @@ export interface MatchOutcomeInput {
   divisionPrestige: number;
   /** Fitness left at the final whistle. */
   fitnessAtEnd: number;
+  /** Which competition it was, so league statistics stay separable. */
+  competition: CompetitionKind;
+  /** The calendar slot it was played in, so the season advances past it. */
+  slotIndex: number;
 }
 
-/**
- * Fold one completed match into the career: season statistics, form, morale,
- * development, experience and fitness recovery.
- *
- * This is the ONLY place a match is allowed to change the persistent player,
- * which is why the engine plays a clone.
- */
-export function applyMatchToCareer(
-  rng: Rng,
-  state: CareerState,
-  input: MatchOutcomeInput,
-): AttributeChange[] {
-  const { stats, rating, result } = input;
-  const season = state.seasonStats;
-
+/** Fold one match into a running set of statistics. */
+function addMatchToStats(
+  season: SeasonStats,
+  stats: MatchStats,
+  rating: number,
+  result: number,
+): void {
   season.matches += 1;
   season.starts += 1;
   season.minutes += stats.minutes;
@@ -206,6 +339,29 @@ export function applyMatchToCareer(
   if (result > 0) season.wins += 1;
   else if (result < 0) season.defeats += 1;
   else season.draws += 1;
+}
+
+/**
+ * Fold one completed match into the career: season statistics, form, morale,
+ * development, experience and fitness recovery.
+ *
+ * This is the ONLY place a match is allowed to change the persistent player,
+ * which is why the engine plays a clone.
+ */
+export function applyMatchToCareer(
+  rng: Rng,
+  state: CareerState,
+  input: MatchOutcomeInput,
+): AttributeChange[] {
+  const { stats, rating, result } = input;
+
+  // Every match feeds the season total; only league matches feed the league
+  // ledger the awards are judged on. Accumulating both here rather than at the
+  // call site means the two can never drift apart.
+  addMatchToStats(state.seasonStats, stats, rating, result);
+  if (input.competition === 'league') {
+    addMatchToStats(state.leagueStats, stats, rating, result);
+  }
 
   // Form is a moving average of recent ratings, expressed on the 0-100 scale
   // the timer and resolver expect. It moves quickly but not instantly.
@@ -243,7 +399,9 @@ export function applyMatchToCareer(
   state.fitness = clamp(input.fitnessAtEnd + FITNESS_RECOVERY, 0, 100);
   state.player.fitness = state.fitness;
 
-  state.nextFixtureIndex += 1;
+  if (input.competition === 'league') state.nextFixtureIndex += 1;
+  // Past the slot that was PLAYED, not one past where the walk started.
+  state.calendarIndex = input.slotIndex + 1;
   state.lastDevelopment = development.changes;
   return development.changes;
 }
@@ -272,6 +430,7 @@ export function advanceSeason(
     age: state.player.age,
     division: state.division,
     countryId: state.countryId,
+    cupsWon: CUP_KINDS.filter((kind) => state.cups?.[kind]?.winnerId === state.clubId),
   };
   state.history.push(record);
 
@@ -283,6 +442,8 @@ export function advanceSeason(
 
   state.seasonNumber += 1;
   state.seasonStats = createSeasonStats();
+  state.leagueStats = createSeasonStats();
+  state.calendarIndex = 0;
   state.fixtures = next.fixtures;
   state.table = next.table;
   state.leagueTeamIds = next.leagueTeamIds;
