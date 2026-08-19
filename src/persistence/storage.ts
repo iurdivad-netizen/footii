@@ -8,6 +8,7 @@ import { createSeasonStats } from '../core/career/seasonStats.ts';
 import { createCup } from '../core/career/cups.ts';
 import { seasonCalendar } from '../core/career/calendar.ts';
 import { createCareerRecords } from '../core/career/records.ts';
+import { createInternational } from '../core/career/international.ts';
 import { Rng } from '../core/rng.ts';
 import { initialStrengths } from '../core/career/clubDrift.ts';
 import { contractYears, offeredWage, squadRole } from '../core/career/transfers.ts';
@@ -25,7 +26,7 @@ import type { DecisionPace } from '../simulation/DecisionTimer.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 
 export interface CareerRecord {
   matches: number;
@@ -150,7 +151,11 @@ export function isUsableCareer(state: unknown): state is CareerState {
     typeof c.calendarIndex === 'number' &&
     // The record book is read by the hub on every render.
     !!c.records &&
-    typeof c.records === 'object'
+    typeof c.records === 'object' &&
+    // The international season, which the calendar walks every season.
+    !!c.international &&
+    typeof c.international === 'object' &&
+    Array.isArray((c.international as { fixtures?: unknown }).fixtures)
   );
 }
 
@@ -334,6 +339,29 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
       }
     }
     save = { ...save, version: 8 };
+  }
+
+  if (save.version === 8) {
+    // v8 -> v9: the season gained international football.
+    //
+    // The tournament is drawn afresh for the season the career is CURRENTLY in,
+    // rather than being back-filled: its group matches are calendar slots, and a
+    // save part-way through a season would otherwise carry a tournament whose
+    // dates had already passed. Drawing it here means those slots are settled by
+    // the ordinary catch-up the moment the career is played on.
+    //
+    // Caps already earned are kept. They were awarded under the old model — a
+    // number inferred from fame rather than a count of matches — but they are
+    // still caps the player was told he had, and taking them away to make the
+    // ledger tidy would be a worse lie than the one that produced them.
+    const career = save.careerState;
+    if (career) {
+      career.international ??= createInternational(
+        new Rng(`${career.seed}:s${career.seasonNumber}:international:draw`),
+      );
+      career.seasonCaps ??= 0;
+    }
+    save = { ...save, version: 9 };
   }
 
   if (save.version !== SAVE_VERSION) return null;

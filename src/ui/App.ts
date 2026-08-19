@@ -21,7 +21,17 @@ import type { Player } from '../core/player/player.ts';
 import { createCustomPlayer } from '../core/player/playerBuilder.ts';
 import type { CustomPlayerSpec } from '../core/player/playerBuilder.ts';
 import { positionLabel } from '../core/player/positions.ts';
-import { CUSTOM_PLAYER_ID, TEAMS, getGoalkeeperForTeam, getPreset, getTeam } from '../data/gameData.ts';
+import {
+  CUSTOM_PLAYER_ID,
+  TEAMS,
+  bestGoalkeeperIn,
+  getGoalkeeperForTeam,
+  getPreset,
+  getTeam,
+} from '../data/gameData.ts';
+import type { Team } from '../core/team/team.ts';
+import { INTERNATIONAL } from '../core/career/international.ts';
+import { countryOfNation, nationId } from '../core/career/nations.ts';
 import { matchResult } from '../core/match/matchState.ts';
 import { averageRating } from '../core/career/seasonStats.ts';
 import type { SaveData } from '../persistence/storage.ts';
@@ -429,8 +439,18 @@ export class App {
 
     const isHome = scheduled.home;
     const clubs = this.clubs(career);
-    const playerTeam = clubs(career.clubId);
+    // An international is played FOR his country, not for his club. Handing the
+    // engine his club here would have put him out in the wrong shirt against a
+    // national side — and, since the goalkeeper is looked up from the side's id,
+    // would have thrown on a nation that has no keeper of its own.
+    const international = scheduled.competition === INTERNATIONAL;
+    const nationality = career.player.nationality;
+    const playerTeam = clubs(international ? nationId(nationality) : career.clubId);
     const opponent = clubs(scheduled.opponentId);
+    const keeperFor = (team: Team) => {
+      const country = countryOfNation(team.id);
+      return country ? bestGoalkeeperIn(country) : getGoalkeeperForTeam(team.id);
+    };
 
     // Fitness carries between matches, so the player starts where recovery left him.
     career.player.fitness = career.fitness;
@@ -443,8 +463,8 @@ export class App {
           player: career.player,
           playerTeam,
           opponent,
-          opponentGoalkeeper: getGoalkeeperForTeam(opponent.id),
-          ownGoalkeeper: getGoalkeeperForTeam(playerTeam.id),
+          opponentGoalkeeper: keeperFor(opponent),
+          ownGoalkeeper: keeperFor(playerTeam),
           length: 90,
           playerTeamIsHome: isHome,
           paceScale: this.paceScale,
@@ -590,6 +610,9 @@ export class App {
           cups: outcome.cups,
           europe: outcome.europe,
           nextEuropeanTier: outcome.nextEuropeanTier,
+          international: outcome.international,
+          caps: outcome.caps,
+          nationality: career.player.nationality,
           contractDecision: career.offers.length === 0 && this.summerNeedsADecision(career),
         },
         () => this.afterReview(career, outcome.trainingAwarded, outcome.trainingNotes),

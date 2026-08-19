@@ -471,7 +471,7 @@ If a number in there looks wrong, the gameplay is wrong.
 npm test
 ```
 
-488 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, player valuation, club interest and offer generation, reputation gain and settlement, country prestige, the world's
+540 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, player valuation, club interest and offer generation, reputation gain and settlement, country prestige, the world's
 league membership, background simulation of the leagues you are not in (including that a mid-season
 table is a genuine prefix of the final one), promotion and relegation, club drift, wage demands and
 the wage gate, contract expiry, renewals and free transfers, the award benchmark and every honour,
@@ -482,7 +482,12 @@ sixteen, that a cup winner takes a place rather than adding one, and that a plac
 table when its winner already qualified higher), what a league position is worth in each country,
 the visibility a European run confers, the record book's hauls, rating bands, streaks and
 per-competition split, that a run does not span a summer, that a milestone list omits what never
-happened, save migration, save validation, action generation (including the invariant that every
+happened, national sides derived from their countries' clubs (that a nation always beats its own best
+club, that depth and not one superclub is what makes it strong, and that it declines when its league
+does), selection thresholds that differ by nationality, the fairness of the groups and the seeding
+that balances them, the crossed bracket that keeps two group winners apart until the final, that
+every tournament produces exactly one champion and the better nations win more of them, that a cap is
+only ever awarded for a match actually played, save migration, save validation, action generation (including the invariant that every
 situation can always fill six slots), resolution, goalkeeper effects, attribute effects, chance
 generation, randomness boundaries, position-specific behaviour, instinctive actions, rating,
 pace scaling, option colour coding, boot recovery, set-piece conversion rates, the penalty commit
@@ -864,6 +869,57 @@ be kept as it happens. It is also why a save migrated forward starts with an **e
 rather than a guessed one: a hat-trick count inferred from totals would be wrong, and a wrong record
 is worse than an absent one.
 
+### International football
+
+The one competition a player cannot transfer into. Everything else in a career is a choice — which
+club, which country, which league — and this is the part decided **for** him, by a nationality he
+picked before he had played a match and a reputation he has to earn every season. That is why it is
+worth having: it is the only thing in the game he can be **left out of**.
+
+**A national side is derived, not stored.** For the same reason the golden boot has no name: there
+are no other footballers in this world. A nation is built from its country's strongest clubs — its
+best club's ratings, lifted by how deep the rest of the pool is behind it. Two things fall out for
+free: it needs no data file and no migration, and it **drifts with its country**, so a league whose
+clubs decline over a decade fields a weaker national side ten years later without anything having to
+remember that it should. A nation is always stronger than the best club in it — otherwise being
+picked would be a demotion and the shirt would mean nothing.
+
+**The shape** is eight nations and one tournament a year:
+
+| | |
+| --- | --- |
+| Groups | two of four, **three matches**, everybody plays everybody in their group |
+| Knockout | the **top two of each group**, crossed — then a final |
+| A campaign | 3 matches, or 5 if you go all the way |
+
+Groups rather than a four-match campaign against four of seven possible opponents, because that
+could never produce a fair table and finishing second sends you home. The groups are **seeded by a
+snake down the prestige order** rather than drawn: a random draw puts the three best nations together
+often enough to read as a bug, however fairly it was rolled.
+
+The bracket is **crossed and seeded** — winners meet runners-up, and two group winners can only meet
+in the final. That is the entire payoff for topping a group, and an open draw would delete it. It is
+the one place in the game where a draw is *not* open, and the knockout model carries a flag for it
+precisely so the cups stay open while this one does not.
+
+**Why yearly**, when football plays its tournaments every second summer. A career is eighteen-odd
+seasons and a peak is perhaps six of them. On a biennial cycle a career gets three tournaments, of
+which a player is good enough for one or two — so the whole system would be something most careers
+glimpse once. Yearly makes international football something a career actually *has*.
+
+**Selection is the whole international career.** You are picked when your reputation clears a bar
+that rises with your nation's own standing, which is what makes the nationality chosen at creation a
+decision rather than a label: a Scot is capped early and often, a Spaniard has to be among the best
+players in the world first. Reputation moves match by match, so you can climb into the squad in March
+and play only the last group match — and the tournament in June.
+
+The hub tells a player who is out **exactly how far out**: "eleven more reputation and you are". That
+is a season's goal; "not in the squad" is only an absence.
+
+**A cap is a match.** Caps used to be a number inferred from fame, because there were no
+international fixtures to count. There are now, so they are counted — and a tournament your country
+won while you watched it is a different line in the review to one you won.
+
 ### The season calendar
 
 A season used to be a list of league fixtures and an index into it. With two cups and a European
@@ -875,8 +931,14 @@ competition, so the calendar knows about all of them:
 | League | 30 rounds |
 | European nights | rounds after league rounds 4, 12, 18, 24 |
 | National cup | rounds after league rounds 5, 11, 19, 26 |
+| International breaks | rounds after league rounds 7, 16, 21 |
 | League cup | rounds after league rounds 8, 14, 22, 28 |
-| **A season** | **30 to 42 matches**, depending how far the knockout runs go |
+| The tournament | after the final league round |
+| **A season** | **30 to 47 matches**, depending how far the knockout runs go |
+
+The international knockout sits **after** the last league round, because that is when a tournament is
+played and because it gives a career a shape a club season cannot: the league is decided, the cups
+are won, and then the last thing that happens all year is a semi-final for your country.
 
 The calendar carries a slot for **each** of the three European competitions on the same dates,
 because it is a pure function of the league's length and cannot know which one your club is in. At
@@ -895,7 +957,7 @@ league football — otherwise a good cup run could win an award the league never
 
 ### Skipping a match
 
-A season is up to forty-two matches across four competitions. Playing every one of them is a
+A season is up to forty-seven matches across five competitions. Playing every one of them is a
 commitment the game should ask for rather than assume, so any fixture can be skipped.
 
 **A skipped match is a real match.** The same engine, situation generator, goalkeeper, resolver,
@@ -1004,7 +1066,9 @@ benchmark is deterministic from the season seed, so an honour is never a reroll 
 | Top scorer | Outscore the division's leading scorer |
 | Player of the season | Beat the division's best rating *and* its best goal contribution, from a top-four club |
 | Young player of the season | The same, at 21 or under, against a gentler bar |
-| International debut / caps | Reputation above 58 gets you picked; the top flight is watched more closely |
+| International debut / caps | Picked for your country, and a cap for every match you play for it |
+| International champions | Win the tournament, having played in it |
+| International finalist | Reach its final and lose it |
 
 Individual awards require having played at least 60% of the season. Nobody is player of the season
 on nine appearances. Team honours carry no such condition — a cup belongs to the club, not to your
@@ -1052,6 +1116,27 @@ their constants:
   the competition had stopped existing when you left it. The survivor count is now shown only while
   you are still in. Same family as the invisible division above: state the player can see is a
   statement, and a stale one is a wrong one.
+- **Twelve independent maxima compound.** A national side was first built by taking the best of
+  each rating across its country's top five clubs, which sounds like what a selection is. It put all
+  eight nations between 0.82 and 0.97 strength: a country with one good defence and another club's
+  good attack ended up with both, every international was squeezed into the top fifteen per cent of
+  the scale, and Scotland came out near enough England. Building on the best club and lifting it by
+  the country's depth keeps the spread of nations tracking the spread of the clubs they are drawn
+  from.
+- **The tournament only moved when the player moved.** A group round he was not picked for is still
+  played — by everybody else, on the night it was scheduled. Without settling those rounds as their
+  dates pass, a player outside the squad could not be shown a live group table, and, worse, a player
+  who climbed into selection midway through a season found no knockout waiting for him: the groups he
+  missed were never finished, so the bracket seeded off them was never built.
+- **"Reached it" and "still in it" are different questions.** The tournament card read the survivors
+  to decide whether a nation had qualified, so a nation that lost a semi-final was reported as having
+  gone out at the group stage — and, before a single knockout round had been drawn, every qualified
+  nation was reported as eliminated, because a round is only drawn when somebody reaches it.
+- **An international is played in a different shirt.** The match builder handed the engine the
+  player's CLUB for every fixture, so a call-up would have put him out for his club against a
+  national side — and, since the goalkeeper is looked up by the side's id and no nation has one of
+  its own, thrown on the way. Nations borrow the best keeper in their country, which is what a
+  national side does anyway.
 - **The obvious baseline for auto-play was the wrong one.** Skipping a match was first tuned against
   "letting the timer expire", which looked like the floor for deciding badly and is not: expiry
   carries execution and tempo penalties on top of a poor choice, so it sits *below* deliberately
@@ -1072,14 +1157,16 @@ build-up narration, goalkeeper commit mechanic, action resolution with separated
 instinctive fallback on expiry, match statistics and rating, five playable presets across four
 positions, **a world of eight countries and 128 clubs across eight live leagues**, **a national cup and a
 league cup in every country**, **a Champions League, a Europa League and a Conference League entered
-by league position and by winning a cup**, **a season calendar interleaving all of them**, season fixtures,
+by league position and by winning a cup**, **a yearly international tournament of eight national sides, with groups, a
+seeded knockout and a squad you have to be good enough to be picked for**, **a season calendar
+interleaving all of them**, season fixtures,
 a browsable table for every league, **the option to skip any match and have the player decide for
 himself**, per-match player development, ageing and multi-season career history, end-of-season
 progress reports, pre-season training, a reputation model, a transfer market spanning countries
 with club valuation, scouting interest and summer offers, clubs that strengthen and decline season
 to season, contracts with wages, terms, expiry and free transfers, an honours list covering titles, cups,
-European trophies, domestic and continental trebles, top scorer, player of the season and
-international caps, **a career record book of braces, hat-tricks, four- and five-goal games, perfect
+European trophies, domestic and continental trebles, top scorer, player of the season,
+international caps and tournament wins, **a career record book of braces, hat-tricks, four- and five-goal games, perfect
 ratings, scoring and unbeaten runs and per-competition totals**, promotion and relegation machinery
 (dormant on a one-tier world), debug mode, and a versioned localStorage save with migration.
 
@@ -1088,12 +1175,8 @@ databases.
 
 ## Roadmap
 
-Domestic cups and European competitions are done. One agreed stage remains:
-
-- **International football** — national teams picked from the world's players, qualifiers and a
-  tournament. Nationality and caps already exist and are recorded; what is missing is the fixtures.
-
-Beyond that, unchanged from before:
+The four agreed stages — a world of countries, domestic cups, European competitions and
+international football — are all done. What remains, unchanged from before:
 
 - **A second division per country** — the machinery is written, tested and dormant; it needs clubs
   and a fixture list.

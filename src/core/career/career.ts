@@ -19,7 +19,10 @@ import type { EuropeanEntries, EuropeanState, EuropeanTier } from './europe.ts';
 import type { CareerRecords } from './records.ts';
 import { breakStreaks, recordMatch as recordMatchInBook } from './records.ts';
 import type { CalendarSlot, CompetitionKind } from './calendar.ts';
-import { isEuropean, seasonCalendar } from './calendar.ts';
+import { isEuropean, isInternational, seasonCalendar } from './calendar.ts';
+import type { InternationalState } from './international.ts';
+import { GROUP_ROUNDS, INTERNATIONAL, KNOCKOUT_ROUNDS, groupFixture } from './international.ts';
+import { isSelected, nationId } from './nations.ts';
 import type { ClubStrengths } from './clubDrift.ts';
 import type { Honour } from './awards.ts';
 
@@ -147,6 +150,24 @@ export interface CareerState {
    */
   cups: Record<CupKind, CupState>;
   /**
+   * The international season: two groups of four, then a knockout.
+   *
+   * Held whole rather than only the player's own nation, because the bracket is
+   * seeded off BOTH groups' final tables and there would be nothing to derive
+   * the other one from later. Eight rows and twelve fixtures is cheap.
+   */
+  international: InternationalState;
+  /**
+   * International appearances THIS season, counted as they happen.
+   *
+   * Not derivable at season end, and this is why: reputation moves match by
+   * match, so a player can climb into the squad in March and play only the last
+   * group match. Asking "is he selected?" in June would then credit him with a
+   * campaign he was not picked for, or — climbing the other way — none of the
+   * ones he was.
+   */
+  seasonCaps: number;
+  /**
    * The European competition the player's club is in this season, if any.
    *
    * Null for a club that did not qualify, which is most clubs most years —
@@ -212,10 +233,73 @@ export function knockoutFor(
   competition: CompetitionKind,
 ): CupState<CompetitionKind> | null {
   if (competition === 'league') return null;
+  if (isInternational(competition)) return state.international?.knockout ?? null;
   if (isEuropean(competition)) {
     return state.europe && state.europe.kind === competition ? state.europe : null;
   }
   return state.cups?.[competition] ?? null;
+}
+
+/** The nation the player turns out for. */
+export function playerNation(state: CareerState): string {
+  return nationId(state.player.nationality);
+}
+
+/**
+ * The international match this slot refers to, if the player has one.
+ *
+ * International slots carry rounds 1 to 5: the first three are group matches,
+ * which are fixtures like a league round, and the last two are the knockout,
+ * which is a bracket like a cup. One competition, two shapes, because that is
+ * what a tournament is.
+ */
+export function internationalMatch(
+  state: CareerState,
+  slotIndex: number,
+  round: number,
+): ScheduledMatch | null {
+  // Not picked, no international season. This is the whole point of the
+  // competition: it is the one thing in a career he can be left out of.
+  if (!isSelected(state.player)) return null;
+  const international = state.international;
+  if (!international) return null;
+  const nation = playerNation(state);
+
+  if (round <= GROUP_ROUNDS) {
+    const fixture = groupFixture(international, nation, round);
+    if (!fixture) return null;
+    // Already settled — the round was played around him while he was elsewhere.
+    if (international.results.some((r) => r.round === round && r.homeId === fixture.homeId)) {
+      return null;
+    }
+    return {
+      competition: INTERNATIONAL,
+      slotIndex,
+      round,
+      opponentId: fixture.homeId === nation ? fixture.awayId : fixture.homeId,
+      home: fixture.homeId === nation,
+      roundLabel: `Group match ${round}`,
+    };
+  }
+
+  const knockout = international.knockout;
+  if (!knockout || !stillIn(knockout, nation)) return null;
+  const koRound = round - GROUP_ROUNDS;
+  const drawn = knockout.rounds[koRound - 1];
+  const tie = drawn ? tieFor(drawn, nation) : null;
+  // Already played. The calendar index normally moves past a played slot on its
+  // own, so this only bites for a caller that SCANS the season rather than
+  // walking it — `matchesRemaining` would otherwise count a finished tie as one
+  // still to come.
+  if (tie?.winnerId) return null;
+  return {
+    competition: INTERNATIONAL,
+    slotIndex,
+    round,
+    opponentId: tie ? opponentIn(tie, nation) : '',
+    home: tie ? tie.homeId === nation : true,
+    roundLabel: roundName(koRound, KNOCKOUT_ROUNDS),
+  };
 }
 
 /** The season's shape: league rounds and cup rounds in playing order. */
@@ -272,6 +356,12 @@ export function nextMatch(state: CareerState): ScheduledMatch | null {
       };
     }
 
+    if (isInternational(slot.competition)) {
+      const international = internationalMatch(state, i, slot.round);
+      if (!international) continue;
+      return international;
+    }
+
     const cup = knockoutFor(state, slot.competition);
     if (!cup || !stillIn(cup, state.clubId)) continue;
 
@@ -318,9 +408,23 @@ export function matchesRemaining(state: CareerState): number {
       }
       continue;
     }
+    if (isInternational(slot.competition)) {
+      // An international is his COUNTRY's match, not his club's, so it cannot
+      // be counted by asking whether his club is still in something. Each group
+      // round he is picked for is a match he will play; the knockout counts as
+      // one more, on the same "only the next round" rule as a cup.
+      if (!internationalMatch(state, i, slot.round)) continue;
+      if (slot.round > GROUP_ROUNDS) {
+        if (counted.has(slot.competition)) continue;
+        counted.add(slot.competition);
+      }
+      remaining += 1;
+      continue;
+    }
+
     // Only the NEXT round of each live cup counts. Whether he plays the round
     // after that depends on a result nobody has yet, so counting every
-    // remaining round would advertise a 42-match season to a player whose cup
+    // remaining round would advertise a 47-match season to a player whose cup
     // runs will almost certainly end sooner.
     const cup = knockoutFor(state, slot.competition);
     if (cup && stillIn(cup, state.clubId) && !counted.has(slot.competition)) {
@@ -404,6 +508,9 @@ export function applyMatchToCareer(
   if (input.competition === 'league') {
     addMatchToStats(state.leagueStats, stats, rating, result);
   }
+
+  // A cap is a match played in the shirt, counted here rather than inferred.
+  if (input.competition === INTERNATIONAL) state.seasonCaps += 1;
 
   // The record book takes every match in every competition: a hat-trick is a
   // hat-trick whether it came in the league or a European quarter-final.
@@ -497,6 +604,7 @@ export function advanceSeason(
   state.seasonNumber += 1;
   state.seasonStats = createSeasonStats();
   state.leagueStats = createSeasonStats();
+  state.seasonCaps = 0;
   state.calendarIndex = 0;
   // A run does not span a summer: "eleven in a row" has to mean eleven
   // consecutive matches, not a number that quietly skips three months off.

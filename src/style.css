@@ -2028,6 +2028,18 @@ button.ghost {
   color: var(--accent);
 }
 
+/* --------------------------------------------------- international ----- */
+
+/*
+ * The one competition that is not a club's. Given its own colour rather than
+ * borrowing Europe's, because the point of an international is that it is a
+ * different shirt — a fixture tag that read the same as a league match would
+ * bury the one night of the season a player is not a club footballer.
+ */
+.competition-tag.international {
+  color: var(--warn);
+}
+
 /* --------------------------------------------------------- records ----- */
 
 /*

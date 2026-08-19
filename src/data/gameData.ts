@@ -6,7 +6,7 @@ import { registerCountries } from '../core/career/countries.ts';
 import type { Team, TacticalStyle } from '../core/team/team.ts';
 import { createTeam } from '../core/team/team.ts';
 import type { Goalkeeper } from '../core/goalkeeper/goalkeeper.ts';
-import { createGoalkeeper } from '../core/goalkeeper/goalkeeper.ts';
+import { createGoalkeeper, goalkeeperQuality } from '../core/goalkeeper/goalkeeper.ts';
 import type { Player } from '../core/player/player.ts';
 import { createPlayer } from '../core/player/player.ts';
 
@@ -85,6 +85,24 @@ export function getGoalkeeperForTeam(teamId: string): Goalkeeper {
   const entry = GOALKEEPERS.find((g) => g.teamId === teamId);
   if (!entry) throw new Error(`No goalkeeper for team: ${teamId}`);
   return entry.goalkeeper;
+}
+
+/**
+ * The goalkeeper a NATIONAL side puts behind its defence.
+ *
+ * Nations have no keeper of their own for the same reason they have no squad:
+ * there is nobody in this world to be one. So a nation borrows the best keeper
+ * in its country, which is what a national side does anyway — and it means an
+ * international is played against the hardest goalkeeper that country has,
+ * rather than against a default one nobody chose.
+ */
+export function bestGoalkeeperIn(countryId: string): Goalkeeper {
+  const ids = new Set(teamsInCountry(countryId).map((t) => t.id));
+  const keepers = GOALKEEPERS.filter((g) => ids.has(g.teamId)).map((g) => g.goalkeeper);
+  if (keepers.length === 0) return GOALKEEPERS[0]!.goalkeeper;
+  return keepers.reduce((best, keeper) =>
+    goalkeeperQuality(keeper) > goalkeeperQuality(best) ? keeper : best,
+  );
 }
 
 /**

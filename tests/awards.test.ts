@@ -12,8 +12,6 @@ import type { TableRow } from '../src/core/career/league.ts';
 import {
   AWARD_MINIMUM_SHARE,
   CAP_MILESTONES,
-  INTERNATIONAL_REPUTATION,
-  capsForSeason,
   evaluateHonours,
   leagueBenchmark,
   summariseHonours,
@@ -117,6 +115,9 @@ describe('team honours', () => {
     europeanTier: null,
     wonEurope: false,
     reachedEuropeanFinal: false,
+    internationalRounds: 0,
+    wonInternational: false,
+    reachedInternationalFinal: false,
     benchmark,
     seasonLength: SEASON_LENGTH,
   };
@@ -198,6 +199,9 @@ describe('team honours', () => {
       europeanTier: 'conferenceLeague',
       wonEurope: false,
       reachedEuropeanFinal: false,
+      internationalRounds: 0,
+      wonInternational: false,
+      reachedInternationalFinal: false,
     });
     expect(honourKinds(result.honours)).not.toContain('europeanTitle');
     expect(honourKinds(result.honours)).not.toContain('europeanFinal');
@@ -306,6 +310,9 @@ describe('individual honours', () => {
     europeanTier: null,
     wonEurope: false,
     reachedEuropeanFinal: false,
+    internationalRounds: 0,
+    wonInternational: false,
+    reachedInternationalFinal: false,
     benchmark,
     seasonLength: SEASON_LENGTH,
   };
@@ -392,66 +399,129 @@ describe('individual honours', () => {
 });
 
 describe('international football', () => {
-  it('picks nobody the game has not heard of', () => {
-    expect(capsForSeason(player({ reputation: INTERNATIONAL_REPUTATION - 1 }), 'england')).toBe(0);
+  const base = {
+    stats: stats(),
+    season: 3,
+    clubId: 'club-0',
+    division: 1,
+    countryId: 'england',
+    cupsWon: [],
+    europeanTier: null,
+    wonEurope: false,
+    reachedEuropeanFinal: false,
+    internationalRounds: 0,
+    wonInternational: false,
+    reachedInternationalFinal: false,
+    position: 3,
+    movement: null,
+    benchmark,
+    seasonLength: SEASON_LENGTH,
+  };
+
+  it('counts a cap for every match actually played in the shirt', () => {
+    // Caps used to be inferred from reputation, because there were no
+    // international fixtures to count. There are now, and a cap is a match.
+    const result = evaluateHonours({ ...base, player: player({ caps: 4 }), internationalRounds: 5 });
+    expect(result.capsGained).toBe(5);
   });
 
-  it('picks a well known player, and more often the better known he is', () => {
-    const known = capsForSeason(player({ reputation: 70 }), 'england');
-    const famous = capsForSeason(player({ reputation: 95 }), 'england');
-    expect(known).toBeGreaterThan(0);
-    expect(famous).toBeGreaterThan(known);
-  });
-
-  it('notices a second-division season less than a first-division one', () => {
-    expect(capsForSeason(player({ reputation: 80 }), 'scotland')).toBeLessThan(
-      capsForSeason(player({ reputation: 80 }), 'england'),
-    );
+  it('gives no caps to a player who was never picked, however famous', () => {
+    const result = evaluateHonours({
+      ...base,
+      player: player({ reputation: 99, caps: 0 }),
+      internationalRounds: 0,
+    });
+    expect(result.capsGained).toBe(0);
+    expect(honourKinds(result.honours)).not.toContain('internationalDebut');
   });
 
   it('records a debut the first time only', () => {
-    const base = {
-      stats: stats(),
-      season: 3,
-      clubId: 'club-0',
-      division: 1,
-      countryId: 'england',
-      cupsWon: [],
-      europeanTier: null,
-      wonEurope: false,
-      reachedEuropeanFinal: false,
-      position: 3,
-      movement: null,
-      benchmark,
-      seasonLength: SEASON_LENGTH,
-    };
-    const first = evaluateHonours({ ...base, player: player({ reputation: 75, caps: 0 }) });
+    const first = evaluateHonours({
+      ...base,
+      player: player({ caps: 0 }),
+      internationalRounds: 3,
+    });
     expect(honourKinds(first.honours)).toContain('internationalDebut');
 
-    const later = evaluateHonours({ ...base, player: player({ reputation: 75, caps: 12 }) });
+    const later = evaluateHonours({
+      ...base,
+      player: player({ caps: 12 }),
+      internationalRounds: 3,
+    });
     expect(honourKinds(later.honours)).not.toContain('internationalDebut');
   });
 
   it('marks the cap milestones as they are passed', () => {
     const milestone = CAP_MILESTONES.find((m) => m > 1)!;
     const result = evaluateHonours({
-      player: player({ reputation: 90, caps: milestone - 1 }),
-      stats: stats(),
-      season: 5,
-      clubId: 'club-0',
-      division: 1,
-      countryId: 'england',
-      cupsWon: [],
-      europeanTier: null,
-      wonEurope: false,
-      reachedEuropeanFinal: false,
-      position: 3,
-      movement: null,
-      benchmark,
-      seasonLength: SEASON_LENGTH,
+      ...base,
+      player: player({ caps: milestone - 1 }),
+      internationalRounds: 3,
     });
     expect(honourKinds(result.honours)).toContain('capMilestone');
-    expect(result.capsGained).toBeGreaterThan(0);
+  });
+
+  it('does not mark a milestone twice for the same career', () => {
+    const milestone = CAP_MILESTONES.find((m) => m > 1)!;
+    const past = evaluateHonours({
+      ...base,
+      player: player({ caps: milestone + 1 }),
+      internationalRounds: 3,
+    });
+    expect(honourKinds(past.honours)).not.toContain('capMilestone');
+  });
+
+  it('records winning the tournament, and only for a player who was in it', () => {
+    const won = evaluateHonours({
+      ...base,
+      player: player({ caps: 20 }),
+      internationalRounds: 5,
+      wonInternational: true,
+    });
+    expect(honourKinds(won.honours)).toContain('internationalTitle');
+
+    // His country won it while he watched. Not his honour.
+    const watched = evaluateHonours({
+      ...base,
+      player: player({ caps: 20 }),
+      internationalRounds: 0,
+      wonInternational: true,
+    });
+    expect(honourKinds(watched.honours)).not.toContain('internationalTitle');
+  });
+
+  it('records losing the final, but not as a trophy', () => {
+    const result = evaluateHonours({
+      ...base,
+      player: player({ caps: 20 }),
+      internationalRounds: 5,
+      reachedInternationalFinal: true,
+    });
+    expect(honourKinds(result.honours)).toContain('internationalFinal');
+    expect(honourKinds(result.honours)).not.toContain('internationalTitle');
+  });
+
+  it('records nothing for a tournament that ended before the final', () => {
+    const result = evaluateHonours({
+      ...base,
+      player: player({ caps: 20 }),
+      internationalRounds: 4,
+    });
+    expect(honourKinds(result.honours)).not.toContain('internationalTitle');
+    expect(honourKinds(result.honours)).not.toContain('internationalFinal');
+  });
+
+  it('names the honour after the nation he plays FOR, not the league he plays in', () => {
+    const result = evaluateHonours({
+      ...base,
+      // Playing in England, Scottish.
+      countryId: 'england',
+      player: player({ nationality: 'scotland', caps: 20 }),
+      internationalRounds: 5,
+      wonInternational: true,
+    });
+    const title = result.honours.find((h) => h.kind === 'internationalTitle')!;
+    expect(title.label).toContain('Scotland');
   });
 });
 

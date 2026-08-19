@@ -11,9 +11,11 @@ import type { CareerState, SeasonRecord } from '../core/career/career.ts';
 import {
   advanceSeason,
   applyMatchToCareer,
+  calendarFor,
   fixturesFor,
   knockoutFor,
   nextFixture,
+  playerNation,
   nextMatch,
   seasonComplete,
 } from '../core/career/career.ts';
@@ -56,6 +58,19 @@ import {
 } from '../core/career/europe.ts';
 import type { EuropeanEntries, EuropeanState, EuropeanTier } from '../core/career/europe.ts';
 import { createCareerRecords, recordSeason } from '../core/career/records.ts';
+import type { InternationalState } from '../core/career/international.ts';
+import {
+  GROUP_ROUNDS,
+  INTERNATIONAL,
+  championNation,
+  closeGroupRound,
+  createInternational,
+  groupFixture,
+  playGroupRound,
+  recordGroupResult,
+  startKnockout,
+} from '../core/career/international.ts';
+import { countryOfNation, nationalTeam } from '../core/career/nations.ts';
 import type { DivisionMovement } from '../core/career/divisions.ts';
 import {
   allClubIds,
@@ -108,9 +123,34 @@ export function clubIn(state: CareerState, lookup: TeamLookup, id: string): Team
   return applyStrength(lookup(id), state.clubStrengths);
 }
 
+/**
+ * A national side, built from the country's clubs AS THEY NOW ARE.
+ *
+ * Through `clubIn`, so a nation inherits this career's drift: a country whose
+ * clubs have declined over a decade fields a weaker side for it, without
+ * anything having had to remember that it should.
+ */
+export function nationIn(state: CareerState, lookup: TeamLookup, countryId: string): Team {
+  const clubs = leagueMembers(state.leagues, countryId, 1).map((id) => clubIn(state, lookup, id));
+  return nationalTeam(countryId, clubs);
+}
+
+/**
+ * Any side that plays football in this career, club or country.
+ *
+ * Nations and clubs share the fixture list, the knockout model and the match
+ * engine, so everything downstream needs ONE lookup that resolves both — a
+ * national side handed to a club lookup would not be found, and the tie it was
+ * meant to play would silently resolve to nothing.
+ */
+export function teamIn(state: CareerState, lookup: TeamLookup, id: string): Team {
+  const country = countryOfNation(id);
+  return country ? nationIn(state, lookup, country) : clubIn(state, lookup, id);
+}
+
 /** A lookup bound to one career, for callers that hold on to it (the UI). */
 export function careerTeams(state: CareerState, lookup: TeamLookup): TeamLookup {
-  return (id) => clubIn(state, lookup, id);
+  return (id) => teamIn(state, lookup, id);
 }
 
 /** The country a club currently plays in, falling back to the player's own. */
@@ -284,8 +324,48 @@ export function startCareer(options: StartCareerOptions): CareerState {
     // that has not been played. The first European night of a career is earned.
     europe: null,
     europeanEntries: {},
+    international: newInternational(options.seed, 1),
+    seasonCaps: 0,
     records: createCareerRecords(),
   };
+}
+
+/** A fresh international season, its draw fixed by the seed and the year. */
+function newInternational(seed: string, seasonNumber: number): InternationalState {
+  return createInternational(new Rng(`${seed}:s${seasonNumber}:international:draw`));
+}
+
+/** The rng one international round is settled with. */
+function internationalRng(state: CareerState, round: number): Rng {
+  return new Rng(`${state.seed}:s${state.seasonNumber}:international:r${round}`);
+}
+
+/**
+ * Settle an international round, IN FULL.
+ *
+ * The tournament does not stop because one footballer is not in it, which is
+ * the whole reason being left out stings. It is only ever called for a round
+ * whose date has passed, so nothing is left pending for the player — his own
+ * match, if he played one, was recorded before this and is skipped as already
+ * settled.
+ *
+ * Leaving his fixture out on the grounds that he is currently selected was
+ * wrong and silently broke a season: the round would never complete, so the
+ * bracket seeded off it would never be built and he would be offered no
+ * knockout at all. A migrated save is exactly that case — it arrives part-way
+ * through a season with international dates already behind it.
+ */
+function settleGroupRound(state: CareerState, round: number, lookup: TeamLookup): void {
+  playGroupRound(
+    internationalRng(state, round),
+    state.international,
+    round,
+    (id) => teamIn(state, lookup, id),
+  );
+  closeGroupRound(state.international, round);
+  // The bracket is seeded off both groups' final tables, so it can be built the
+  // moment the last group match anywhere has been played.
+  if (state.international.groupRoundsPlayed >= GROUP_ROUNDS) startKnockout(state.international);
 }
 
 /**
@@ -442,11 +522,56 @@ export function recordPlayerMatch(
 
   if (leagueFixture) {
     simulateRound(state, leagueFixture.round, lookup);
+  } else if (scheduled.competition === INTERNATIONAL) {
+    settleInternational(state, scheduled.round, input, isHome, lookup);
   } else {
     settlePlayerTie(state, scheduled.competition, input, lookup);
   }
 
   return changes;
+}
+
+/**
+ * Fold the player's international result in, then settle the rest of the round.
+ *
+ * A group match feeds the group table; a knockout tie feeds the bracket. The
+ * two live in one competition because that is what a tournament is, and the
+ * round number is what says which half of it we are in.
+ */
+function settleInternational(
+  state: CareerState,
+  round: number,
+  input: PlayedMatchInput,
+  isHome: boolean,
+  lookup: TeamLookup,
+): void {
+  const nation = playerNation(state);
+
+  if (round <= GROUP_ROUNDS) {
+    const fixture = groupFixture(state.international, nation, round);
+    if (fixture) {
+      recordGroupResult(state.international, {
+        ...fixture,
+        homeGoals: isHome ? input.playerTeamScore : input.opponentScore,
+        awayGoals: isHome ? input.opponentScore : input.playerTeamScore,
+      });
+    }
+    settleGroupRound(state, round, lookup);
+    return;
+  }
+
+  const knockout = state.international.knockout;
+  if (!knockout) return;
+  const rng = new Rng(
+    `${state.seed}:s${state.seasonNumber}:international:ko${knockout.rounds.length}:result`,
+  );
+  applyPlayerResult(rng, knockout, {
+    clubId: nation,
+    goalsFor: input.playerTeamScore,
+    goalsAgainst: input.opponentScore,
+    lookup: (id) => teamIn(state, lookup, id),
+  });
+  closeRound(knockout, nation);
 }
 
 /**
@@ -486,7 +611,23 @@ function settlePlayerTie(
  */
 export function prepareNextMatch(state: CareerState, lookup: TeamLookup): void {
   const scheduled = nextMatch(state);
+  catchUpInternational(state, scheduled?.slotIndex ?? Number.POSITIVE_INFINITY, lookup);
   if (!scheduled || scheduled.competition === 'league') return;
+
+  if (scheduled.competition === INTERNATIONAL) {
+    // A group match needs no draw — the fixture list is known from the start.
+    if (scheduled.round <= GROUP_ROUNDS) return;
+    const knockout = state.international.knockout;
+    const koRound = scheduled.round - GROUP_ROUNDS;
+    if (!knockout || knockout.rounds.length >= koRound) return;
+    openRound({
+      rng: internationalRng(state, scheduled.round),
+      cup: knockout,
+      lookup: (id) => teamIn(state, lookup, id),
+      playerClubId: playerNation(state),
+    });
+    return;
+  }
 
   const cup = knockoutFor(state, scheduled.competition);
   if (!cup || cup.rounds.length >= scheduled.round) return;
@@ -498,6 +639,34 @@ export function prepareNextMatch(state: CareerState, lookup: TeamLookup): void {
     lookup: (id) => clubIn(state, lookup, id),
     playerClubId: state.clubId,
   });
+}
+
+/**
+ * Settle international rounds whose date has passed without the player.
+ *
+ * A group round he was not picked for is still PLAYED — by everybody else, on
+ * the night it was scheduled. Without this the tournament only moves when the
+ * player moves, which has two consequences, both wrong: the world cannot show a
+ * live group table to a player who is not in the squad, and — worse — a player
+ * who climbs into selection midway through a season finds no knockout waiting
+ * for him, because the groups he missed were never finished and the bracket
+ * that is seeded off them was therefore never built.
+ *
+ * Idempotent, and called from `prepareNextMatch` so both the UI and the match
+ * recorder get it without either having to know the other did.
+ */
+export function catchUpInternational(
+  state: CareerState,
+  beforeSlot: number,
+  lookup: TeamLookup,
+): void {
+  const calendar = calendarFor(state);
+  for (let i = 0; i < Math.min(beforeSlot, calendar.length); i++) {
+    const slot = calendar[i]!;
+    if (slot.competition !== INTERNATIONAL || slot.round > GROUP_ROUNDS) continue;
+    if (state.international.groupRoundsPlayed >= slot.round) continue;
+    settleGroupRound(state, slot.round, lookup);
+  }
 }
 
 /** Play out every remaining round in the season (used when a season ends). */
@@ -553,6 +722,14 @@ export interface SeasonEnd {
   wonEurope: boolean;
   /** The competition the club has qualified for NEXT season, if any. */
   nextEuropeanTier: EuropeanTier | null;
+  /** The international season, as it finished. */
+  international: InternationalState;
+  /** International matches he played in it. Zero when he was not picked. */
+  caps: number;
+  /** The nation that won the tournament. */
+  internationalChampion: string | null;
+  /** True when that nation was his. */
+  wonInternational: boolean;
   /**
    * True when nobody wanted him and his club put up a reduced deal rather than
    * leave him without a season to play. The review screen says so plainly.
@@ -583,6 +760,24 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     );
   }
   const cupsWon = CUP_KINDS.filter((kind) => state.cups[kind].winnerId === state.clubId);
+
+  // The international season finishes whether or not he was ever picked. A
+  // tournament the player watched on television still has a winner, and the
+  // world has to be able to say who it was.
+  for (let round = 1; round <= GROUP_ROUNDS; round++) settleGroupRound(state, round, lookup);
+  const knockout = startKnockout(state.international);
+  if (knockout) {
+    finishCup(
+      new Rng(`${state.seed}:s${state.seasonNumber}:international:finish`),
+      knockout,
+      (id) => teamIn(state, lookup, id),
+      playerNation(state),
+    );
+  }
+  const internationalChampion = championNation(state.international);
+  const wonInternational = internationalChampion === playerNation(state);
+  // Read before the summer resets it for next year's tournament.
+  const capsThisSeason = state.seasonCaps;
 
   // The European competition finishes too, whether or not he was still in it.
   if (state.europe) {
@@ -695,6 +890,12 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     cupsWon,
     europeanTier,
     wonEurope,
+    internationalRounds: state.seasonCaps,
+    wonInternational,
+    reachedInternationalFinal:
+      !!knockout &&
+      !wonInternational &&
+      knockout.eliminatedInRound === (knockout.rounds.length || 0),
     reachedEuropeanFinal:
       !!state.europe && state.europe.eliminatedInRound === (state.europe.rounds.length || 0),
     benchmark,
@@ -766,7 +967,14 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   // report the runs that have just been erased from the live state.
   const finishedCups = state.cups;
   const finishedEurope = state.europe;
+  const finishedInternational = state.international;
   state.cups = newCups(nextCountry, nextLeague);
+  // A new tournament, drawn afresh. `advanceSeason` has already moved the
+  // season number on, so this is next year's draw and not a repeat of the one
+  // just played — leaving the old one in place would freeze the groups at
+  // full-time and never offer another international match again.
+  state.international = newInternational(state.seed, state.seasonNumber);
+  state.seasonCaps = 0;
   state.europeanEntries = nextEuropeanEntries;
   state.europe = newEurope(nextEuropeanEntries, state.clubId);
 
@@ -849,6 +1057,10 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     europe: finishedEurope,
     europeanTier,
     wonEurope,
+    international: finishedInternational,
+    caps: capsThisSeason,
+    internationalChampion,
+    wonInternational,
     nextEuropeanTier: europeanTierOf(nextEuropeanEntries, state.clubId),
   };
 }

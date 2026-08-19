@@ -10,6 +10,9 @@ import type { CupKind, CupState } from '../../core/career/cups.ts';
 import { CUP_KINDS, cupName, roundName, totalRounds } from '../../core/career/cups.ts';
 import type { EuropeanState, EuropeanTier } from '../../core/career/europe.ts';
 import { europeanCompetition } from '../../core/career/europe.ts';
+import type { InternationalState } from '../../core/career/international.ts';
+import { KNOCKOUT_ROUNDS } from '../../core/career/international.ts';
+import { countryOfNation, nationId } from '../../core/career/nations.ts';
 import { getTeam } from '../../data/gameData.ts';
 
 /** End-of-season summary, shown once the final fixture has been played. */
@@ -57,6 +60,12 @@ export class SeasonReviewScreen {
       europe: EuropeanState | null;
       /** The competition the club has qualified for NEXT season, if any. */
       nextEuropeanTier: EuropeanTier | null;
+      /** The international season, as it finished. */
+      international: InternationalState;
+      /** International matches he played in it. Zero when he was not picked. */
+      caps: number;
+      /** The player's own nationality, which is who he plays FOR. */
+      nationality: string;
       /**
        * True when the summer opens a window even with no offers, because his
        * contract needs resolving. The continue button reads this so it never
@@ -118,6 +127,7 @@ export class SeasonReviewScreen {
       </div>
 
       ${renderEurope(context.europe, record.clubId, context.nextEuropeanTier)}
+      ${renderInternational(context.international, context.nationality, context.caps)}
       ${renderCupRuns(context.cups, record.clubId, context.countryId)}
       ${renderHonours(context.honours, context.capsGained)}
       ${renderProgress(context.progress)}
@@ -204,6 +214,55 @@ function renderEurope(
         </li>
       </ul>
       ${qualified}
+    </div>`;
+}
+
+/**
+ * The international summer.
+ *
+ * Shown whether or not he was in it, and the difference is the whole card: a
+ * tournament your country won while you watched it is a different sentence to
+ * one you won, and a season with no call-up should say so rather than quietly
+ * omitting the competition.
+ */
+function renderInternational(
+  international: InternationalState,
+  nationality: string,
+  caps: number,
+): string {
+  const knockout = international.knockout;
+  if (!knockout?.winnerId) return '';
+
+  const me = nationId(nationality);
+  const nation = getCountry(nationality);
+  const champion = getCountry(countryOfNation(knockout.winnerId) ?? '');
+  const wonIt = knockout.winnerId === me;
+  const out = knockout.eliminatedInRound;
+
+  let line: string;
+  if (caps === 0) {
+    // He was not picked. The tournament happened anyway — that is the point.
+    line = wonIt
+      ? `${nation.name} won it without you.`
+      : `${champion.name} won it. You were not called up.`;
+  } else if (wonIt) {
+    line = `<strong>Champions with ${nation.name}.</strong>`;
+  } else if (out !== null) {
+    line = `Out in the ${roundName(out, KNOCKOUT_ROUNDS).toLowerCase()}. ${champion.name} won it.`;
+  } else {
+    line = `Out at the group stage. ${champion.name} won it.`;
+  }
+
+  return `
+    <div class="career-card">
+      <h2>International</h2>
+      <ul class="honours-won">
+        <li class="${wonIt && caps > 0 ? 'up' : ''}">
+          <strong>${nation.name}</strong>
+          <span>${line}</span>
+        </li>
+      </ul>
+      ${caps > 0 ? `<p class="hint">${caps} ${caps === 1 ? 'cap' : 'caps'} this season.</p>` : ''}
     </div>`;
 }
 

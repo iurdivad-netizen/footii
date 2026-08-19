@@ -31,6 +31,11 @@ import {
   seasonCalendar,
 } from '../src/core/career/calendar.ts';
 import { EUROPEAN_TIERS } from '../src/core/career/europe.ts';
+import {
+  GROUP_ROUNDS,
+  INTERNATIONAL,
+  KNOCKOUT_ROUNDS,
+} from '../src/core/career/international.ts';
 
 const lookup = (id: string) => getTeam(id);
 const ENGLAND = teamsInCountry('england').map((t) => t.id);
@@ -343,9 +348,29 @@ describe('the season calendar', () => {
     }
   });
 
-  it('is the longest a season can be: league, both cups and one European run', () => {
-    expect(maximumMatches(30)).toBe(42);
+  it('is the longest a season can be: league, both cups, Europe and a country', () => {
+    // 30 league + 4 national cup + 4 league cup + 4 European + 5 international.
+    expect(maximumMatches(30)).toBe(47);
     expect(maximumMatches(30)).toBeLessThan(calendarLength(30));
+  });
+
+  it('plays the international tournament after the last league round', () => {
+    // A season should end on a semi-final for your country, not before one.
+    const lastLeague = calendar.map((s) => s.competition).lastIndexOf('league');
+    const knockoutSlots = calendar
+      .map((slot, index) => ({ slot, index }))
+      .filter(({ slot }) => slot.competition === INTERNATIONAL && slot.round > GROUP_ROUNDS);
+    expect(knockoutSlots).toHaveLength(KNOCKOUT_ROUNDS);
+    for (const { index } of knockoutSlots) expect(index).toBeGreaterThan(lastLeague);
+  });
+
+  it('spreads the group matches through the season, not into the tournament', () => {
+    const groupSlots = calendar
+      .map((slot, index) => ({ slot, index }))
+      .filter(({ slot }) => slot.competition === INTERNATIONAL && slot.round <= GROUP_ROUNDS);
+    expect(groupSlots).toHaveLength(GROUP_ROUNDS);
+    const lastLeague = calendar.map((s) => s.competition).lastIndexOf('league');
+    for (const { index } of groupSlots) expect(index).toBeLessThan(lastLeague);
   });
 
   it('never schedules the two cups in the same slot', () => {
