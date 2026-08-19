@@ -588,6 +588,8 @@ export class App {
           outOfContract: outcome.outOfContract,
           fellBackOnClub: outcome.fellBackOnClub,
           cups: outcome.cups,
+          europe: outcome.europe,
+          nextEuropeanTier: outcome.nextEuropeanTier,
           contractDecision: career.offers.length === 0 && this.summerNeedsADecision(career),
         },
         () => this.afterReview(career, outcome.trainingAwarded, outcome.trainingNotes),

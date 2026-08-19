@@ -8,6 +8,8 @@ import { averageRating } from './seasonStats.ts';
 import type { DivisionMovement } from './divisions.ts';
 import { countryPrestige, getCountry } from './countries.ts';
 import type { CupKind } from './cups.ts';
+import type { EuropeanTier } from './europe.ts';
+import { europeanCompetition } from './europe.ts';
 
 /**
  * AWARDS AND HONOURS
@@ -37,6 +39,9 @@ export type HonourKind =
   | 'title'
   | 'nationalCup'
   | 'leagueCup'
+  | 'europeanTitle'
+  | 'europeanFinal'
+  | 'continentalTreble'
   | 'domesticDouble'
   | 'domesticTreble'
   | 'promotion'
@@ -158,6 +163,12 @@ export interface HonoursInput {
   movement: DivisionMovement | null;
   /** Which of the two domestic knockouts the club won. */
   cupsWon: readonly CupKind[];
+  /** The European competition played this season, if any. */
+  europeanTier: EuropeanTier | null;
+  /** True when the club won it. */
+  wonEurope: boolean;
+  /** True when it reached the final and lost it. */
+  reachedEuropeanFinal: boolean;
   benchmark: LeagueBenchmark;
   /** Matches in a full season, so a part-season cannot win an award. */
   seasonLength: number;
@@ -218,6 +229,32 @@ export function evaluateHonours(input: HonoursInput): HonoursResult {
     );
   }
 
+  // Europe. The biggest thing a club can win, and the only honour on the list
+  // that is not decided inside one country.
+  //
+  // The TIER is what says the club was in it at all, so every European honour
+  // below is gated on it rather than on the result flags alone — a season spent
+  // entirely at home cannot produce a European trophy however the flags read.
+  const wonEurope = !!input.europeanTier && input.wonEurope;
+  if (input.europeanTier) {
+    const competition = europeanCompetition(input.europeanTier);
+    if (wonEurope) {
+      honours.push(
+        at('europeanTitle', competition.name, `You won ${competition.name}.`),
+      );
+    } else if (input.reachedEuropeanFinal) {
+      // Losing a European final is not a trophy, and it is still the second
+      // best season all but a handful of footballers ever have.
+      honours.push(
+        at(
+          'europeanFinal',
+          `${competition.short} finalist`,
+          `You reached the final of ${competition.name}.`,
+        ),
+      );
+    }
+  }
+
   // A domestic double or treble is recorded as its own thing rather than left
   // to be inferred from three separate lines, because that is how football
   // talks about it and because it is the rarest thing on the list.
@@ -228,6 +265,15 @@ export function evaluateHonours(input: HonoursInput): HonoursResult {
     );
   } else if (trophies === 2) {
     honours.push(at('domesticDouble', 'The double', `Two of the three domestic trophies.`));
+  }
+
+  // League, a domestic cup and Europe in one season. The rarest line on the
+  // list by a distance, and it gets its own name for the same reason the
+  // domestic treble does.
+  if (wonEurope && input.position === 1 && input.cupsWon.length >= 1) {
+    honours.push(
+      at('continentalTreble', 'The continental treble', 'League, cup and Europe in one season.'),
+    );
   }
 
   if (input.movement === 'promoted') {

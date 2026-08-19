@@ -18,6 +18,7 @@ import { allClubIds, locateClub } from '../src/core/career/countries.ts';
 import { CUP_KINDS } from '../src/core/career/cups.ts';
 import { maximumMatches } from '../src/core/career/calendar.ts';
 import { createMatchStats } from '../src/core/match/matchStats.ts';
+import { lifetimeTotals } from '../src/core/career/records.ts';
 
 /**
  * LONG-CAREER REGRESSION
@@ -304,6 +305,41 @@ describe('a whole career, played out', () => {
     const played = state.table.map((row) => row.played);
     expect(new Set(played).size).toBe(1);
     expect(played[0]).toBe(30);
+  });
+
+  it('judges a season record on LEAGUE goals, not on everything he played', () => {
+    // The star scores in every match of every competition. A season is 30 league
+    // matches plus up to 12 cup and European ties, so counting the lot would put
+    // "best season" well above 30 — and a twenty-goal season would stop meaning
+    // the same thing in a career with a long cup run as in one without.
+    expect(star.state.records.bestSeasonGoals).toBe(30);
+    expect(star.state.records.tenGoalSeasons).toBe(SEASONS);
+    expect(star.state.records.twentyGoalSeasons).toBe(SEASONS);
+    // ...while the record book as a whole still counts every competition.
+    expect(lifetimeTotals(star.state.records).goals).toBeGreaterThan(30 * SEASONS);
+  });
+
+  it('splits the record book by competition, adding back up to the whole career', () => {
+    for (const career of [star, journeyman]) {
+      const total = lifetimeTotals(career.state.records);
+      const played = career.seasons.reduce((sum, s) => sum + s.record.stats.matches, 0);
+      // Every match in every competition is in the book exactly once. The record
+      // book is the only place a cup or European appearance is counted at all.
+      expect(total.matches).toBe(played);
+      expect(total.goals).toBe(
+        career.seasons.reduce((sum, s) => sum + s.record.stats.goals, 0),
+      );
+      expect(career.state.records.byCompetition.league!.matches).toBe(30 * SEASONS);
+    }
+  });
+
+  it('never lets a run of matches span a summer', () => {
+    // A season is at most 42 matches, so a longer run could only have been
+    // carried across a close season — or a transfer.
+    for (const career of [star, journeyman]) {
+      expect(career.state.records.scoringStreak.longest).toBeLessThanOrEqual(maximumMatches(30));
+      expect(career.state.records.unbeatenStreak.longest).toBeLessThanOrEqual(maximumMatches(30));
+    }
   });
 
   it('records a season of history for every season played', () => {

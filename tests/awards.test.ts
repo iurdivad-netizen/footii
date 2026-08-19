@@ -114,6 +114,9 @@ describe('team honours', () => {
     division: 1,
     countryId: 'england',
     cupsWon: [],
+    europeanTier: null,
+    wonEurope: false,
+    reachedEuropeanFinal: false,
     benchmark,
     seasonLength: SEASON_LENGTH,
   };
@@ -158,6 +161,100 @@ describe('team honours', () => {
     });
     expect(honourKinds(result.honours)).toContain('nationalCup');
     expect(honourKinds(result.honours)).toContain('relegation');
+  });
+
+  it('records a European title, named after the competition that was won', () => {
+    const result = evaluateHonours({
+      ...base,
+      position: 6,
+      movement: null,
+      europeanTier: 'championsLeague',
+      wonEurope: true,
+    });
+    expect(honourKinds(result.honours)).toContain('europeanTitle');
+    expect(result.honours.find((h) => h.kind === 'europeanTitle')!.label).toContain(
+      'Champions League',
+    );
+  });
+
+  it('records losing a European final, but not as a trophy', () => {
+    const result = evaluateHonours({
+      ...base,
+      position: 6,
+      movement: null,
+      europeanTier: 'europaLeague',
+      wonEurope: false,
+      reachedEuropeanFinal: true,
+    });
+    expect(honourKinds(result.honours)).toContain('europeanFinal');
+    expect(honourKinds(result.honours)).not.toContain('europeanTitle');
+  });
+
+  it('records nothing for a European run that ended before the final', () => {
+    const result = evaluateHonours({
+      ...base,
+      position: 6,
+      movement: null,
+      europeanTier: 'conferenceLeague',
+      wonEurope: false,
+      reachedEuropeanFinal: false,
+    });
+    expect(honourKinds(result.honours)).not.toContain('europeanTitle');
+    expect(honourKinds(result.honours)).not.toContain('europeanFinal');
+  });
+
+  it('cannot win Europe without having been in it', () => {
+    // The tier is what says he played in it at all; a stray flag must not
+    // conjure a trophy out of a season spent entirely at home.
+    const result = evaluateHonours({
+      ...base,
+      position: 1,
+      movement: null,
+      cupsWon: ['nationalCup'],
+      europeanTier: null,
+      wonEurope: true,
+      reachedEuropeanFinal: true,
+    });
+    expect(honourKinds(result.honours)).not.toContain('europeanTitle');
+    expect(honourKinds(result.honours)).not.toContain('europeanFinal');
+    // And it cannot smuggle one in through the treble either.
+    expect(honourKinds(result.honours)).not.toContain('continentalTreble');
+  });
+
+  it('names a continental treble, the rarest line on the list', () => {
+    const result = evaluateHonours({
+      ...base,
+      position: 1,
+      movement: null,
+      cupsWon: ['nationalCup'],
+      europeanTier: 'championsLeague',
+      wonEurope: true,
+    });
+    expect(honourKinds(result.honours)).toContain('continentalTreble');
+    expect(honourKinds(result.honours)).toContain('europeanTitle');
+    expect(honourKinds(result.honours)).toContain('title');
+  });
+
+  it('does not call a European title alone a treble', () => {
+    const noLeague = evaluateHonours({
+      ...base,
+      position: 4,
+      movement: null,
+      cupsWon: ['nationalCup'],
+      europeanTier: 'championsLeague',
+      wonEurope: true,
+    });
+    expect(honourKinds(noLeague.honours)).not.toContain('continentalTreble');
+
+    const noCup = evaluateHonours({
+      ...base,
+      position: 1,
+      movement: null,
+      cupsWon: [],
+      europeanTier: 'championsLeague',
+      wonEurope: true,
+    });
+    expect(honourKinds(noCup.honours)).not.toContain('continentalTreble');
   });
 
   it('names a double and a treble rather than leaving them to be inferred', () => {
@@ -206,6 +303,9 @@ describe('individual honours', () => {
     position: 1,
     movement: null,
     cupsWon: [],
+    europeanTier: null,
+    wonEurope: false,
+    reachedEuropeanFinal: false,
     benchmark,
     seasonLength: SEASON_LENGTH,
   };
@@ -317,6 +417,9 @@ describe('international football', () => {
       division: 1,
       countryId: 'england',
       cupsWon: [],
+      europeanTier: null,
+      wonEurope: false,
+      reachedEuropeanFinal: false,
       position: 3,
       movement: null,
       benchmark,
@@ -339,6 +442,9 @@ describe('international football', () => {
       division: 1,
       countryId: 'england',
       cupsWon: [],
+      europeanTier: null,
+      wonEurope: false,
+      reachedEuropeanFinal: false,
       position: 3,
       movement: null,
       benchmark,

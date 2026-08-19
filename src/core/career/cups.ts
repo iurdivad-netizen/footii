@@ -34,6 +34,17 @@ export type CupKind = 'nationalCup' | 'leagueCup';
 
 export const CUP_KINDS: readonly CupKind[] = ['nationalCup', 'leagueCup'];
 
+/**
+ * Any competition decided by a bracket.
+ *
+ * The domestic cups and the three European competitions are the same object:
+ * sixteen clubs, an open draw, a tie that cannot end level, one club left. The
+ * only differences are who enters and what it is called, so the model is
+ * generic over its id rather than duplicated — every fix to the draw or the
+ * shootout applies to all five competitions at once.
+ */
+export type KnockoutId = string;
+
 /** How many rounds a sixteen-club knockout takes. */
 export const CUP_ROUNDS = 4;
 
@@ -96,8 +107,12 @@ export interface CupRound {
   ties: CupTie[];
 }
 
-export interface CupState {
-  kind: CupKind;
+export interface CupState<K extends KnockoutId = CupKind> {
+  kind: K;
+  /**
+   * Where it is played. A country id for a domestic cup; for a European
+   * competition there is no single country, so it carries the tier's own id.
+   */
   countryId: string;
   /** Rounds drawn so far, oldest first. A round is drawn when it is reached. */
   rounds: CupRound[];
@@ -112,7 +127,11 @@ export interface CupState {
   eliminatedInRound: number | null;
 }
 
-export function createCup(kind: CupKind, countryId: string, clubIds: readonly string[]): CupState {
+export function createCup<K extends KnockoutId>(
+  kind: K,
+  countryId: string,
+  clubIds: readonly string[],
+): CupState<K> {
   return {
     kind,
     countryId,
@@ -124,7 +143,7 @@ export function createCup(kind: CupKind, countryId: string, clubIds: readonly st
 }
 
 /** How many rounds this cup takes, given how many clubs entered it. */
-export function totalRounds(cup: CupState): number {
+export function totalRounds(cup: CupState<KnockoutId>): number {
   const entered = cup.rounds[0]?.ties.length ? cup.rounds[0].ties.length * 2 : cup.survivors.length;
   return Math.max(1, Math.ceil(Math.log2(Math.max(2, entered))));
 }
@@ -140,7 +159,7 @@ export function totalRounds(cup: CupState): number {
  * sixteen clubs, but a cup that silently lost a team on bad data would be worse
  * than one that carried somebody through.
  */
-export function drawRound(rng: Rng, cup: CupState): CupRound {
+export function drawRound(rng: Rng, cup: CupState<KnockoutId>): CupRound {
   const order = rng.shuffle(cup.survivors);
   const ties: CupTie[] = [];
 
@@ -200,7 +219,7 @@ export function opponentIn(tie: CupTie, clubId: string): string {
 
 export interface CupProgressInput {
   rng: Rng;
-  cup: CupState;
+  cup: CupState<KnockoutId>;
   lookup: (id: string) => Team;
   /**
    * The player's club. Its tie is LEFT UNRESOLVED for the caller to play, and
@@ -241,7 +260,7 @@ export function openRound(input: CupProgressInput): CupRound {
  */
 export function applyPlayerResult(
   rng: Rng,
-  cup: CupState,
+  cup: CupState<KnockoutId>,
   input: { clubId: string; goalsFor: number; goalsAgainst: number; lookup: (id: string) => Team },
 ): CupTie {
   const round = cup.rounds[cup.rounds.length - 1];
@@ -277,7 +296,7 @@ export function applyPlayerResult(
  * Close a round: work out who survived, and note if the player went out.
  * Once one club is left, it has won the cup.
  */
-export function closeRound(cup: CupState, playerClubId?: string): CupState {
+export function closeRound<K extends KnockoutId>(cup: CupState<K>, playerClubId?: string): CupState<K> {
   const round = cup.rounds[cup.rounds.length - 1];
   if (!round) return cup;
   if (round.ties.some((tie) => !tie.winnerId)) {
@@ -297,7 +316,7 @@ export function closeRound(cup: CupState, playerClubId?: string): CupState {
 }
 
 /** Is this club still in it? */
-export function stillIn(cup: CupState, clubId: string): boolean {
+export function stillIn(cup: CupState<KnockoutId>, clubId: string): boolean {
   return cup.winnerId === null ? cup.survivors.includes(clubId) : cup.winnerId === clubId;
 }
 
@@ -308,12 +327,12 @@ export function stillIn(cup: CupState, clubId: string): boolean {
  * and still produces a winner, because "who won the cup you went out of" is
  * part of knowing where you stand.
  */
-export function finishCup(
+export function finishCup<K extends KnockoutId>(
   rng: Rng,
-  cup: CupState,
+  cup: CupState<K>,
   lookup: (id: string) => Team,
   playerClubId?: string,
-): CupState {
+): CupState<K> {
   let guard = 0;
   while (cup.winnerId === null && guard++ < 16) {
     const last = cup.rounds[cup.rounds.length - 1];

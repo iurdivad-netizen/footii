@@ -12,6 +12,7 @@ import {
   advanceSeason,
   applyMatchToCareer,
   fixturesFor,
+  knockoutFor,
   nextFixture,
   nextMatch,
   seasonComplete,
@@ -47,6 +48,14 @@ import {
   stillIn,
 } from '../core/career/cups.ts';
 import type { CupKind, CupState } from '../core/career/cups.ts';
+import {
+  europeanTierOf,
+  fieldFor,
+  qualifyForEurope,
+  visibilityOf,
+} from '../core/career/europe.ts';
+import type { EuropeanEntries, EuropeanState, EuropeanTier } from '../core/career/europe.ts';
+import { createCareerRecords, recordSeason } from '../core/career/records.ts';
 import type { DivisionMovement } from '../core/career/divisions.ts';
 import {
   allClubIds,
@@ -59,6 +68,7 @@ import {
 import { applyStrength, driftSeason, initialStrengths } from '../core/career/clubDrift.ts';
 import { evaluateHonours, leagueBenchmark } from '../core/career/awards.ts';
 import type { Honour, LeagueBenchmark } from '../core/career/awards.ts';
+import type { CompetitionKind } from '../core/career/calendar.ts';
 import type { Fixture, FixtureResult, TableRow } from '../core/career/league.ts';
 import {
   applyResult,
@@ -270,7 +280,29 @@ export function startCareer(options: StartCareerOptions): CareerState {
     careerEarnings: 0,
     lastResult: null,
     cups: newCups(countryId, leagueTeamIds),
+    // Nobody is in Europe in season one: qualification is decided by a season
+    // that has not been played. The first European night of a career is earned.
+    europe: null,
+    europeanEntries: {},
+    records: createCareerRecords(),
   };
+}
+
+/**
+ * Set up the player's European competition for a season, if he is in one.
+ *
+ * The field is every club that qualified for that tier, from every country, so
+ * the draw is the one part of the game where a Scottish club and a Spanish one
+ * are in the same hat.
+ */
+function newEurope(entries: EuropeanEntries, clubId: string): EuropeanState | null {
+  const tier = europeanTierOf(entries, clubId);
+  if (!tier) return null;
+  const field = fieldFor(entries, tier);
+  // A field of one cannot be drawn against anybody. Never happens with a full
+  // world, but a partial one must degrade to "no Europe" rather than to a crash.
+  if (field.length < 2) return null;
+  return createCup(tier, tier, field);
 }
 
 /**
@@ -402,7 +434,7 @@ export function recordPlayerMatch(
     goalsAgainst: input.opponentScore,
     coaching: coachingQuality(club),
     clubStature: clubStature(club),
-    divisionPrestige: countryPrestige(state.countryId),
+    divisionPrestige: visibilityOf(state.countryId, state.europe?.kind ?? null),
     fitnessAtEnd: input.fitnessAtEnd,
     competition: scheduled.competition,
     slotIndex: scheduled.slotIndex,
@@ -410,7 +442,7 @@ export function recordPlayerMatch(
 
   if (leagueFixture) {
     simulateRound(state, leagueFixture.round, lookup);
-  } else if (scheduled.competition !== 'league') {
+  } else {
     settlePlayerTie(state, scheduled.competition, input, lookup);
   }
 
@@ -426,11 +458,12 @@ export function recordPlayerMatch(
  */
 function settlePlayerTie(
   state: CareerState,
-  kind: CupKind,
+  kind: CompetitionKind,
   input: PlayedMatchInput,
   lookup: TeamLookup,
 ): void {
-  const cup = state.cups[kind];
+  const cup = knockoutFor(state, kind);
+  if (!cup) return;
   const rng = new Rng(`${state.seed}:s${state.seasonNumber}:${kind}:r${cup.rounds.length}:result`);
   applyPlayerResult(rng, cup, {
     clubId: state.clubId,
@@ -455,8 +488,8 @@ export function prepareNextMatch(state: CareerState, lookup: TeamLookup): void {
   const scheduled = nextMatch(state);
   if (!scheduled || scheduled.competition === 'league') return;
 
-  const cup = state.cups[scheduled.competition];
-  if (cup.rounds.length >= scheduled.round) return;
+  const cup = knockoutFor(state, scheduled.competition);
+  if (!cup || cup.rounds.length >= scheduled.round) return;
 
   const rng = new Rng(`${state.seed}:s${state.seasonNumber}:${scheduled.competition}:r${scheduled.round}`);
   openRound({
@@ -512,6 +545,14 @@ export interface SeasonEnd {
   cups: Record<CupKind, CupState>;
   /** Which of them the player's club won. */
   cupsWon: CupKind[];
+  /** The European competition played this season, as it finished. */
+  europe: EuropeanState | null;
+  /** Which competition it was, if any. */
+  europeanTier: EuropeanTier | null;
+  /** True when the club won it. */
+  wonEurope: boolean;
+  /** The competition the club has qualified for NEXT season, if any. */
+  nextEuropeanTier: EuropeanTier | null;
   /**
    * True when nobody wanted him and his club put up a reduced deal rather than
    * leave him without a season to play. The review screen says so plainly.
@@ -542,6 +583,18 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     );
   }
   const cupsWon = CUP_KINDS.filter((kind) => state.cups[kind].winnerId === state.clubId);
+
+  // The European competition finishes too, whether or not he was still in it.
+  if (state.europe) {
+    finishCup(
+      new Rng(`${state.seed}:s${state.seasonNumber}:europe:finish`),
+      state.europe,
+      (id) => clubIn(state, lookup, id),
+      state.clubId,
+    );
+  }
+  const europeanTier = state.europe?.kind ?? null;
+  const wonEurope = !!state.europe && state.europe.winnerId === state.clubId;
 
   const position = tablePosition(state.table, state.clubId);
   const champion = sortTable(state.table)[0]?.teamId ?? state.clubId;
@@ -574,14 +627,16 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   const club = clubIn(state, lookup, state.clubId);
   const division = state.division;
   const countryId = state.countryId;
-  const prestige = countryPrestige(countryId);
   const reputation = settleReputation(state.player, {
     stats: state.seasonStats,
     leaguePosition: position,
     leagueSize: state.leagueTeamIds.length,
     clubStature: clubStature(club),
     seasonLength: fixturesFor(state, state.clubId).length,
-    divisionPrestige: prestige,
+    // A European run is seen by more people than the league it came from, so a
+    // player at a small club who reaches the Champions League is genuinely more
+    // visible than his league alone would make him.
+    divisionPrestige: visibilityOf(countryId, state.europe?.kind ?? null),
   });
 
   // The player's own country's pyramid moves before anything reads a club's
@@ -601,19 +656,22 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   // have its clubs frozen out of drift. Their tables are what drift reads, and
   // — from the next stage — what European places are awarded on.
   const settled: TableRow[][] = [...outcome.tables];
+  const backgroundTables = new Map<string, TableRow[]>();
   for (const other of playedCountries(state.leagues)) {
     if (other === countryId) continue;
     const pyramid = state.leagues[other] ?? [];
     for (let tier = 1; tier <= pyramid.length; tier++) {
-      settled.push(
-        simulateDivisionThrough(
-          leagueRng(state, other, tier),
-          leagueMembers(state.leagues, other, tier).map((id) => clubIn(state, lookup, id)),
-          Number.POSITIVE_INFINITY,
-        ),
+      const table = simulateDivisionThrough(
+        leagueRng(state, other, tier),
+        leagueMembers(state.leagues, other, tier).map((id) => clubIn(state, lookup, id)),
+        Number.POSITIVE_INFINITY,
       );
+      settled.push(table);
+      if (tier === 1) backgroundTables.set(other, table);
     }
   }
+  /** A country's finished top-flight table, already computed above. */
+  const backgroundTable = (id: string): TableRow[] => backgroundTables.get(id) ?? [];
 
   // Awards are judged on the division just played, against a bar inferred from
   // the football that happened in it (see core/career/awards.ts).
@@ -635,6 +693,10 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     position,
     movement,
     cupsWon,
+    europeanTier,
+    wonEurope,
+    reachedEuropeanFinal:
+      !!state.europe && state.europe.eliminatedInRound === (state.europe.rounds.length || 0),
     benchmark,
     seasonLength: fixturesFor(state, state.clubId).length,
   });
@@ -655,11 +717,39 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     lookup,
   });
 
+  // Who plays in Europe next season, decided by the season that has just
+  // finished everywhere. This is the loop Europe exists to close: where your
+  // club finished in May is worth something concrete in September.
+  const finalTables: Record<string, TableRow[]> = {};
+  const nationalCupWinners: Record<string, string | null> = {};
+  const leagueCupWinners: Record<string, string | null> = {};
+  for (const id of playedCountries(state.leagues)) {
+    // Always the TOP FLIGHT's table. Europe is entered from the first division
+    // of a country, never from whichever one the player happens to be in — a
+    // distinction that does not show while every country is one tier deep, and
+    // would silently award European places off a second-division table the
+    // moment one exists.
+    finalTables[id] = id === countryId ? outcome.tables[0] ?? [] : backgroundTable(id);
+    nationalCupWinners[id] = cupWinner(state, 'nationalCup', id, lookup);
+    leagueCupWinners[id] = cupWinner(state, 'leagueCup', id, lookup);
+  }
+  const nextEuropeanEntries = qualifyForEurope({
+    tables: finalTables,
+    nationalCupWinners,
+    leagueCupWinners,
+  });
+
   state.leagues = { ...state.leagues, [countryId]: outcome.divisions };
   const located = locateClub(state.leagues, state.clubId);
   const nextCountry = located?.countryId ?? countryId;
   const nextDivision = located?.division ?? division;
   const nextLeague = leagueMembers(state.leagues, nextCountry, nextDivision);
+
+  // Taken before the season is advanced, which resets both ledgers. The season
+  // record is judged on LEAGUE goals — a twenty-goal season has to mean the same
+  // thing in every career, and a cup run is a different achievement counted
+  // separately in the record book's per-competition split.
+  const leagueStats = state.leagueStats;
 
   const rng = new Rng(`${state.seed}:s${state.seasonNumber}:end`);
   const nextRng = new Rng(`${state.seed}:season:${state.seasonNumber + 1}`);
@@ -675,7 +765,12 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   // The finished ones are handed back on the season end so the review can
   // report the runs that have just been erased from the live state.
   const finishedCups = state.cups;
+  const finishedEurope = state.europe;
   state.cups = newCups(nextCountry, nextLeague);
+  state.europeanEntries = nextEuropeanEntries;
+  state.europe = newEurope(nextEuropeanEntries, state.clubId);
+
+  recordSeason(state.records, leagueStats);
 
   // Unspent points are never banked; a fresh award replaces whatever was left.
   state.trainingPoints = award.points;
@@ -751,6 +846,10 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     fellBackOnClub,
     cups: finishedCups,
     cupsWon,
+    europe: finishedEurope,
+    europeanTier,
+    wonEurope,
+    nextEuropeanTier: europeanTierOf(nextEuropeanEntries, state.clubId),
   };
 }
 
@@ -841,6 +940,11 @@ export function acceptOffer(
     prestige,
     countryId !== record.fromCountryId,
   );
+  // Europe follows the CLUB, not the player: he inherits whatever European
+  // place his new club earned last season, and loses whatever his old one had.
+  // Signing for a club that qualified is one of the strongest reasons to move.
+  state.europe = newEurope(state.europeanEntries, offer.clubId);
+
   state.contract = {
     clubId: offer.clubId,
     wage: offer.wage,

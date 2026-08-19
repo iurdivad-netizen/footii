@@ -1,5 +1,7 @@
 import type { CupKind } from './cups.ts';
 import { CUP_ROUNDS } from './cups.ts';
+import type { EuropeanTier } from './europe.ts';
+import { EUROPEAN_TIERS, europeanCompetition, isEuropeanTier } from './europe.ts';
 
 /**
  * THE SEASON CALENDAR
@@ -27,7 +29,7 @@ import { CUP_ROUNDS } from './cups.ts';
  * near the end — and it means a career can be compared season to season.
  */
 
-export type CompetitionKind = 'league' | CupKind;
+export type CompetitionKind = 'league' | CupKind | EuropeanTier;
 
 export interface CalendarSlot {
   competition: CompetitionKind;
@@ -46,6 +48,15 @@ export interface CalendarSlot {
 export const NATIONAL_CUP_SCHEDULE: readonly number[] = [5, 11, 19, 26];
 export const LEAGUE_CUP_SCHEDULE: readonly number[] = [8, 14, 22, 28];
 
+/**
+ * European nights, on their own dates.
+ *
+ * Interleaved with both domestic cups so nothing collides, and the last of them
+ * sits before the final league round: a season should not end on a European
+ * final the player may not even be in.
+ */
+export const EUROPEAN_SCHEDULE: readonly number[] = [4, 12, 18, 24];
+
 export function cupSchedule(kind: CupKind): readonly number[] {
   return kind === 'nationalCup' ? NATIONAL_CUP_SCHEDULE : LEAGUE_CUP_SCHEDULE;
 }
@@ -62,8 +73,7 @@ export function seasonCalendar(leagueRounds: number): CalendarSlot[] {
 
   // Where each cup round falls, clamped so a short league cannot lose a round.
   const placed = new Map<number, CalendarSlot[]>();
-  const place = (kind: CupKind) => {
-    const schedule = cupSchedule(kind);
+  const place = (kind: CompetitionKind, schedule: readonly number[]) => {
     for (let i = 0; i < CUP_ROUNDS; i++) {
       const preferred = schedule[i] ?? leagueRounds;
       const after = Math.min(preferred, Math.max(1, leagueRounds - (CUP_ROUNDS - 1 - i)));
@@ -72,8 +82,11 @@ export function seasonCalendar(leagueRounds: number): CalendarSlot[] {
       placed.set(after, list);
     }
   };
-  place('nationalCup');
-  place('leagueCup');
+  place('nationalCup', NATIONAL_CUP_SCHEDULE);
+  place('leagueCup', LEAGUE_CUP_SCHEDULE);
+  // One set of European dates, shared by all three competitions: a club is only
+  // ever in one of them, so they can never collide with each other.
+  for (const tier of EUROPEAN_TIERS) place(tier, EUROPEAN_SCHEDULE);
 
   for (let round = 1; round <= leagueRounds; round++) {
     slots.push({ competition: 'league', round });
@@ -83,17 +96,42 @@ export function seasonCalendar(leagueRounds: number): CalendarSlot[] {
   return slots;
 }
 
-/** How many matches a season could contain at most, if every cup run went all the way. */
+/**
+ * How many matches a season could contain at most: league, both cups, and ONE
+ * European competition.
+ *
+ * NOT the length of the calendar. The calendar carries a slot for each of the
+ * three European tiers on the same dates, because it is a pure function of the
+ * league's length and cannot know which one the club is in. At most one of
+ * those three is ever playable, so the calendar is longer than any season can
+ * be — in the same way it carries cup rounds for a cup you may go out of.
+ */
 export function maximumMatches(leagueRounds: number): number {
-  return leagueRounds + CUP_ROUNDS * 2;
+  return leagueRounds + CUP_ROUNDS * 3;
+}
+
+/** How many slots the calendar holds, playable or not. */
+export function calendarLength(leagueRounds: number): number {
+  return leagueRounds + CUP_ROUNDS * (2 + EUROPEAN_TIERS.length);
 }
 
 /** Human label for a competition, without needing a country. */
 export function competitionLabel(competition: CompetitionKind): string {
   if (competition === 'league') return 'League';
-  return competition === 'nationalCup' ? 'Cup' : 'League Cup';
+  if (competition === 'nationalCup') return 'Cup';
+  if (competition === 'leagueCup') return 'League Cup';
+  return europeanCompetition(competition).short;
+}
+
+/** Anything decided by a bracket rather than a table. */
+export function isKnockout(competition: CompetitionKind): boolean {
+  return competition !== 'league';
 }
 
 export function isCup(competition: CompetitionKind): competition is CupKind {
-  return competition !== 'league';
+  return competition === 'nationalCup' || competition === 'leagueCup';
+}
+
+export function isEuropean(competition: CompetitionKind): competition is EuropeanTier {
+  return isEuropeanTier(competition);
 }

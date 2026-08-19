@@ -1,12 +1,15 @@
 import { ATTRIBUTE_LABELS } from '../../core/player/attributes.ts';
 import type { AttributeKey } from '../../core/player/attributes.ts';
+import type { CompetitionKind } from '../../core/career/calendar.ts';
 import { currentAbility } from '../../core/player/player.ts';
 import { positionLabel } from '../../core/player/positions.ts';
 import type { CareerState } from '../../core/career/career.ts';
 import { matchesRemaining, nextMatch, seasonComplete } from '../../core/career/career.ts';
 import { CUP_KINDS, cupName, roundName, stillIn, totalRounds } from '../../core/career/cups.ts';
-import { competitionLabel } from '../../core/career/calendar.ts';
-import { goalDifference, sortTable } from '../../core/career/league.ts';
+import { competitionLabel, isEuropean } from '../../core/career/calendar.ts';
+import { europeanCompetition, placesDescription, tierForPosition } from '../../core/career/europe.ts';
+import { milestones } from '../../core/career/records.ts';
+import { goalDifference, sortTable, tablePosition } from '../../core/career/league.ts';
 import { averageRating } from '../../core/career/seasonStats.ts';
 import { reputationTier } from '../../core/career/reputation.ts';
 import { SQUAD_ROLE_LABELS, marketValue, scoutingInterest } from '../../core/career/transfers.ts';
@@ -118,7 +121,7 @@ export class CareerScreen {
                    ${
                      scheduled!.competition === 'league'
                        ? `${country.league} · round ${scheduled!.round}`
-                       : `${cupName(scheduled!.competition, this.state.countryId)} · ${scheduled!.roundLabel}`
+                       : `${this.competitionName(scheduled!.competition)} · ${scheduled!.roundLabel}`
                    }
                  </p>
                  <p class="fixture">
@@ -158,6 +161,7 @@ export class CareerScreen {
 
         ${this.renderContract()}
         ${this.renderCups()}
+        ${this.renderEurope()}
 
         <div class="career-card">
           <h2>Season ${this.state.seasonNumber}</h2>
@@ -185,6 +189,7 @@ export class CareerScreen {
       </div>
 
       ${this.renderHonours()}
+      ${this.renderRecords()}
       ${this.renderHistory()}
       ${this.renderTransfers()}
 
@@ -332,6 +337,83 @@ export class CareerScreen {
     return `<h3 class="watch-heading">Scouts watching</h3><ul class="watch-list">${items}</ul>`;
   }
 
+  /** What a competition is called, wherever it is played. */
+  private competitionName(competition: CompetitionKind): string {
+    if (competition === 'league') return getCountry(this.state.countryId).league;
+    if (isEuropean(competition)) return europeanCompetition(competition).name;
+    return cupName(competition, this.state.countryId);
+  }
+
+  /**
+   * The European run, and — when there is not one — what it would take to get
+   * there.
+   *
+   * The second half matters more than the first. A club outside Europe needs to
+   * know that finishing fourth instead of fifth is worth a season of European
+   * football, because that is the whole reason a mid-table league position is
+   * worth caring about at all.
+   */
+  private renderEurope(): string {
+    const europe = this.state.europe;
+    const position = tablePosition(this.state.table, this.state.clubId);
+
+    if (!europe) {
+      // Before a ball is kicked the table is every club on nothing, so a
+      // position read off it is an artefact of the ordering rather than form.
+      // Say what the places ARE instead of pretending to project a season.
+      const played = this.state.table.find((row) => row.teamId === this.state.clubId)?.played ?? 0;
+      const target = tierForPosition(this.state.countryId, Math.max(1, position));
+      const hint =
+        played === 0
+          ? placesDescription(this.state.countryId)
+          : target
+            ? `On current form you would qualify for ${europeanCompetition(target).name} next season.`
+            : `Finish higher, or win a cup, and you are in Europe next season.`;
+      return `
+        <div class="career-card">
+          <h2>Europe</h2>
+          <p class="hint">Not in Europe this season. ${hint}</p>
+        </div>`;
+    }
+
+    const competition = europeanCompetition(europe.kind);
+    const rounds = totalRounds(europe);
+    const reached = europe.rounds.length;
+
+    // The survivor count is only shown while the club is still in it. Once the
+    // player is out, the rest of the competition is not played until the season
+    // is resolved, so the count would sit frozen at whatever it was on the night
+    // he went out — a stale number reading as if nothing had happened since.
+    let status: string;
+    let tone = '';
+    if (europe.winnerId === this.state.clubId) {
+      status = 'Champions of Europe';
+      tone = 'won';
+    } else if (europe.eliminatedInRound !== null) {
+      status = `Out in the ${roundName(europe.eliminatedInRound, rounds).toLowerCase()}`;
+      tone = 'out';
+    } else if (reached === 0) {
+      status = 'Not started';
+    } else {
+      status = `In the ${roundName(reached, rounds).toLowerCase()}`;
+      tone = 'alive';
+    }
+
+    return `
+        <div class="career-card european-card">
+          <h2>${competition.name}</h2>
+          <dl class="stat-list">
+            <div class="cup-row ${tone}"><dt>Progress</dt><dd>${status}</dd></div>
+            ${
+              tone === 'alive'
+                ? `<div><dt>Clubs</dt><dd>${europe.survivors.length} still in</dd></div>`
+                : ''
+            }
+          </dl>
+          <p class="hint">Sixteen clubs from eight countries. Seen by more people than your league.</p>
+        </div>`;
+  }
+
   /**
    * How the two knockouts are going.
    *
@@ -451,6 +533,37 @@ export class CareerScreen {
           <thead><tr><th>S</th><th>Club</th><th>Won</th></tr></thead>
           <tbody>${recent}</tbody>
         </table>
+      </div>`;
+  }
+
+  /**
+   * The record book.
+   *
+   * Totals cannot say what kind of footballer somebody was — two players with
+   * the same goals are different players if one of them scored three in a match
+   * eleven times. These are the peaks and the runs, and nothing here can be
+   * recomputed from a season's statistics afterwards.
+   */
+  private renderRecords(): string {
+    // `records` is required on the career and filled by the migration, so a
+    // save that reaches here always has one; an empty book is the real case,
+    // and it means a career that has not yet done anything worth listing.
+    const list = milestones(this.state.records);
+    if (list.length === 0) return '';
+
+    const cells = list
+      .map(
+        (entry) => `<div class="record-tile">
+            <span class="record-value">${entry.value}</span>
+            <span class="record-label">${entry.label}</span>
+            <span class="record-note">${entry.note}</span>
+          </div>`,
+      )
+      .join('');
+
+    return `<div class="career-card">
+        <h2>Records</h2>
+        <div class="record-grid">${cells}</div>
       </div>`;
   }
 
