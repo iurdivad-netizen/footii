@@ -269,6 +269,48 @@ describe('save migration', () => {
     expect(migrated.careerState!.records.byCompetition.championsLeague?.goals).toBe(3);
   });
 
+  it('joins a v8 career to international football without inventing a past', () => {
+    const state = career();
+    state.seasonNumber = 4;
+    state.calendarIndex = 12;
+    state.player.caps = 9;
+
+    const legacy = { ...state } as Record<string, unknown>;
+    delete legacy.international;
+    delete legacy.seasonCaps;
+
+    const migrated = migrate({ version: 8, career: emptyCareer(), careerState: legacy } as never)!;
+    const restored = migrated.careerState!;
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    // A tournament is drawn for the season he is actually in, with nothing yet
+    // played — the group slots he has already walked past are settled by the
+    // ordinary catch-up the moment the career is played on.
+    expect(restored.international.fixtures.length).toBeGreaterThan(0);
+    expect(restored.international.results).toEqual([]);
+    expect(restored.international.knockout).toBeNull();
+    expect(restored.international.groupRoundsPlayed).toBe(0);
+    expect(restored.seasonCaps).toBe(0);
+
+    // Caps already earned are KEPT. They were awarded under the old model — a
+    // number inferred from fame — but they are caps the player was told he had.
+    expect(restored.player.caps).toBe(9);
+    // The season in progress is untouched.
+    expect(restored.calendarIndex).toBe(12);
+  });
+
+  it('drops a v8 career with no tournament, since the calendar walks one', () => {
+    const state = career();
+    const broken = { ...state, international: undefined } as Record<string, unknown>;
+    expect(isUsableCareer(broken)).toBe(false);
+  });
+
+  it('drops a career whose tournament has no fixtures to play', () => {
+    const state = career();
+    const broken = { ...state, international: {} } as Record<string, unknown>;
+    expect(isUsableCareer(broken)).toBe(false);
+  });
+
   it('drops a v7 career with no record book, since the hub reads it on every render', () => {
     const state = career();
     const broken = { ...state, records: undefined } as Record<string, unknown>;

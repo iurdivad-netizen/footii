@@ -125,16 +125,28 @@ export interface CupState<K extends KnockoutId = CupKind> {
    * Null while it is still in, and stays null if it won the thing.
    */
   eliminatedInRound: number | null;
+  /**
+   * Pair the survivors in the order they are held, rather than drawing them.
+   *
+   * A cup draw is open — that is the whole reason a cup is worth playing, and
+   * seeding would turn it into a second, shorter league. A tournament bracket
+   * is the opposite: a group stage exists precisely to earn a better opponent,
+   * and shuffling afterwards would make winning your group worth nothing. So
+   * both behaviours live on the same object, chosen by whoever builds it.
+   */
+  seeded?: boolean;
 }
 
 export function createCup<K extends KnockoutId>(
   kind: K,
   countryId: string,
   clubIds: readonly string[],
+  options: { seeded?: boolean } = {},
 ): CupState<K> {
   return {
     kind,
     countryId,
+    ...(options.seeded ? { seeded: true } : {}),
     rounds: [],
     survivors: clubIds.slice(),
     winnerId: null,
@@ -160,7 +172,7 @@ export function totalRounds(cup: CupState<KnockoutId>): number {
  * than one that carried somebody through.
  */
 export function drawRound(rng: Rng, cup: CupState<KnockoutId>): CupRound {
-  const order = rng.shuffle(cup.survivors);
+  const order = cup.seeded ? cup.survivors.slice() : rng.shuffle(cup.survivors);
   const ties: CupTie[] = [];
 
   for (let i = 0; i + 1 < order.length; i += 2) {

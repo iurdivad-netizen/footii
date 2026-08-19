@@ -6,7 +6,7 @@ import { sortTable } from './league.ts';
 import type { SeasonStats } from './seasonStats.ts';
 import { averageRating } from './seasonStats.ts';
 import type { DivisionMovement } from './divisions.ts';
-import { countryPrestige, getCountry } from './countries.ts';
+import { getCountry } from './countries.ts';
 import type { CupKind } from './cups.ts';
 import type { EuropeanTier } from './europe.ts';
 import { europeanCompetition } from './europe.ts';
@@ -50,6 +50,8 @@ export type HonourKind =
   | 'playerOfTheSeason'
   | 'youngPlayerOfTheSeason'
   | 'internationalDebut'
+  | 'internationalTitle'
+  | 'internationalFinal'
   | 'capMilestone';
 
 export interface Honour {
@@ -67,29 +69,11 @@ export interface Honour {
 }
 
 /**
- * Base reputation at which a player starts being picked for his country.
- *
- * The actual bar is this plus a share of his NATION'S prestige, because getting
- * into a great side is harder than getting into a poor one. See
- * `selectionThreshold` — it is what makes the nationality you pick at creation a
- * decision rather than a label.
+ * Selection — who gets picked for their country — lives in `nations.ts`, with
+ * the national sides it decides entry to. It used to live here because caps
+ * were an honour inferred from fame and nothing else; they are appearances in
+ * real fixtures now, so the rule belongs beside the fixtures.
  */
-export const INTERNATIONAL_REPUTATION = 58;
-
-/**
- * How much harder a strong footballing nation is to get into, in reputation.
- *
- * A Scot is capped early and often; a Spaniard has to be genuinely among the
- * best players in the world before anyone picks him. That is the whole trade
- * the nationality choice offers: caps and the honours that come with them, or
- * the prestige of the shirt.
- */
-export const SELECTION_COMPETITION = 10;
-
-/** The reputation a player of this nationality needs before he is picked. */
-export function selectionThreshold(nationality: string): number {
-  return INTERNATIONAL_REPUTATION + countryPrestige(nationality) * SELECTION_COMPETITION;
-}
 
 /** Caps that count as a career landmark. */
 export const CAP_MILESTONES: readonly number[] = [1, 25, 50, 75, 100];
@@ -169,6 +153,19 @@ export interface HonoursInput {
   wonEurope: boolean;
   /** True when it reached the final and lost it. */
   reachedEuropeanFinal: boolean;
+  /**
+   * International matches actually PLAYED this season, in any round.
+   *
+   * A cap used to be inferred from reputation and league visibility, because
+   * there were no international fixtures to count. There are now, so this is
+   * the count — a cap is a match, and a player who was picked and played five
+   * has five.
+   */
+  internationalRounds: number;
+  /** True when his nation won the tournament while he was in the squad. */
+  wonInternational: boolean;
+  /** True when it reached the final and lost it. */
+  reachedInternationalFinal: boolean;
   benchmark: LeagueBenchmark;
   /** Matches in a full season, so a part-season cannot win an award. */
   seasonLength: number;
@@ -332,8 +329,33 @@ export function evaluateHonours(input: HonoursInput): HonoursResult {
     }
   }
 
-  // International football is a consequence of fame, not of a fixture list.
-  const capsGained = capsForSeason(player, input.countryId);
+  // The international tournament, which is not decided inside any one country
+  // and is the only trophy a player cannot transfer his way into.
+  if (input.internationalRounds > 0) {
+    const nation = getCountry(player.nationality);
+    if (input.wonInternational) {
+      honours.push(
+        at(
+          'internationalTitle',
+          `${nation.name} champions`,
+          `You won the international tournament with ${nation.name}.`,
+        ),
+      );
+    } else if (input.reachedInternationalFinal) {
+      honours.push(
+        at(
+          'internationalFinal',
+          `${nation.adjective} finalist`,
+          `You reached the international final with ${nation.name}.`,
+        ),
+      );
+    }
+  }
+
+  // Caps are APPEARANCES now — matches actually played in the shirt, counted by
+  // the calendar rather than inferred from fame. Fame still decides selection;
+  // it no longer decides how many times you turned out.
+  const capsGained = input.internationalRounds;
   if (capsGained > 0) {
     const before = player.caps;
     const after = before + capsGained;
@@ -357,28 +379,6 @@ export function evaluateHonours(input: HonoursInput): HonoursResult {
   }
 
   return { honours, capsGained };
-}
-
-/**
- * Caps won in a season.
- *
- * Three things decide it, and they are genuinely different questions:
- *
- *   HIS NATIONALITY  sets the bar. Competing for a place in a strong national
- *                    side is harder than walking into a weak one.
- *   HIS REPUTATION   decides whether he clears it.
- *   HIS LEAGUE       decides how closely anyone was watching. A brilliant season
- *                    in a country nobody follows gets you looked at, but the
- *                    squad is picked from the well-watched leagues first.
- *
- * `leagueCountryId` is where he PLAYS; `player.nationality` is who he plays FOR.
- * They are frequently different and must not be conflated.
- */
-export function capsForSeason(player: Player, leagueCountryId: string): number {
-  const visibility = countryPrestige(leagueCountryId);
-  const over = player.reputation - selectionThreshold(player.nationality);
-  if (over < 0) return 0;
-  return Math.round(clamp(2 + over * 0.16, 0, 10) * visibility);
 }
 
 /** Group an honours list by kind, for a hub that shows "3× champions". */

@@ -3,11 +3,12 @@ import { createPlayer } from '../src/core/player/player.ts';
 import type { Player } from '../src/core/player/player.ts';
 import { TEAMS, getTeam } from '../src/data/gameData.ts';
 import type { CareerState } from '../src/core/career/career.ts';
-import { nextMatch, seasonComplete } from '../src/core/career/career.ts';
+import { calendarFor, nextMatch, seasonComplete } from '../src/core/career/career.ts';
 import {
   acceptOffer,
   canStay,
   endSeason,
+  prepareNextMatch,
   recordPlayerMatch,
   startCareer,
   stayAtClub,
@@ -19,6 +20,8 @@ import { CUP_KINDS } from '../src/core/career/cups.ts';
 import { maximumMatches } from '../src/core/career/calendar.ts';
 import { createMatchStats } from '../src/core/match/matchStats.ts';
 import { lifetimeTotals } from '../src/core/career/records.ts';
+import { GROUP_ROUNDS, INTERNATIONAL_MATCHES } from '../src/core/career/international.ts';
+import { isSelected, nationId } from '../src/core/career/nations.ts';
 
 /**
  * LONG-CAREER REGRESSION
@@ -340,6 +343,116 @@ describe('a whole career, played out', () => {
       expect(career.state.records.scoringStreak.longest).toBeLessThanOrEqual(maximumMatches(30));
       expect(career.state.records.unbeatenStreak.longest).toBeLessThanOrEqual(maximumMatches(30));
     }
+  });
+
+  it('plays a full international season every year, whoever was picked', () => {
+    // A tournament the player watched on television still has a winner, and the
+    // world has to be able to say who it was.
+    for (const career of [star, journeyman]) {
+      for (const outcome of career.seasons) {
+        const international = outcome.international;
+        for (const row of international.table) expect(row.played, row.teamId).toBe(GROUP_ROUNDS);
+        expect(international.knockout?.winnerId, 'no champion').toBeTruthy();
+        expect(international.knockout!.survivors).toHaveLength(1);
+        expect(outcome.internationalChampion).toBe(international.knockout!.winnerId);
+      }
+    }
+  });
+
+  it('draws a fresh tournament every season rather than replaying one', () => {
+    // Leaving last year's in place would freeze the groups at full time and
+    // never offer another international match again.
+    const champions = star.seasons.map((s) => s.internationalChampion);
+    expect(new Set(champions).size).toBeGreaterThan(1);
+    const draws = star.seasons.map((s) => JSON.stringify(s.international.results));
+    expect(new Set(draws).size).toBe(star.seasons.length);
+  });
+
+  it('never awards a cap for a match that was not played', () => {
+    for (const career of [star, journeyman]) {
+      let counted = 0;
+      for (const outcome of career.seasons) {
+        expect(outcome.caps).toBeGreaterThanOrEqual(0);
+        expect(outcome.caps).toBeLessThanOrEqual(INTERNATIONAL_MATCHES);
+        counted += outcome.caps;
+      }
+      expect(career.state.player.caps).toBe(counted);
+      // Every cap is a match in the record book, and vice versa.
+      expect(career.state.records.byCompetition.international?.matches ?? 0).toBe(counted);
+    }
+  });
+
+  it('leaves an unknown player out of the squad entirely', () => {
+    // The whole point of the competition: it is the one thing in a career he
+    // can be left out of.
+    const capped = journeyman.seasons.filter((s) => s.caps > 0);
+    expect(isSelected(journeyman.state.player)).toBe(false);
+    expect(capped).toHaveLength(0);
+    expect(journeyman.state.player.caps).toBe(0);
+  });
+
+  it('picks a famous player, and gives him the caps to show for it', () => {
+    expect(isSelected(star.state.player)).toBe(true);
+    expect(star.state.player.caps).toBeGreaterThan(0);
+  });
+
+  it('only credits a tournament win to a nation the player actually played for', () => {
+    for (const career of [star, journeyman]) {
+      for (const outcome of career.seasons) {
+        if (!outcome.wonInternational) continue;
+        expect(outcome.internationalChampion).toBe(nationId(career.state.player.nationality));
+      }
+      // ...and an honour needs him to have been in it, not merely to support them.
+      const titles = career.state.honours.filter((h) => h.kind === 'internationalTitle');
+      for (const title of titles) {
+        const season = career.seasons[title.season - 1];
+        expect(season?.caps ?? 0).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('finishes an international round whose date passed without the player', () => {
+    // The bug this exists to catch: leaving the player's own fixture out of a
+    // round that had ALREADY been played, on the grounds that he is currently
+    // in the squad. The round then never completes, so the bracket seeded off
+    // it is never built and he is offered no knockout at all. A save migrated
+    // forward mid-season is exactly that shape.
+    const state = startCareer({
+      player: prospect({ reputation: 95 }),
+      clubId: 'kingsbridge',
+      teams: TEAMS,
+      seed: 'catch-up',
+    });
+    expect(isSelected(state.player)).toBe(true);
+
+    // Walk the calendar past the first international break without playing it,
+    // the way a loaded save arrives.
+    const calendar = calendarFor(state);
+    const firstBreak = calendar.findIndex(
+      (slot) => slot.competition === 'international' && slot.round === 1,
+    );
+    expect(firstBreak).toBeGreaterThan(0);
+    state.calendarIndex = firstBreak + 1;
+
+    prepareNextMatch(state, lookup);
+    // Settled in full, his fixture included — nothing is left pending.
+    expect(state.international.groupRoundsPlayed).toBeGreaterThanOrEqual(1);
+    for (const row of state.international.table) {
+      expect(row.played, row.teamId).toBeGreaterThanOrEqual(1);
+    }
+
+    // ...and the season still reaches a tournament with a champion.
+    while (!seasonComplete(state)) {
+      const stats = createMatchStats();
+      stats.minutes = 90;
+      recordPlayerMatch(
+        state,
+        { stats, rating: 7, playerTeamScore: 2, opponentScore: 1, fitnessAtEnd: 45 },
+        lookup,
+      );
+    }
+    const outcome = endSeason(state, lookup);
+    expect(outcome.internationalChampion).toBeTruthy();
   });
 
   it('records a season of history for every season played', () => {

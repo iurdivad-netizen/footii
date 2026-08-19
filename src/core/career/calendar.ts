@@ -2,6 +2,8 @@ import type { CupKind } from './cups.ts';
 import { CUP_ROUNDS } from './cups.ts';
 import type { EuropeanTier } from './europe.ts';
 import { EUROPEAN_TIERS, europeanCompetition, isEuropeanTier } from './europe.ts';
+import type { InternationalKind } from './international.ts';
+import { GROUP_ROUNDS, INTERNATIONAL, INTERNATIONAL_MATCHES } from './international.ts';
 
 /**
  * THE SEASON CALENDAR
@@ -29,7 +31,7 @@ import { EUROPEAN_TIERS, europeanCompetition, isEuropeanTier } from './europe.ts
  * near the end — and it means a career can be compared season to season.
  */
 
-export type CompetitionKind = 'league' | CupKind | EuropeanTier;
+export type CompetitionKind = 'league' | CupKind | EuropeanTier | InternationalKind;
 
 export interface CalendarSlot {
   competition: CompetitionKind;
@@ -56,6 +58,21 @@ export const LEAGUE_CUP_SCHEDULE: readonly number[] = [8, 14, 22, 28];
  * final the player may not even be in.
  */
 export const EUROPEAN_SCHEDULE: readonly number[] = [4, 12, 18, 24];
+
+/**
+ * International breaks, and the tournament that ends the year.
+ *
+ * The three group matches are played during the season, on their own dates —
+ * that is what an international break IS, and putting them anywhere else would
+ * make playing for your country a thing that happens instead of club football
+ * rather than alongside it.
+ *
+ * The two knockout rounds sit AFTER the final league round, because that is
+ * when a tournament is played and because it gives a career a shape a club
+ * season cannot: the league is decided, the cups are won, and then the last
+ * thing that happens all year is a semi-final for your country.
+ */
+export const INTERNATIONAL_SCHEDULE: readonly number[] = [7, 16, 21];
 
 export function cupSchedule(kind: CupKind): readonly number[] {
   return kind === 'nationalCup' ? NATIONAL_CUP_SCHEDULE : LEAGUE_CUP_SCHEDULE;
@@ -88,9 +105,23 @@ export function seasonCalendar(leagueRounds: number): CalendarSlot[] {
   // ever in one of them, so they can never collide with each other.
   for (const tier of EUROPEAN_TIERS) place(tier, EUROPEAN_SCHEDULE);
 
+  // Group matches, on international-break dates of their own.
+  for (let i = 0; i < GROUP_ROUNDS; i++) {
+    const preferred = INTERNATIONAL_SCHEDULE[i] ?? leagueRounds;
+    const after = Math.min(preferred, Math.max(1, leagueRounds - (GROUP_ROUNDS - 1 - i)));
+    const list = placed.get(after) ?? [];
+    list.push({ competition: INTERNATIONAL, round: i + 1 });
+    placed.set(after, list);
+  }
+
   for (let round = 1; round <= leagueRounds; round++) {
     slots.push({ competition: 'league', round });
     for (const slot of placed.get(round) ?? []) slots.push(slot);
+  }
+
+  // The tournament closes the year, after every club competition is settled.
+  for (let i = GROUP_ROUNDS; i < INTERNATIONAL_MATCHES; i++) {
+    slots.push({ competition: INTERNATIONAL, round: i + 1 });
   }
 
   return slots;
@@ -107,12 +138,12 @@ export function seasonCalendar(leagueRounds: number): CalendarSlot[] {
  * be — in the same way it carries cup rounds for a cup you may go out of.
  */
 export function maximumMatches(leagueRounds: number): number {
-  return leagueRounds + CUP_ROUNDS * 3;
+  return leagueRounds + CUP_ROUNDS * 3 + INTERNATIONAL_MATCHES;
 }
 
 /** How many slots the calendar holds, playable or not. */
 export function calendarLength(leagueRounds: number): number {
-  return leagueRounds + CUP_ROUNDS * (2 + EUROPEAN_TIERS.length);
+  return leagueRounds + CUP_ROUNDS * (2 + EUROPEAN_TIERS.length) + INTERNATIONAL_MATCHES;
 }
 
 /** Human label for a competition, without needing a country. */
@@ -120,7 +151,12 @@ export function competitionLabel(competition: CompetitionKind): string {
   if (competition === 'league') return 'League';
   if (competition === 'nationalCup') return 'Cup';
   if (competition === 'leagueCup') return 'League Cup';
+  if (competition === INTERNATIONAL) return 'International';
   return europeanCompetition(competition).short;
+}
+
+export function isInternational(competition: CompetitionKind): competition is InternationalKind {
+  return competition === INTERNATIONAL;
 }
 
 /** Anything decided by a bracket rather than a table. */
@@ -133,5 +169,5 @@ export function isCup(competition: CompetitionKind): competition is CupKind {
 }
 
 export function isEuropean(competition: CompetitionKind): competition is EuropeanTier {
-  return isEuropeanTier(competition);
+  return competition !== INTERNATIONAL && isEuropeanTier(competition);
 }

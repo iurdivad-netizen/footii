@@ -6,16 +6,35 @@ import { positionLabel } from '../../core/player/positions.ts';
 import type { CareerState } from '../../core/career/career.ts';
 import { matchesRemaining, nextMatch, seasonComplete } from '../../core/career/career.ts';
 import { CUP_KINDS, cupName, roundName, stillIn, totalRounds } from '../../core/career/cups.ts';
-import { competitionLabel, isEuropean } from '../../core/career/calendar.ts';
+import { competitionLabel, isEuropean, isInternational } from '../../core/career/calendar.ts';
 import { europeanCompetition, placesDescription, tierForPosition } from '../../core/career/europe.ts';
 import { milestones } from '../../core/career/records.ts';
+import {
+  KNOCKOUT_ROUNDS,
+  groupIndexOf,
+  groupTable,
+  reachedKnockout,
+} from '../../core/career/international.ts';
+import {
+  countryOfNation,
+  isSelected,
+  nationId,
+  nationalTeam,
+  selectionGap,
+} from '../../core/career/nations.ts';
 import { goalDifference, sortTable, tablePosition } from '../../core/career/league.ts';
 import { averageRating } from '../../core/career/seasonStats.ts';
 import { reputationTier } from '../../core/career/reputation.ts';
 import { SQUAD_ROLE_LABELS, marketValue, scoutingInterest } from '../../core/career/transfers.ts';
 import type { ClubInterest } from '../../core/career/transfers.ts';
 import { describeContract } from '../../core/career/contracts.ts';
-import { allClubIds, countryPrestige, getCountry, locateClub } from '../../core/career/countries.ts';
+import {
+  allClubIds,
+  countryPrestige,
+  getCountry,
+  leagueMembers,
+  locateClub,
+} from '../../core/career/countries.ts';
 import { applyStrength } from '../../core/career/clubDrift.ts';
 import { summariseHonours } from '../../core/career/awards.ts';
 import type { Team } from '../../core/team/team.ts';
@@ -73,6 +92,22 @@ export class CareerScreen {
     return applyStrength(getTeam(id), this.state.clubStrengths);
   }
 
+  /**
+   * Any side the player might face, club or country.
+   *
+   * `club` goes through the team data file, which has never heard of a nation —
+   * so an international fixture rendered through it throws and takes the hub
+   * down with it.
+   */
+  private side(id: string): Team {
+    const country = countryOfNation(id);
+    if (!country) return this.club(id);
+    return nationalTeam(
+      country,
+      leagueMembers(this.state.leagues, country, 1).map((clubId) => this.club(clubId)),
+    );
+  }
+
   /** The country a club currently plays in. */
   private countryOf(id: string): string {
     return locateClub(this.state.leagues, id)?.countryId ?? this.state.countryId;
@@ -127,7 +162,7 @@ export class CareerScreen {
                  <p class="fixture">
                    <strong>${
                      scheduled!.opponentId
-                       ? this.club(scheduled!.opponentId).name
+                       ? this.side(scheduled!.opponentId).name
                        : 'Awaiting the draw'
                    }</strong>
                    <span class="venue">${venue}</span>
@@ -162,6 +197,7 @@ export class CareerScreen {
         ${this.renderContract()}
         ${this.renderCups()}
         ${this.renderEurope()}
+        ${this.renderNation()}
 
         <div class="career-card">
           <h2>Season ${this.state.seasonNumber}</h2>
@@ -220,7 +256,7 @@ export class CareerScreen {
         </span>
         <span class="last-result-detail">
           ${competitionLabel(last.competition ?? 'league')} ·
-          ${last.home ? 'v' : 'away to'} ${this.club(last.opponentId).name} ·
+          ${last.home ? 'v' : 'away to'} ${this.side(last.opponentId).name} ·
           rated ${last.rating.toFixed(1)}${contributions.length ? ` · ${contributions.join(', ')}` : ''}
         </span>
         ${last.skipped ? '<span class="last-result-tag">Skipped</span>' : ''}
@@ -340,8 +376,76 @@ export class CareerScreen {
   /** What a competition is called, wherever it is played. */
   private competitionName(competition: CompetitionKind): string {
     if (competition === 'league') return getCountry(this.state.countryId).league;
+    if (isInternational(competition)) return getCountry(this.state.player.nationality).name;
     if (isEuropean(competition)) return europeanCompetition(competition).name;
     return cupName(competition, this.state.countryId);
+  }
+
+  /**
+   * The international season: whether he is in the squad, and how his country
+   * is doing whether he is or not.
+   *
+   * The not-picked case is the one that matters. A player outside the squad
+   * needs to know EXACTLY how far outside — "four points of reputation away" is
+   * something to play for, and "not in the squad" is only an absence. His
+   * country plays the tournament either way, and watching it without him is the
+   * point of the competition existing.
+   */
+  private renderNation(): string {
+    const international = this.state.international;
+    const nation = getCountry(this.state.player.nationality);
+    const me = nationId(this.state.player.nationality);
+    const selected = isSelected(this.state.player);
+    const gap = selectionGap(this.state.player);
+
+    const standing = groupIndexOf(me);
+    const table =
+      standing === -1
+        ? ''
+        : `<table class="league-table">
+            <thead><tr><th>#</th><th>Nation</th><th>P</th><th>Pts</th></tr></thead>
+            <tbody>${groupTable(international, standing)
+              .map(
+                (row, index) => `<tr class="${row.teamId === me ? 'own' : ''}">
+                    <td>${index + 1}</td>
+                    <td>${getCountry(countryOfNation(row.teamId) ?? '').name}</td>
+                    <td>${row.played}</td>
+                    <td>${row.points}</td>
+                  </tr>`,
+              )
+              .join('')}</tbody>
+          </table>`;
+
+    const knockout = international.knockout;
+    let run = '';
+    if (knockout) {
+      // Three different absences, and they are not the same sentence: never
+      // qualified, knocked out of the tournament, and beaten to the trophy by
+      // somebody else. Reading survivors alone conflates the first two, and a
+      // nation that lost a semi-final was told it went out in the group stage.
+      const qualified = reachedKnockout(international, me);
+      if (knockout.winnerId === me) run = '<strong>Champions.</strong>';
+      else if (!qualified) run = 'Out at the group stage.';
+      else if (knockout.eliminatedInRound !== null) {
+        run = `Out in the ${roundName(knockout.eliminatedInRound, KNOCKOUT_ROUNDS).toLowerCase()}.`;
+      } else if (knockout.winnerId) {
+        run = `Won by ${getCountry(countryOfNation(knockout.winnerId) ?? '').name}.`;
+      } else {
+        run = `Through to the ${roundName(knockout.rounds.length || 1, KNOCKOUT_ROUNDS).toLowerCase()}.`;
+      }
+    }
+
+    const status = selected
+      ? `<p class="hint">You are in the ${nation.name} squad.</p>`
+      : `<p class="hint">Not in the ${nation.name} squad — ${gap} more reputation and you are.</p>`;
+
+    return `
+      <div class="career-card">
+        <h2>${nation.name}</h2>
+        ${status}
+        ${table}
+        ${run ? `<p class="hint">${run}</p>` : ''}
+      </div>`;
   }
 
   /**
