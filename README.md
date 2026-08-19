@@ -379,8 +379,9 @@ is what makes the engine debuggable and balanceable.
 ```
 src/
 ├── core/                  pure data models + types, no DOM, no randomness of its own
-│   ├── career/            development, league, countries, divisions, club drift, season
-│   │                      state, reputation, transfers, contracts and honours
+│   ├── career/            development, league, countries, divisions, cups, the season
+│   │                      calendar, club drift, season state, reputation, transfers,
+│   │                      contracts and honours
 │   ├── events/            situation context, action/outcome types, tactical zones
 │   ├── goalkeeper/        goalkeeper model + commit behaviour
 │   ├── match/             match state, statistics, rating
@@ -470,11 +471,13 @@ If a number in there looks wrong, the gameplay is wrong.
 npm test
 ```
 
-379 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, player valuation, club interest and offer generation, reputation gain and settlement, country prestige, the world's
+428 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, player valuation, club interest and offer generation, reputation gain and settlement, country prestige, the world's
 league membership, background simulation of the leagues you are not in (including that a mid-season
 table is a genuine prefix of the final one), promotion and relegation, club drift, wage demands and
 the wage gate, contract expiry, renewals and free transfers, the award benchmark and every honour,
-auto-play's fairness against four decision policies, save migration, save validation, action generation (including the invariant that every
+auto-play's fairness against four decision policies, the openness of a cup draw, knockout
+resolution and shootouts, cup progress and elimination, the season calendar's interleaving, cup
+honours and the domestic double and treble, save migration, save validation, action generation (including the invariant that every
 situation can always fill six slots), resolution, goalkeeper effects, attribute effects, chance
 generation, randomness boundaries, position-specific behaviour, instinctive actions, rating,
 pace scaling, option colour coding, boot recovery, set-piece conversion rates, the penalty commit
@@ -528,7 +531,8 @@ counts as a successful load — that screen is more useful than the watchdog's.
 
 Beyond the single match, a career follows **one footballer season by season**.
 
-- **A season** is a double round-robin between the sixteen clubs in your league — 30 matches. Every
+- **A season** is a double round-robin between the sixteen clubs in your league — 30 matches — plus
+  a national cup and a league cup, so 30 to 38 matches depending how far the cup runs go. Every
   fixture you are not in is resolved probabilistically, so the table around you is always live, and
   the other seven countries play their seasons out alongside yours.
 - **Any match can be skipped**, which resolves it through the real engine with the player deciding
@@ -757,10 +761,58 @@ Two clubs would go down and two would come up.
 The tier a player is in is still called his `division`, and 1 is still the top of his own country's
 pyramid.
 
+### Domestic cups
+
+Every country runs two knockouts alongside its league: a **national cup** and a **league cup**.
+Sixteen clubs make a clean bracket — 16, 8, 4, 2 — so both are four rounds and neither needs byes.
+
+A league is a thirty-match average: one bad afternoon costs almost nothing, which is the right
+shape for a season and a poor shape for a single match. A cup tie is the opposite. It cannot be
+drawn, it cannot be made up next week, and the small club drawn against the big one has exactly
+ninety minutes in which the gap between them might not matter. That is a different kind of match
+to play, using the same engine.
+
+**The draw is open.** No seeding, no keeping the big clubs apart — the two best clubs in a country
+can meet in the first round and regularly do. Seeding would turn the cup into a second, shorter
+league, which is the one thing it should not be. Home advantage goes to whichever club comes out of
+the hat first, so a small club can land a home tie against a big one.
+
+**A tie cannot end level.** Ninety minutes first, using the same scoreline model as every other
+match you do not play; still level and it goes to penalties, weighted only lightly by strength. A
+shootout is the one part of football where being the better side barely helps, and a cup that
+quietly awarded them to the favourite would remove the reason knockouts are worth playing.
+
+A round is drawn only when it is REACHED — a draw made in July for a tie played in October is a
+promise the cup has no reason to make — and the rest of the round is settled around you, leaving
+only your own tie to play. Go out and the competition carries on without you and still produces a
+winner, because "who won the one you lost" is part of knowing where you stand.
+
+### The season calendar
+
+A season used to be a list of league fixtures and an index into it. With two cups running alongside
+the league, "what do I play next" stops being a property of one competition, so the calendar knows
+about all three:
+
+| | |
+| --- | --- |
+| League | 30 rounds |
+| National cup | rounds after league rounds 5, 11, 19, 26 |
+| League cup | rounds after league rounds 8, 14, 22, 28 |
+| **A season** | **30 to 38 matches**, depending how far the cup runs go |
+
+The interleaving is fixed rather than random, so the shape of a season is learnable and one season
+can be compared with another. The calendar stores ROUNDS rather than fixtures, because a cup slot
+only produces a match if you are still in that cup — and against an opponent nobody can know until
+the previous round has been played. Knocked out, and the slot is simply skipped.
+
+**Cup goals do not count toward league awards.** Statistics are kept twice: everything you did, and
+league matches only. The golden boot is inferred from the league table, so it has to be judged on
+league football — otherwise a good cup run could win an award the league never saw.
+
 ### Skipping a match
 
-A season is thirty league matches. Playing every one of them is a commitment the game should ask
-for rather than assume, so any fixture can be skipped.
+A season is up to thirty-eight matches across three competitions. Playing every one of them is a
+commitment the game should ask for rather than assume, so any fixture can be skipped.
 
 **A skipped match is a real match.** The same engine, situation generator, goalkeeper, resolver,
 statistics, rating and fatigue — the only thing that changes is who answers the decisions.
@@ -859,6 +911,8 @@ benchmark is deterministic from the season seed, so an honour is never a reroll 
 | Honour | How it is won |
 | ------ | ------------- |
 | Champions | Finish top of your division |
+| The Cup / The League Cup | Win either domestic knockout |
+| The double / the treble | Two or three of the domestic trophies in one season |
 | Promoted / relegated | Your club goes up or down |
 | Top scorer | Outscore the division's leading scorer |
 | Player of the season | Beat the division's best rating *and* its best goal contribution, from a top-four club |
@@ -866,7 +920,8 @@ benchmark is deterministic from the season seed, so an honour is never a reroll 
 | International debut / caps | Reputation above 58 gets you picked; the top flight is watched more closely |
 
 Individual awards require having played at least 60% of the season. Nobody is player of the season
-on nine appearances.
+on nine appearances. Team honours carry no such condition — a cup belongs to the club, not to your
+form, and you do not have to have been good to have won it.
 
 ### Balancing notes worth knowing
 
@@ -917,13 +972,15 @@ nationality, seeded match engine, thirteen situation archetypes (including penal
 kicks, corners, aerial duels and pressing traps), ~60 contextual actions, dynamic decision timer,
 build-up narration, goalkeeper commit mechanic, action resolution with separated choice/execution,
 instinctive fallback on expiry, match statistics and rating, five playable presets across four
-positions, **a world of eight countries and 128 clubs across eight live leagues**, season fixtures,
+positions, **a world of eight countries and 128 clubs across eight live leagues**, **a national cup and a
+league cup in every country**, **a season calendar interleaving all three competitions**, season fixtures,
 a browsable table for every league, **the option to skip any match and have the player decide for
 himself**, per-match player development, ageing and multi-season career history, end-of-season
 progress reports, pre-season training, a reputation model, a transfer market spanning countries
 with club valuation, scouting interest and summer offers, clubs that strengthen and decline season
-to season, contracts with wages, terms, expiry and free transfers, an honours list covering titles,
-top scorer, player of the season and international caps, promotion and relegation machinery
+to season, contracts with wages, terms, expiry and free transfers, an honours list covering titles, cups,
+domestic doubles and trebles, top scorer, player of the season and international caps, promotion and
+relegation machinery
 (dormant on a one-tier world), debug mode, and a versioned localStorage save with migration.
 
 Deliberately **not** built yet: multiplayer, accounts, a backend, 3D, physics, large player
@@ -931,11 +988,8 @@ databases.
 
 ## Roadmap
 
-The next three stages are agreed and sequenced:
+The next two stages are agreed and sequenced (domestic cups, the first of them, are done):
 
-- **Domestic cups** — a national cup and a league cup in every country. Knockout football is a
-  second thing to win in a season and a second way onto the honours list, and it is the structure
-  the European competitions then reuse.
 - **European competitions** — a Champions League, a Europa League and a Conference League, entered
   by league position. This is what gives the country ladder a reason to exist beyond wages: playing
   in Europe is how a player at a mid-sized club gets watched by a big one.

@@ -15,7 +15,8 @@ import { createSeasonStats } from '../src/core/career/seasonStats.ts';
 import type { SeasonStats } from '../src/core/career/seasonStats.ts';
 import { benchmarkDecisionWindow } from '../src/simulation/DecisionBenchmark.ts';
 import { TEAMS, getTeam } from '../src/data/gameData.ts';
-import { endSeason, playerFixtures, recordPlayerMatch, startCareer } from '../src/simulation/CareerService.ts';
+import { endSeason, recordPlayerMatch, startCareer } from '../src/simulation/CareerService.ts';
+import { seasonComplete } from '../src/core/career/career.ts';
 import { createMatchStats } from '../src/core/match/matchStats.ts';
 
 const lookup = (id: string) => getTeam(id);
@@ -164,7 +165,7 @@ describe('season progress reporting', () => {
     });
     const stats = createMatchStats();
     stats.minutes = 90;
-    for (let i = 0; i < playerFixtures(state).length; i++) {
+    while (!seasonComplete(state)) {
       recordPlayerMatch(
         state,
         { stats, rating: 7.6, playerTeamScore: 2, opponentScore: 0, fitnessAtEnd: 60 },
@@ -193,7 +194,7 @@ describe('season progress reporting', () => {
     const stats = createMatchStats();
     stats.minutes = 90;
     const playSeason = () => {
-      for (let i = 0; i < playerFixtures(state).length; i++) {
+      while (!seasonComplete(state)) {
         recordPlayerMatch(
           state,
           { stats, rating: 7.4, playerTeamScore: 1, opponentScore: 0, fitnessAtEnd: 60 },

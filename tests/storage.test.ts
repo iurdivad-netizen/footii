@@ -10,6 +10,7 @@ import type { SaveData } from '../src/persistence/storage.ts';
 import { startCareer } from '../src/simulation/CareerService.ts';
 import { createPlayer } from '../src/core/player/player.ts';
 import { TEAMS } from '../src/data/gameData.ts';
+import { seasonCalendar } from '../src/core/career/calendar.ts';
 
 function career() {
   return startCareer({
@@ -159,6 +160,51 @@ describe('save migration', () => {
       (f) => f.homeId === restored.clubId || f.awayId === restored.clubId,
     );
     expect(own).toHaveLength(30);
+  });
+
+  it('joins a v6 career to the cups without losing the league season it is in', () => {
+    const state = career();
+    state.nextFixtureIndex = 7;
+    state.seasonStats.matches = 7;
+    const legacy = { ...state } as Record<string, unknown>;
+    delete legacy.cups;
+    delete legacy.leagueStats;
+    delete legacy.calendarIndex;
+
+    const migrated = migrate({ version: 6, career: emptyCareer(), careerState: legacy } as never)!;
+    const restored = migrated.careerState!;
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    // The league season is untouched: seven matches in is still seven in.
+    expect(restored.nextFixtureIndex).toBe(7);
+    expect(restored.seasonStats.matches).toBe(7);
+    expect(restored.leagueStats.matches).toBe(7);
+    // The two indexes count different things, so this is NOT 7. The calendar
+    // includes cup slots, and a cup round falls before a player's eighth league
+    // match — so the slot holding it sits further along than the league count.
+    const calendar = seasonCalendar(
+      restored.fixtures.filter(
+        (f) => f.homeId === restored.clubId || f.awayId === restored.clubId,
+      ).length,
+    );
+    const slot = calendar[restored.calendarIndex]!;
+    expect(slot.competition).toBe('league');
+    expect(slot.round).toBe(8);
+    expect(restored.calendarIndex).toBeGreaterThan(7);
+    // Every league slot before it is one he has already played.
+    expect(
+      calendar.slice(0, restored.calendarIndex).filter((s) => s.competition === 'league'),
+    ).toHaveLength(7);
+    // Both knockouts exist, entered by the league he is actually in.
+    expect(restored.cups.nationalCup.survivors).toEqual(restored.leagueTeamIds);
+    expect(restored.cups.leagueCup.winnerId).toBeNull();
+    expect(restored.cups.nationalCup.rounds).toEqual([]);
+  });
+
+  it('drops a v7 career with no cups, since it cannot walk its own calendar', () => {
+    const state = career();
+    const broken = { ...state, cups: undefined } as Record<string, unknown>;
+    expect(isUsableCareer(broken)).toBe(false);
   });
 
   it('preserves settings that already exist and fills in ones that do not', () => {

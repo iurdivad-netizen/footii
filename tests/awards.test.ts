@@ -113,6 +113,7 @@ describe('team honours', () => {
     clubId: 'club-0',
     division: 1,
     countryId: 'england',
+    cupsWon: [],
     benchmark,
     seasonLength: SEASON_LENGTH,
   };
@@ -136,6 +137,59 @@ describe('team honours', () => {
     expect(down.honours.find((h) => h.kind === 'relegation')!.detail).toContain('Premier');
   });
 
+  it('records each cup that was won, named after the country', () => {
+    const both = evaluateHonours({ ...base, position: 6, movement: null, cupsWon: ['nationalCup'] });
+    expect(honourKinds(both.honours)).toContain('nationalCup');
+    expect(both.honours.find((h) => h.kind === 'nationalCup')!.label).toContain('English');
+
+    const lc = evaluateHonours({ ...base, position: 6, movement: null, cupsWon: ['leagueCup'] });
+    expect(honourKinds(lc.honours)).toContain('leagueCup');
+  });
+
+  it('records a cup for a club that had an otherwise poor season', () => {
+    // A cup belongs to the club, not to the player's form: you do not have to
+    // have been good to have won it.
+    const result = evaluateHonours({
+      ...base,
+      position: 14,
+      movement: 'relegated',
+      cupsWon: ['nationalCup'],
+      stats: stats({ matches: 4, goals: 0, assists: 0, ratingTotal: 5 * 4 }),
+    });
+    expect(honourKinds(result.honours)).toContain('nationalCup');
+    expect(honourKinds(result.honours)).toContain('relegation');
+  });
+
+  it('names a double and a treble rather than leaving them to be inferred', () => {
+    const double = evaluateHonours({ ...base, position: 1, movement: null, cupsWon: ['nationalCup'] });
+    expect(honourKinds(double.honours)).toContain('domesticDouble');
+    expect(honourKinds(double.honours)).not.toContain('domesticTreble');
+
+    const cupsOnly = evaluateHonours({
+      ...base,
+      position: 5,
+      movement: null,
+      cupsWon: ['nationalCup', 'leagueCup'],
+    });
+    expect(honourKinds(cupsOnly.honours)).toContain('domesticDouble');
+
+    const treble = evaluateHonours({
+      ...base,
+      position: 1,
+      movement: null,
+      cupsWon: ['nationalCup', 'leagueCup'],
+    });
+    expect(honourKinds(treble.honours)).toContain('domesticTreble');
+    expect(honourKinds(treble.honours)).not.toContain('domesticDouble');
+  });
+
+  it('records neither for a single trophy', () => {
+    const one = evaluateHonours({ ...base, position: 1, movement: null, cupsWon: [] });
+    expect(honourKinds(one.honours)).toContain('title');
+    expect(honourKinds(one.honours)).not.toContain('domesticDouble');
+    expect(honourKinds(one.honours)).not.toContain('domesticTreble');
+  });
+
   it('says which division a title was won in', () => {
     const second = evaluateHonours({ ...base, countryId: 'spain', position: 1, movement: null });
     expect(second.honours.find((h) => h.kind === 'title')!.label).toContain('Spanish');
@@ -151,6 +205,7 @@ describe('individual honours', () => {
     countryId: 'england',
     position: 1,
     movement: null,
+    cupsWon: [],
     benchmark,
     seasonLength: SEASON_LENGTH,
   };
@@ -261,6 +316,7 @@ describe('international football', () => {
       clubId: 'club-0',
       division: 1,
       countryId: 'england',
+      cupsWon: [],
       position: 3,
       movement: null,
       benchmark,
@@ -282,6 +338,7 @@ describe('international football', () => {
       clubId: 'club-0',
       division: 1,
       countryId: 'england',
+      cupsWon: [],
       position: 3,
       movement: null,
       benchmark,

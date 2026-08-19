@@ -5,6 +5,7 @@ import {
   acceptOffer,
   canStay,
   careerTeams,
+  prepareNextMatch,
   worldTable,
   endSeason,
   recordPlayerMatch,
@@ -12,7 +13,7 @@ import {
   stayAtClub,
 } from '../simulation/CareerService.ts';
 import { allClubIds, countryPrestige, getCountry, locateClub } from '../core/career/countries.ts';
-import { nextFixture, seasonComplete } from '../core/career/career.ts';
+import { nextMatch, seasonComplete } from '../core/career/career.ts';
 import type { CareerState } from '../core/career/career.ts';
 import { Rng } from '../core/rng.ts';
 import { clonePlayer, currentAbility } from '../core/player/player.ts';
@@ -350,6 +351,14 @@ export class App {
       return;
     }
 
+    // Draw the next cup round before rendering, so the hub can name the
+    // opponent. The draw happens when a round is REACHED, and arriving at the
+    // hub with that round next is reaching it — leaving it until the match was
+    // built meant the fixture card said "awaiting the draw" and guessed at a
+    // venue it could not know.
+    prepareNextMatch(career, getTeam);
+    this.save = saveCareer(this.save, career);
+
     this.mount(
       new CareerScreen(career, {
         onPlay: () => this.playCareerMatch(),
@@ -411,19 +420,22 @@ export class App {
    * who answers the decisions.
    */
   private nextMatchEngine(career: CareerState): { engine: MatchEngine; seed: string } | null {
-    const fixture = nextFixture(career);
-    if (!fixture) return null;
+    // A cup round is only drawn when it is about to be played, so the opponent
+    // may not exist until this call. Everything after it can assume there is one.
+    prepareNextMatch(career, getTeam);
 
-    const isHome = fixture.homeId === career.clubId;
-    const opponentId = isHome ? fixture.awayId : fixture.homeId;
+    const scheduled = nextMatch(career);
+    if (!scheduled) return null;
+
+    const isHome = scheduled.home;
     const clubs = this.clubs(career);
     const playerTeam = clubs(career.clubId);
-    const opponent = clubs(opponentId);
+    const opponent = clubs(scheduled.opponentId);
 
     // Fitness carries between matches, so the player starts where recovery left him.
     career.player.fitness = career.fitness;
 
-    const seed = `${career.seed}:s${career.seasonNumber}:f${career.nextFixtureIndex}`;
+    const seed = `${career.seed}:s${career.seasonNumber}:c${career.calendarIndex}`;
     return {
       seed,
       engine: new MatchEngine(
@@ -575,6 +587,7 @@ export class App {
           earnings: outcome.earnings,
           outOfContract: outcome.outOfContract,
           fellBackOnClub: outcome.fellBackOnClub,
+          cups: outcome.cups,
           contractDecision: career.offers.length === 0 && this.summerNeedsADecision(career),
         },
         () => this.afterReview(career, outcome.trainingAwarded, outcome.trainingNotes),

@@ -6,6 +6,8 @@ import { reputationTier } from '../../core/career/reputation.ts';
 import type { Honour } from '../../core/career/awards.ts';
 import type { DivisionMovement } from '../../core/career/divisions.ts';
 import { getCountry } from '../../core/career/countries.ts';
+import type { CupKind, CupState } from '../../core/career/cups.ts';
+import { CUP_KINDS, cupName, roundName, totalRounds } from '../../core/career/cups.ts';
 import { getTeam } from '../../data/gameData.ts';
 
 /** End-of-season summary, shown once the final fixture has been played. */
@@ -47,6 +49,8 @@ export class SeasonReviewScreen {
       outOfContract: boolean;
       /** True when nobody wanted him and his club put up a reduced deal. */
       fellBackOnClub: boolean;
+      /** Both knockouts as they finished. */
+      cups: Record<CupKind, CupState>;
       /**
        * True when the summer opens a window even with no offers, because his
        * contract needs resolving. The continue button reads this so it never
@@ -107,6 +111,7 @@ export class SeasonReviewScreen {
         </div>
       </div>
 
+      ${renderCupRuns(context.cups, record.clubId, context.countryId)}
       ${renderHonours(context.honours, context.capsGained)}
       ${renderProgress(context.progress)}
       ${renderReputation(context.reputation)}
@@ -143,6 +148,48 @@ function renderMovement(movement: DivisionMovement | null, nextCountryId: string
       <strong>Relegated.</strong> Your club drops into ${arriving.league} next season — a smaller
       stage, smaller wages and fewer people watching you play.
     </p>`;
+}
+
+/**
+ * How the two cup runs ended.
+ *
+ * Reported whether or not anything was won, because a knockout is the one
+ * competition where "how far did we get" is a real answer — going out in a
+ * semi-final is a season, and a league table cannot say that.
+ */
+function renderCupRuns(
+  cups: Record<CupKind, CupState> | undefined,
+  clubId: string,
+  countryId: string,
+): string {
+  if (!cups) return '';
+
+  const rows = CUP_KINDS.map((kind) => {
+    const cup = cups[kind];
+    if (!cup) return '';
+    const rounds = totalRounds(cup);
+    const won = cup.winnerId === clubId;
+    const out = cup.eliminatedInRound;
+
+    const line = won
+      ? '<strong>Winners.</strong>'
+      : out !== null
+        ? `Knocked out in the ${roundName(out, rounds).toLowerCase()}.`
+        : 'Did not take part.';
+    const winner =
+      !won && cup.winnerId ? ` Won by ${getTeam(cup.winnerId).name}.` : '';
+
+    return `<li class="${won ? 'up' : ''}">
+        <strong>${cupName(kind, countryId)}</strong>
+        <span>${line}${winner}</span>
+      </li>`;
+  }).join('');
+
+  return `
+    <div class="career-card">
+      <h2>The cups</h2>
+      <ul class="honours-won">${rows}</ul>
+    </div>`;
 }
 
 /**
