@@ -81,7 +81,8 @@ describe('save migration', () => {
     // Simulate a v4 save: one division, no contracts, no honours, no caps.
     const legacy = { ...state } as Record<string, unknown>;
     delete legacy.division;
-    delete legacy.divisions;
+    delete legacy.countryId;
+    delete legacy.leagues;
     delete legacy.clubStrengths;
     delete legacy.contract;
     delete legacy.renewal;
@@ -102,7 +103,8 @@ describe('save migration', () => {
     // The career keeps its club, and is placed in whichever division it is in.
     expect(restored.clubId).toBe('northport-city');
     expect(restored.division).toBe(1);
-    expect(restored.divisions.flat()).toHaveLength(TEAMS.length);
+    expect(restored.countryId).toBe('england');
+    expect(Object.values(restored.leagues).flat(2)).toHaveLength(TEAMS.length);
     expect(restored.clubStrengths['northport-city']).toBeTruthy();
     expect(restored.contract.clubId).toBe('northport-city');
     expect(restored.contract.yearsRemaining).toBeGreaterThan(0);
@@ -116,7 +118,8 @@ describe('save migration', () => {
     const state = career();
     const legacy = { ...state, history: [{ seasonNumber: 1, clubId: 'northport-city', position: 3, stats: state.seasonStats, age: 24 }] } as Record<string, unknown>;
     delete legacy.division;
-    delete legacy.divisions;
+    delete legacy.countryId;
+    delete legacy.leagues;
     delete legacy.contract;
 
     const migrated = migrate({ version: 4, career: emptyCareer(), careerState: legacy } as never)!;
@@ -132,6 +135,30 @@ describe('save migration', () => {
 
     const migrated = migrate({ version: 4, career: emptyCareer(), careerState: legacy } as never)!;
     expect(migrated.careerState).toBeUndefined();
+  });
+
+  it('leaves a migrated v5 career with a PLAYABLE season, not an empty one', () => {
+    // The bug this exists to catch: clearing the old fixture list without
+    // building a new one leaves a career that reports itself complete on the
+    // next boot, ends the season against an empty table, and tells the player
+    // he finished 0th and was champion.
+    const state = career();
+    const legacy = { ...state } as Record<string, unknown>;
+    delete legacy.countryId;
+    delete legacy.leagues;
+
+    const migrated = migrate({ version: 5, career: emptyCareer(), careerState: legacy } as never)!;
+    const restored = migrated.careerState!;
+
+    expect(restored.leagueTeamIds).toHaveLength(16);
+    expect(restored.table).toHaveLength(16);
+    expect(restored.nextFixtureIndex).toBe(0);
+    expect(restored.seasonStats.matches).toBe(0);
+
+    const own = restored.fixtures.filter(
+      (f) => f.homeId === restored.clubId || f.awayId === restored.clubId,
+    );
+    expect(own).toHaveLength(30);
   });
 
   it('preserves settings that already exist and fills in ones that do not', () => {

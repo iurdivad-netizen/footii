@@ -2,7 +2,7 @@ import { PLAYER_PRESETS, TEAMS } from '../../data/gameData.ts';
 import { positionLabel } from '../../core/player/positions.ts';
 import { TACTICAL_STYLE_LABELS } from '../../core/team/team.ts';
 import type { Team } from '../../core/team/team.ts';
-import { divisionInfo } from '../../core/career/divisions.ts';
+import { getCountry } from '../../core/career/countries.ts';
 import { CUSTOM_PLAYER_ID } from '../../data/gameData.ts';
 
 export interface SetupSelection {
@@ -169,5 +169,5 @@ export class SetupScreen {
  * you pick a club, not discovered a season later.
  */
 function clubOption(team: Team): string {
-  return `${team.name} — ${TACTICAL_STYLE_LABELS[team.style]} (${divisionInfo(team.division).shortName})`;
+  return `${team.name} — ${TACTICAL_STYLE_LABELS[team.style]} (${getCountry(team.country).short})`;
 }

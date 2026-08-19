@@ -5,7 +5,7 @@ import type { ReputationSettlement } from '../../core/career/reputation.ts';
 import { reputationTier } from '../../core/career/reputation.ts';
 import type { Honour } from '../../core/career/awards.ts';
 import type { DivisionMovement } from '../../core/career/divisions.ts';
-import { divisionInfo } from '../../core/career/divisions.ts';
+import { getCountry } from '../../core/career/countries.ts';
 import { getTeam } from '../../data/gameData.ts';
 
 /** End-of-season summary, shown once the final fixture has been played. */
@@ -31,6 +31,10 @@ export class SeasonReviewScreen {
       division: number;
       /** The division the club plays in next season. */
       nextDivision: number;
+      /** The country the season was played in. */
+      countryId: string;
+      /** The country the player plays in next season. */
+      nextCountryId: string;
       /** Whether the club went up, went down, or stayed put. */
       movement: DivisionMovement | null;
       /** Anything the season put on the honours list. */
@@ -56,7 +60,7 @@ export class SeasonReviewScreen {
     const club = getTeam(record.clubId);
     const champion = getTeam(context.champion);
     const won = context.champion === record.clubId;
-    const division = divisionInfo(context.division);
+    const country = getCountry(context.countryId);
 
     this.element = document.createElement('section');
     this.element.className = 'screen fulltime-screen';
@@ -64,11 +68,11 @@ export class SeasonReviewScreen {
       <h1>Season ${record.seasonNumber} review</h1>
       <p class="ft-score">
         ${club.name} finished <strong>${ordinal(record.position)}</strong> of ${context.leagueSize}
-        in ${division.name}
+        in ${country.league}
         ${won ? '<span class="verdict win">Champions</span>' : ''}
       </p>
-      ${won ? '' : `<p class="hint">${champion.name} won ${division.name}.</p>`}
-      ${renderMovement(context.movement, context.nextDivision)}
+      ${won ? '' : `<p class="hint">${champion.name} won ${country.league}.</p>`}
+      ${renderMovement(context.movement, context.nextCountryId)}
 
       <div class="ft-rating">
         <span class="ft-rating-value">${stats.matches ? averageRating(stats).toFixed(2) : '—'}</span>
@@ -127,16 +131,16 @@ export class SeasonReviewScreen {
  * of football, the money, and who is watching. It goes directly under the
  * finishing position rather than into a panel further down.
  */
-function renderMovement(movement: DivisionMovement | null, nextDivision: number): string {
+function renderMovement(movement: DivisionMovement | null, nextCountryId: string): string {
   if (!movement) return '';
-  const arriving = divisionInfo(nextDivision);
+  const arriving = getCountry(nextCountryId);
   if (movement === 'promoted') {
     return `<p class="division-move up">
-        <strong>Promoted.</strong> You will be playing in ${arriving.name} next season.
+        <strong>Promoted.</strong> You will be playing in ${arriving.league} next season.
       </p>`;
   }
   return `<p class="division-move down">
-      <strong>Relegated.</strong> Your club drops into ${arriving.name} next season — a smaller
+      <strong>Relegated.</strong> Your club drops into ${arriving.league} next season — a smaller
       stage, smaller wages and fewer people watching you play.
     </p>`;
 }

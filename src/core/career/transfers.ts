@@ -7,6 +7,7 @@ import type { Position } from '../player/positions.ts';
 import type { TacticalStyle, Team } from '../team/team.ts';
 import type { SeasonStats } from './seasonStats.ts';
 import { clubStature } from './reputation.ts';
+import { getCountry } from './countries.ts';
 
 /**
  * TRANSFERS
@@ -238,10 +239,14 @@ export interface InterestInput {
    * current club knows it is unlikely to tempt him and mostly does not try.
    */
   currentClub?: Team;
-  /** Prestige of the bidding club's division, 0-1. */
+  /** Prestige of the bidding club's league, 0-1. */
   prestige?: number;
-  /** Prestige of the division he currently plays in, 0-1. */
+  /** Prestige of the league he currently plays in, 0-1. */
   currentPrestige?: number;
+  /** Country the bidding club plays in. */
+  countryId?: string;
+  /** Country he currently plays in. */
+  currentCountryId?: string;
   /**
    * True when his contract has run out. A free transfer is the cheapest signing
    * in football, so clubs that were watching from a distance come forward.
@@ -373,6 +378,20 @@ export function clubInterest(input: InterestInput): ClubInterest {
   // Nothing widens a market like a player costing nothing.
   if (input.outOfContract) score = clamp01(score * 1.25);
 
+  // Crossing a border is a bigger ask than crossing a city, and clubs price
+  // that in: an unproven import is a risk, and a club in a league nobody
+  // watches has little to offer a player who would have to move his life for
+  // it. Going HOME cuts the other way — a club in your own country knows you
+  // and you know it.
+  // Nationality is read off the player rather than passed in beside him. It was
+  // briefly a separate input field, which meant every caller had to remember to
+  // supply it and the one that mattered did not — so "moving home" never once
+  // fired. A fact about the player belongs on the player.
+  const abroad =
+    !!input.countryId && !!input.currentCountryId && input.countryId !== input.currentCountryId;
+  const goingHome = abroad && player.nationality === input.countryId;
+  if (abroad) score *= goingHome ? 1.08 : 0.86;
+
   if (reputationShortfall > 12) notes.push(`${team.name} have not heard enough about you yet.`);
   else if (!affordable && !input.retaining) notes.push(`${team.name} cannot afford you.`);
   else if (role === 'squad') notes.push(`${team.name} have better players in your position.`);
@@ -383,6 +402,14 @@ export function clubInterest(input: InterestInput): ClubInterest {
     if (role === 'star') notes.push('You would be the best player at the club.');
     else notes.push('They see you going straight into their side.');
     if (input.outOfContract) notes.push('You would cost them nothing but wages.');
+    if (abroad) {
+      const country = getCountry(input.countryId!);
+      notes.push(
+        goingHome
+          ? `Moving home to ${country.name}.`
+          : `You would be moving to ${country.name}.`,
+      );
+    }
   }
 
   return {
@@ -514,8 +541,17 @@ export interface OfferGenerationInput {
    * rated him, being sold and re-signed in alternate windows.
    */
   excludeClubIds?: readonly string[];
-  /** Prestige of a club's division, 0-1. Defaults to a single-division game. */
+  /** Prestige of a club's league, 0-1. Defaults to a one-league game. */
   prestigeOf?: (clubId: string) => number;
+  /**
+   * Country a club plays in.
+   *
+   * Defaults to everyone sharing one unnamed country, NOT to the club id. An
+   * identity default reads as "every club is its own country", which silently
+   * applies the moving-abroad penalty to every offer in the game and makes
+   * every note say the player is moving to Unknown.
+   */
+  countryOf?: (clubId: string) => string;
   /** True when his contract has run out, so he leaves for nothing. */
   outOfContract?: boolean;
 }
@@ -535,7 +571,9 @@ export interface OfferGenerationInput {
 export function generateOffers(rng: Rng, input: OfferGenerationInput): TransferOffer[] {
   const current = input.clubs.find((team) => team.id === input.currentClubId);
   const prestigeOf = input.prestigeOf ?? (() => 1);
+  const countryOf = input.countryOf ?? (() => '');
   const currentPrestige = current ? prestigeOf(current.id) : 1;
+  const currentCountry = current ? countryOf(current.id) : '';
 
   const interested = input.clubs
     .filter((team) => team.id !== input.currentClubId)
@@ -548,6 +586,8 @@ export function generateOffers(rng: Rng, input: OfferGenerationInput): TransferO
         currentClub: current,
         prestige: prestigeOf(team.id),
         currentPrestige,
+        countryId: countryOf(team.id),
+        currentCountryId: currentCountry,
         outOfContract: input.outOfContract,
       }),
     )
@@ -601,9 +641,11 @@ export function scoutingInterest(
   currentClubId: string,
   stats: SeasonStats,
   prestigeOf: (clubId: string) => number = () => 1,
+  countryOf: (clubId: string) => string = () => '',
 ): ClubInterest[] {
   const current = clubs.find((team) => team.id === currentClubId);
   const currentPrestige = current ? prestigeOf(current.id) : 1;
+  const currentCountry = current ? countryOf(current.id) : '';
   return clubs
     .filter((team) => team.id !== currentClubId)
     .map((team) =>
@@ -614,6 +656,8 @@ export function scoutingInterest(
         currentClub: current,
         prestige: prestigeOf(team.id),
         currentPrestige,
+        countryId: countryOf(team.id),
+        currentCountryId: currentCountry,
       }),
     )
     .filter((interest) => interest.score >= SCOUTING_THRESHOLD)
@@ -631,6 +675,8 @@ export interface TransferRecord {
   age: number;
   /** True when he moved for nothing at the end of a contract. */
   free: boolean;
+  fromCountryId: string;
+  toCountryId: string;
 }
 
 /**
@@ -642,8 +688,16 @@ export interface TransferRecord {
  * standing of the club you joined, since a shirt confers a little fame of its
  * own before you have kicked a ball in it.
  */
-export function applyTransferEffects(player: Player, to: Team, prestige = 1): void {
-  player.form = round(player.form * 0.6 + 50 * 0.4, 1);
+export function applyTransferEffects(
+  player: Player,
+  to: Team,
+  prestige = 1,
+  abroad = false,
+): void {
+  // A new country is a new language, a new way of playing and a new life, so
+  // form is pulled harder toward neutral than by a move down the road.
+  const settle = abroad ? 0.55 : 0.4;
+  player.form = round(player.form * (1 - settle) + 50 * settle, 1);
   player.morale = clamp(round(player.morale * 0.6 + 74 * 0.4, 1), 0, 100);
   const standing = reputationRequired(to, prestige);
   if (standing > player.reputation) {

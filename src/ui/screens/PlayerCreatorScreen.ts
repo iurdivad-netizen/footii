@@ -4,6 +4,7 @@ import { currentAbility } from '../../core/player/player.ts';
 import type { Position } from '../../core/player/positions.ts';
 import { OUTFIELD_POSITIONS, POSITION_PROFILES } from '../../core/player/positions.ts';
 import type { CustomPlayerSpec, PlayingStyle } from '../../core/player/playerBuilder.ts';
+import { allCountries } from '../../core/career/countries.ts';
 import {
   CREATION_CAP,
   CREATION_FLOOR,
@@ -82,6 +83,18 @@ export class PlayerCreatorScreen {
                 `<option value="${p}" ${p === this.position ? 'selected' : ''}>${POSITION_PROFILES[p].label}</option>`,
             ).join('')}
           </select>
+        </div>
+        <div class="field">
+          <label for="cp-nationality">Nationality</label>
+          <select id="cp-nationality">
+            ${allCountries()
+              .map(
+                (c) =>
+                  `<option value="${c.id}" ${c.id === 'england' ? 'selected' : ''}>${c.name}</option>`,
+              )
+              .join('')}
+          </select>
+          <p class="hint">Who may pick you, and which move counts as going home.</p>
         </div>
         <div class="field">
           <label for="cp-age">Age <span id="cp-age-value">${this.forCareer ? 17 : 24}</span></label>
@@ -196,6 +209,8 @@ export class PlayerCreatorScreen {
       position: this.position,
       attributes: this.attributes,
       tendencies: style.tendencies,
+      nationality:
+        this.element.querySelector<HTMLSelectElement>('#cp-nationality')?.value ?? 'england',
     };
   }
 

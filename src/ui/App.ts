@@ -1,15 +1,17 @@
 import { MatchEngine } from '../simulation/MatchEngine.ts';
+import { runMatchAutomatically } from '../simulation/AutoPlay.ts';
 import { DECISION_PACE, UNTIMED_PACE } from '../simulation/DecisionTimer.ts';
 import {
   acceptOffer,
   canStay,
   careerTeams,
+  worldTable,
   endSeason,
   recordPlayerMatch,
   startCareer,
   stayAtClub,
 } from '../simulation/CareerService.ts';
-import { divisionInfo, divisionOf, divisionPrestige } from '../core/career/divisions.ts';
+import { allClubIds, countryPrestige, getCountry, locateClub } from '../core/career/countries.ts';
 import { nextFixture, seasonComplete } from '../core/career/career.ts';
 import type { CareerState } from '../core/career/career.ts';
 import { Rng } from '../core/rng.ts';
@@ -44,6 +46,7 @@ import { MatchScreen } from './screens/MatchScreen.ts';
 import { PlayerCreatorScreen } from './screens/PlayerCreatorScreen.ts';
 import { SeasonReviewScreen } from './screens/SeasonReviewScreen.ts';
 import { TrainingScreen } from './screens/TrainingScreen.ts';
+import { WorldScreen } from './screens/WorldScreen.ts';
 import { TransferScreen } from './screens/TransferScreen.ts';
 import { applyTraining } from '../core/career/training.ts';
 import type { SetupSelection } from './screens/SetupScreen.ts';
@@ -126,7 +129,7 @@ export class App {
     try {
       return {
         name: career.player.name,
-        detail: `${positionLabel(career.player.position)} · age ${career.player.age} · ${getTeam(career.clubId).name} · ${divisionInfo(career.division).shortName} · season ${career.seasonNumber}`,
+        detail: `${positionLabel(career.player.position)} · age ${career.player.age} · ${getTeam(career.clubId).name} · ${getCountry(career.countryId).short} · season ${career.seasonNumber}`,
         ability: currentAbility(career.player),
         played: career.seasonStats.matches,
         total: fixturesFor(career, career.clubId).length,
@@ -350,6 +353,8 @@ export class App {
     this.mount(
       new CareerScreen(career, {
         onPlay: () => this.playCareerMatch(),
+        onSkip: () => this.skipCareerMatch(),
+        onWorld: () => this.showWorld(),
         onEndSeason: () => this.reviewSeason(),
         onQuit: () => this.showHome(),
       }).element,
@@ -368,6 +373,20 @@ export class App {
     return careerTeams(career, getTeam);
   }
 
+  /** Browse any league in the world. */
+  private showWorld(): void {
+    const career = this.save.careerState;
+    if (!career) return;
+    const clubs = this.clubs(career);
+    this.mount(
+      new WorldScreen(career, {
+        table: (countryId) => worldTable(career, countryId, getTeam),
+        club: clubs,
+        onBack: () => this.showCareerHub(),
+      }).element,
+    );
+  }
+
   private canRenderCareer(career: CareerState): boolean {
     try {
       getTeam(career.clubId);
@@ -376,9 +395,7 @@ export class App {
       // from across the pyramid and the end of a season simulates the division
       // he is NOT in, so a stale id anywhere in `divisions` is just as fatal as
       // one in his own league — and used to reach the screen before throwing.
-      for (const division of career.divisions ?? []) {
-        for (const id of division) getTeam(id);
-      }
+      for (const id of allClubIds(career.leagues ?? {})) getTeam(id);
       return typeof career.seasonStats?.matches === 'number' && Array.isArray(career.fixtures);
     } catch (error) {
       console.error('Saved career refers to data that no longer exists', error);
@@ -386,11 +403,16 @@ export class App {
     }
   }
 
-  private playCareerMatch(): void {
-    const career = this.save.careerState;
-    if (!career) return;
+  /**
+   * Build the engine for the player's next fixture.
+   *
+   * Shared by playing and skipping, so a skipped match is set up identically to
+   * a played one — same clubs, same keepers, same seed. The only difference is
+   * who answers the decisions.
+   */
+  private nextMatchEngine(career: CareerState): { engine: MatchEngine; seed: string } | null {
     const fixture = nextFixture(career);
-    if (!fixture) return;
+    if (!fixture) return null;
 
     const isHome = fixture.homeId === career.clubId;
     const opponentId = isHome ? fixture.awayId : fixture.homeId;
@@ -402,8 +424,9 @@ export class App {
     career.player.fitness = career.fitness;
 
     const seed = `${career.seed}:s${career.seasonNumber}:f${career.nextFixtureIndex}`;
-    this.runMatch(
-      new MatchEngine(
+    return {
+      seed,
+      engine: new MatchEngine(
         {
           player: career.player,
           playerTeam,
@@ -416,25 +439,55 @@ export class App {
         },
         seed,
       ),
-      seed,
-      (engine) => this.finishCareerMatch(engine, career),
-    );
+    };
   }
 
-  private finishCareerMatch(engine: MatchEngine, career: CareerState): void {
-    const rating = engine.rating();
+  private playCareerMatch(): void {
+    const career = this.save.careerState;
+    if (!career) return;
+    const next = this.nextMatchEngine(career);
+    if (!next) return;
+
+    this.runMatch(next.engine, next.seed, (engine) => this.finishCareerMatch(engine, career));
+  }
+
+  /**
+   * Resolve the next fixture without playing it.
+   *
+   * Goes straight back to the hub rather than to a full-time report: a season is
+   * thirty matches, and somebody skipping them does not want thirty reports. The
+   * hub reports the result instead.
+   */
+  private skipCareerMatch(): void {
+    const career = this.save.careerState;
+    if (!career) return;
+    const next = this.nextMatchEngine(career);
+    if (!next) return;
+
+    runMatchAutomatically(next.engine, next.seed);
+    this.recordCareerMatch(next.engine, career, true);
+    this.showCareerHub();
+  }
+
+  /** Fold a finished match into the career and persist it. */
+  private recordCareerMatch(engine: MatchEngine, career: CareerState, skipped: boolean): void {
     recordPlayerMatch(
       career,
       {
         stats: engine.state.stats,
-        rating,
+        rating: engine.rating(),
         playerTeamScore: engine.state.playerTeamScore,
         opponentScore: engine.state.opponentScore,
         fitnessAtEnd: engine.matchPlayer.fitness,
+        skipped,
       },
       getTeam,
     );
     this.save = saveCareer(this.save, career);
+  }
+
+  private finishCareerMatch(engine: MatchEngine, career: CareerState): void {
+    this.recordCareerMatch(engine, career, false);
 
     this.mount(
       new FullTimeScreen(engine, () => this.showCareerHub(), {
@@ -514,6 +567,8 @@ export class App {
           offers: outcome.offers.length,
           division: outcome.division,
           nextDivision: outcome.nextDivision,
+          countryId: outcome.countryId,
+          nextCountryId: outcome.nextCountryId,
           movement: outcome.movement,
           honours: outcome.honours,
           capsGained: outcome.capsGained,
@@ -571,10 +626,11 @@ export class App {
         clubs(career.clubId),
         career.offers,
         {
-          currentDivision: career.division,
-          divisionOf: (id) => divisionOf(career.divisions, id) || career.division,
-          prestigeOf: (id) =>
-            divisionPrestige(divisionOf(career.divisions, id) || career.division),
+          currentCountryId: career.countryId,
+          countryOf: (id: string) =>
+            locateClub(career.leagues, id)?.countryId ?? career.countryId,
+          prestigeOf: (id: string) =>
+            countryPrestige(locateClub(career.leagues, id)?.countryId ?? career.countryId),
           renewal: career.renewal,
           outOfContract: career.contract.yearsRemaining <= 0,
           canStay: canStay(career),

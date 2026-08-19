@@ -10,7 +10,7 @@ import { reputationTier } from '../../core/career/reputation.ts';
 import { SQUAD_ROLE_LABELS, marketValue, scoutingInterest } from '../../core/career/transfers.ts';
 import type { ClubInterest } from '../../core/career/transfers.ts';
 import { describeContract } from '../../core/career/contracts.ts';
-import { divisionInfo, divisionOf, divisionPrestige } from '../../core/career/divisions.ts';
+import { allClubIds, countryPrestige, getCountry, locateClub } from '../../core/career/countries.ts';
 import { applyStrength } from '../../core/career/clubDrift.ts';
 import { summariseHonours } from '../../core/career/awards.ts';
 import type { Team } from '../../core/team/team.ts';
@@ -28,7 +28,13 @@ export class CareerScreen {
 
   constructor(
     private readonly state: CareerState,
-    handlers: { onPlay: () => void; onEndSeason: () => void; onQuit: () => void },
+    handlers: {
+      onPlay: () => void;
+      onSkip: () => void;
+      onWorld: () => void;
+      onEndSeason: () => void;
+      onQuit: () => void;
+    },
   ) {
     this.element = document.createElement('section');
     this.element.className = 'screen career-screen';
@@ -37,6 +43,12 @@ export class CareerScreen {
     this.element
       .querySelector<HTMLButtonElement>('#play-match')
       ?.addEventListener('click', handlers.onPlay);
+    this.element
+      .querySelector<HTMLButtonElement>('#skip-match')
+      ?.addEventListener('click', handlers.onSkip);
+    this.element
+      .querySelector<HTMLButtonElement>('#browse-world')
+      ?.addEventListener('click', handlers.onWorld);
     this.element
       .querySelector<HTMLButtonElement>('#end-season')
       ?.addEventListener('click', handlers.onEndSeason);
@@ -56,15 +68,20 @@ export class CareerScreen {
     return applyStrength(getTeam(id), this.state.clubStrengths);
   }
 
-  /** Prestige of the division a club is currently in. */
+  /** The country a club currently plays in. */
+  private countryOf(id: string): string {
+    return locateClub(this.state.leagues, id)?.countryId ?? this.state.countryId;
+  }
+
+  /** Prestige of the league a club currently plays in. */
   private prestigeOf(id: string): number {
-    return divisionPrestige(divisionOf(this.state.divisions, id) || this.state.division);
+    return countryPrestige(this.countryOf(id));
   }
 
   private render(): string {
     const { player } = this.state;
     const club = this.club(this.state.clubId);
-    const division = divisionInfo(this.state.division);
+    const country = getCountry(this.state.countryId);
     const fixture = nextFixture(this.state);
     const done = seasonComplete(this.state);
     const stats = this.state.seasonStats;
@@ -82,7 +99,7 @@ export class CareerScreen {
           <h1>${player.name}</h1>
           <p class="career-sub">
             ${positionLabel(player.position)} · age ${player.age} · ${club.name}
-            · ${division.name} · Season ${this.state.seasonNumber}
+            · ${country.league} · Season ${this.state.seasonNumber}
           </p>
         </div>
         <div class="career-ability">
@@ -91,6 +108,7 @@ export class CareerScreen {
         </div>
       </header>
 
+      ${this.renderLastResult()}
       ${this.renderDevelopment()}
 
       <div class="career-grid">
@@ -101,11 +119,12 @@ export class CareerScreen {
               ? `<p class="career-done">Season complete — ${this.state.seasonStats.matches} matches played.</p>
                  <button class="primary" id="end-season">End of season review</button>`
               : `<p class="fixture">
-                   <strong>${getTeam(opponentId!).name}</strong>
+                   <strong>${this.club(opponentId!).name}</strong>
                    <span class="venue">${venue}</span>
                  </p>
                  <p class="hint">${matchesRemaining(this.state)} matches left this season</p>
-                 <button class="primary" id="play-match">Play match</button>`
+                 <button class="primary" id="play-match">Play match</button>
+                 <button class="ghost skip-match" id="skip-match">Skip — let him play it</button>`
           }
         </div>
 
@@ -147,8 +166,9 @@ export class CareerScreen {
 
       <div class="career-grid wide">
         <div class="career-card">
-          <h2>${division.name}</h2>
+          <h2>${country.league}</h2>
           ${this.renderTable()}
+          <button class="ghost" id="browse-world">Other leagues around the world</button>
         </div>
         <div class="career-card">
           <h2>Key attributes</h2>
@@ -161,6 +181,36 @@ export class CareerScreen {
       ${this.renderTransfers()}
 
       <button id="quit-career" class="ghost">Leave career</button>`;
+  }
+
+  /**
+   * What happened in the last match.
+   *
+   * Exists for skipping. A played match ends on a full-time report; a skipped
+   * one returns straight here, so without this the season would advance in
+   * silence and you would have no idea whether you had scored.
+   */
+  private renderLastResult(): string {
+    const last = this.state.lastResult;
+    if (!last) return '';
+
+    const verdict =
+      last.goalsFor > last.goalsAgainst ? 'win' : last.goalsFor < last.goalsAgainst ? 'loss' : 'draw';
+    const contributions = [
+      last.goals > 0 ? `${last.goals} goal${last.goals === 1 ? '' : 's'}` : '',
+      last.assists > 0 ? `${last.assists} assist${last.assists === 1 ? '' : 's'}` : '',
+    ].filter(Boolean);
+
+    return `<div class="last-result ${verdict}">
+        <span class="last-result-score">
+          ${last.goalsFor}–${last.goalsAgainst}
+        </span>
+        <span class="last-result-detail">
+          ${last.home ? 'v' : 'away to'} ${this.club(last.opponentId).name} ·
+          rated ${last.rating.toFixed(1)}${contributions.length ? ` · ${contributions.join(', ')}` : ''}
+        </span>
+        ${last.skipped ? '<span class="last-result-tag">Skipped</span>' : ''}
+      </div>`;
   }
 
   /** Attribute changes from the last match, so progression is visible. */
@@ -247,10 +297,11 @@ export class CareerScreen {
     // pyramid is that a good season down here is watched from up there.
     const watching: ClubInterest[] = scoutingInterest(
       this.state.player,
-      this.state.divisions.flat().map((id) => this.club(id)),
+      allClubIds(this.state.leagues).map((id: string) => this.club(id)),
       this.state.clubId,
       this.state.seasonStats,
       (id) => this.prestigeOf(id),
+      (id) => this.countryOf(id),
     ).slice(0, 3);
 
     if (watching.length === 0) {
@@ -261,9 +312,9 @@ export class CareerScreen {
         (interest) =>
           `<li>
             <span>${getTeam(interest.clubId).name}
-              <em class="watch-division">${divisionInfo(
-                divisionOf(this.state.divisions, interest.clubId) || this.state.division,
-              ).shortName}</em>
+              <em class="watch-division">${getCountry(
+                this.countryOf(interest.clubId),
+              ).short}</em>
             </span>
             <span class="watch-level">${describeInterest(interest.score)}</span>
           </li>`,
@@ -377,7 +428,7 @@ export class CareerScreen {
           `<tr>
             <td>${h.seasonNumber}</td>
             <td>${getTeam(h.clubId).shortName}</td>
-            <td>${divisionInfo(h.division ?? 1).shortName}</td>
+            <td>${getCountry(h.countryId ?? this.state.countryId).short}</td>
             <td>${h.age}</td>
             <td>${h.position}</td>
             <td>${h.stats.matches}</td>

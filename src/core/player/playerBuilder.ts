@@ -204,6 +204,12 @@ export interface CustomPlayerSpec {
   position: Position;
   attributes: Attributes;
   tendencies: Partial<Tendencies>;
+  /**
+   * The country he plays for. Separate from the club he signs for: you can be
+   * a Scot at a Spanish club, and which national side may pick you never
+   * changes however many times you move.
+   */
+  nationality?: string;
 }
 
 export interface ValidationResult {
@@ -267,6 +273,7 @@ export function createCustomPlayer(rng: Rng, spec: CustomPlayerSpec): Player {
     experience: startingExperience(spec.age),
     reputation: clamp(10 + (spec.age - 16) * 2, 5, 55),
     fitness: 100,
+    nationality: spec.nationality,
   });
   player.potentialAbility = rollPotential(rng, spec.age, currentAbility(player));
   return player;

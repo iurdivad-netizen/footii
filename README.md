@@ -379,8 +379,8 @@ is what makes the engine debuggable and balanceable.
 ```
 src/
 ├── core/                  pure data models + types, no DOM, no randomness of its own
-│   ├── career/            development, league, divisions, club drift, season state,
-│   │                      reputation, transfers, contracts and honours
+│   ├── career/            development, league, countries, divisions, club drift, season
+│   │                      state, reputation, transfers, contracts and honours
 │   ├── events/            situation context, action/outcome types, tactical zones
 │   ├── goalkeeper/        goalkeeper model + commit behaviour
 │   ├── match/             match state, statistics, rating
@@ -393,6 +393,7 @@ src/
 │   ├── CareerService.ts   seasons, fixtures, league simulation, the summer
 │   ├── SituationGenerator.ts
 │   ├── ActionGenerator.ts contextual 1–6 option generation
+│   ├── AutoPlay.ts        the "skip this match" decision policy
 │   ├── DecisionTimer.ts
 │   ├── ActionResolver.ts
 │   └── InstinctiveAction.ts
@@ -400,9 +401,20 @@ src/
 ├── ui/                    screens, components, input
 │   └── actionFamilyStyle.ts  option colour/tag palette (presentation only)
 ├── data/                  static game data (JSON) + action catalogue + situation templates
+│                          (teams/goalkeepers/countries are generated — see scripts/)
 ├── persistence/           versioned localStorage save
 └── main.ts
+
+scripts/
+└── generateWorld.py       regenerates the eight leagues, their clubs and keepers
 ```
+
+The world data is generated rather than hand-authored: 128 clubs need ratings that agree with their
+standing and their style, and doing that by eye produces a world where half the clubs are quietly
+nonsense. The *flavour* is still authored — every club name, place name and goalkeeper name is
+written by hand, country by country, and all of them are invented. Re-run with
+`python3 scripts/generateWorld.py`; it is deterministic, so a diff means somebody changed the
+recipe.
 
 The dependency rule is one-directional: `ui` → `simulation` → `core`. `core` and `simulation`
 never import from `ui`, `rendering` or `persistence`, which is why the whole engine can be played
@@ -458,10 +470,11 @@ If a number in there looks wrong, the gameplay is wrong.
 npm test
 ```
 
-351 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, player valuation, club interest and offer generation, reputation gain and settlement, division prestige, background
-simulation of the division you are not in, promotion and relegation, club drift, wage demands and
+379 tests covering timer calibration, event pacing, build-up narration, development, fixtures, league simulation, career progression, player creation, training and season progress, player valuation, club interest and offer generation, reputation gain and settlement, country prestige, the world's
+league membership, background simulation of the leagues you are not in (including that a mid-season
+table is a genuine prefix of the final one), promotion and relegation, club drift, wage demands and
 the wage gate, contract expiry, renewals and free transfers, the award benchmark and every honour,
-save migration, save validation, action generation (including the invariant that every
+auto-play's fairness against four decision policies, save migration, save validation, action generation (including the invariant that every
 situation can always fill six slots), resolution, goalkeeper effects, attribute effects, chance
 generation, randomness boundaries, position-specific behaviour, instinctive actions, rating,
 pace scaling, option colour coding, boot recovery, set-piece conversion rates, the penalty commit
@@ -515,10 +528,11 @@ counts as a successful load — that screen is more useful than the watchdog's.
 
 Beyond the single match, a career follows **one footballer season by season**.
 
-- **A season** is a double round-robin between the eight clubs in your division — 14 matches. Every
-  fixture you are not in is resolved probabilistically, so the league table around you is always
-  live, and the other division is played out in the background so promotion and relegation are
-  decided by real tables.
+- **A season** is a double round-robin between the sixteen clubs in your league — 30 matches. Every
+  fixture you are not in is resolved probabilistically, so the table around you is always live, and
+  the other seven countries play their seasons out alongside yours.
+- **Any match can be skipped**, which resolves it through the real engine with the player deciding
+  for himself. See "Skipping a match" below.
 - **After every match** your rating feeds form and morale, and development is applied.
 - **Development** is driven by age, headroom below Potential Ability, match rating, minutes
   played and your club's coaching quality.
@@ -627,11 +641,10 @@ would ask, each of them answerable from state the career layer already keeps:
 They are **multiplied, not averaged**, so any one of them can veto a move: a club that has never
 heard of you does not care how well you would fit, and one that cannot pay does not bid at all.
 
-The sixteen clubs therefore form a ladder across two divisions, and climbing it is the point of a
-career. A club expects less of a signing when it plays a division lower, which is what makes the
-bottom of the pyramid a reachable starting point rather than a dead end:
-
-**The Premier Division**
+The 128 clubs therefore form a ladder that runs across countries as well as up them, and climbing
+it is the point of a career. A club expects less of a signing when it plays in a league fewer
+people watch, which is what makes the quiet corners of the map a reachable starting point rather
+than a dead end. The English league, for reference:
 
 | Club | Style | Squad level | Expects | Budget |
 | ---- | ----- | ----------- | ------- | ------ |
@@ -640,25 +653,28 @@ bottom of the pyramid a reachable starting point rather than a dead end:
 | Kingsbridge FC | High Press | 68 | *Well known* (rep 52) | £35m |
 | Vale Park Wanderers | Balanced | 60 | *Established* (rep 41) | £16m |
 | Northport City | Counterattack | 58 | *Established* (rep 39) | £13m |
-| Brackenmoor Rovers | Wide Play | 55 | *Established* (rep 34) | £10m |
-| Old Harbour Town | Direct | 52 | *Known locally* (rep 30) | £7m |
-| Seaton Athletic | Defensive | 51 | *Known locally* (rep 28) | £7m |
-
-**The Championship**
-
-| Club | Style | Squad level | Expects | Budget |
-| ---- | ----- | ----------- | ------- | ------ |
 | Cheltley Rangers | Possession | 58 | *Known locally* (rep 32) | £13m |
+| Brackenmoor Rovers | Wide Play | 55 | *Established* (rep 34) | £10m |
 | Marsden Athletic | High Press | 54 | *Known locally* (rep 28) | £9m |
+| Old Harbour Town | Direct | 52 | *Known locally* (rep 30) | £7m |
 | Portmere Rovers | Counterattack | 52 | *Known locally* (rep 26) | £7m |
+| Seaton Athletic | Defensive | 51 | *Known locally* (rep 28) | £7m |
 | Bexley Wanderers | Wide Play | 50 | *Known locally* (rep 23) | £6m |
 | Fenwick Town | Direct | 48 | *Known locally* (rep 21) | £5m |
 | Hollowfield | Balanced | 46 | *Known locally* (rep 18) | £4m |
 | Ravensworth Park | Defensive | 44 | *Unknown* (rep 17) | £3m |
 | Stapleton Vale | Direct | 40 | *Unknown* (rep 17) | £2m |
 
-These are the *starting* positions. Clubs drift and swap divisions as seasons pass, so the ladder
-you climb is not the one printed here.
+These are the *starting* positions, and only one league of eight. Clubs drift as seasons pass, so
+the ladder you climb is not the one printed here. The other seven leagues are generated —
+`scripts/generateWorld.py` derives every club's ratings from two authored inputs, its rank in its
+league and its tactical style, so a "possession" club always has the possession and passing to back
+it up and the club lying second always has ratings that justify lying second. Every name in the
+world is invented.
+
+**Moving abroad** is modelled as more than a change of badge: clubs are warier of an import, a move
+home is an easier sell, and a new country unsettles form harder than a move down the road. Your
+nationality is chosen at creation and never changes, however many times you move.
 
 Two rules keep the market honest rather than noisy:
 
@@ -694,29 +710,87 @@ Market value is a pure function of the player — ability (exponentially: the ga
 the young command, a hard age cliff after 30, and reputation and form at the margins. Because it is
 pure, the hub can show it at any moment and the market can never disagree with the screen.
 
-### Divisions, promotion and relegation
+### The world: eight countries
 
-The game is a two-division pyramid of sixteen clubs. **The Premier Division** is the top flight;
-**The Championship** below it is where most careers start and some of them end.
+The game is a map, not a ladder: **eight countries, sixteen clubs each, 128 clubs in all**. Every
+country has its own league, and every league is playing at the same time as yours.
 
-This exists because a single division gave the transfer market a ladder with nothing at the top of
-it. A player who signed for the best club in the game had reached the end of the world: reputation
-kept climbing, nobody better could ever bid, and every remaining summer was silent.
+| League | Country | Watched | Best club | Weakest club |
+| ------ | ------- | ------- | --------- | ------------ |
+| The Premier Division | England | 1.00 | 86 | 41 |
+| La Liga Nacional | Spain | 0.96 | 87 | 42 |
+| Die Bundesliga | Germany | 0.92 | 85 | 44 |
+| Serie Alta | Italy | 0.90 | 84 | 41 |
+| Le Championnat | France | 0.80 | 82 | 38 |
+| A Liga Principal | Portugal | 0.68 | 78 | 34 |
+| De Eredivisie | Netherlands | 0.66 | 76 | 33 |
+| The Premiership | Scotland | 0.50 | 72 | 28 |
 
-Two divisions change three things at once:
+"Watched" is **prestige**, and it is deliberately not the same thing as strength. It scales
+reputation, wages and international selection, so a league can be well watched and mediocre, or
+excellent and ignored. Strength is a separate question the clubs answer themselves — the best club
+in Scotland is weaker than a mid-table club in Spain, which is what makes moving country a step in
+one direction or the other rather than a change of scenery.
 
-- **Where you play is a level, not a badge.** Winning the second division is a real season with a
-  real prize, and the club you join in it may not be there next year.
-- **Your club can move without you.** Relegation is the one career event you do not choose, and it
-  is the strongest reason the game can give you to take an offer you would otherwise turn down.
-- **Fame is scaled by the stage.** A hat-trick in the Championship is worth less than a hat-trick
-  in the Premier Division — to your reputation, to your wages, and to your country's selectors.
+Where you play therefore has two axes, and they can disagree. The best club in Portugal has a
+stronger squad than a mid-table English side and is still the smaller move, because far fewer
+people are watching. The transfer screen labels the offer by prestige for exactly that reason.
 
-Two clubs go down and two come up every season. The division you are *not* in is played out in the
-background at the end of each season, using the same fixture generator and scoreline model as the
-neutral fixtures in your own league — so the two tables are decided by the same football and are
-comparable with each other. Offers come from the **whole pyramid**, which is the point of having
-one: a good season in the Championship is watched from the division above.
+**Every league is live.** The seven you are not in are played out alongside your own season, so
+browsing Spain in November shows a November table. Nothing about them is stored in the save: a
+table is a pure function of `(seed, season, country, rounds played)`, and a mid-season table is a
+genuine prefix of the final one that same seed will settle. That is what makes it safe to
+recompute a league on demand and never have a stored table disagree with the season that produced
+it.
+
+**You can look at all of it.** Any league is reachable from the hub, whether or not you have
+anything to do with it — see the note on the invisible second division under "Balancing notes",
+which is the mistake that screen exists to prevent from happening eight times over.
+
+### Divisions within a country
+
+Every country currently has a **single tier**, so promotion and relegation are dormant: settling a
+one-tier season swaps nobody. The mechanics are nonetheless written, tested and wired in, so giving
+a country a second division is a data change plus a fixture list rather than a re-implementation.
+Two clubs would go down and two would come up.
+
+The tier a player is in is still called his `division`, and 1 is still the top of his own country's
+pyramid.
+
+### Skipping a match
+
+A season is thirty league matches. Playing every one of them is a commitment the game should ask
+for rather than assume, so any fixture can be skipped.
+
+**A skipped match is a real match.** The same engine, situation generator, goalkeeper, resolver,
+statistics, rating and fatigue — the only thing that changes is who answers the decisions.
+Inventing a separate statistical model of a match would have given the career two sources of truth
+about what a footballer does, and they would have drifted apart the moment either was tuned, making
+a skipped season and a played season incomparable.
+
+The policy has to be fair in both directions: not a punishment, or skipping quietly wrecks a
+career; not an exploit, or skipping becomes the best way to play and the decision mechanic the
+whole game is built around becomes optional. Measured over 300 matches with the veteran striker
+preset, deliberate choices span:
+
+| Decision policy | Average rating |
+| --------------- | -------------- |
+| Always the worst option | 6.9 |
+| Uniformly at random | 8.1 |
+| **Auto-play (skip)** | **8.3** |
+| Always the best option, decided early | 8.9 |
+| *(letting the clock expire)* | *6.8 — a different thing entirely* |
+
+Two things worth reading off that table. The six options a situation offers are mostly sensible, so
+choosing at random is already close to choosing well and the room your reading buys is the narrow
+band at the top. And **letting the timer expire is not the floor for choosing badly** — expiry
+carries its own execution and tempo penalties on top of a poor choice, so it sits below even the
+deliberately worst decision.
+
+Auto-play is driven by the player's own Decision Making, Composure and Awareness, so it improves as
+he develops — and skipping costs a raw teenager far more than a seasoned professional. Measured:
+the veteran auto-plays at 8.3, an 18-year-old prospect at 6.3. Playing a young player's matches
+yourself is worth real progression.
 
 ### Clubs drift
 
@@ -812,6 +886,12 @@ their constants:
 - **Reputation ran away from itself.** With unsaturated per-match gains a decent striker reached 98
   by his mid-twenties on volume alone, and the summer settlement then dragged him back ten points
   every year — which read as the game taking something away rather than as fame having a ceiling.
+- **A whole division was invisible.** Promotion and relegation were implemented, tested and wired
+  in — and nothing ever showed them. The hub rendered the player's own table and only his own, and
+  the review reported only his own club's movement, so unless you were relegated into it you could
+  play several seasons without learning the second division existed. It was reported as "I did not
+  notice the second division", which is exactly right: a system the player cannot look at may as
+  well not exist. Eight countries is eight times the same opportunity, hence the world screen.
 - **The wage gate never fired.** As first written, what a club offered and what a player demanded
   scaled with ability at almost the same rate, so ability cancelled and the gate came down to a
   constant that was always on the accepting side of the line. Money was decorative — exactly the
@@ -819,6 +899,12 @@ their constants:
   spread is wider, so a household name really is priced out of a small club. The division scales
   both sides *identically*: when wages fell faster than demands in the lower division, dropping
   down became impossible for everyone, which fired the gate on the division rather than the player.
+- **The obvious baseline for auto-play was the wrong one.** Skipping a match was first tuned against
+  "letting the timer expire", which looked like the floor for deciding badly and is not: expiry
+  carries execution and tempo penalties on top of a poor choice, so it sits *below* deliberately
+  picking the worst option every time. Measured against the right baseline — choosing uniformly at
+  random — the first policy was nearly as good as playing perfectly, which would have made skipping
+  the strongest way to play.
 
 ---
 
@@ -826,38 +912,48 @@ their constants:
 
 The core mechanic and a playable career loop.
 
-Implemented: home screen with career and quick-match modes, custom player creation, seeded match
-engine, thirteen situation archetypes (including penalties, direct free kicks, corners, aerial
-duels and pressing traps), ~60 contextual actions, dynamic
-decision timer, build-up narration, goalkeeper commit mechanic, action resolution with separated
-choice/execution, instinctive fallback on expiry, match statistics and rating, five playable
-presets across four positions, sixteen teams with tactical styles across **two divisions with
-promotion and relegation**, season fixtures, live league
-table, per-match player development, ageing and multi-season career history, end-of-season progress reports, pre-season
-training, a reputation model and a transfer market with club valuation, scouting interest and
-summer offers, **clubs that strengthen and decline season to season, contracts with wages, terms,
-expiry and free transfers, and an honours list covering titles, promotion, top scorer, player of
-the season and international caps**, debug mode, and a
-versioned localStorage save with migration.
+Implemented: home screen with career and quick-match modes, custom player creation with a chosen
+nationality, seeded match engine, thirteen situation archetypes (including penalties, direct free
+kicks, corners, aerial duels and pressing traps), ~60 contextual actions, dynamic decision timer,
+build-up narration, goalkeeper commit mechanic, action resolution with separated choice/execution,
+instinctive fallback on expiry, match statistics and rating, five playable presets across four
+positions, **a world of eight countries and 128 clubs across eight live leagues**, season fixtures,
+a browsable table for every league, **the option to skip any match and have the player decide for
+himself**, per-match player development, ageing and multi-season career history, end-of-season
+progress reports, pre-season training, a reputation model, a transfer market spanning countries
+with club valuation, scouting interest and summer offers, clubs that strengthen and decline season
+to season, contracts with wages, terms, expiry and free transfers, an honours list covering titles,
+top scorer, player of the season and international caps, promotion and relegation machinery
+(dormant on a one-tier world), debug mode, and a versioned localStorage save with migration.
 
 Deliberately **not** built yet: multiplayer, accounts, a backend, 3D, physics, large player
 databases.
 
 ## Roadmap
 
-- **Squad context** — named teammates, so an assist has a recipient and a club has a shape. This is
-  now the biggest single gap: several models are already written for a world that has it. The
-  reputation settlement weights playing time, and awards require having played 60% of a season, but
-  you currently start every fixture forever, so neither can ever bite.
+The next three stages are agreed and sequenced:
+
+- **Domestic cups** — a national cup and a league cup in every country. Knockout football is a
+  second thing to win in a season and a second way onto the honours list, and it is the structure
+  the European competitions then reuse.
+- **European competitions** — a Champions League, a Europa League and a Conference League, entered
+  by league position. This is what gives the country ladder a reason to exist beyond wages: playing
+  in Europe is how a player at a mid-sized club gets watched by a big one.
+- **International football** — national teams picked from the world's players, qualifiers and a
+  tournament. Nationality and caps already exist and are recorded; what is missing is the fixtures.
+
+Beyond those, unchanged from before:
+
+- **A second division per country** — the machinery is written, tested and dormant; it needs clubs
+  and a fixture list.
+- **Squad context** — named teammates, so an assist has a recipient and a club has a shape. Still
+  the biggest structural gap: the reputation settlement weights playing time and awards require 60%
+  of a season, but you start every fixture forever, so neither can bite.
 - **Injuries and squad rotation** — the fitness model has enough bite to support them, and they are
   what would make the playing-time half of reputation real.
-- **Playable goalkeeper** — the last event type on the original list, and the only one that needs
-  more than a template: `GK` exists as a position but has no playable match loop, so it needs its
-  own situations (shot-stopping, claiming a cross, sweeping, distribution) and its own involvement
-  model rather than a share of an outfielder's. It also needs its own department in the transfer
-  model — `positionalNeed` currently reads a keeper against the outfield defence rating, and every
+- **Playable goalkeeper** — `GK` exists as a position but has no playable match loop, so it needs
+  its own situations and involvement model. It also needs its own department in the transfer model:
+  `positionalNeed` currently reads a keeper against the outfield defence rating, and every
   tactical-style weighting is an outfield profile.
-- **Cup competitions** — the pyramid gives the league somewhere to go; a knockout would give a
-  season a second thing to win, and the honours list somewhere else to grow.
-- **Richer location model** — the tactical zone model is designed to be swapped for 2D
-  coordinates behind the same `Zone` interface.
+- **Richer location model** — the tactical zone model is designed to be swapped for 2D coordinates
+  behind the same `Zone` interface.
