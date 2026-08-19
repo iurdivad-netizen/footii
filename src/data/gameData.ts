@@ -1,5 +1,8 @@
 import teamsJson from './teams.json';
 import goalkeepersJson from './goalkeepers.json';
+import countriesJson from './countries.json';
+import type { Country } from '../core/career/countries.ts';
+import { registerCountries } from '../core/career/countries.ts';
 import type { Team, TacticalStyle } from '../core/team/team.ts';
 import { createTeam } from '../core/team/team.ts';
 import type { Goalkeeper } from '../core/goalkeeper/goalkeeper.ts';
@@ -17,6 +20,7 @@ interface TeamJson {
   colour: string;
   base: number;
   division: number;
+  country: string;
   ratings: Record<string, number>;
 }
 
@@ -27,6 +31,16 @@ interface GoalkeeperJson {
   attributes: Record<string, number>;
 }
 
+/**
+ * The countries, registered with `core` before anything reads a club.
+ *
+ * `core` may not import `data`, so the world is injected here at module load.
+ * This runs before `TEAMS` is built below, which is what lets country lookups
+ * work from the first line of a career.
+ */
+export const COUNTRIES: Country[] = countriesJson as Country[];
+registerCountries(COUNTRIES);
+
 export const TEAMS: Team[] = (teamsJson as TeamJson[]).map((entry) =>
   createTeam({
     id: entry.id,
@@ -36,13 +50,19 @@ export const TEAMS: Team[] = (teamsJson as TeamJson[]).map((entry) =>
     colour: entry.colour,
     base: entry.base,
     division: entry.division,
+    country: entry.country,
     ratings: entry.ratings,
   }),
 );
 
-/** Every club in a given starting division. */
-export function teamsInDivision(division: number): Team[] {
-  return TEAMS.filter((team) => team.division === division);
+/** Every club in a given starting division of a given country. */
+export function teamsInDivision(division: number, country = 'england'): Team[] {
+  return TEAMS.filter((team) => team.division === division && team.country === country);
+}
+
+/** Every club whose league is in this country. */
+export function teamsInCountry(country: string): Team[] {
+  return TEAMS.filter((team) => team.country === country);
 }
 
 interface GoalkeeperEntry {

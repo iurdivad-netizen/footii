@@ -34,14 +34,16 @@ import {
   renewalOffer,
 } from '../core/career/contracts.ts';
 import type { Contract, ContractOffer } from '../core/career/contracts.ts';
-import {
-  divisionOf,
-  divisionPrestige,
-  initialDivisions,
-  movementFor,
-  resolveDivisions,
-} from '../core/career/divisions.ts';
+import { movementFor, resolveDivisions, simulateDivisionThrough } from '../core/career/divisions.ts';
 import type { DivisionMovement } from '../core/career/divisions.ts';
+import {
+  allClubIds,
+  countryPrestige,
+  initialLeagues,
+  leagueMembers,
+  locateClub,
+  playedCountries,
+} from '../core/career/countries.ts';
 import { applyStrength, driftSeason, initialStrengths } from '../core/career/clubDrift.ts';
 import { evaluateHonours, leagueBenchmark } from '../core/career/awards.ts';
 import type { Honour, LeagueBenchmark } from '../core/career/awards.ts';
@@ -89,9 +91,78 @@ export function careerTeams(state: CareerState, lookup: TeamLookup): TeamLookup 
   return (id) => clubIn(state, lookup, id);
 }
 
-/** Prestige of the division a club is currently in, 0-1. */
+/** The country a club currently plays in, falling back to the player's own. */
+export function countryOfClub(state: CareerState, clubId: string): string {
+  return locateClub(state.leagues, clubId)?.countryId ?? state.countryId;
+}
+
+/** The tier a club currently plays in, falling back to the player's own. */
+export function divisionOfClub(state: CareerState, clubId: string): number {
+  return locateClub(state.leagues, clubId)?.division ?? state.division;
+}
+
+/**
+ * Prestige of the league a club plays in, 0-1.
+ *
+ * Now a property of the COUNTRY rather than of a rung on one ladder. The best
+ * club in a small country and a mid-table club in a big one can have similar
+ * squads and still be very different propositions, and this is the number that
+ * knows the difference.
+ */
 export function prestigeOfClub(state: CareerState, clubId: string): number {
-  return divisionPrestige(divisionOf(state.divisions, clubId) || state.division);
+  return countryPrestige(countryOfClub(state, clubId));
+}
+
+/**
+ * A league table for any country, at the player's current point in the season.
+ *
+ * The player's own league is the real one he is playing; every other is
+ * recomputed from the seed. Nothing about the other leagues is stored, so this
+ * can never disagree with the season that will eventually be settled.
+ */
+export function worldTable(
+  state: CareerState,
+  countryId: string,
+  lookup: TeamLookup,
+  division = 1,
+): TableRow[] {
+  if (countryId === state.countryId && division === state.division) {
+    return sortTable(state.table);
+  }
+  const ids = leagueMembers(state.leagues, countryId, division);
+  if (ids.length === 0) return [];
+  return simulateDivisionThrough(
+    leagueRng(state, countryId, division),
+    ids.map((id) => clubIn(state, lookup, id)),
+    roundsPlayed(state),
+  );
+}
+
+/**
+ * The rng for one league's background season.
+ *
+ * Keyed by seed, season, country and tier, so every league is independent and
+ * a partial table is always a prefix of the same league's final table.
+ */
+function leagueRng(state: CareerState, countryId: string, division: number): Rng {
+  return new Rng(`${state.seed}:s${state.seasonNumber}:league:${countryId}:${division}`);
+}
+
+/**
+ * How far into the season the world is, in rounds.
+ *
+ * Taken from the player's own progress so the whole world moves in step with
+ * him: browsing Spain in November shows a November table, not a finished one.
+ */
+function roundsPlayed(state: CareerState): number {
+  const own = fixturesFor(state, state.clubId);
+  const next = own[state.nextFixtureIndex];
+  return next ? Math.max(0, next.round - 1) : Number.POSITIVE_INFINITY;
+}
+
+/** Every country that has a league this career knows about. */
+export function worldCountries(state: CareerState): string[] {
+  return playedCountries(state.leagues);
 }
 
 export interface StartCareerOptions {
@@ -104,13 +175,14 @@ export interface StartCareerOptions {
 
 export function startCareer(options: StartCareerOptions): CareerState {
   const rng = new Rng(`${options.seed}:season:1`);
-  const divisions = initialDivisions(options.teams);
-  const division = divisionOf(divisions, options.clubId) || 1;
-  const leagueTeamIds = (divisions[division - 1] ?? []).slice();
+  const leagues = initialLeagues(options.teams);
+  const located = locateClub(leagues, options.clubId);
   const club = options.teams.find((team) => team.id === options.clubId);
-  if (!club) throw new Error(`startCareer: unknown club ${options.clubId}`);
+  if (!club || !located) throw new Error(`startCareer: unknown club ${options.clubId}`);
 
-  const prestige = divisionPrestige(division);
+  const { countryId, division } = located;
+  const leagueTeamIds = leagueMembers(leagues, countryId, division);
+  const prestige = countryPrestige(countryId);
 
   return {
     player: options.player,
@@ -133,8 +205,9 @@ export function startCareer(options: StartCareerOptions): CareerState {
     trainingPoints: 0,
     offers: [],
     transfers: [],
+    countryId,
     division,
-    divisions,
+    leagues,
     clubStrengths: initialStrengths(options.teams),
     // Season 0: the deal he was already on when the career opened.
     contract: createContract(
@@ -235,7 +308,7 @@ export function recordPlayerMatch(
     goalsAgainst: input.opponentScore,
     coaching: coachingQuality(club),
     clubStature: clubStature(club),
-    divisionPrestige: divisionPrestige(state.division),
+    divisionPrestige: countryPrestige(state.countryId),
     fitnessAtEnd: input.fitnessAtEnd,
   });
 
@@ -268,6 +341,10 @@ export interface SeasonEnd {
   division: number;
   /** The division the club will play in next season. */
   nextDivision: number;
+  /** The country the season was played in. */
+  countryId: string;
+  /** The country the player will be playing in next season. */
+  nextCountryId: string;
   /** Whether the club went up, went down, or stayed put. */
   movement: DivisionMovement | null;
   /** What the season put on the honours list. */
@@ -329,7 +406,8 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   // correction back toward what the whole season justifies.
   const club = clubIn(state, lookup, state.clubId);
   const division = state.division;
-  const prestige = divisionPrestige(division);
+  const countryId = state.countryId;
+  const prestige = countryPrestige(countryId);
   const reputation = settleReputation(state.player, {
     stats: state.seasonStats,
     leaguePosition: position,
@@ -339,15 +417,29 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     divisionPrestige: prestige,
   });
 
-  // The pyramid moves before anything reads a club's division again: promotion
-  // and relegation decide which league the summer's offers are actually in.
+  // The player's own country's pyramid moves before anything reads a club's
+  // division again. With one tier per country this settles the table and swaps
+  // nobody; it becomes promotion and relegation the moment a country gains a
+  // second tier, without another line here.
   const outcome = resolveDivisions(new Rng(`${state.seed}:s${state.seasonNumber}:divisions`), {
-    divisions: state.divisions,
+    divisions: state.leagues[countryId] ?? [state.leagueTeamIds],
     playerDivision: division,
     playerTable: state.table,
     lookup: (id) => clubIn(state, lookup, id),
   });
   const movement = movementFor(outcome, state.clubId);
+
+  // Every OTHER country plays its season out too. Their tables are what drift
+  // reads, and — from the next stage — what European places are awarded on.
+  const worldTables: Record<string, TableRow[]> = { [countryId]: outcome.tables[division - 1] ?? [] };
+  for (const other of playedCountries(state.leagues)) {
+    if (other === countryId) continue;
+    worldTables[other] = simulateDivisionThrough(
+      leagueRng(state, other, 1),
+      leagueMembers(state.leagues, other, 1).map((id) => clubIn(state, lookup, id)),
+      Number.POSITIVE_INFINITY,
+    );
+  }
 
   // Awards are judged on the division just played, against a bar inferred from
   // the football that happened in it (see core/career/awards.ts).
@@ -362,6 +454,7 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     season: state.seasonNumber,
     clubId: state.clubId,
     division,
+    countryId,
     position,
     movement,
     benchmark,
@@ -374,17 +467,21 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   const earnings = advanceContract(state.contract);
   state.careerEarnings = round(state.careerEarnings + earnings, 2);
 
-  // Clubs are only as good as their last season. Drift uses the BASE ratings as
-  // its anchor, so this takes the raw lookup rather than the drifted one.
+  // Clubs are only as good as their last season — everywhere, not just where
+  // the player happens to be, or seven of the eight leagues would be frozen in
+  // the shape the data file shipped with. Drift anchors to the BASE ratings, so
+  // this takes the raw lookup rather than the drifted one.
   state.clubStrengths = driftSeason(new Rng(`${state.seed}:s${state.seasonNumber}:drift`), {
     strengths: state.clubStrengths,
-    tables: outcome.tables,
+    tables: Object.values(worldTables),
     lookup,
   });
 
-  state.divisions = outcome.divisions;
-  const nextDivision = divisionOf(outcome.divisions, state.clubId) || division;
-  const nextLeague = (outcome.divisions[nextDivision - 1] ?? state.leagueTeamIds).slice();
+  state.leagues = { ...state.leagues, [countryId]: outcome.divisions };
+  const located = locateClub(state.leagues, state.clubId);
+  const nextCountry = located?.countryId ?? countryId;
+  const nextDivision = located?.division ?? division;
+  const nextLeague = leagueMembers(state.leagues, nextCountry, nextDivision);
 
   const rng = new Rng(`${state.seed}:s${state.seasonNumber}:end`);
   const nextRng = new Rng(`${state.seed}:season:${state.seasonNumber + 1}`);
@@ -393,6 +490,7 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     table: emptyTable(nextLeague),
     leagueTeamIds: nextLeague,
     division: nextDivision,
+    countryId: nextCountry,
   });
 
   // Unspent points are never banked; a fresh award replaces whatever was left.
@@ -403,7 +501,7 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   // the WHOLE pyramid, which is the point of having one — a good season in the
   // second division is seen by clubs in the first.
   const outOfContract = isExpired(state.contract);
-  const nextPrestige = divisionPrestige(nextDivision);
+  const nextPrestige = countryPrestige(nextCountry);
   const offerRng = new Rng(`${state.seed}:s${record.seasonNumber}:transfers`);
   const lastMove = state.transfers[state.transfers.length - 1];
   state.offers = generateOffers(offerRng, {
@@ -456,6 +554,8 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     offers: state.offers,
     division,
     nextDivision,
+    countryId,
+    nextCountryId: nextCountry,
     movement,
     honours: honoursResult.honours,
     capsGained: honoursResult.capsGained,
@@ -467,9 +567,9 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   };
 }
 
-/** Every club in the game, drift applied, across every division. */
+/** Every club in the world, drift applied, across every country and tier. */
 export function allClubs(state: CareerState, lookup: TeamLookup): Team[] {
-  return state.divisions.flat().map((id) => clubIn(state, lookup, id));
+  return allClubIds(state.leagues).map((id) => clubIn(state, lookup, id));
 }
 
 /**
@@ -510,28 +610,37 @@ export function acceptOffer(
     role: offer.role,
     age: state.player.age,
     free: offer.free,
+    fromCountryId: state.countryId,
+    toCountryId: locateClub(state.leagues, offer.clubId)?.countryId ?? state.countryId,
   };
 
   state.clubId = offer.clubId;
   state.transfers.push(record);
 
-  // A move can cross a division, which changes the whole season ahead: a new
-  // league, a new fixture list and a new table. Rebuilding them here is what
-  // makes "signing for a club in the division above" a real transfer rather
-  // than a change of badge.
-  const division = divisionOf(state.divisions, offer.clubId) || state.division;
-  if (division !== state.division || !state.leagueTeamIds.includes(offer.clubId)) {
-    const league = (state.divisions[division - 1] ?? state.leagueTeamIds).slice();
+  // A move can cross a country as well as a tier, which changes the whole
+  // season ahead: a new league, a new fixture list, a new table and a different
+  // number of people watching. Rebuilding them here is what makes "signing for
+  // a club in Spain" a real transfer rather than a change of badge.
+  const located = locateClub(state.leagues, offer.clubId);
+  const countryId = located?.countryId ?? state.countryId;
+  const division = located?.division ?? state.division;
+  if (
+    countryId !== state.countryId ||
+    division !== state.division ||
+    !state.leagueTeamIds.includes(offer.clubId)
+  ) {
+    const league = leagueMembers(state.leagues, countryId, division);
     const rng = new Rng(`${state.seed}:season:${state.seasonNumber}:${offer.clubId}`);
+    state.countryId = countryId;
     state.division = division;
-    state.leagueTeamIds = league;
-    state.fixtures = generateFixtures(league, rng);
-    state.table = emptyTable(league);
+    state.leagueTeamIds = league.length > 0 ? league : state.leagueTeamIds;
+    state.fixtures = generateFixtures(state.leagueTeamIds, rng);
+    state.table = emptyTable(state.leagueTeamIds);
     state.results = [];
     state.nextFixtureIndex = 0;
   }
 
-  const prestige = divisionPrestige(division);
+  const prestige = countryPrestige(countryId);
   applyTransferEffects(state.player, clubIn(state, lookup, offer.clubId), prestige);
   state.contract = {
     clubId: offer.clubId,

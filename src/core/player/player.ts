@@ -43,6 +43,14 @@ export interface Player {
    * fixture list, so caps are a consequence of fame rather than a competition.
    */
   caps: number;
+  /**
+   * The country he plays for, as a country id.
+   *
+   * Distinct from the country he plays IN: a move abroad changes his league,
+   * never his nationality. Decides who may pick him, and makes a move back to
+   * his own country a slightly easier sell.
+   */
+  nationality: string;
 }
 
 /**
@@ -77,6 +85,7 @@ export interface PlayerInit {
   reputation?: number;
   potentialAbility?: number;
   caps?: number;
+  nationality?: string;
   baseAttribute?: number;
 }
 
@@ -95,6 +104,7 @@ export function createPlayer(init: PlayerInit): Player {
     reputation: init.reputation ?? 40,
     potentialAbility: init.potentialAbility ?? 70,
     caps: init.caps ?? 0,
+    nationality: init.nationality ?? 'england',
   };
 }
 

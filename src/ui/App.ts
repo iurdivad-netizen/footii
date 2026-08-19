@@ -9,7 +9,7 @@ import {
   startCareer,
   stayAtClub,
 } from '../simulation/CareerService.ts';
-import { divisionInfo, divisionOf, divisionPrestige } from '../core/career/divisions.ts';
+import { allClubIds, countryPrestige, getCountry, locateClub } from '../core/career/countries.ts';
 import { nextFixture, seasonComplete } from '../core/career/career.ts';
 import type { CareerState } from '../core/career/career.ts';
 import { Rng } from '../core/rng.ts';
@@ -126,7 +126,7 @@ export class App {
     try {
       return {
         name: career.player.name,
-        detail: `${positionLabel(career.player.position)} · age ${career.player.age} · ${getTeam(career.clubId).name} · ${divisionInfo(career.division).shortName} · season ${career.seasonNumber}`,
+        detail: `${positionLabel(career.player.position)} · age ${career.player.age} · ${getTeam(career.clubId).name} · ${getCountry(career.countryId).short} · season ${career.seasonNumber}`,
         ability: currentAbility(career.player),
         played: career.seasonStats.matches,
         total: fixturesFor(career, career.clubId).length,
@@ -376,9 +376,7 @@ export class App {
       // from across the pyramid and the end of a season simulates the division
       // he is NOT in, so a stale id anywhere in `divisions` is just as fatal as
       // one in his own league — and used to reach the screen before throwing.
-      for (const division of career.divisions ?? []) {
-        for (const id of division) getTeam(id);
-      }
+      for (const id of allClubIds(career.leagues ?? {})) getTeam(id);
       return typeof career.seasonStats?.matches === 'number' && Array.isArray(career.fixtures);
     } catch (error) {
       console.error('Saved career refers to data that no longer exists', error);
@@ -514,6 +512,8 @@ export class App {
           offers: outcome.offers.length,
           division: outcome.division,
           nextDivision: outcome.nextDivision,
+          countryId: outcome.countryId,
+          nextCountryId: outcome.nextCountryId,
           movement: outcome.movement,
           honours: outcome.honours,
           capsGained: outcome.capsGained,
@@ -571,10 +571,11 @@ export class App {
         clubs(career.clubId),
         career.offers,
         {
-          currentDivision: career.division,
-          divisionOf: (id) => divisionOf(career.divisions, id) || career.division,
-          prestigeOf: (id) =>
-            divisionPrestige(divisionOf(career.divisions, id) || career.division),
+          currentCountryId: career.countryId,
+          countryOf: (id: string) =>
+            locateClub(career.leagues, id)?.countryId ?? career.countryId,
+          prestigeOf: (id: string) =>
+            countryPrestige(locateClub(career.leagues, id)?.countryId ?? career.countryId),
           renewal: career.renewal,
           outOfContract: career.contract.yearsRemaining <= 0,
           canStay: canStay(career),

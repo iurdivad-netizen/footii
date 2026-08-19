@@ -1,0 +1,66 @@
+[
+  {
+    "id": "england",
+    "name": "England",
+    "adjective": "English",
+    "league": "The Premier Division",
+    "short": "ENG",
+    "prestige": 1.0
+  },
+  {
+    "id": "spain",
+    "name": "Spain",
+    "adjective": "Spanish",
+    "league": "La Liga Nacional",
+    "short": "ESP",
+    "prestige": 0.96
+  },
+  {
+    "id": "germany",
+    "name": "Germany",
+    "adjective": "German",
+    "league": "Die Bundesliga",
+    "short": "GER",
+    "prestige": 0.92
+  },
+  {
+    "id": "italy",
+    "name": "Italy",
+    "adjective": "Italian",
+    "league": "Serie Alta",
+    "short": "ITA",
+    "prestige": 0.9
+  },
+  {
+    "id": "france",
+    "name": "France",
+    "adjective": "French",
+    "league": "Le Championnat",
+    "short": "FRA",
+    "prestige": 0.8
+  },
+  {
+    "id": "portugal",
+    "name": "Portugal",
+    "adjective": "Portuguese",
+    "league": "A Liga Principal",
+    "short": "POR",
+    "prestige": 0.68
+  },
+  {
+    "id": "netherlands",
+    "name": "Netherlands",
+    "adjective": "Dutch",
+    "league": "De Eredivisie",
+    "short": "NED",
+    "prestige": 0.66
+  },
+  {
+    "id": "scotland",
+    "name": "Scotland",
+    "adjective": "Scottish",
+    "league": "The Premiership",
+    "short": "SCO",
+    "prestige": 0.5
+  }
+]

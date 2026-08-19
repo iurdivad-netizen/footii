@@ -6,7 +6,7 @@ import { sortTable } from './league.ts';
 import type { SeasonStats } from './seasonStats.ts';
 import { averageRating } from './seasonStats.ts';
 import type { DivisionMovement } from './divisions.ts';
-import { divisionInfo } from './divisions.ts';
+import { countryPrestige, getCountry } from './countries.ts';
 
 /**
  * AWARDS AND HONOURS
@@ -48,6 +48,8 @@ export interface Honour {
   clubId: string;
   /** The division it was won in, so a second-tier title reads as one. */
   division: number;
+  /** The country it was won in. */
+  countryId: string;
   /** Short name for the honours list. */
   label: string;
   /** One line of context, for the season review. */
@@ -121,6 +123,8 @@ export interface HonoursInput {
   season: number;
   clubId: string;
   division: number;
+  /** The country whose league it was won in. */
+  countryId: string;
   /** Final league position, 1 = champions. */
   position: number;
   /** Whether the club went up or down this season. */
@@ -151,27 +155,30 @@ export const AWARD_MINIMUM_SHARE = 0.6;
  */
 export function evaluateHonours(input: HonoursInput): HonoursResult {
   const { player, stats, season, clubId, division } = input;
-  const info = divisionInfo(division);
+  // Honours are named after the COUNTRY, not the tier: "Spanish champions"
+  // reads as football, "Division 1 champions" reads as a database.
+  const info = getCountry(input.countryId);
   const honours: Honour[] = [];
   const at = (kind: HonourKind, label: string, detail: string): Honour => ({
     kind,
     season,
     clubId,
     division,
+    countryId: input.countryId,
     label,
     detail,
   });
 
   if (input.position === 1) {
     honours.push(
-      at('title', `${info.shortName} champions`, `You finished top of ${info.name}.`),
+      at('title', `${info.adjective} champions`, `You finished top of ${info.league}.`),
     );
   }
   if (input.movement === 'promoted') {
-    honours.push(at('promotion', 'Promoted', `Your club is going up out of ${info.name}.`));
+    honours.push(at('promotion', 'Promoted', `Your club is going up out of ${info.league}.`));
   }
   if (input.movement === 'relegated') {
-    honours.push(at('relegation', 'Relegated', `Your club is going down out of ${info.name}.`));
+    honours.push(at('relegation', 'Relegated', `Your club is going down out of ${info.league}.`));
   }
 
   const played =
@@ -184,8 +191,8 @@ export function evaluateHonours(input: HonoursInput): HonoursResult {
       honours.push(
         at(
           'topScorer',
-          `${info.shortName} top scorer`,
-          `${stats.goals} goals, more than anyone else in ${info.name}.`,
+          `${info.adjective} top scorer`,
+          `${stats.goals} goals, more than anyone else in ${info.league}.`,
         ),
       );
     }
@@ -197,7 +204,7 @@ export function evaluateHonours(input: HonoursInput): HonoursResult {
       honours.push(
         at(
           'playerOfTheSeason',
-          `${info.shortName} player of the season`,
+          `${info.adjective} player of the season`,
           `A ${rating.toFixed(2)} average rating and ${contributions} goal contributions.`,
         ),
       );
@@ -216,15 +223,15 @@ export function evaluateHonours(input: HonoursInput): HonoursResult {
       honours.push(
         at(
           'youngPlayerOfTheSeason',
-          `${info.shortName} young player of the season`,
-          `The best season anyone under 22 had in ${info.name}.`,
+          `${info.adjective} young player of the season`,
+          `The best season anyone under 22 had in ${info.league}.`,
         ),
       );
     }
   }
 
   // International football is a consequence of fame, not of a fixture list.
-  const capsGained = capsForSeason(player, input.division);
+  const capsGained = capsForSeason(player, input.countryId);
   if (capsGained > 0) {
     const before = player.caps;
     const after = before + capsGained;
@@ -248,12 +255,12 @@ export function evaluateHonours(input: HonoursInput): HonoursResult {
 /**
  * Caps won in a season.
  *
- * Reputation decides selection; the division decides how closely anyone was
- * watching. A brilliant second-division season gets you looked at, but the
- * squad is picked from the top flight first.
+ * Reputation decides selection; the league decides how closely anyone was
+ * watching. A brilliant season in a country nobody follows gets you looked at,
+ * but the squad is picked from the well-watched leagues first.
  */
-export function capsForSeason(player: Player, division: number): number {
-  const prestige = divisionInfo(division).prestige;
+export function capsForSeason(player: Player, countryId: string): number {
+  const prestige = countryPrestige(countryId);
   const over = player.reputation - INTERNATIONAL_REPUTATION;
   if (over < 0) return 0;
   return Math.round(clamp(2 + over * 0.16, 0, 10) * prestige);

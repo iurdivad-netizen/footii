@@ -10,7 +10,7 @@ import { reputationTier } from '../../core/career/reputation.ts';
 import { SQUAD_ROLE_LABELS, marketValue, scoutingInterest } from '../../core/career/transfers.ts';
 import type { ClubInterest } from '../../core/career/transfers.ts';
 import { describeContract } from '../../core/career/contracts.ts';
-import { divisionInfo, divisionOf, divisionPrestige } from '../../core/career/divisions.ts';
+import { allClubIds, countryPrestige, getCountry, locateClub } from '../../core/career/countries.ts';
 import { applyStrength } from '../../core/career/clubDrift.ts';
 import { summariseHonours } from '../../core/career/awards.ts';
 import type { Team } from '../../core/team/team.ts';
@@ -56,15 +56,20 @@ export class CareerScreen {
     return applyStrength(getTeam(id), this.state.clubStrengths);
   }
 
-  /** Prestige of the division a club is currently in. */
+  /** The country a club currently plays in. */
+  private countryOf(id: string): string {
+    return locateClub(this.state.leagues, id)?.countryId ?? this.state.countryId;
+  }
+
+  /** Prestige of the league a club currently plays in. */
   private prestigeOf(id: string): number {
-    return divisionPrestige(divisionOf(this.state.divisions, id) || this.state.division);
+    return countryPrestige(this.countryOf(id));
   }
 
   private render(): string {
     const { player } = this.state;
     const club = this.club(this.state.clubId);
-    const division = divisionInfo(this.state.division);
+    const country = getCountry(this.state.countryId);
     const fixture = nextFixture(this.state);
     const done = seasonComplete(this.state);
     const stats = this.state.seasonStats;
@@ -82,7 +87,7 @@ export class CareerScreen {
           <h1>${player.name}</h1>
           <p class="career-sub">
             ${positionLabel(player.position)} · age ${player.age} · ${club.name}
-            · ${division.name} · Season ${this.state.seasonNumber}
+            · ${country.league} · Season ${this.state.seasonNumber}
           </p>
         </div>
         <div class="career-ability">
@@ -147,7 +152,7 @@ export class CareerScreen {
 
       <div class="career-grid wide">
         <div class="career-card">
-          <h2>${division.name}</h2>
+          <h2>${country.league}</h2>
           ${this.renderTable()}
         </div>
         <div class="career-card">
@@ -247,10 +252,11 @@ export class CareerScreen {
     // pyramid is that a good season down here is watched from up there.
     const watching: ClubInterest[] = scoutingInterest(
       this.state.player,
-      this.state.divisions.flat().map((id) => this.club(id)),
+      allClubIds(this.state.leagues).map((id: string) => this.club(id)),
       this.state.clubId,
       this.state.seasonStats,
       (id) => this.prestigeOf(id),
+      (id) => this.countryOf(id),
     ).slice(0, 3);
 
     if (watching.length === 0) {
@@ -261,9 +267,9 @@ export class CareerScreen {
         (interest) =>
           `<li>
             <span>${getTeam(interest.clubId).name}
-              <em class="watch-division">${divisionInfo(
-                divisionOf(this.state.divisions, interest.clubId) || this.state.division,
-              ).shortName}</em>
+              <em class="watch-division">${getCountry(
+                this.countryOf(interest.clubId),
+              ).short}</em>
             </span>
             <span class="watch-level">${describeInterest(interest.score)}</span>
           </li>`,
@@ -377,7 +383,7 @@ export class CareerScreen {
           `<tr>
             <td>${h.seasonNumber}</td>
             <td>${getTeam(h.clubId).shortName}</td>
-            <td>${divisionInfo(h.division ?? 1).shortName}</td>
+            <td>${getCountry(h.countryId ?? this.state.countryId).short}</td>
             <td>${h.age}</td>
             <td>${h.position}</td>
             <td>${h.stats.matches}</td>

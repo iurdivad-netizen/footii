@@ -81,7 +81,8 @@ describe('save migration', () => {
     // Simulate a v4 save: one division, no contracts, no honours, no caps.
     const legacy = { ...state } as Record<string, unknown>;
     delete legacy.division;
-    delete legacy.divisions;
+    delete legacy.countryId;
+    delete legacy.leagues;
     delete legacy.clubStrengths;
     delete legacy.contract;
     delete legacy.renewal;
@@ -102,7 +103,8 @@ describe('save migration', () => {
     // The career keeps its club, and is placed in whichever division it is in.
     expect(restored.clubId).toBe('northport-city');
     expect(restored.division).toBe(1);
-    expect(restored.divisions.flat()).toHaveLength(TEAMS.length);
+    expect(restored.countryId).toBe('england');
+    expect(Object.values(restored.leagues).flat(2)).toHaveLength(TEAMS.length);
     expect(restored.clubStrengths['northport-city']).toBeTruthy();
     expect(restored.contract.clubId).toBe('northport-city');
     expect(restored.contract.yearsRemaining).toBeGreaterThan(0);
@@ -116,7 +118,8 @@ describe('save migration', () => {
     const state = career();
     const legacy = { ...state, history: [{ seasonNumber: 1, clubId: 'northport-city', position: 3, stats: state.seasonStats, age: 24 }] } as Record<string, unknown>;
     delete legacy.division;
-    delete legacy.divisions;
+    delete legacy.countryId;
+    delete legacy.leagues;
     delete legacy.contract;
 
     const migrated = migrate({ version: 4, career: emptyCareer(), careerState: legacy } as never)!;

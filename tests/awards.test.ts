@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Rng } from '../src/core/rng.ts';
+// Imported for its side effect: loading the data registers the countries that
+// honours are named after. Without it every league is "Unknown".
+import '../src/data/gameData.ts';
 import { createPlayer } from '../src/core/player/player.ts';
 import type { Player } from '../src/core/player/player.ts';
 import { createSeasonStats } from '../src/core/career/seasonStats.ts';
@@ -109,6 +112,7 @@ describe('team honours', () => {
     season: 3,
     clubId: 'club-0',
     division: 1,
+    countryId: 'england',
     benchmark,
     seasonLength: SEASON_LENGTH,
   };
@@ -124,7 +128,7 @@ describe('team honours', () => {
   });
 
   it('records promotion and relegation, and names the division moved out of', () => {
-    const up = evaluateHonours({ ...base, division: 2, position: 1, movement: 'promoted' });
+    const up = evaluateHonours({ ...base, countryId: 'spain', position: 1, movement: 'promoted' });
     expect(honourKinds(up.honours)).toContain('promotion');
 
     const down = evaluateHonours({ ...base, position: 8, movement: 'relegated' });
@@ -133,8 +137,8 @@ describe('team honours', () => {
   });
 
   it('says which division a title was won in', () => {
-    const second = evaluateHonours({ ...base, division: 2, position: 1, movement: null });
-    expect(second.honours.find((h) => h.kind === 'title')!.label).toContain('Championship');
+    const second = evaluateHonours({ ...base, countryId: 'spain', position: 1, movement: null });
+    expect(second.honours.find((h) => h.kind === 'title')!.label).toContain('Spanish');
   });
 });
 
@@ -144,6 +148,7 @@ describe('individual honours', () => {
     season: 3,
     clubId: 'club-0',
     division: 1,
+    countryId: 'england',
     position: 1,
     movement: null,
     benchmark,
@@ -233,19 +238,19 @@ describe('individual honours', () => {
 
 describe('international football', () => {
   it('picks nobody the game has not heard of', () => {
-    expect(capsForSeason(player({ reputation: INTERNATIONAL_REPUTATION - 1 }), 1)).toBe(0);
+    expect(capsForSeason(player({ reputation: INTERNATIONAL_REPUTATION - 1 }), 'england')).toBe(0);
   });
 
   it('picks a well known player, and more often the better known he is', () => {
-    const known = capsForSeason(player({ reputation: 70 }), 1);
-    const famous = capsForSeason(player({ reputation: 95 }), 1);
+    const known = capsForSeason(player({ reputation: 70 }), 'england');
+    const famous = capsForSeason(player({ reputation: 95 }), 'england');
     expect(known).toBeGreaterThan(0);
     expect(famous).toBeGreaterThan(known);
   });
 
   it('notices a second-division season less than a first-division one', () => {
-    expect(capsForSeason(player({ reputation: 80 }), 2)).toBeLessThan(
-      capsForSeason(player({ reputation: 80 }), 1),
+    expect(capsForSeason(player({ reputation: 80 }), 'scotland')).toBeLessThan(
+      capsForSeason(player({ reputation: 80 }), 'england'),
     );
   });
 
@@ -255,6 +260,7 @@ describe('international football', () => {
       season: 3,
       clubId: 'club-0',
       division: 1,
+      countryId: 'england',
       position: 3,
       movement: null,
       benchmark,
@@ -275,6 +281,7 @@ describe('international football', () => {
       season: 5,
       clubId: 'club-0',
       division: 1,
+      countryId: 'england',
       position: 3,
       movement: null,
       benchmark,
@@ -291,6 +298,7 @@ describe('summarising an honours list', () => {
     season: 1,
     clubId: 'c',
     division: 1,
+    countryId: 'england',
     label,
     detail: '',
   });

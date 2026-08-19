@@ -1,19 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { Rng } from '../src/core/rng.ts';
-import { TEAMS, getTeam, teamsInDivision } from '../src/data/gameData.ts';
+import { TEAMS, getTeam, teamsInCountry } from '../src/data/gameData.ts';
 import {
-  DIVISIONS,
   PROMOTION_PLACES,
   RELEGATION_PLACES,
-  divisionInfo,
   divisionOf,
-  divisionPrestige,
-  initialDivisions,
-  isBottomDivision,
-  isTopDivision,
   movementFor,
   resolveDivisions,
   simulateDivisionSeason,
+  simulateDivisionThrough,
 } from '../src/core/career/divisions.ts';
 import { applyResult, emptyTable, sortTable } from '../src/core/career/league.ts';
 import type { TableRow } from '../src/core/career/league.ts';
@@ -32,69 +27,31 @@ function tableInOrder(ids: readonly string[]): TableRow[] {
   return table;
 }
 
-describe('the shape of the pyramid', () => {
-  it('splits the loaded clubs into the divisions they belong to', () => {
-    const divisions = initialDivisions(TEAMS);
-    expect(divisions).toHaveLength(DIVISIONS.length);
-    expect(divisions.flat()).toHaveLength(TEAMS.length);
-    expect(divisions[0]).toEqual(teamsInDivision(1).map((t) => t.id));
-    expect(divisions[1]).toEqual(teamsInDivision(2).map((t) => t.id));
-  });
+const ENGLAND = teamsInCountry('england').map((t) => t.id);
 
-  it('places every club exactly once', () => {
-    const all = initialDivisions(TEAMS).flat();
-    expect(new Set(all).size).toBe(all.length);
-  });
+describe('simulating a league the player is not in', () => {
+  const clubs = teamsInCountry('spain');
 
-  it('values the top flight above the one below it', () => {
-    expect(divisionPrestige(1)).toBeGreaterThan(divisionPrestige(2));
-    expect(divisionPrestige(1)).toBe(1);
-  });
-
-  it('knows the ends of the ladder', () => {
-    expect(isTopDivision(1)).toBe(true);
-    expect(isTopDivision(2)).toBe(false);
-    expect(isBottomDivision(2)).toBe(true);
-    expect(isBottomDivision(1)).toBe(false);
-  });
-
-  it('describes an unknown division as the bottom one rather than throwing', () => {
-    expect(divisionInfo(99)).toBe(DIVISIONS[DIVISIONS.length - 1]);
-  });
-
-  it('reports which division a club is in, and 0 for one that is in none', () => {
-    const divisions = initialDivisions(TEAMS);
-    expect(divisionOf(divisions, teamsInDivision(1)[0]!.id)).toBe(1);
-    expect(divisionOf(divisions, teamsInDivision(2)[0]!.id)).toBe(2);
-    expect(divisionOf(divisions, 'no-such-club')).toBe(0);
-  });
-});
-
-describe('simulating a division the player is not in', () => {
   it('plays a full double round-robin and gives everyone the same number of games', () => {
-    const teams = teamsInDivision(2);
-    const table = simulateDivisionSeason(new Rng('bg'), teams);
-    expect(table).toHaveLength(teams.length);
-    for (const row of table) expect(row.played).toBe((teams.length - 1) * 2);
+    const table = simulateDivisionSeason(new Rng('bg'), clubs);
+    expect(table).toHaveLength(clubs.length);
+    for (const row of table) expect(row.played).toBe((clubs.length - 1) * 2);
   });
 
   it('is deterministic from its seed', () => {
-    const teams = teamsInDivision(2);
-    const a = simulateDivisionSeason(new Rng('same'), teams);
-    const b = simulateDivisionSeason(new Rng('same'), teams);
-    expect(a).toEqual(b);
+    expect(simulateDivisionSeason(new Rng('same'), clubs)).toEqual(
+      simulateDivisionSeason(new Rng('same'), clubs),
+    );
   });
 
   it('usually puts the stronger clubs above the weaker ones', () => {
-    // Not a guarantee for any one season, so this asks the aggregate question:
-    // across many seasons the best club should finish above the worst.
-    const teams = teamsInDivision(2);
-    const best = teams.reduce((a, b) => (a.ratings.attack > b.ratings.attack ? a : b));
-    const worst = teams.reduce((a, b) => (a.ratings.attack < b.ratings.attack ? a : b));
+    // Not a guarantee for any one season, so this asks the aggregate question.
+    const best = clubs.reduce((a, b) => (a.ratings.attack > b.ratings.attack ? a : b));
+    const worst = clubs.reduce((a, b) => (a.ratings.attack < b.ratings.attack ? a : b));
 
     let bestAbove = 0;
     for (let seed = 0; seed < 30; seed++) {
-      const table = simulateDivisionSeason(new Rng(`s${seed}`), teams);
+      const table = simulateDivisionSeason(new Rng(`s${seed}`), clubs);
       const bestPos = table.findIndex((r) => r.teamId === best.id);
       const worstPos = table.findIndex((r) => r.teamId === worst.id);
       if (bestPos < worstPos) bestAbove += 1;
@@ -103,20 +60,57 @@ describe('simulating a division the player is not in', () => {
   });
 });
 
-describe('promotion and relegation', () => {
-  const divisions = initialDivisions(TEAMS);
+describe('a league part-way through its season', () => {
+  const clubs = teamsInCountry('italy');
 
-  it('sends the bottom of a division down and brings the top of the one below up', () => {
-    const top = divisions[0]!;
+  it('plays only the rounds asked for', () => {
+    const table = simulateDivisionThrough(new Rng('part'), clubs, 5);
+    for (const row of table) expect(row.played).toBeLessThanOrEqual(5);
+    expect(table.some((row) => row.played === 5)).toBe(true);
+  });
+
+  it('has played nothing at all before the first round', () => {
+    const table = simulateDivisionThrough(new Rng('none'), clubs, 0);
+    for (const row of table) expect(row.played).toBe(0);
+  });
+
+  it('is a genuine PREFIX of the full season, not a different one', () => {
+    // This is what lets the league browser recompute a table on demand: a
+    // mid-season table must be the same season the final table will settle,
+    // or a league would visibly rewrite its own history as the year went on.
+    const full = simulateDivisionSeason(new Rng('prefix'), clubs);
+    const prefix = simulateDivisionThrough(new Rng('prefix'), clubs, 30);
+    expect(prefix).toEqual(full);
+  });
+
+  it('accumulates rather than jumping around as the season runs', () => {
+    let previous = 0;
+    for (const rounds of [2, 6, 12, 20, 30]) {
+      const table = simulateDivisionThrough(new Rng('grow'), clubs, rounds);
+      const played = table.reduce((sum, row) => sum + row.played, 0);
+      expect(played).toBeGreaterThan(previous);
+      previous = played;
+    }
+  });
+});
+
+describe('promotion and relegation between tiers', () => {
+  // The world gives every country one tier today, so these run against a
+  // hand-built two-tier pyramid — the shape a country takes the moment a second
+  // division is added to the data.
+  const upper = ENGLAND.slice(0, 8);
+  const lower = ENGLAND.slice(8, 16);
+  const pyramid = [upper, lower];
+
+  it('sends the bottom of a tier down and brings the top of the one below up', () => {
     const outcome = resolveDivisions(new Rng('swap'), {
-      divisions,
+      divisions: pyramid,
       playerDivision: 1,
-      playerTable: tableInOrder(top),
+      playerTable: tableInOrder(upper),
       lookup,
     });
 
-    // tableInOrder ranks by the order given, so the last entries went down.
-    const expectedDown = top.slice(top.length - RELEGATION_PLACES);
+    const expectedDown = upper.slice(upper.length - RELEGATION_PLACES);
     for (const id of expectedDown) {
       expect(outcome.divisions[1]).toContain(id);
       expect(outcome.divisions[0]).not.toContain(id);
@@ -131,9 +125,9 @@ describe('promotion and relegation', () => {
     }
   });
 
-  it('never changes the size of a division', () => {
-    let current: string[][] = divisions.map((d) => d.slice());
-    for (let season = 0; season < 12; season++) {
+  it('never changes the size of a tier, however many seasons pass', () => {
+    let current: string[][] = pyramid.map((d) => d.slice());
+    for (let season = 0; season < 20; season++) {
       const outcome = resolveDivisions(new Rng(`s${season}`), {
         divisions: current,
         playerDivision: 1,
@@ -141,32 +135,17 @@ describe('promotion and relegation', () => {
         lookup,
       });
       current = outcome.divisions;
-      expect(current[0]).toHaveLength(divisions[0]!.length);
-      expect(current[1]).toHaveLength(divisions[1]!.length);
-    }
-  });
-
-  it('never loses or duplicates a club, however many seasons pass', () => {
-    let current: string[][] = divisions.map((d) => d.slice());
-    for (let season = 0; season < 25; season++) {
-      const outcome = resolveDivisions(new Rng(`long${season}`), {
-        divisions: current,
-        playerDivision: 1,
-        playerTable: tableInOrder(current[0]!),
-        lookup,
-      });
-      current = outcome.divisions;
+      expect(current[0]).toHaveLength(upper.length);
+      expect(current[1]).toHaveLength(lower.length);
       const all = current.flat();
-      expect(new Set(all).size).toBe(TEAMS.length);
-      expect(all).toHaveLength(TEAMS.length);
+      expect(new Set(all).size).toBe(all.length);
     }
   });
 
-  it('uses the played table for the player\'s division rather than simulating it', () => {
-    const top = divisions[0]!;
-    const played = tableInOrder(top);
+  it('uses the played table for the player\'s own tier rather than simulating it', () => {
+    const played = tableInOrder(upper);
     const outcome = resolveDivisions(new Rng('real'), {
-      divisions,
+      divisions: pyramid,
       playerDivision: 1,
       playerTable: played,
       lookup,
@@ -174,26 +153,52 @@ describe('promotion and relegation', () => {
     expect(outcome.tables[0]).toEqual(sortTable(played));
   });
 
-  it('simulates the division the player is not in', () => {
+  it('simulates the tier the player is not in', () => {
     const outcome = resolveDivisions(new Rng('other'), {
-      divisions,
+      divisions: pyramid,
       playerDivision: 1,
-      playerTable: tableInOrder(divisions[0]!),
+      playerTable: tableInOrder(upper),
       lookup,
     });
-    // Every second-division club has a completed season, not an empty row.
-    expect(outcome.tables[1]).toHaveLength(divisions[1]!.length);
+    expect(outcome.tables[1]).toHaveLength(lower.length);
     for (const row of outcome.tables[1]!) expect(row.played).toBeGreaterThan(0);
   });
 
   it('reports no movement for a club that stayed where it was', () => {
-    const top = divisions[0]!;
     const outcome = resolveDivisions(new Rng('stay'), {
-      divisions,
+      divisions: pyramid,
       playerDivision: 1,
-      playerTable: tableInOrder(top),
+      playerTable: tableInOrder(upper),
       lookup,
     });
-    expect(movementFor(outcome, top[0]!)).toBeNull();
+    expect(movementFor(outcome, upper[0]!)).toBeNull();
+  });
+
+  it('moves nobody in a country with a single tier', () => {
+    // The live case: every country has one division, so a season settles the
+    // table and promotes nobody. The mechanics stay wired in and tested so that
+    // adding a second tier is a data change rather than a re-implementation.
+    const outcome = resolveDivisions(new Rng('flat'), {
+      divisions: [ENGLAND],
+      playerDivision: 1,
+      playerTable: tableInOrder(ENGLAND),
+      lookup,
+    });
+    expect(outcome.promoted).toEqual([]);
+    expect(outcome.relegated).toEqual([]);
+    expect(outcome.divisions[0]).toEqual(ENGLAND);
+    expect(movementFor(outcome, ENGLAND[ENGLAND.length - 1]!)).toBeNull();
+  });
+});
+
+describe('locating a club within a pyramid', () => {
+  it('reports the tier a club is in, and 0 for one that is in none', () => {
+    expect(divisionOf([ENGLAND], ENGLAND[0]!)).toBe(1);
+    expect(divisionOf([[], ENGLAND], ENGLAND[0]!)).toBe(2);
+    expect(divisionOf([ENGLAND], 'no-such-club')).toBe(0);
+  });
+
+  it('covers every club in the world', () => {
+    expect(TEAMS.length).toBe(128);
   });
 });

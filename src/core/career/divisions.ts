@@ -4,85 +4,67 @@ import type { TableRow } from './league.ts';
 import { applyResult, emptyTable, generateFixtures, simulateFixture, sortTable } from './league.ts';
 
 /**
- * DIVISIONS, PROMOTION AND RELEGATION
+ * DIVISIONS WITHIN A COUNTRY
  *
- * The transfer market gave a career a ladder to climb; this gives the ladder
- * somewhere to go. With a single division, a player who signed for the best
- * club in the game had reached the end of the world: reputation kept rising,
- * nobody better could ever bid, and every remaining summer was silent.
+ * A country's league pyramid, and the movement between its tiers.
  *
- * Two divisions change three things at once:
+ * The world currently gives every country a SINGLE tier, so promotion and
+ * relegation are dormant: `resolveDivisions` on a one-tier pyramid simulates
+ * the table and swaps nobody. That is deliberate rather than accidental. The
+ * mechanics are written, tested and wired in, so adding a second tier to a
+ * country is a data change plus a fixture list — not a re-implementation.
  *
- *   1. WHERE you play is now a level, not just a badge. Winning the second
- *      division is a real season with a real prize, and the club you join in it
- *      may not be there next year.
- *   2. Your club can move without you. Relegation is the one career event you
- *      do not choose, and it is the strongest reason the game can give you to
- *      take an offer you would otherwise turn down.
- *   3. Fame is scaled by the stage. A hat-trick in the second division is worth
- *      less than a hat-trick in the first, so climbing is worth doing.
+ * What used to live here and now does not: league NAMES and PRESTIGE. When the
+ * world was a single pyramid, "which division" answered "how big is this
+ * league". With a map of countries it does not — the second tier of a big
+ * country and the first tier of a small one are different questions — so both
+ * moved to core/career/countries.ts.
  *
- * The division the player is NOT in is simulated in the background at the end
- * of each season — cheaply, with the same scoreline model the league already
- * uses for neutral fixtures. It is not a parallel career, it is a table that
- * has to be plausible enough to promote and relegate the right clubs.
+ * The tier a player is in is still called his `division`, and 1 is still the
+ * top of his own country's pyramid.
  */
 
-export interface Division {
-  /** 1 is the top flight. */
-  number: number;
-  name: string;
-  shortName: string;
-  /**
-   * How much of the football world is watching, 0-1.
-   *
-   * Scales reputation, wages and the fees clubs pay. Deliberately a steep drop
-   * rather than a gentle one: the second division has to feel like somewhere
-   * you are trying to get out of.
-   */
-  prestige: number;
-}
-
-export const DIVISIONS: readonly Division[] = [
-  { number: 1, name: 'The Premier Division', shortName: 'Premier', prestige: 1 },
-  { number: 2, name: 'The Championship', shortName: 'Championship', prestige: 0.62 },
-];
-
-/** How many clubs go down from a division each season. */
+/** How many clubs go down from a tier each season, once there is one below. */
 export const RELEGATION_PLACES = 2;
 
-/** How many come up from the division below. Kept equal, so sizes are stable. */
+/** How many come up from the tier below. Kept equal, so sizes are stable. */
 export const PROMOTION_PLACES = 2;
-
-export function divisionInfo(number: number): Division {
-  return DIVISIONS.find((d) => d.number === number) ?? DIVISIONS[DIVISIONS.length - 1]!;
-}
-
-export function divisionPrestige(number: number): number {
-  return divisionInfo(number).prestige;
-}
-
-export function isTopDivision(number: number): boolean {
-  return number <= DIVISIONS[0]!.number;
-}
-
-export function isBottomDivision(number: number): boolean {
-  return number >= DIVISIONS[DIVISIONS.length - 1]!.number;
-}
 
 /**
  * Play out a full season for a division the player is not in.
  *
  * Uses the same fixture generator and scoreline model as the neutral fixtures
- * in the player's own league, so the two divisions are decided by the same
- * football and a table from one is comparable with a table from the other.
+ * in the player's own league, so every league in the world is decided by the
+ * same football and a table from one is comparable with a table from another.
  */
 export function simulateDivisionSeason(rng: Rng, teams: readonly Team[]): TableRow[] {
+  return simulateDivisionThrough(rng, teams, Number.POSITIVE_INFINITY);
+}
+
+/**
+ * The same season, stopped after `rounds` rounds.
+ *
+ * This is what makes the other seven leagues in the world LIVE rather than a
+ * result announced in June. Nothing about them is stored in the save: a table
+ * is a pure function of (seed, season, country, rounds played), so the league
+ * browser recomputes whichever one you are looking at and it always agrees with
+ * the final table that same seed will produce at the end of the season.
+ *
+ * Fixtures are generated from the same rng as the results, so a partial
+ * simulation is a genuine prefix of the full one rather than a different season
+ * that happens to stop early.
+ */
+export function simulateDivisionThrough(
+  rng: Rng,
+  teams: readonly Team[],
+  rounds: number,
+): TableRow[] {
   const ids = teams.map((team) => team.id);
   const byId = new Map(teams.map((team) => [team.id, team]));
   const table = emptyTable(ids);
 
   for (const fixture of generateFixtures(ids, rng)) {
+    if (fixture.round > rounds) continue;
     const home = byId.get(fixture.homeId);
     const away = byId.get(fixture.awayId);
     if (!home || !away) continue;
@@ -180,19 +162,4 @@ export function movementFor(outcome: DivisionOutcome, teamId: string): DivisionM
   if (outcome.promoted.some((entry) => entry.teamId === teamId)) return 'promoted';
   if (outcome.relegated.some((entry) => entry.teamId === teamId)) return 'relegated';
   return null;
-}
-
-/**
- * The starting shape of the league pyramid, from the loaded clubs.
- * A club with an unknown division is placed in the bottom one rather than
- * dropped, so a data error cannot silently shrink the game.
- */
-export function initialDivisions(teams: readonly Team[]): string[][] {
-  const bottom = DIVISIONS[DIVISIONS.length - 1]!.number;
-  const placed = (team: Team) =>
-    DIVISIONS.some((d) => d.number === team.division) ? team.division : bottom;
-
-  return DIVISIONS.map((division) =>
-    teams.filter((team) => placed(team) === division.number).map((team) => team.id),
-  );
 }

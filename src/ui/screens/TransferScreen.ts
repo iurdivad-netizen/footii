@@ -13,7 +13,7 @@ import {
 } from '../../core/career/transfers.ts';
 import type { ContractOffer } from '../../core/career/contracts.ts';
 import { reputationTier } from '../../core/career/reputation.ts';
-import { divisionInfo } from '../../core/career/divisions.ts';
+import { getCountry } from '../../core/career/countries.ts';
 
 /**
  * THE TRANSFER WINDOW
@@ -22,9 +22,9 @@ import { divisionInfo } from '../../core/career/divisions.ts';
  * is a real decision with real consequences, so the screen shows the things
  * that will change if you take it rather than a fee and a badge:
  *
- *   - the DIVISION you would be playing in, which is the biggest single lever
- *     on your career: the level of football, the money, and how many people are
- *     watching you play it
+ *   - the COUNTRY and league you would be playing in, which is the biggest
+ *     single lever on your career: the level of football, the money, and how
+ *     many people are watching you play it
  *   - the level of the squad you would join, which sets the quality of the
  *     chances the engine hands you and the coaching that develops you
  *   - how they play, which decides WHICH situations you get
@@ -39,11 +39,11 @@ import { divisionInfo } from '../../core/career/divisions.ts';
  */
 
 export interface TransferScreenContext {
-  /** Division the player is in next season if he stays. */
-  currentDivision: number;
-  /** Division of each bidding club, keyed by club id. */
-  divisionOf: (clubId: string) => number;
-  /** Prestige of a club's division, for what it expects of a signing. */
+  /** Country the player is in next season if he stays. */
+  currentCountryId: string;
+  /** Country of each bidding club. */
+  countryOf: (clubId: string) => string;
+  /** Prestige of a club's league, for what it expects of a signing. */
   prestigeOf: (clubId: string) => number;
   /** Terms his own club has put up, if any. */
   renewal: ContractOffer | null;
@@ -66,7 +66,7 @@ export class TransferScreen {
     handlers: { onAccept: (offerId: string) => void; onStay: () => void },
   ) {
     const tier = reputationTier(player.reputation);
-    const division = divisionInfo(context.currentDivision);
+    const country = getCountry(context.currentCountryId);
 
     this.element = document.createElement('section');
     this.element.className = 'screen transfer-screen';
@@ -87,7 +87,7 @@ export class TransferScreen {
         </div>
         <div class="progress-stat">
           <span class="progress-value">${currentClub.shortName}</span>
-          <span class="progress-label">${positionLabel(player.position)} · ${division.shortName}</span>
+          <span class="progress-label">${positionLabel(player.position)} · ${country.short}</span>
         </div>
       </div>
 
@@ -186,25 +186,30 @@ function offerCard(
   const need = positionalNeed(club, player.position);
   const prestige = context.prestigeOf(offer.clubId);
 
-  const division = divisionInfo(context.divisionOf(offer.clubId));
-  const divisionStep = context.currentDivision - division.number;
+  const country = getCountry(context.countryOf(offer.clubId));
+  const home = getCountry(context.currentCountryId);
+  const abroad = country.id !== home.id;
+  // Prestige, not squad level, decides whether a foreign league is a step up:
+  // the best club in a small country can have the stronger squad and still be
+  // the smaller move, because far fewer people are watching it.
+  const leagueStep = country.prestige - home.prestige;
 
-  // The division change is the headline, because it outranks everything else on
-  // the card: a sideways move up a level is a bigger step than a step up within
-  // one. Squad level only decides the label when both clubs are in the same
-  // division.
-  const stepLabel =
-    divisionStep > 0
-      ? 'Step up a division'
-      : divisionStep < 0
-        ? 'Drop a division'
-        : step >= 6
-          ? 'Step up'
-          : step <= -6
-            ? 'Step down'
-            : 'Sideways move';
-  const stepClass = divisionStep > 0 || (divisionStep === 0 && step >= 6) ? 'up' : '';
-  const downClass = divisionStep < 0 || (divisionStep === 0 && step <= -6) ? 'down' : '';
+  // The league change is the headline when it crosses a border, because it
+  // outranks everything else on the card. Squad level decides the label only
+  // when both clubs play in the same league.
+  const stepLabel = abroad
+    ? leagueStep > 0.06
+      ? `Step up to ${country.name}`
+      : leagueStep < -0.06
+        ? `Drop down to ${country.name}`
+        : `Move to ${country.name}`
+    : step >= 6
+      ? 'Step up'
+      : step <= -6
+        ? 'Step down'
+        : 'Sideways move';
+  const stepClass = (abroad ? leagueStep > 0.06 : step >= 6) ? 'up' : '';
+  const downClass = (abroad ? leagueStep < -0.06 : step <= -6) ? 'down' : '';
 
   return `
     <div class="career-card offer-card" style="border-left: 4px solid ${club.colour}">
@@ -213,7 +218,7 @@ function offerCard(
         <span class="offer-step ${stepClass}${downClass}">${stepLabel}</span>
       </div>
       <p class="hint">
-        ${division.name} · ${TACTICAL_STYLE_LABELS[club.style]} · squad level ${level} ·
+        ${country.league} · ${TACTICAL_STYLE_LABELS[club.style]} · squad level ${level} ·
         expects ${withArticle(reputationTier(reputationRequired(club, prestige)).label.toLowerCase())} player
       </p>
 

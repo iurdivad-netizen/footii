@@ -2,7 +2,7 @@ import type { MatchStats } from '../core/match/matchStats.ts';
 import type { CareerState } from '../core/career/career.ts';
 import { currentAbility } from '../core/player/player.ts';
 import { TEAMS } from '../data/gameData.ts';
-import { divisionOf, initialDivisions } from '../core/career/divisions.ts';
+import { initialLeagues, locateClub } from '../core/career/countries.ts';
 import { initialStrengths } from '../core/career/clubDrift.ts';
 import { contractYears, offeredWage, squadRole } from '../core/career/transfers.ts';
 import type { DecisionPace } from '../simulation/DecisionTimer.ts';
@@ -19,7 +19,7 @@ import type { DecisionPace } from '../simulation/DecisionTimer.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 export interface CareerRecord {
   matches: number;
@@ -133,7 +133,9 @@ export function isUsableCareer(state: unknown): state is CareerState {
     !!c.contract &&
     typeof c.contract === 'object' &&
     typeof c.division === 'number' &&
-    Array.isArray(c.divisions) &&
+    typeof c.countryId === 'string' &&
+    !!c.leagues &&
+    typeof c.leagues === 'object' &&
     !!c.clubStrengths &&
     typeof c.clubStrengths === 'object'
   );
@@ -184,8 +186,10 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
     // never had.
     const career = save.careerState;
     if (career) {
-      career.divisions ??= initialDivisions(TEAMS);
-      career.division ??= divisionOf(career.divisions, career.clubId) || 1;
+      career.leagues ??= initialLeagues(TEAMS);
+      const placed = locateClub(career.leagues, career.clubId);
+      career.countryId ??= placed?.countryId ?? 'england';
+      career.division ??= placed?.division ?? 1;
       career.clubStrengths ??= initialStrengths(TEAMS);
       career.honours ??= [];
       career.careerEarnings ??= 0;
@@ -206,6 +210,39 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
       for (const season of career.history ?? []) season.division ??= career.division;
     }
     save = { ...save, version: 5 };
+  }
+
+  if (save.version === 5) {
+    // v5 -> v6: the single pyramid became a world of countries. A v5 career was
+    // necessarily English — those were the only clubs there were — so it keeps
+    // its club, its statistics and its honours, and is simply re-placed on a
+    // map that now has seven more leagues on it. Its former second division is
+    // now the lower half of the English league, which is where those clubs sit
+    // in the new data, so nobody is left in a division that no longer exists.
+    const career = save.careerState;
+    if (career) {
+      career.leagues = initialLeagues(TEAMS);
+      const placed = locateClub(career.leagues, career.clubId);
+      career.countryId = placed?.countryId ?? 'england';
+      career.division = placed?.division ?? 1;
+      career.leagueTeamIds = (career.leagues[career.countryId]?.[career.division - 1] ?? []).slice();
+      career.player.nationality ??= career.countryId;
+      for (const season of career.history ?? []) season.countryId ??= career.countryId;
+      for (const honour of career.honours ?? []) honour.countryId ??= career.countryId;
+      for (const move of career.transfers ?? []) {
+        move.fromCountryId ??= career.countryId;
+        move.toCountryId ??= career.countryId;
+      }
+      // The old league had eight clubs and the new one has sixteen, so the
+      // fixture list and table in the save describe a season that cannot be
+      // finished. The season in progress is restarted rather than half-played:
+      // losing a part-season is recoverable, an unplayable one is not.
+      career.fixtures = [];
+      career.results = [];
+      career.table = [];
+      career.nextFixtureIndex = 0;
+    }
+    save = { ...save, version: 6 };
   }
 
   if (save.version !== SAVE_VERSION) return null;

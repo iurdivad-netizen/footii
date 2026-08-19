@@ -12,6 +12,7 @@ import type { SeasonStats } from './seasonStats.ts';
 import { matchReputationGain } from './reputation.ts';
 import type { TransferOffer, TransferRecord } from './transfers.ts';
 import type { Contract, ContractOffer } from './contracts.ts';
+import type { WorldLeagues } from './countries.ts';
 import type { ClubStrengths } from './clubDrift.ts';
 import type { Honour } from './awards.ts';
 
@@ -35,6 +36,8 @@ export interface SeasonRecord {
   age: number;
   /** The division it was played in, so a history reads at the right level. */
   division: number;
+  /** The country it was played in. */
+  countryId: string;
 }
 
 export interface CareerState {
@@ -75,14 +78,20 @@ export interface CareerState {
   offers: TransferOffer[];
   /** Every move made, oldest first. */
   transfers: TransferRecord[];
-  /** The division the player is currently in; 1 is the top flight. */
+  /** The country whose league the player is currently playing in. */
+  countryId: string;
+  /** The tier within that country; 1 is its top flight. */
   division: number;
   /**
-   * Membership of every division, index 0 being the top flight.
-   * Reshaped each summer by promotion and relegation, which is why it lives in
-   * the save rather than being read back from the data file.
+   * Every country's league membership, keyed by country id.
+   *
+   * Lives in the save rather than being read back from the data file because
+   * promotion and relegation reshape it. The tables of the leagues the player
+   * is NOT in are deliberately absent: they are a pure function of the seed and
+   * are recomputed on demand, which keeps a save small and can never let a
+   * stored table disagree with the season that produced it.
    */
-  divisions: string[][];
+  leagues: WorldLeagues;
   /**
    * Live club ratings, which drift season by season. Held here rather than
    * mutating the loaded teams, so two careers in the same browser cannot
@@ -226,7 +235,13 @@ export function advanceSeason(
   rng: Rng,
   state: CareerState,
   position: number,
-  next: { fixtures: Fixture[]; table: TableRow[]; leagueTeamIds: string[]; division: number },
+  next: {
+    fixtures: Fixture[];
+    table: TableRow[];
+    leagueTeamIds: string[];
+    division: number;
+    countryId: string;
+  },
 ): SeasonRecord {
   const record: SeasonRecord = {
     seasonNumber: state.seasonNumber,
@@ -235,6 +250,7 @@ export function advanceSeason(
     stats: state.seasonStats,
     age: state.player.age,
     division: state.division,
+    countryId: state.countryId,
   };
   state.history.push(record);
 
@@ -250,6 +266,7 @@ export function advanceSeason(
   state.table = next.table;
   state.leagueTeamIds = next.leagueTeamIds;
   state.division = next.division;
+  state.countryId = next.countryId;
   state.results = [];
   state.nextFixtureIndex = 0;
   state.development = createDevelopmentState();

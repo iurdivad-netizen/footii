@@ -14,7 +14,7 @@ import {
 } from '../src/simulation/CareerService.ts';
 import type { SeasonEnd } from '../src/simulation/CareerService.ts';
 import { isExpired } from '../src/core/career/contracts.ts';
-import { divisionOf } from '../src/core/career/divisions.ts';
+import { allClubIds, locateClub } from '../src/core/career/countries.ts';
 import { createMatchStats } from '../src/core/match/matchStats.ts';
 
 /**
@@ -131,17 +131,21 @@ describe('a whole career, played out', () => {
 
   it('keeps the player in the division his club is actually in', () => {
     for (const career of [star, journeyman]) {
-      expect(divisionOf(career.state.divisions, career.state.clubId)).toBe(career.state.division);
+      const placed = locateClub(career.state.leagues, career.state.clubId);
+      expect(placed?.division).toBe(career.state.division);
+      expect(placed?.countryId).toBe(career.state.countryId);
       expect(career.state.leagueTeamIds).toContain(career.state.clubId);
     }
   });
 
   it('never loses, duplicates or strands a club across the whole career', () => {
     for (const career of [star, journeyman]) {
-      const all = career.state.divisions.flat();
+      const all = allClubIds(career.state.leagues);
       expect(all).toHaveLength(TEAMS.length);
       expect(new Set(all).size).toBe(TEAMS.length);
-      for (const division of career.state.divisions) expect(division.length).toBeGreaterThan(1);
+      for (const pyramid of Object.values(career.state.leagues)) {
+        for (const tier of pyramid) expect(tier.length).toBeGreaterThan(1);
+      }
     }
   });
 
@@ -162,19 +166,15 @@ describe('a whole career, played out', () => {
     expect(heardFrom.length).toBeGreaterThan(0);
   });
 
-  it('moves a good player up the pyramid and keeps a poor one down', () => {
-    expect(star.state.division).toBeLessThanOrEqual(journeyman.state.division);
-    // Starting at the very bottom club in the second division, a star does not
-    // end his career there.
+  it('moves a good player up the ladder and keeps a poor one down', () => {
+    // Starting at the weakest club in the world, a star does not end there.
     expect(star.state.clubId).not.toBe('stapleton-vale');
   });
 
-  it('promotes and relegates somebody over the course of a career', () => {
-    const moved = star.seasons.filter((s) => s.movement !== null);
-    const anyChurn = star.state.divisions[0]!.some(
-      (id) => getTeam(id).division !== 1,
-    );
-    expect(moved.length + (anyChurn ? 1 : 0)).toBeGreaterThan(0);
+  it('keeps every country\'s league at a full complement', () => {
+    for (const [countryId, pyramid] of Object.entries(star.state.leagues)) {
+      expect(pyramid[0]!.length, countryId).toBe(16);
+    }
   });
 
   it('keeps reputation inside its scale and responsive to the football played', () => {
