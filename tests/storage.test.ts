@@ -11,6 +11,7 @@ import { startCareer } from '../src/simulation/CareerService.ts';
 import { createPlayer } from '../src/core/player/player.ts';
 import { TEAMS } from '../src/data/gameData.ts';
 import { seasonCalendar } from '../src/core/career/calendar.ts';
+import { createCareerRecords, milestones, recordMatch } from '../src/core/career/records.ts';
 
 function career() {
   return startCareer({
@@ -199,6 +200,79 @@ describe('save migration', () => {
     expect(restored.cups.nationalCup.survivors).toEqual(restored.leagueTeamIds);
     expect(restored.cups.leagueCup.winnerId).toBeNull();
     expect(restored.cups.nationalCup.rounds).toEqual([]);
+  });
+
+  it('joins a v7 career to Europe and the record book without inventing history', () => {
+    const state = career();
+    state.calendarIndex = 9;
+    state.seasonStats.matches = 6;
+    state.history.push({
+      seasonNumber: 1,
+      clubId: state.clubId,
+      countryId: state.countryId,
+      division: 1,
+      position: 4,
+      age: 18,
+      stats: state.leagueStats,
+    } as never);
+
+    const legacy = { ...state } as Record<string, unknown>;
+    delete legacy.europe;
+    delete legacy.europeanEntries;
+    delete legacy.records;
+    delete (legacy.history as Record<string, unknown>[])[0]!.europeanTier;
+    delete (legacy.history as Record<string, unknown>[])[0]!.wonEurope;
+
+    const migrated = migrate({ version: 7, career: emptyCareer(), careerState: legacy } as never)!;
+    const restored = migrated.careerState!;
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    // The season in progress is untouched — a migration is not a new season.
+    expect(restored.calendarIndex).toBe(9);
+    expect(restored.seasonStats.matches).toBe(6);
+
+    // European entry was decided by a season already archived, so a career in
+    // progress simply is not in Europe this year.
+    expect(restored.europe).toBeNull();
+    expect(restored.europeanEntries).toEqual({});
+
+    // The record book starts EMPTY rather than being guessed at: a hat-trick
+    // count inferred from season totals would be wrong, and a wrong record is
+    // worse than an absent one.
+    expect(restored.records).toEqual(createCareerRecords());
+    expect(milestones(restored.records)).toEqual([]);
+
+    // Seasons already played did not happen in Europe.
+    expect(restored.history[0]!.europeanTier).toBeNull();
+    expect(restored.history[0]!.wonEurope).toBe(false);
+  });
+
+  it('keeps a v8 career\'s record book exactly as it was', () => {
+    const state = career();
+    recordMatch(state.records, {
+      competition: 'championsLeague',
+      goals: 3,
+      assists: 1,
+      rating: 10,
+      result: 1,
+    });
+
+    const migrated = migrate({
+      version: SAVE_VERSION,
+      career: emptyCareer(),
+      careerState: state,
+    } as never)!;
+
+    // Nothing is recomputed for a save that is already current.
+    expect(migrated.careerState!.records.hauls.hatTricks).toBe(1);
+    expect(migrated.careerState!.records.ratings.perfect).toBe(1);
+    expect(migrated.careerState!.records.byCompetition.championsLeague?.goals).toBe(3);
+  });
+
+  it('drops a v7 career with no record book, since the hub reads it on every render', () => {
+    const state = career();
+    const broken = { ...state, records: undefined } as Record<string, unknown>;
+    expect(isUsableCareer(broken)).toBe(false);
   });
 
   it('drops a v7 career with no cups, since it cannot walk its own calendar', () => {

@@ -8,6 +8,8 @@ import type { DivisionMovement } from '../../core/career/divisions.ts';
 import { getCountry } from '../../core/career/countries.ts';
 import type { CupKind, CupState } from '../../core/career/cups.ts';
 import { CUP_KINDS, cupName, roundName, totalRounds } from '../../core/career/cups.ts';
+import type { EuropeanState, EuropeanTier } from '../../core/career/europe.ts';
+import { europeanCompetition } from '../../core/career/europe.ts';
 import { getTeam } from '../../data/gameData.ts';
 
 /** End-of-season summary, shown once the final fixture has been played. */
@@ -51,6 +53,10 @@ export class SeasonReviewScreen {
       fellBackOnClub: boolean;
       /** Both knockouts as they finished. */
       cups: Record<CupKind, CupState>;
+      /** The European competition played this season, as it finished. */
+      europe: EuropeanState | null;
+      /** The competition the club has qualified for NEXT season, if any. */
+      nextEuropeanTier: EuropeanTier | null;
       /**
        * True when the summer opens a window even with no offers, because his
        * contract needs resolving. The continue button reads this so it never
@@ -111,6 +117,7 @@ export class SeasonReviewScreen {
         </div>
       </div>
 
+      ${renderEurope(context.europe, record.clubId, context.nextEuropeanTier)}
       ${renderCupRuns(context.cups, record.clubId, context.countryId)}
       ${renderHonours(context.honours, context.capsGained)}
       ${renderProgress(context.progress)}
@@ -148,6 +155,56 @@ function renderMovement(movement: DivisionMovement | null, nextCountryId: string
       <strong>Relegated.</strong> Your club drops into ${arriving.league} next season — a smaller
       stage, smaller wages and fewer people watching you play.
     </p>`;
+}
+
+/**
+ * The European season, and next season's place.
+ *
+ * The qualification line is the important half. A club that has just finished
+ * fourth needs telling, in the moment, that it has earned a season of European
+ * football — that is the payoff for a league position that wins nothing.
+ */
+function renderEurope(
+  europe: EuropeanState | null,
+  clubId: string,
+  nextTier: EuropeanTier | null,
+): string {
+  const qualified = nextTier
+    ? `<p class="division-move up">
+         <strong>Qualified.</strong> You are in ${europeanCompetition(nextTier).name} next season.
+       </p>`
+    : '';
+
+  if (!europe) {
+    return qualified
+      ? `<div class="career-card"><h2>Europe</h2>${qualified}</div>`
+      : '';
+  }
+
+  const competition = europeanCompetition(europe.kind);
+  const rounds = totalRounds(europe);
+  const won = europe.winnerId === clubId;
+  const out = europe.eliminatedInRound;
+  const line = won
+    ? '<strong>Champions of Europe.</strong>'
+    : out !== null
+      ? `Knocked out in the ${roundName(out, rounds).toLowerCase()}.`
+      : 'Did not take part.';
+  const winner = !won && europe.winnerId ? ` Won by ${getTeam(europe.winnerId).name}.` : '';
+
+  // Headed "Europe" with the competition named in the row, matching the cups
+  // card — the card said its own name twice otherwise.
+  return `
+    <div class="career-card">
+      <h2>Europe</h2>
+      <ul class="honours-won">
+        <li class="${won ? 'up' : ''}">
+          <strong>${competition.name}</strong>
+          <span>${line}${winner}</span>
+        </li>
+      </ul>
+      ${qualified}
+    </div>`;
 }
 
 /**

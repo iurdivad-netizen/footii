@@ -7,6 +7,7 @@ import { emptyTable, generateFixtures } from '../core/career/league.ts';
 import { createSeasonStats } from '../core/career/seasonStats.ts';
 import { createCup } from '../core/career/cups.ts';
 import { seasonCalendar } from '../core/career/calendar.ts';
+import { createCareerRecords } from '../core/career/records.ts';
 import { Rng } from '../core/rng.ts';
 import { initialStrengths } from '../core/career/clubDrift.ts';
 import { contractYears, offeredWage, squadRole } from '../core/career/transfers.ts';
@@ -24,7 +25,7 @@ import type { DecisionPace } from '../simulation/DecisionTimer.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 export interface CareerRecord {
   matches: number;
@@ -146,7 +147,10 @@ export function isUsableCareer(state: unknown): state is CareerState {
     // A season with no knockouts cannot walk its own calendar.
     !!c.cups &&
     typeof c.cups === 'object' &&
-    typeof c.calendarIndex === 'number'
+    typeof c.calendarIndex === 'number' &&
+    // The record book is read by the hub on every render.
+    !!c.records &&
+    typeof c.records === 'object'
   );
 }
 
@@ -308,6 +312,28 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
       if (career.lastResult) career.lastResult.competition ??= 'league';
     }
     save = { ...save, version: 7 };
+  }
+
+  if (save.version === 7) {
+    // v7 -> v8: seasons gained European competitions and a record book.
+    //
+    // Neither can be reconstructed from a save that never had them. European
+    // entry is decided by a season that has already been archived, so a career
+    // in progress simply is not in Europe this year and qualifies for next year
+    // the ordinary way. The record book starts empty rather than being guessed
+    // at from history: a hat-trick count inferred from season totals would be
+    // wrong, and a wrong record is worse than an absent one.
+    const career = save.careerState;
+    if (career) {
+      career.europe ??= null;
+      career.europeanEntries ??= {};
+      career.records ??= createCareerRecords();
+      for (const season of career.history ?? []) {
+        season.europeanTier ??= null;
+        season.wonEurope ??= false;
+      }
+    }
+    save = { ...save, version: 8 };
   }
 
   if (save.version !== SAVE_VERSION) return null;

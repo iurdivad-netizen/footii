@@ -24,11 +24,13 @@ import type { CupState } from '../src/core/career/cups.ts';
 import {
   LEAGUE_CUP_SCHEDULE,
   NATIONAL_CUP_SCHEDULE,
+  calendarLength,
   competitionLabel,
   isCup,
   maximumMatches,
   seasonCalendar,
 } from '../src/core/career/calendar.ts';
+import { EUROPEAN_TIERS } from '../src/core/career/europe.ts';
 
 const lookup = (id: string) => getTeam(id);
 const ENGLAND = teamsInCountry('england').map((t) => t.id);
@@ -331,9 +333,19 @@ describe('the season calendar', () => {
     }
   });
 
-  it('is the longest a season can be, if both runs go all the way', () => {
-    expect(calendar).toHaveLength(maximumMatches(30));
-    expect(maximumMatches(30)).toBe(38);
+  it('holds a slot for every European tier, only one of which is ever playable', () => {
+    // The calendar cannot know which European competition a club is in — it is
+    // a pure function of the league's length — so it carries all three on the
+    // same dates and the walk skips the two that are not the player's.
+    expect(calendar).toHaveLength(calendarLength(30));
+    for (const tier of EUROPEAN_TIERS) {
+      expect(calendar.filter((slot) => slot.competition === tier), tier).toHaveLength(CUP_ROUNDS);
+    }
+  });
+
+  it('is the longest a season can be: league, both cups and one European run', () => {
+    expect(maximumMatches(30)).toBe(42);
+    expect(maximumMatches(30)).toBeLessThan(calendarLength(30));
   });
 
   it('never schedules the two cups in the same slot', () => {

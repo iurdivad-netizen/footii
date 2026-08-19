@@ -2015,3 +2015,53 @@ button.ghost {
 .cup-row.out dd {
   color: var(--text-dim);
 }
+
+/* ---------------------------------------------------------- europe ----- */
+
+.european-card {
+  border-color: var(--accent-dim);
+}
+
+.competition-tag.championsLeague,
+.competition-tag.europaLeague,
+.competition-tag.conferenceLeague {
+  color: var(--accent);
+}
+
+/* --------------------------------------------------------- records ----- */
+
+/*
+ * The record book. Tiles rather than a table: these are things that happened
+ * once and are worth looking at, not a series to scan down.
+ */
+.record-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.record-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+}
+
+.record-value {
+  font-family: var(--mono);
+  font-size: 1.35rem;
+  color: var(--accent);
+  line-height: 1.1;
+}
+
+.record-label {
+  font-size: 0.86rem;
+}
+
+.record-note {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}

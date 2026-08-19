@@ -15,8 +15,11 @@ import type { Contract, ContractOffer } from './contracts.ts';
 import type { WorldLeagues } from './countries.ts';
 import type { CupKind, CupState } from './cups.ts';
 import { CUP_KINDS, opponentIn, roundName, stillIn, tieFor } from './cups.ts';
+import type { EuropeanEntries, EuropeanState, EuropeanTier } from './europe.ts';
+import type { CareerRecords } from './records.ts';
+import { breakStreaks, recordMatch as recordMatchInBook } from './records.ts';
 import type { CalendarSlot, CompetitionKind } from './calendar.ts';
-import { seasonCalendar } from './calendar.ts';
+import { isEuropean, seasonCalendar } from './calendar.ts';
 import type { ClubStrengths } from './clubDrift.ts';
 import type { Honour } from './awards.ts';
 
@@ -44,6 +47,10 @@ export interface SeasonRecord {
   countryId: string;
   /** Cups won that season, for a history that shows more than a league position. */
   cupsWon: CupKind[];
+  /** The European competition played that season, if any, and how it ended. */
+  europeanTier: EuropeanTier | null;
+  /** True when the club won it. */
+  wonEurope: boolean;
 }
 
 export interface CareerState {
@@ -140,6 +147,24 @@ export interface CareerState {
    */
   cups: Record<CupKind, CupState>;
   /**
+   * The European competition the player's club is in this season, if any.
+   *
+   * Null for a club that did not qualify, which is most clubs most years —
+   * that absence is the point of the competition existing.
+   */
+  europe: EuropeanState | null;
+  /**
+   * Who qualified for what, decided at the end of last season and fixed for
+   * this one. Kept whole rather than only the player's own entry, so a club he
+   * transfers to mid-summer arrives with the European place it earned.
+   */
+  europeanEntries: EuropeanEntries;
+  /**
+   * The record book: the peaks and runs a career is actually remembered for.
+   * Accumulated per match and impossible to recompute afterwards.
+   */
+  records: CareerRecords;
+  /**
    * The last match played, for the hub to report.
    *
    * Exists because a skipped match returns straight to the hub rather than to a
@@ -174,6 +199,23 @@ export function fixturesFor(state: CareerState, teamId: string): Fixture[] {
 export function nextFixture(state: CareerState): Fixture | null {
   const own = fixturesFor(state, state.clubId);
   return own[state.nextFixtureIndex] ?? null;
+}
+
+/**
+ * The bracket a competition slot refers to, or null if the player is not in it.
+ *
+ * One lookup for all four knockouts, so `nextMatch` and everything downstream
+ * never has to know whether a slot is a domestic cup or a European night.
+ */
+export function knockoutFor(
+  state: CareerState,
+  competition: CompetitionKind,
+): CupState<CompetitionKind> | null {
+  if (competition === 'league') return null;
+  if (isEuropean(competition)) {
+    return state.europe && state.europe.kind === competition ? state.europe : null;
+  }
+  return state.cups?.[competition] ?? null;
 }
 
 /** The season's shape: league rounds and cup rounds in playing order. */
@@ -230,7 +272,7 @@ export function nextMatch(state: CareerState): ScheduledMatch | null {
       };
     }
 
-    const cup = state.cups?.[slot.competition];
+    const cup = knockoutFor(state, slot.competition);
     if (!cup || !stillIn(cup, state.clubId)) continue;
 
     // The tie itself is only drawn when the round is opened, which the career
@@ -278,9 +320,9 @@ export function matchesRemaining(state: CareerState): number {
     }
     // Only the NEXT round of each live cup counts. Whether he plays the round
     // after that depends on a result nobody has yet, so counting every
-    // remaining round would advertise a 38-match season to a player whose cup
+    // remaining round would advertise a 42-match season to a player whose cup
     // runs will almost certainly end sooner.
-    const cup = state.cups?.[slot.competition];
+    const cup = knockoutFor(state, slot.competition);
     if (cup && stillIn(cup, state.clubId) && !counted.has(slot.competition)) {
       counted.add(slot.competition);
       remaining += 1;
@@ -363,6 +405,16 @@ export function applyMatchToCareer(
     addMatchToStats(state.leagueStats, stats, rating, result);
   }
 
+  // The record book takes every match in every competition: a hat-trick is a
+  // hat-trick whether it came in the league or a European quarter-final.
+  recordMatchInBook(state.records, {
+    competition: input.competition,
+    goals: stats.goals,
+    assists: stats.assists,
+    rating,
+    result,
+  });
+
   // Form is a moving average of recent ratings, expressed on the 0-100 scale
   // the timer and resolver expect. It moves quickly but not instantly.
   const ratingAsForm = clamp((rating - 4) * 16.5, 0, 100);
@@ -431,6 +483,8 @@ export function advanceSeason(
     division: state.division,
     countryId: state.countryId,
     cupsWon: CUP_KINDS.filter((kind) => state.cups?.[kind]?.winnerId === state.clubId),
+    europeanTier: state.europe?.kind ?? null,
+    wonEurope: state.europe?.winnerId === state.clubId,
   };
   state.history.push(record);
 
@@ -444,6 +498,9 @@ export function advanceSeason(
   state.seasonStats = createSeasonStats();
   state.leagueStats = createSeasonStats();
   state.calendarIndex = 0;
+  // A run does not span a summer: "eleven in a row" has to mean eleven
+  // consecutive matches, not a number that quietly skips three months off.
+  breakStreaks(state.records);
   state.fixtures = next.fixtures;
   state.table = next.table;
   state.leagueTeamIds = next.leagueTeamIds;
