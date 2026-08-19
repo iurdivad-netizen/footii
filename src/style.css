@@ -1867,3 +1867,113 @@ button.ghost {
   border-color: var(--warn);
   opacity: 0.85;
 }
+
+/* ------------------------------------------------- skipping a match ----- */
+
+.skip-match {
+  width: 100%;
+  margin-top: 8px;
+}
+
+/*
+ * The result of the last match, for a player who skipped it and never saw a
+ * full-time screen.
+ */
+.last-result {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  background: var(--bg-panel);
+}
+
+.last-result.win {
+  border-left-color: var(--accent);
+}
+
+.last-result.loss {
+  border-left-color: var(--danger);
+}
+
+.last-result.draw {
+  border-left-color: var(--text-dim);
+}
+
+.last-result-score {
+  font-family: var(--mono);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.last-result-detail {
+  color: var(--text-dim);
+  font-size: 0.86rem;
+}
+
+.last-result-tag {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 2px 6px;
+}
+
+/* ----------------------------------------------------------- world ----- */
+
+.country-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.country-tab {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  padding: 6px 12px;
+}
+
+.country-tab.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* Marks the league the player actually plays in. */
+.country-tab em {
+  color: var(--accent);
+  font-style: normal;
+  margin-left: 3px;
+}
+
+.country-tab.active em {
+  color: var(--text);
+}
+
+.club-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 7px;
+  vertical-align: baseline;
+}
+
+.world-table .dim {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
+
+.world-screen .career-card {
+  overflow-x: auto;
+}

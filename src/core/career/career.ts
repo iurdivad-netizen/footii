@@ -109,6 +109,27 @@ export interface CareerState {
   honours: Honour[];
   /** Total wages banked across the career, in millions. */
   careerEarnings: number;
+  /**
+   * The last match played, for the hub to report.
+   *
+   * Exists because a skipped match returns straight to the hub rather than to a
+   * full-time screen — thirty matches a season is too many to click through a
+   * report for each one — so the hub has to be able to say what just happened.
+   */
+  lastResult: MatchResultSummary | null;
+}
+
+/** Enough of a finished match to describe it in one line. */
+export interface MatchResultSummary {
+  opponentId: string;
+  home: boolean;
+  goalsFor: number;
+  goalsAgainst: number;
+  goals: number;
+  assists: number;
+  rating: number;
+  /** True when it was resolved automatically rather than played. */
+  skipped: boolean;
 }
 
 /** How much fitness a player recovers between fixtures. */
@@ -271,6 +292,9 @@ export function advanceSeason(
   state.nextFixtureIndex = 0;
   state.development = createDevelopmentState();
   state.lastDevelopment = [];
+  // Last season's final match must not greet the player on the first day of the
+  // new one — the hub reports it as "your last match".
+  state.lastResult = null;
   state.fitness = 100;
   state.player.fitness = 100;
 

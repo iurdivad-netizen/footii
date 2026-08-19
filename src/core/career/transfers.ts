@@ -247,8 +247,6 @@ export interface InterestInput {
   countryId?: string;
   /** Country he currently plays in. */
   currentCountryId?: string;
-  /** His nationality, which decides whether this is a move home. */
-  nationality?: string;
   /**
    * True when his contract has run out. A free transfer is the cheapest signing
    * in football, so clubs that were watching from a distance come forward.
@@ -385,11 +383,14 @@ export function clubInterest(input: InterestInput): ClubInterest {
   // watches has little to offer a player who would have to move his life for
   // it. Going HOME cuts the other way — a club in your own country knows you
   // and you know it.
-  const abroad = !!input.countryId && !!input.currentCountryId && input.countryId !== input.currentCountryId;
-  if (abroad) {
-    const goingHome = !!input.nationality && input.countryId === input.nationality;
-    score *= goingHome ? 1.08 : 0.86;
-  }
+  // Nationality is read off the player rather than passed in beside him. It was
+  // briefly a separate input field, which meant every caller had to remember to
+  // supply it and the one that mattered did not — so "moving home" never once
+  // fired. A fact about the player belongs on the player.
+  const abroad =
+    !!input.countryId && !!input.currentCountryId && input.countryId !== input.currentCountryId;
+  const goingHome = abroad && player.nationality === input.countryId;
+  if (abroad) score *= goingHome ? 1.08 : 0.86;
 
   if (reputationShortfall > 12) notes.push(`${team.name} have not heard enough about you yet.`);
   else if (!affordable && !input.retaining) notes.push(`${team.name} cannot afford you.`);
@@ -404,7 +405,7 @@ export function clubInterest(input: InterestInput): ClubInterest {
     if (abroad) {
       const country = getCountry(input.countryId!);
       notes.push(
-        input.nationality === input.countryId
+        goingHome
           ? `Moving home to ${country.name}.`
           : `You would be moving to ${country.name}.`,
       );
@@ -542,7 +543,14 @@ export interface OfferGenerationInput {
   excludeClubIds?: readonly string[];
   /** Prestige of a club's league, 0-1. Defaults to a one-league game. */
   prestigeOf?: (clubId: string) => number;
-  /** Country a club plays in. Defaults to everyone sharing one country. */
+  /**
+   * Country a club plays in.
+   *
+   * Defaults to everyone sharing one unnamed country, NOT to the club id. An
+   * identity default reads as "every club is its own country", which silently
+   * applies the moving-abroad penalty to every offer in the game and makes
+   * every note say the player is moving to Unknown.
+   */
   countryOf?: (clubId: string) => string;
   /** True when his contract has run out, so he leaves for nothing. */
   outOfContract?: boolean;
@@ -563,7 +571,7 @@ export interface OfferGenerationInput {
 export function generateOffers(rng: Rng, input: OfferGenerationInput): TransferOffer[] {
   const current = input.clubs.find((team) => team.id === input.currentClubId);
   const prestigeOf = input.prestigeOf ?? (() => 1);
-  const countryOf = input.countryOf ?? ((id: string) => id);
+  const countryOf = input.countryOf ?? (() => '');
   const currentPrestige = current ? prestigeOf(current.id) : 1;
   const currentCountry = current ? countryOf(current.id) : '';
 
@@ -580,7 +588,6 @@ export function generateOffers(rng: Rng, input: OfferGenerationInput): TransferO
         currentPrestige,
         countryId: countryOf(team.id),
         currentCountryId: currentCountry,
-        nationality: input.player.nationality,
         outOfContract: input.outOfContract,
       }),
     )
@@ -651,7 +658,6 @@ export function scoutingInterest(
         currentPrestige,
         countryId: countryOf(team.id),
         currentCountryId: currentCountry,
-        nationality: player.nationality,
       }),
     )
     .filter((interest) => interest.score >= SCOUTING_THRESHOLD)

@@ -124,8 +124,12 @@ export function worldTable(
   state: CareerState,
   countryId: string,
   lookup: TeamLookup,
-  division = 1,
+  tier?: number,
 ): TableRow[] {
+  // Default to the player's own tier when looking at his own country, so a
+  // player in a second division sees the league he is actually playing rather
+  // than a background simulation of the one above him.
+  const division = tier ?? (countryId === state.countryId ? state.division : 1);
   if (countryId === state.countryId && division === state.division) {
     return sortTable(state.table);
   }
@@ -220,6 +224,7 @@ export function startCareer(options: StartCareerOptions): CareerState {
     renewal: null,
     honours: [],
     careerEarnings: 0,
+    lastResult: null,
   };
 }
 
@@ -268,6 +273,8 @@ export interface PlayedMatchInput {
   playerTeamScore: number;
   opponentScore: number;
   fitnessAtEnd: number;
+  /** True when the match was resolved automatically rather than played. */
+  skipped?: boolean;
 }
 
 /**
@@ -297,6 +304,17 @@ export function recordPlayerMatch(
       : input.playerTeamScore < input.opponentScore
         ? -1
         : 0;
+
+  state.lastResult = {
+    opponentId: isHome ? fixture.awayId : fixture.homeId,
+    home: isHome,
+    goalsFor: input.playerTeamScore,
+    goalsAgainst: input.opponentScore,
+    goals: input.stats.goals,
+    assists: input.stats.assists,
+    rating: input.rating,
+    skipped: !!input.skipped,
+  };
 
   const club = clubIn(state, lookup, state.clubId);
   const rng = new Rng(`${state.seed}:s${state.seasonNumber}:m${state.nextFixtureIndex}`);
@@ -429,16 +447,23 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   });
   const movement = movementFor(outcome, state.clubId);
 
-  // Every OTHER country plays its season out too. Their tables are what drift
-  // reads, and — from the next stage — what European places are awarded on.
-  const worldTables: Record<string, TableRow[]> = { [countryId]: outcome.tables[division - 1] ?? [] };
+  // Every other league in the world plays its season out too — every tier of
+  // every country, not just the top one, or a second division added later would
+  // have its clubs frozen out of drift. Their tables are what drift reads, and
+  // — from the next stage — what European places are awarded on.
+  const settled: TableRow[][] = [...outcome.tables];
   for (const other of playedCountries(state.leagues)) {
     if (other === countryId) continue;
-    worldTables[other] = simulateDivisionThrough(
-      leagueRng(state, other, 1),
-      leagueMembers(state.leagues, other, 1).map((id) => clubIn(state, lookup, id)),
-      Number.POSITIVE_INFINITY,
-    );
+    const pyramid = state.leagues[other] ?? [];
+    for (let tier = 1; tier <= pyramid.length; tier++) {
+      settled.push(
+        simulateDivisionThrough(
+          leagueRng(state, other, tier),
+          leagueMembers(state.leagues, other, tier).map((id) => clubIn(state, lookup, id)),
+          Number.POSITIVE_INFINITY,
+        ),
+      );
+    }
   }
 
   // Awards are judged on the division just played, against a bar inferred from
@@ -473,7 +498,7 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   // this takes the raw lookup rather than the drifted one.
   state.clubStrengths = driftSeason(new Rng(`${state.seed}:s${state.seasonNumber}:drift`), {
     strengths: state.clubStrengths,
-    tables: Object.values(worldTables),
+    tables: settled,
     lookup,
   });
 
@@ -514,6 +539,7 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     excludeClubIds:
       lastMove && lastMove.season === record.seasonNumber - 1 ? [lastMove.fromClubId] : [],
     prestigeOf: (id) => prestigeOfClub(state, id),
+    countryOf: (id) => countryOfClub(state, id),
     outOfContract,
   });
 
@@ -633,6 +659,9 @@ export function acceptOffer(
     const rng = new Rng(`${state.seed}:season:${state.seasonNumber}:${offer.clubId}`);
     state.countryId = countryId;
     state.division = division;
+    // Belonged to the club he has just left, and to a season that no longer
+    // exists. Showing it on the new club's hub would be a lie.
+    state.lastResult = null;
     state.leagueTeamIds = league.length > 0 ? league : state.leagueTeamIds;
     state.fixtures = generateFixtures(state.leagueTeamIds, rng);
     state.table = emptyTable(state.leagueTeamIds);
@@ -641,7 +670,12 @@ export function acceptOffer(
   }
 
   const prestige = countryPrestige(countryId);
-  applyTransferEffects(state.player, clubIn(state, lookup, offer.clubId), prestige);
+  applyTransferEffects(
+    state.player,
+    clubIn(state, lookup, offer.clubId),
+    prestige,
+    countryId !== record.fromCountryId,
+  );
   state.contract = {
     clubId: offer.clubId,
     wage: offer.wage,

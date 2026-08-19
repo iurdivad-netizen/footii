@@ -3,6 +3,9 @@ import type { CareerState } from '../core/career/career.ts';
 import { currentAbility } from '../core/player/player.ts';
 import { TEAMS } from '../data/gameData.ts';
 import { initialLeagues, locateClub } from '../core/career/countries.ts';
+import { emptyTable, generateFixtures } from '../core/career/league.ts';
+import { createSeasonStats } from '../core/career/seasonStats.ts';
+import { Rng } from '../core/rng.ts';
 import { initialStrengths } from '../core/career/clubDrift.ts';
 import { contractYears, offeredWage, squadRole } from '../core/career/transfers.ts';
 import type { DecisionPace } from '../simulation/DecisionTimer.ts';
@@ -235,12 +238,22 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
       }
       // The old league had eight clubs and the new one has sixteen, so the
       // fixture list and table in the save describe a season that cannot be
-      // finished. The season in progress is restarted rather than half-played:
-      // losing a part-season is recoverable, an unplayable one is not.
-      career.fixtures = [];
+      // finished. The season in progress is RESTARTED — a fresh fixture list and
+      // an empty table for the new league — rather than half-played: losing a
+      // part-season is recoverable, an unplayable one is not.
+      //
+      // Regenerating here rather than clearing is the whole point. A career left
+      // with no fixtures reports itself complete on the next boot, which ends
+      // the season immediately against an empty table and tells the player he
+      // finished 0th and was champion.
+      career.fixtures = generateFixtures(
+        career.leagueTeamIds,
+        new Rng(`${career.seed}:season:${career.seasonNumber}`),
+      );
       career.results = [];
-      career.table = [];
+      career.table = emptyTable(career.leagueTeamIds);
       career.nextFixtureIndex = 0;
+      career.seasonStats = createSeasonStats();
     }
     save = { ...save, version: 6 };
   }

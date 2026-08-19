@@ -56,8 +56,30 @@ export interface Honour {
   detail: string;
 }
 
-/** Reputation at which a player starts being picked for his country. */
+/**
+ * Base reputation at which a player starts being picked for his country.
+ *
+ * The actual bar is this plus a share of his NATION'S prestige, because getting
+ * into a great side is harder than getting into a poor one. See
+ * `selectionThreshold` — it is what makes the nationality you pick at creation a
+ * decision rather than a label.
+ */
 export const INTERNATIONAL_REPUTATION = 58;
+
+/**
+ * How much harder a strong footballing nation is to get into, in reputation.
+ *
+ * A Scot is capped early and often; a Spaniard has to be genuinely among the
+ * best players in the world before anyone picks him. That is the whole trade
+ * the nationality choice offers: caps and the honours that come with them, or
+ * the prestige of the shirt.
+ */
+export const SELECTION_COMPETITION = 10;
+
+/** The reputation a player of this nationality needs before he is picked. */
+export function selectionThreshold(nationality: string): number {
+  return INTERNATIONAL_REPUTATION + countryPrestige(nationality) * SELECTION_COMPETITION;
+}
 
 /** Caps that count as a career landmark. */
 export const CAP_MILESTONES: readonly number[] = [1, 25, 50, 75, 100];
@@ -236,8 +258,13 @@ export function evaluateHonours(input: HonoursInput): HonoursResult {
     const before = player.caps;
     const after = before + capsGained;
     if (before === 0) {
+      const nation = getCountry(player.nationality);
       honours.push(
-        at('internationalDebut', 'International debut', 'You have been called up by your country.'),
+        at(
+          'internationalDebut',
+          `${nation.adjective} debut`,
+          `You have been called up by ${nation.name}.`,
+        ),
       );
     }
     for (const milestone of CAP_MILESTONES) {
@@ -255,15 +282,23 @@ export function evaluateHonours(input: HonoursInput): HonoursResult {
 /**
  * Caps won in a season.
  *
- * Reputation decides selection; the league decides how closely anyone was
- * watching. A brilliant season in a country nobody follows gets you looked at,
- * but the squad is picked from the well-watched leagues first.
+ * Three things decide it, and they are genuinely different questions:
+ *
+ *   HIS NATIONALITY  sets the bar. Competing for a place in a strong national
+ *                    side is harder than walking into a weak one.
+ *   HIS REPUTATION   decides whether he clears it.
+ *   HIS LEAGUE       decides how closely anyone was watching. A brilliant season
+ *                    in a country nobody follows gets you looked at, but the
+ *                    squad is picked from the well-watched leagues first.
+ *
+ * `leagueCountryId` is where he PLAYS; `player.nationality` is who he plays FOR.
+ * They are frequently different and must not be conflated.
  */
-export function capsForSeason(player: Player, countryId: string): number {
-  const prestige = countryPrestige(countryId);
-  const over = player.reputation - INTERNATIONAL_REPUTATION;
+export function capsForSeason(player: Player, leagueCountryId: string): number {
+  const visibility = countryPrestige(leagueCountryId);
+  const over = player.reputation - selectionThreshold(player.nationality);
   if (over < 0) return 0;
-  return Math.round(clamp(2 + over * 0.16, 0, 10) * prestige);
+  return Math.round(clamp(2 + over * 0.16, 0, 10) * visibility);
 }
 
 /** Group an honours list by kind, for a hub that shows "3× champions". */

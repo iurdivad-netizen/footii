@@ -28,7 +28,13 @@ export class CareerScreen {
 
   constructor(
     private readonly state: CareerState,
-    handlers: { onPlay: () => void; onEndSeason: () => void; onQuit: () => void },
+    handlers: {
+      onPlay: () => void;
+      onSkip: () => void;
+      onWorld: () => void;
+      onEndSeason: () => void;
+      onQuit: () => void;
+    },
   ) {
     this.element = document.createElement('section');
     this.element.className = 'screen career-screen';
@@ -37,6 +43,12 @@ export class CareerScreen {
     this.element
       .querySelector<HTMLButtonElement>('#play-match')
       ?.addEventListener('click', handlers.onPlay);
+    this.element
+      .querySelector<HTMLButtonElement>('#skip-match')
+      ?.addEventListener('click', handlers.onSkip);
+    this.element
+      .querySelector<HTMLButtonElement>('#browse-world')
+      ?.addEventListener('click', handlers.onWorld);
     this.element
       .querySelector<HTMLButtonElement>('#end-season')
       ?.addEventListener('click', handlers.onEndSeason);
@@ -96,6 +108,7 @@ export class CareerScreen {
         </div>
       </header>
 
+      ${this.renderLastResult()}
       ${this.renderDevelopment()}
 
       <div class="career-grid">
@@ -106,11 +119,12 @@ export class CareerScreen {
               ? `<p class="career-done">Season complete — ${this.state.seasonStats.matches} matches played.</p>
                  <button class="primary" id="end-season">End of season review</button>`
               : `<p class="fixture">
-                   <strong>${getTeam(opponentId!).name}</strong>
+                   <strong>${this.club(opponentId!).name}</strong>
                    <span class="venue">${venue}</span>
                  </p>
                  <p class="hint">${matchesRemaining(this.state)} matches left this season</p>
-                 <button class="primary" id="play-match">Play match</button>`
+                 <button class="primary" id="play-match">Play match</button>
+                 <button class="ghost skip-match" id="skip-match">Skip — let him play it</button>`
           }
         </div>
 
@@ -154,6 +168,7 @@ export class CareerScreen {
         <div class="career-card">
           <h2>${country.league}</h2>
           ${this.renderTable()}
+          <button class="ghost" id="browse-world">Other leagues around the world</button>
         </div>
         <div class="career-card">
           <h2>Key attributes</h2>
@@ -166,6 +181,36 @@ export class CareerScreen {
       ${this.renderTransfers()}
 
       <button id="quit-career" class="ghost">Leave career</button>`;
+  }
+
+  /**
+   * What happened in the last match.
+   *
+   * Exists for skipping. A played match ends on a full-time report; a skipped
+   * one returns straight here, so without this the season would advance in
+   * silence and you would have no idea whether you had scored.
+   */
+  private renderLastResult(): string {
+    const last = this.state.lastResult;
+    if (!last) return '';
+
+    const verdict =
+      last.goalsFor > last.goalsAgainst ? 'win' : last.goalsFor < last.goalsAgainst ? 'loss' : 'draw';
+    const contributions = [
+      last.goals > 0 ? `${last.goals} goal${last.goals === 1 ? '' : 's'}` : '',
+      last.assists > 0 ? `${last.assists} assist${last.assists === 1 ? '' : 's'}` : '',
+    ].filter(Boolean);
+
+    return `<div class="last-result ${verdict}">
+        <span class="last-result-score">
+          ${last.goalsFor}–${last.goalsAgainst}
+        </span>
+        <span class="last-result-detail">
+          ${last.home ? 'v' : 'away to'} ${this.club(last.opponentId).name} ·
+          rated ${last.rating.toFixed(1)}${contributions.length ? ` · ${contributions.join(', ')}` : ''}
+        </span>
+        ${last.skipped ? '<span class="last-result-tag">Skipped</span>' : ''}
+      </div>`;
   }
 
   /** Attribute changes from the last match, so progression is visible. */

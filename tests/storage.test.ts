@@ -137,6 +137,30 @@ describe('save migration', () => {
     expect(migrated.careerState).toBeUndefined();
   });
 
+  it('leaves a migrated v5 career with a PLAYABLE season, not an empty one', () => {
+    // The bug this exists to catch: clearing the old fixture list without
+    // building a new one leaves a career that reports itself complete on the
+    // next boot, ends the season against an empty table, and tells the player
+    // he finished 0th and was champion.
+    const state = career();
+    const legacy = { ...state } as Record<string, unknown>;
+    delete legacy.countryId;
+    delete legacy.leagues;
+
+    const migrated = migrate({ version: 5, career: emptyCareer(), careerState: legacy } as never)!;
+    const restored = migrated.careerState!;
+
+    expect(restored.leagueTeamIds).toHaveLength(16);
+    expect(restored.table).toHaveLength(16);
+    expect(restored.nextFixtureIndex).toBe(0);
+    expect(restored.seasonStats.matches).toBe(0);
+
+    const own = restored.fixtures.filter(
+      (f) => f.homeId === restored.clubId || f.awayId === restored.clubId,
+    );
+    expect(own).toHaveLength(30);
+  });
+
   it('preserves settings that already exist and fills in ones that do not', () => {
     const migrated = migrate({
       version: SAVE_VERSION,

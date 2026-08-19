@@ -322,6 +322,23 @@ describe('what a division does to the market', () => {
     expect(clubAppeal(club, 0.62)).toBeLessThan(clubAppeal(club, 1));
   });
 
+  it('treats everyone as domestic when no countries are supplied', () => {
+    // The default must not be "every club is its own country". An identity
+    // default silently applied the moving-abroad penalty to every offer in the
+    // game and made every note read "You would be moving to Unknown."
+    const offers = generateOffers(new Rng('default'), {
+      player,
+      currentClubId: 'seaton-athletic',
+      clubs: TEAMS,
+      stats: season({ goals: 11, assists: 3 }),
+      season: 4,
+    });
+    expect(offers.length).toBeGreaterThan(0);
+    for (const offer of offers) {
+      for (const note of offer.notes) expect(note).not.toContain('Unknown');
+    }
+  });
+
   it('knows a club below his own division is a harder sell', () => {
     // The ambition gate reads the whole proposition, division included: the
     // same club is a weaker draw when it would mean dropping a level, which is
@@ -367,6 +384,36 @@ describe('what a division does to the market', () => {
     expect(signing.role).toBe('squad');
     expect(signing.score).toBe(0);
     expect(keeping.score).toBeGreaterThan(0);
+  });
+});
+
+describe('moving abroad', () => {
+  it('unsettles form more than moving down the road', () => {
+    const home = striker({ form: 90 });
+    const away = striker({ form: 90 });
+    applyTransferEffects(home, getTeam('vale-park'), 1, false);
+    applyTransferEffects(away, getTeam('vale-park'), 1, true);
+    expect(away.form).toBeLessThan(home.form);
+  });
+
+  it('is a harder sell than a move at home, and a move home is an easier one', () => {
+    const player = striker({ baseAttribute: 62, reputation: 55, nationality: 'spain' });
+    const suitor = getTeam('vale-park');
+    const stats = season({ goals: 11, assists: 3 });
+    const shared = { player, team: suitor, stats, prestige: 1, currentPrestige: 1 };
+
+    const domestic = clubInterest({ ...shared, countryId: 'england', currentCountryId: 'england' });
+    const abroad = clubInterest({ ...shared, countryId: 'england', currentCountryId: 'spain' });
+    expect(abroad.score).toBeLessThan(domestic.score);
+
+    // Same move, but now it takes him back to the country he is from.
+    const goingHome = clubInterest({
+      ...shared,
+      player: striker({ baseAttribute: 62, reputation: 55, nationality: 'england' }),
+      countryId: 'england',
+      currentCountryId: 'spain',
+    });
+    expect(goingHome.score).toBeGreaterThan(abroad.score);
   });
 });
 
