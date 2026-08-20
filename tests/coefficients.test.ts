@@ -30,7 +30,7 @@ import {
 } from '../src/core/career/coefficients.ts';
 import type { Coefficients } from '../src/core/career/coefficients.ts';
 import type { EuropeanEntries, EuropeanState } from '../src/core/career/europe.ts';
-import { countriesByPrestige } from '../src/core/career/countries.ts';
+import { countriesByPrestige, countryPrestige } from '../src/core/career/countries.ts';
 import { createCup } from '../src/core/career/cups.ts';
 import { INTERNATIONAL } from '../src/core/career/international.ts';
 import type { InternationalState } from '../src/core/career/international.ts';
@@ -87,7 +87,7 @@ function tournament(
     knockout.winnerId = champion;
   }
 
-  return { fixtures: [], results: [], table, groupRoundsPlayed: 3, knockout };
+  return { fixtures: [], results: [], table, groups: [nations], groupRoundsPlayed: 3, knockout };
 }
 
 /** Play the same campaign for one country `times` over, everyone else blank. */
@@ -108,14 +108,22 @@ function ledgerOf(
   return record;
 }
 
-/** The same, for a European season described as club scores. */
-function clubLedger(
-  scores: Record<string, number>,
-  times = COEFFICIENT_WINDOW,
-): Coefficients {
+/**
+ * The same, for a European season described as club scores.
+ *
+ * Every country is entered with a zero and the named ones overwrite it, because
+ * "scored nothing" and "did not compete" are different things now: leaving a
+ * country out of the scores says it never entered, which is neither counted nor
+ * penalised.
+ */
+function everyCountry(scores: Record<string, number>): Record<string, number> {
+  return { ...Object.fromEntries(IDS.map((id) => [id, 0])), ...scores };
+}
+
+function clubLedger(scores: Record<string, number>, times = COEFFICIENT_WINDOW): Coefficients {
   let record = createCoefficients();
   for (let i = 0; i < times; i++) {
-    record = recordEuropeanSeason(record, { clubs: scores, nations: {} });
+    record = recordEuropeanSeason(record, { clubs: everyCountry(scores), nations: {} });
   }
   return record;
 }
@@ -293,8 +301,8 @@ describe('the two halves together', () => {
     let record = createCoefficients();
     for (let i = 0; i < COEFFICIENT_WINDOW; i++) {
       record = recordEuropeanSeason(record, {
-        clubs: { [country]: 99 },
-        nations: { [country]: 99 },
+        clubs: everyCountry({ [country]: 99 }),
+        nations: everyCountry({ [country]: 99 }),
       });
     }
     expect(coefficientNudge(record, country)).toBeLessThanOrEqual(COEFFICIENT_SWING);
@@ -305,7 +313,10 @@ describe('the two halves together', () => {
     const country = IDS[0]!;
     let record = createCoefficients();
     for (let i = 0; i < COEFFICIENT_WINDOW; i++) {
-      record = recordEuropeanSeason(record, { clubs: { [country]: 3 }, nations: { [country]: 5 } });
+      record = recordEuropeanSeason(record, {
+        clubs: everyCountry({ [country]: 3 }),
+        nations: everyCountry({ [country]: 5 }),
+      });
     }
     expect(clubCoefficient(record, country)).toBe(3);
     expect(nationCoefficient(record, country)).toBe(5);
@@ -317,8 +328,8 @@ function recordAcross(scores: Record<string, number>, half: 'clubs' | 'nations')
   let record = createCoefficients();
   for (let i = 0; i < COEFFICIENT_WINDOW; i++) {
     record = recordEuropeanSeason(record, {
-      clubs: half === 'clubs' ? scores : {},
-      nations: half === 'nations' ? scores : {},
+      clubs: half === 'clubs' ? everyCountry(scores) : {},
+      nations: half === 'nations' ? everyCountry(scores) : {},
     });
   }
   return record;
@@ -356,9 +367,13 @@ describe('the rolling window', () => {
 
   it('knows when it has nothing on record', () => {
     expect(hasRecord(createCoefficients())).toBe(false);
+    // A season nobody competed in is still nothing on record.
     expect(hasRecord(recordEuropeanSeason(createCoefficients(), { clubs: {}, nations: {} }))).toBe(
-      true,
+      false,
     );
+    expect(
+      hasRecord(recordEuropeanSeason(createCoefficients(), { clubs: { england: 1 }, nations: {} })),
+    ).toBe(true);
   });
 });
 
@@ -427,14 +442,40 @@ describe('the European order', () => {
     expect(once).toBeLessThan(full);
   });
 
-  it('averages only the countries that have played', () => {
+  it('averages only the countries that competed', () => {
+    // One country entered, so the field IS that country: the eleven that did
+    // not play are not counted as zeroes dragging the bar down.
     const record = recordEuropeanSeason(createCoefficients(), {
       clubs: {},
       nations: { england: 4 },
     });
-    // Everybody was entered, so everybody is averaged — the seven who scored
-    // nothing included.
-    expect(fieldAverage(record.nations)).toBeCloseTo(4 / IDS.length, 5);
+    expect(fieldAverage(record.nations)).toBe(4);
+
+    // Everybody entered and one did well: now the bar is the whole field.
+    const full = recordEuropeanSeason(createCoefficients(), {
+      clubs: {},
+      nations: everyCountry({ england: 4 }),
+    });
+    expect(fieldAverage(full.nations)).toBeCloseTo(4 / IDS.length, 5);
+  });
+
+  it('does not punish a country for a tournament it was not in', () => {
+    // The trap this exists to avoid: the tournament holds eight and the world
+    // has twelve, so scoring the four who missed out as zeroes dragged them
+    // down by most of what they would need to climb back into it. Missing out
+    // would then be self-reinforcing and the bottom of the order sealed shut.
+    const outsider = IDS[IDS.length - 1]!;
+    const field = IDS.slice(0, IDS.length - 1);
+    let record = createCoefficients();
+    for (let i = 0; i < COEFFICIENT_WINDOW; i++) {
+      record = recordEuropeanSeason(record, {
+        clubs: {},
+        nations: Object.fromEntries(field.map((id) => [id, 3])),
+      });
+    }
+    // Never played, so the national half says nothing about it either way.
+    expect(coefficientNudge(record, outsider)).toBe(0);
+    expect(standingOf(record, outsider)).toBe(countryPrestige(outsider));
   });
 });
 
@@ -495,7 +536,9 @@ describe('what the order is worth', () => {
   });
 
   it('treats a country nobody has heard of as the smallest', () => {
-    expect(championsLeaguePlaces('atlantis', IDS)).toBe(1);
+    expect(championsLeaguePlaces('atlantis', IDS)).toBe(
+      championsLeaguePlaces(IDS[IDS.length - 1]!, IDS),
+    );
   });
 });
 

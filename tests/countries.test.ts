@@ -15,9 +15,9 @@ import {
 } from '../src/core/career/countries.ts';
 
 describe('the world as data', () => {
-  it('has eight countries of sixteen clubs each', () => {
-    expect(COUNTRIES).toHaveLength(8);
-    expect(TEAMS).toHaveLength(128);
+  it('has twelve countries of sixteen clubs each', () => {
+    expect(COUNTRIES).toHaveLength(12);
+    expect(TEAMS).toHaveLength(192);
     for (const country of COUNTRIES) {
       expect(teamsInCountry(country.id), country.id).toHaveLength(16);
     }
@@ -86,7 +86,7 @@ describe('placing clubs in the world', () => {
 
   it('lists every country that has a league, best watched first', () => {
     const played = playedCountries(leagues);
-    expect(played).toHaveLength(8);
+    expect(played).toHaveLength(12);
     expect(played[0]).toBe('england');
   });
 

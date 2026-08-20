@@ -410,7 +410,17 @@ export class CareerScreen {
     const selected = isSelected(this.state.player);
     const gap = selectionGap(this.state.player);
 
-    const standing = groupIndexOf(me);
+    const standing = groupIndexOf(international, me);
+    // Not every country is in the tournament: it holds eight and the world has
+    // twelve. Saying so plainly matters more than the table would — without it
+    // a player whose reputation clears the bar simply never gets a fixture and
+    // is left to work out why on his own.
+    const missedOut =
+      standing === -1
+        ? `<p class="hint">${nation.name} did not qualify for this year's tournament — the eight
+             highest countries in the European order play it, and ${nation.name} is not among them.
+             Its clubs and its national side both climb that order.</p>`
+        : '';
     const table =
       standing === -1
         ? ''
@@ -469,6 +479,7 @@ export class CareerScreen {
       <div class="career-card">
         <h2>${nation.name}</h2>
         ${status}
+        ${missedOut}
         ${table}
         ${run ? `<p class="hint">${run}</p>` : ''}
         ${worth}

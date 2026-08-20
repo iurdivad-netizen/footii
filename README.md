@@ -729,19 +729,23 @@ pure, the hub can show it at any moment and the market can never disagree with t
 
 ### The world: eight countries
 
-The game is a map, not a ladder: **eight countries, sixteen clubs each, 128 clubs in all**. Every
+The game is a map, not a ladder: **twelve countries, sixteen clubs each, 192 clubs in all**. Every
 country has its own league, and every league is playing at the same time as yours.
 
 | League | Country | Watched | Best club | Weakest club |
 | ------ | ------- | ------- | --------- | ------------ |
-| The Premier Division | England | 1.00 | 86 | 41 |
+| The Premier Division | England | 1.00 | 82 | 41 |
 | La Liga Nacional | Spain | 0.96 | 87 | 42 |
 | Die Bundesliga | Germany | 0.92 | 85 | 44 |
 | Serie Alta | Italy | 0.90 | 84 | 41 |
 | Le Championnat | France | 0.80 | 82 | 38 |
+| The Super Group | Turkey | 0.72 | 79 | 35 |
 | A Liga Principal | Portugal | 0.68 | 78 | 34 |
 | De Eredivisie | Netherlands | 0.66 | 76 | 33 |
+| De Ereklasse | Belgium | 0.62 | 74 | 31 |
+| The Alpha Division | Greece | 0.56 | 73 | 30 |
 | The Premiership | Scotland | 0.50 | 72 | 28 |
+| Die Erste Klasse | Austria | 0.46 | 70 | 27 |
 
 "Watched" is **prestige**, and it is deliberately not the same thing as strength. It scales
 reputation, wages and international selection, so a league can be well watched and mediocre, or
@@ -840,12 +844,19 @@ gets watched by big ones without having to sign for them first.
 How many each country gets is hand-tuned rather than derived, because each row has to sum to exactly
 sixteen and because the shape matters more than a formula. **Read the columns, not the rows:**
 
-| rank | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
-| ---- | - | - | - | - | - | - | - | - |
-| Champions League | 3 | 3 | 3 | 2 | 2 | 1 | 1 | 1 |
-| Europa League | 3 | 2 | 2 | 2 | 2 | 2 | 2 | 1 |
-| Conference League | 1 | 2 | 2 | 2 | 2 | 2 | 2 | 3 |
-| **total** | 7 | 7 | 7 | 6 | 6 | 5 | 5 | 5 |
+| rank | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 |
+| ---- | - | - | - | - | - | - | - | - | - | -- | -- | -- |
+| Champions League | 3 | 3 | 2 | 2 | 2 | 1 | 1 | 1 | 1 | 0 | 0 | 0 |
+| Europa League | 1 | 1 | 2 | 2 | 2 | 2 | 2 | 1 | 1 | 1 | 1 | 0 |
+| Conference League | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 2 | 2 | 3 | 3 | 4 |
+| **total** | 4 | 4 | 4 | 4 | 4 | 4 | 4 | 4 | 4 | 4 | 4 | 4 |
+
+Every country sends exactly **four** clubs to Europe. The Europa League row is a **hump** rather
+than a slope, and that is football rather than an accident: the biggest countries send most of their
+allocation to the Champions League and few to the Europa League, the smallest send theirs to the
+Conference League, and the countries in the middle are what the Europa League is mostly made of.
+The bottom three send **nobody** to the Champions League — a real statement about a small league,
+and the strongest argument the transfer market has.
 
 A country climbing the order does not send **more** clubs to Europe — it sends the same number to
 **better** competitions, trading a Conference place for a Europa one. And the order itself is
@@ -938,6 +949,17 @@ precisely so the cups stay open while this one does not.
 seasons and a peak is perhaps six of them. On a biennial cycle a career gets three tournaments, of
 which a player is good enough for one or two — so the whole system would be something most careers
 glimpse once. Yearly makes international football something a career actually *has*.
+
+**Not every country is in it.** The tournament holds eight nations and the world has twelve, so the
+field is the eight highest in the **European order** — the same order the European places are handed
+out on. A country that has been climbing plays its way into a tournament it was not in last year,
+and one that has been sliding misses out. That ties a country's clubs and its national side into one
+standing rather than two, and it is why the hub tells a player from a country outside the eight
+exactly that, rather than leaving him to wonder why no call-up ever comes.
+
+Missing out is **not scored as a bad campaign**. A country outside the field simply has nothing on
+its national record that year — see the note under "Balancing notes", because scoring it as a zero
+was a trap that sealed the bottom of the order shut.
 
 **Selection is the whole international career.** You are picked when your reputation clears a bar
 that rises with your nation's own standing, which is what makes the nationality chosen at creation a
@@ -1233,6 +1255,15 @@ their constants:
   country, prestige step, squad level, tactical style and wages, and said nothing about it. You
   could turn down the Champions League for a bigger badge without ever being told. Each offer now
   names the competition it comes with, and so does staying.
+- **"Scored nothing" and "did not compete" are different facts.** The tournament holds eight nations
+  and the world has twelve, so four countries play no international football each year. Recording
+  that as a zero looked harmless — it is what the ledger does for a country that entered and lost
+  everything — and it dragged every non-qualifying country down by about a fifth of the whole swing,
+  which is most of what one would need to climb back INTO the tournament. Not qualifying became
+  self-reinforcing and the bottom of the order was sealed shut: exactly the compounding the club
+  half is divided per club entered to avoid, reintroduced through the other half. A country that did
+  not play now records nothing at all, neither help nor harm, and is judged on the football it did
+  play.
 - **A weighted average of two movements is smaller than either.** When the coefficient gained its
   club half, the obvious way to say "clubs count more" was to weight the two halves as shares of one
   movement — 0.6 clubs, 0.4 nation. What that actually said was "each half alone can only reach its
@@ -1307,10 +1338,10 @@ nationality, seeded match engine, thirteen situation archetypes (including penal
 kicks, corners, aerial duels and pressing traps), ~60 contextual actions, dynamic decision timer,
 build-up narration, goalkeeper commit mechanic, action resolution with separated choice/execution,
 instinctive fallback on expiry, match statistics and rating, five playable presets across four
-positions, **a world of eight countries and 128 clubs across eight live leagues**, **a national cup and a
+positions, **a world of twelve countries and 192 clubs across twelve live leagues**, **a national cup and a
 league cup in every country**, **a Champions League, a Europa League and a Conference League entered
-by league position and by winning a cup**, **a yearly international tournament of eight national sides, with groups, a
-seeded knockout and a squad you have to be good enough to be picked for**, **a country coefficient
+by league position and by winning a cup**, **a yearly international tournament contested by the eight countries highest in the European
+order, with groups, a seeded knockout and a squad you have to be good enough to be picked for**, **a country coefficient
 that turns those results into how many clubs each country sends to each European competition**, **a season calendar
 interleaving all of them**, season fixtures,
 a world browser covering **every competition there is — any country's league, both of its cups, all

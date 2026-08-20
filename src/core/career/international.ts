@@ -10,7 +10,7 @@ import {
   simulateFixture,
   sortTable,
 } from './league.ts';
-import { GROUP_COUNT, QUALIFY_PER_GROUP, nationId, qualifyingGroups } from './nations.ts';
+import { QUALIFY_PER_GROUP, nationId, qualifyingGroups } from './nations.ts';
 
 /**
  * INTERNATIONAL FOOTBALL
@@ -66,15 +66,35 @@ export interface InternationalState {
   results: FixtureResult[];
   /** Every nation, one row each. Sliced by group for display. */
   table: TableRow[];
+  /**
+   * The groups, as nation ids, fixed when the tournament was drawn.
+   *
+   * STORED rather than recomputed. The field is the eight countries highest in
+   * the European order, and that order moves every season — so recomputing the
+   * groups from today's order would eventually disagree with the fixture list
+   * drawn from last summer's, and a nation would be reading a table it was
+   * never in.
+   */
+  groups: string[][];
   /** Group rounds settled so far, 0 to GROUP_ROUNDS. */
   groupRoundsPlayed: number;
   /** The knockout, once the groups have finished. Null until then. */
   knockout: CupState<InternationalKind> | null;
 }
 
-/** The groups, as nation ids rather than country ids. */
-export function nationGroups(): string[][] {
-  return qualifyingGroups().map((group) => group.map(nationId));
+/**
+ * The groups of a tournament, as nation ids rather than country ids.
+ *
+ * Read off the state, so it always agrees with the fixtures that were drawn
+ * with it.
+ */
+export function nationGroups(state: InternationalState): string[][] {
+  return state.groups ?? [];
+}
+
+/** The groups a fresh tournament would be drawn into, from a European order. */
+export function drawGroups(order?: readonly string[]): string[][] {
+  return qualifyingGroups(order).map((group) => group.map(nationId));
 }
 
 /**
@@ -85,8 +105,8 @@ export function nationGroups(): string[][] {
  * travels to others, which is as close to a neutral tournament as a model with
  * home advantage gets.
  */
-export function createInternational(rng: Rng): InternationalState {
-  const groups = nationGroups();
+export function createInternational(rng: Rng, order?: readonly string[]): InternationalState {
+  const groups = drawGroups(order);
   const fixtures: Fixture[] = [];
   for (const group of groups) {
     // The same rng for both groups, drawn one after the other: it carries its
@@ -101,6 +121,7 @@ export function createInternational(rng: Rng): InternationalState {
     fixtures,
     results: [],
     table: emptyTable(groups.flat()),
+    groups,
     groupRoundsPlayed: 0,
     knockout: null,
   };
@@ -170,18 +191,18 @@ export function closeGroupRound(state: InternationalState, round: number): void 
 
 /** One group's table, best first. */
 export function groupTable(state: InternationalState, group: number): TableRow[] {
-  const members = new Set(nationGroups()[group] ?? []);
+  const members = new Set(nationGroups(state)[group] ?? []);
   return sortTable(state.table.filter((row) => members.has(row.teamId)));
 }
 
 /** Which group a nation is in, or -1. */
-export function groupIndexOf(nation: string): number {
-  return nationGroups().findIndex((group) => group.includes(nation));
+export function groupIndexOf(state: InternationalState, nation: string): number {
+  return nationGroups(state).findIndex((group) => group.includes(nation));
 }
 
 /** Where a nation stands in its group, counting from 1. */
 export function groupPosition(state: InternationalState, nation: string): number {
-  const group = groupIndexOf(nation);
+  const group = groupIndexOf(state, nation);
   if (group === -1) return 0;
   return groupTable(state, group).findIndex((row) => row.teamId === nation) + 1;
 }
@@ -199,11 +220,14 @@ export function startKnockout(state: InternationalState): CupState<International
   if (state.groupRoundsPlayed < GROUP_ROUNDS) return null;
 
   const qualified: string[] = [];
-  const tables = Array.from({ length: GROUP_COUNT }, (_, group) => groupTable(state, group));
+  const tables = Array.from({ length: nationGroups(state).length }, (_, group) =>
+    groupTable(state, group),
+  );
   // A1 v B2, then B1 v A2 — the order the bracket is paired in, since a seeded
   // draw pairs adjacent survivors.
-  for (let group = 0; group < GROUP_COUNT; group++) {
-    const other = (group + 1) % GROUP_COUNT;
+  const groupCount = tables.length;
+  for (let group = 0; group < groupCount; group++) {
+    const other = (group + 1) % groupCount;
     qualified.push(tables[group]![0]?.teamId ?? '', tables[other]![QUALIFY_PER_GROUP - 1]?.teamId ?? '');
   }
   if (qualified.some((id) => !id)) return null;

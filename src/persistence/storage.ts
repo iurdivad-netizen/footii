@@ -28,7 +28,7 @@ import type { DecisionPace } from '../simulation/DecisionTimer.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 12;
 
 export interface CareerRecord {
   matches: number;
@@ -171,6 +171,52 @@ function isSplitLedger(value: unknown): value is Coefficients {
   if (!value || typeof value !== 'object') return false;
   const record = value as Record<string, unknown>;
   return Array.isArray(record.clubs) === false && ('clubs' in record || 'nations' in record);
+}
+
+/**
+ * Recover a tournament's groups from the fixture list it was drawn with.
+ *
+ * Every nation plays everybody in its own group and nobody outside it, so the
+ * groups are the CONNECTED COMPONENTS of the opponent graph. Walking the
+ * fixtures in order and assigning as you go is not enough: the first round of a
+ * group of four produces two unconnected pairs, and it is the second round that
+ * joins them. So the opponents are collected first and the components found
+ * afterwards.
+ *
+ * Used only by the v11 migration, where redrawing would contradict results the
+ * save has already played.
+ */
+function groupsFromFixtures(state: { fixtures: { homeId: string; awayId: string }[] }): string[][] {
+  const opponents = new Map<string, Set<string>>();
+  const meet = (a: string, b: string) => {
+    if (!opponents.has(a)) opponents.set(a, new Set());
+    opponents.get(a)!.add(b);
+  };
+  for (const fixture of state.fixtures ?? []) {
+    meet(fixture.homeId, fixture.awayId);
+    meet(fixture.awayId, fixture.homeId);
+  }
+
+  const groups: string[][] = [];
+  const placed = new Set<string>();
+  for (const nation of opponents.keys()) {
+    if (placed.has(nation)) continue;
+    const group: string[] = [];
+    const queue = [nation];
+    placed.add(nation);
+    while (queue.length > 0) {
+      const next = queue.shift()!;
+      group.push(next);
+      for (const other of opponents.get(next) ?? []) {
+        if (placed.has(other)) continue;
+        placed.add(other);
+        queue.push(other);
+      }
+    }
+    groups.push(group);
+  }
+
+  return groups;
 }
 
 export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveData | null {
@@ -414,6 +460,25 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
         : { clubs: {}, nations: (stored as CoefficientLedger) ?? {} };
     }
     save = { ...save, version: 11 };
+  }
+
+  if (save.version === 11) {
+    // v11 -> v12: the world gained four more European leagues, and with twelve
+    // countries the tournament no longer holds everybody — it takes the eight
+    // highest in the European order, and the groups it was drawn into are now
+    // stored on the tournament rather than recomputed from the registry.
+    //
+    // A v11 tournament was drawn from eight countries and its fixtures still
+    // describe that draw, so the groups are recovered FROM THE FIXTURES rather
+    // than redrawn: redrawing against a twelve-country order would hand the
+    // player a group he is not playing in, with a table that disagreed with
+    // every result already recorded.
+    const career = save.careerState;
+    const tournament = career?.international;
+    if (tournament && !tournament.groups) {
+      tournament.groups = groupsFromFixtures(tournament);
+    }
+    save = { ...save, version: 12 };
   }
 
   if (save.version !== SAVE_VERSION) return null;

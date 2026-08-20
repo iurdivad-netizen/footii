@@ -305,7 +305,7 @@ export class WorldScreen {
 
     // Nations that have not kicked a ball yet still deserve naming: the draw is
     // known from the start of the season and is half of what a group stage is.
-    const drawn = nationGroups()
+    const drawn = nationGroups(international)
       .map(
         (group, index) =>
           `Group ${String.fromCharCode(65 + index)}: ${group.map(nationName).join(', ')}`,
@@ -355,7 +355,7 @@ export class WorldScreen {
             <td>${index + 1}</td>
             <td>${country.name}${home ? '<em class="own-tag">yours</em>' : ''}</td>
             <td>${row.seasons === 0 ? '—' : row.clubs.toFixed(2)}</td>
-            <td>${row.seasons === 0 ? '—' : row.nations.toFixed(2)}</td>
+            <td>${row.tournaments === 0 ? '<em class="dim">out</em>' : row.nations.toFixed(2)}</td>
             <td class="dim">${nudge}</td>
             <td><strong>${places.championsLeague}</strong></td>
             <td>${places.europaLeague}</td>

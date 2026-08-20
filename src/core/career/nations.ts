@@ -155,19 +155,38 @@ export function isNation(id: string): boolean {
  * table it produces is fair — the thing a four-match campaign against four of
  * seven possible opponents could never be.
  *
- * Seeded by a snake down the prestige order (1,4,5,8 and 2,3,6,7) rather than
- * drawn, so the two groups are as even as eight nations allow and neither
- * becomes the one everybody dreads. A random draw would put England, Spain and
- * Germany together roughly a fifth of the time, which reads as a bug however
- * fairly it was rolled.
+ * NOT EVERY COUNTRY IS IN IT. The tournament has eight places and the world has
+ * more countries than that, so the eight are the eight highest in the European
+ * order — which the coefficient moves. A country outside the eight does not
+ * play international football that year, which makes qualifying for it an
+ * achievement rather than an entitlement, and gives a small country's clubs and
+ * national side something to climb toward together.
+ *
+ * Seeded by a snake down that order (1,4,5,8 and 2,3,6,7) rather than drawn, so
+ * the two groups are as even as eight nations allow and neither becomes the one
+ * everybody dreads. A random draw would put the three strongest together
+ * roughly a fifth of the time, which reads as a bug however fairly it was
+ * rolled.
  */
 export const GROUP_SIZE = 4;
 export const GROUP_COUNT = 2;
 /** How many from each group reach the knockout. */
 export const QUALIFY_PER_GROUP = 2;
+/** How many nations the tournament holds. */
+export const TOURNAMENT_FIELD = GROUP_SIZE * GROUP_COUNT;
 
-export function qualifyingGroups(): string[][] {
-  const ranked = countriesByPrestige().map((c) => c.id);
+/**
+ * The groups, from an ordered list of countries (best first).
+ *
+ * The order is passed in rather than read from prestige here, because what
+ * decides it lives outside this module — see core/career/coefficients.ts, where
+ * prestige is bent by how a country's clubs and national side have been doing.
+ * Omitting it falls back to plain prestige, which is what a world with nothing
+ * on record looks like.
+ */
+export function qualifyingGroups(order?: readonly string[]): string[][] {
+  const ranked = (order && order.length > 0 ? order.slice() : countriesByPrestige().map((c) => c.id))
+    .slice(0, TOURNAMENT_FIELD);
   const groups: string[][] = Array.from({ length: GROUP_COUNT }, () => []);
   for (const [index, id] of ranked.entries()) {
     // Snake: 0,1,1,0,0,1,1,0 — the second seed of one group is the third of the
@@ -181,8 +200,8 @@ export function qualifyingGroups(): string[][] {
 }
 
 /** Which group a country is in, or -1 if it plays no international football. */
-export function groupOf(countryId: string): number {
-  return qualifyingGroups().findIndex((group) => group.includes(countryId));
+export function groupOf(countryId: string, order?: readonly string[]): number {
+  return qualifyingGroups(order).findIndex((group) => group.includes(countryId));
 }
 
 /**

@@ -224,6 +224,15 @@ export function scoreEuropeanSeason(
 /**
  * One country's most recent seasons in one competition, oldest first.
  *
+ * `null` means DID NOT COMPETE, which is not the same as scored nothing. The
+ * tournament holds eight nations and the world has twelve, so a country outside
+ * the field plays no international football that year — and scoring that as a
+ * zero was a trap: it dragged every non-qualifying country down by about a
+ * fifth of the swing, which is most of what it would need to climb back INTO
+ * the tournament. Not qualifying became self-reinforcing, and the bottom of the
+ * order was sealed shut. A null neither helps nor hurts: it says the ledger has
+ * nothing to report, so the country is judged on the half it did play.
+ *
  * Stored rather than derived, unlike almost everything else about the world. A
  * past season CANNOT be recomputed: national sides are built from their
  * country's clubs as they stood at the time, and club drift only ever carries
@@ -231,7 +240,7 @@ export function scoreEuropeanSeason(
  * no longer exists by season nine. A dozen countries times five numbers is a
  * cheap thing to remember and an impossible thing to reconstruct.
  */
-export type CoefficientLedger = Record<string, number[]>;
+export type CoefficientLedger = Record<string, (number | null)[]>;
 
 /**
  * A country's whole European record: what its clubs did, and what its nation did.
@@ -279,9 +288,11 @@ export function scoreTournament(state: InternationalState): Record<string, numbe
  * Add one season to both ledgers, dropping whatever has fallen out of the
  * window.
  *
- * A country absent from the scores still ages: it is given a zero rather than
- * being left alone, so a country that stops competing slides down the order
- * instead of freezing at whatever it last managed.
+ * A country absent from the scores is recorded as having NOT COMPETED rather
+ * than as having scored nothing — see the note on the ledger. It still ages:
+ * the null takes a slot in the window, so a country five seasons out of the
+ * tournament has an empty record and its national side stops counting either
+ * way, rather than freezing at whatever it last managed.
  */
 export function recordEuropeanSeason(
   record: Coefficients,
@@ -302,7 +313,8 @@ function pushSeason(ledger: CoefficientLedger, scores: Record<string, number>): 
   ]);
 
   for (const countryId of countries) {
-    const history = [...(ledger[countryId] ?? []), scores[countryId] ?? 0];
+    const played = countryId in scores ? scores[countryId]! : null;
+    const history = [...(ledger[countryId] ?? []), played];
     updated[countryId] = history.slice(-COEFFICIENT_WINDOW);
   }
 
@@ -317,9 +329,14 @@ function pushSeason(ledger: CoefficientLedger, scores: Record<string, number>): 
  * season is the whole record and counts as such.
  */
 export function coefficientOf(ledger: CoefficientLedger, countryId: string): number {
-  const history = ledger[countryId];
-  if (!history || history.length === 0) return 0;
-  return round(history.reduce((sum, score) => sum + score, 0) / history.length, 2);
+  const played = competed(ledger, countryId);
+  if (played.length === 0) return 0;
+  return round(played.reduce((sum, score) => sum + score, 0) / played.length, 2);
+}
+
+/** The seasons a country actually competed in, out of the window. */
+function competed(ledger: CoefficientLedger, countryId: string): number[] {
+  return (ledger[countryId] ?? []).filter((score): score is number => score !== null);
 }
 
 /** What a country's clubs have averaged in Europe. */
@@ -335,7 +352,7 @@ export function nationCoefficient(record: Coefficients, countryId: string): numb
 /** True once there is any season on record at all, in either ledger. */
 export function hasRecord(record: Coefficients): boolean {
   return [record.clubs, record.nations].some((ledger) =>
-    Object.values(ledger).some((history) => history.length > 0),
+    Object.values(ledger).some((history) => history.some((score) => score !== null)),
   );
 }
 
@@ -347,7 +364,7 @@ export function hasRecord(record: Coefficients): boolean {
  * ones it is measuring.
  */
 export function fieldAverage(ledger: CoefficientLedger): number {
-  const recorded = Object.keys(ledger).filter((id) => (ledger[id]?.length ?? 0) > 0);
+  const recorded = Object.keys(ledger).filter((id) => competed(ledger, id).length > 0);
   if (recorded.length === 0) return 0;
   return recorded.reduce((sum, id) => sum + coefficientOf(ledger, id), 0) / recorded.length;
 }
@@ -363,7 +380,7 @@ export function fieldAverage(ledger: CoefficientLedger): number {
  * honest answer.
  */
 function ledgerNudge(ledger: CoefficientLedger, countryId: string, scale: number): number {
-  const played = ledger[countryId]?.length ?? 0;
+  const played = competed(ledger, countryId).length;
   if (played === 0) return 0;
   const deviation = coefficientOf(ledger, countryId) - fieldAverage(ledger);
   const moved = deviation * scale;
@@ -430,8 +447,10 @@ export interface StandingRow {
   countryId: string;
   /** Average points per European season, per club entered. */
   clubs: number;
-  /** Average points per tournament for the national side. */
+  /** Average points per tournament for the national side, when it played. */
   nations: number;
+  /** How many of the window's tournaments its national side was in. */
+  tournaments: number;
   /** How far the two together have moved the country from its prestige. */
   nudge: number;
   /** Prestige plus the nudge: what the order is actually sorted on. */
@@ -446,11 +465,12 @@ export function standingsTable(record: Coefficients): StandingRow[] {
     countryId,
     clubs: clubCoefficient(record, countryId),
     nations: nationCoefficient(record, countryId),
+    tournaments: competed(record.nations, countryId).length,
     nudge: coefficientNudge(record, countryId),
     standing: standingOf(record, countryId),
     seasons: Math.max(
-      record.clubs[countryId]?.length ?? 0,
-      record.nations[countryId]?.length ?? 0,
+      competed(record.clubs, countryId).length,
+      competed(record.nations, countryId).length,
     ),
   }));
 }

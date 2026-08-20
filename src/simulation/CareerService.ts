@@ -407,7 +407,9 @@ export function startCareer(options: StartCareerOptions): CareerState {
     // that has not been played. The first European night of a career is earned.
     europe: null,
     europeanEntries: {},
-    international: newInternational(options.seed, 1),
+    // Season one has nothing on record, so the field is the eight best-watched
+    // countries — which is what the world looks like before it has a history.
+    international: newInternational(options.seed, 1, countriesByStanding(createCoefficients())),
     seasonCaps: 0,
     // Nothing has been played, so every country stands exactly where the data
     // file says it does. The order starts moving with the first tournament.
@@ -416,9 +418,21 @@ export function startCareer(options: StartCareerOptions): CareerState {
   };
 }
 
-/** A fresh international season, its draw fixed by the seed and the year. */
-function newInternational(seed: string, seasonNumber: number): InternationalState {
-  return createInternational(new Rng(`${seed}:s${seasonNumber}:international:draw`));
+/**
+ * A fresh international season, its draw fixed by the seed and the year.
+ *
+ * The FIELD is the eight countries highest in the European order, so a country
+ * that has been climbing can play its way into a tournament it was not in last
+ * year — and one that has been sliding can miss out. That is the same order the
+ * European places are handed out on, which is what ties a country's clubs and
+ * its national side into one standing rather than two.
+ */
+function newInternational(
+  seed: string,
+  seasonNumber: number,
+  order: readonly string[],
+): InternationalState {
+  return createInternational(new Rng(`${seed}:s${seasonNumber}:international:draw`), order);
 }
 
 /** The rng one international round is settled with. */
@@ -1166,7 +1180,7 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   // season number on, so this is next year's draw and not a repeat of the one
   // just played — leaving the old one in place would freeze the groups at
   // full-time and never offer another international match again.
-  state.international = newInternational(state.seed, state.seasonNumber);
+  state.international = newInternational(state.seed, state.seasonNumber, europeanOrder);
   state.seasonCaps = 0;
   state.europeanEntries = nextEuropeanEntries;
   state.europe = newEurope(nextEuropeanEntries, state.clubId);

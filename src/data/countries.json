@@ -40,6 +40,14 @@
     "prestige": 0.8
   },
   {
+    "id": "turkey",
+    "name": "Turkey",
+    "adjective": "Turkish",
+    "league": "The Super Group",
+    "short": "TUR",
+    "prestige": 0.72
+  },
+  {
     "id": "portugal",
     "name": "Portugal",
     "adjective": "Portuguese",
@@ -56,11 +64,35 @@
     "prestige": 0.66
   },
   {
+    "id": "belgium",
+    "name": "Belgium",
+    "adjective": "Belgian",
+    "league": "De Ereklasse",
+    "short": "BEL",
+    "prestige": 0.62
+  },
+  {
+    "id": "greece",
+    "name": "Greece",
+    "adjective": "Greek",
+    "league": "The Alpha Division",
+    "short": "GRE",
+    "prestige": 0.56
+  },
+  {
     "id": "scotland",
     "name": "Scotland",
     "adjective": "Scottish",
     "league": "The Premiership",
     "short": "SCO",
     "prestige": 0.5
+  },
+  {
+    "id": "austria",
+    "name": "Austria",
+    "adjective": "Austrian",
+    "league": "Die Erste Klasse",
+    "short": "AUT",
+    "prestige": 0.46
   }
 ]
