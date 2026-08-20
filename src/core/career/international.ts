@@ -17,10 +17,9 @@ import {
   continentalGroups,
   nationId,
   qualifyingGroups,
-  worldTierGroups,
+  worldCupField,
+  worldCupGroups,
 } from './nations.ts';
-import { WORLD_TIERS, worldTierField } from './nations.ts';
-import type { WorldTier } from './nations.ts';
 
 /**
  * INTERNATIONAL FOOTBALL
@@ -59,11 +58,16 @@ export type InternationalKind = typeof INTERNATIONAL;
 /**
  * Which competition a tournament is.
  *
- * Three world tiers and a continental championship, mirroring the club game's
- * three European competitions and its domestic cups: everybody plays in one of
- * them, and which one is decided by standing rather than by geography.
+ * Two, as FIFA has two: the World Cup, which a nation qualifies for through its
+ * own confederation, and the confederation's own championship, which every
+ * member plays.
+ *
+ * It was briefly three world tiers with movement between them. That is the
+ * UEFA Nations League — a league rather than a cup, a European invention rather
+ * than a FIFA one, and not what a World Cup is. A World Cup is the tournament
+ * you do not always reach.
  */
-export type TournamentKind = WorldTier | 'continental';
+export type TournamentKind = 'worldCup' | 'continental';
 
 /** Which half of the cycle a season is in. */
 export type TournamentEra = 'world' | 'continental';
@@ -174,19 +178,12 @@ export function nationGroups(state: InternationalState): string[][] {
  */
 export function tournamentName(kind: TournamentKind, confederation: string): string {
   if (kind === 'continental') return `The ${confederationAdjective(confederation)} Championship`;
-  return WORLD_TIER_NAMES[kind] ?? 'The World Cup';
+  return 'The World Cup';
 }
-
-const WORLD_TIER_NAMES: Record<string, string> = {
-  worldCup: 'The World Cup',
-  challengeCup: 'The Challenge Cup',
-  conferenceCup: 'The Conference Cup',
-};
 
 /** Short form, for chips and tables. */
 export function tournamentShortName(kind: TournamentKind): string {
-  if (kind === 'continental') return 'Championship';
-  return (WORLD_TIER_NAMES[kind] ?? 'The World Cup').replace(/^The /, '');
+  return kind === 'continental' ? 'Championship' : 'World Cup';
 }
 
 /** The groups a fresh continental championship would be drawn into. */
@@ -218,12 +215,12 @@ export function seasonTournaments(
   confederations: readonly string[],
   membersOf: (confederation: string) => readonly string[],
 ): ScheduledTournament[] {
+  // A World Cup year holds exactly one tournament, and most of the world is not
+  // in it. That is what a World Cup is: the nations that did not qualify have no
+  // summer, and get their football from their own championship the year either
+  // side of it.
   if (era === 'world') {
-    return WORLD_TIERS.map((tier) => ({
-      kind: tier as TournamentKind,
-      confederation: '',
-      field: worldTierField(order, tier),
-    }));
+    return [{ kind: 'worldCup', confederation: '', field: worldCupField(order) }];
   }
 
   return confederations.map((confederation) => ({
@@ -287,7 +284,7 @@ export function createInternational(
     ? continentalGroups(field.map(nationId))
     : kind === 'continental'
       ? drawGroups(order)
-      : worldTierGroups(order ?? [], kind).map((group) => group.map(nationId));
+      : worldCupGroups(order ?? []).map((group) => group.map(nationId));
   const fixtures: Fixture[] = [];
   for (const group of groups) {
     // The same rng for both groups, drawn one after the other: it carries its

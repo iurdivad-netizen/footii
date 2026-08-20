@@ -2286,3 +2286,19 @@ button.ghost {
 .tier-list li.own .tier-rank {
   color: var(--text);
 }
+
+/* A nation holding one of its confederation's World Cup places. */
+.tier-list li.qualified {
+  border-left: 2px solid var(--accent);
+  padding-left: 6px;
+}
+
+.qualified-tag {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-style: normal;
+  margin-left: auto;
+}

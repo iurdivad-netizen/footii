@@ -2,7 +2,7 @@ import { clamp, clamp01, round } from '../util/math.ts';
 import type { Team, TeamRatings } from '../team/team.ts';
 import { teamStrength } from '../team/team.ts';
 import type { Player } from '../player/player.ts';
-import { countriesByPrestige, countryPrestige, getCountry } from './countries.ts';
+import { confederationOf, countriesByPrestige, countryPrestige, getCountry } from './countries.ts';
 
 /**
  * NATIONAL TEAMS
@@ -251,38 +251,32 @@ export const WORLD_CUP_FIELD = GROUP_SIZE * WORLD_CUP_GROUPS;
 export const TOURNAMENT_FIELD = CONTINENTAL_FIELD;
 
 /**
- * THE THREE WORLD TIERS
+ * HOW MANY PLACES EACH CONFEDERATION HAS AT THE WORLD CUP.
  *
- * The club game has three European competitions so that a club outside the
- * elite still has European nights. The international game had one, and the
- * consequence was measurable: over eight seasons, twenty-five of forty-four
- * nations never kicked a ball, and four of them — Belgium, Greece, Scotland,
- * Austria — were countries a player can BE from, so choosing that nationality
- * silently meant no caps for an entire career.
+ * This is FIFA's mechanism and it is the right one, which took removing to
+ * learn. It was taken out once on the argument that a quota guarantees the
+ * weakest confederation's best nation a place it has not earned while shutting
+ * out a better nation from a stronger one — true, and beside the point. A World
+ * Cup is not the sixteen best teams; it is a tournament the whole world enters
+ * and each part of the world sends its own. Ranking the globe and taking the
+ * top sixteen produces a competition with a name it has not earned.
  *
- * So the world tournaments are tiered exactly as the European ones are. Every
- * nation is in one of them, seeded by standing, and moves between them season
- * to season as its standing moves — which is a climb the coefficient already
- * knows how to produce.
+ * Hand-tuned rather than derived, because it has to sum to exactly sixteen and
+ * because the shape is a statement. Europe is a third of this world and has its
+ * strongest sides, so it takes six; every confederation takes at least two, so
+ * no part of the world is ever absent from a World Cup.
  */
-export const WORLD_TIERS = ['worldCup', 'challengeCup', 'conferenceCup'] as const;
-export type WorldTier = (typeof WORLD_TIERS)[number];
+export const WORLD_CUP_PLACES: Record<string, number> = {
+  europe: 6,
+  southAmerica: 3,
+  africa: 3,
+  asia: 2,
+  northAmerica: 2,
+};
 
-/** How many nations each world tier holds — the same sixteen, three times over. */
-export const WORLD_TIER_FIELD = WORLD_CUP_FIELD;
-
-/** Which world tier a nation is in, given the world order. */
-export function worldTierOf(order: readonly string[], countryId: string): WorldTier {
-  const rank = order.indexOf(countryId);
-  if (rank === -1) return WORLD_TIERS[WORLD_TIERS.length - 1]!;
-  const tier = Math.floor(rank / WORLD_TIER_FIELD);
-  return WORLD_TIERS[Math.min(tier, WORLD_TIERS.length - 1)]!;
-}
-
-/** The sixteen nations of one world tier, best first. */
-export function worldTierField(order: readonly string[], tier: WorldTier): string[] {
-  const index = WORLD_TIERS.indexOf(tier);
-  return order.slice(index * WORLD_TIER_FIELD, (index + 1) * WORLD_TIER_FIELD);
+/** How many places a confederation has, for one the table has never heard of. */
+export function worldCupPlaces(confederation: string): number {
+  return WORLD_CUP_PLACES[confederation] ?? 1;
 }
 
 /**
@@ -318,28 +312,38 @@ export function qualifyingGroups(order?: readonly string[]): string[][] {
 }
 
 /**
- * The World Cup field: the top sixteen of the world order.
+ * The World Cup field: each confederation's best, up to its quota.
  *
- * It was once the best of each confederation on a quota, which sounds fairer
- * and was in fact a worse world: a quota guarantees the weakest confederation's
- * best nation a place it has not earned while shutting out a better nation from
- * a stronger one, and it makes the World Cup the one competition in the game
- * that standing does not decide. Every nation now plays in the tier its
- * standing puts it in, and every confederation keeps its own championship where
- * a quota is exactly the right idea.
+ * QUALIFICATION, standing in for a campaign. A nation reaches a World Cup by
+ * being among the best of ITS OWN part of the world, which is what a qualifying
+ * group decides in football and what the standing decides here — and the
+ * standing is moved by exactly the football a qualifying campaign would be:
+ * last year's continental championship, and the one before it.
  */
 export function worldCupField(order: readonly string[]): string[] {
-  return worldTierField(order, 'worldCup');
+  const taken: Record<string, number> = {};
+  const field = new Set<string>();
+
+  for (const countryId of order) {
+    const confederation = confederationOf(countryId);
+    if ((taken[confederation] ?? 0) >= worldCupPlaces(confederation)) continue;
+    taken[confederation] = (taken[confederation] ?? 0) + 1;
+    field.add(countryId);
+  }
+
+  // Back in standing order, so the snake seeds the field by rank rather than by
+  // the order the confederations happened to fill up in.
+  return order.filter((id) => field.has(id));
 }
 
-/** The groups of one world tier, from a world order. */
-export function worldTierGroups(order: readonly string[], tier: WorldTier): string[][] {
-  return snake(worldTierField(order, tier), WORLD_CUP_GROUPS);
+/** Did this nation qualify for the World Cup? */
+export function qualifiedForWorldCup(order: readonly string[], countryId: string): boolean {
+  return worldCupField(order).includes(countryId);
 }
 
-/** The groups of a World Cup specifically. */
+/** The groups of a World Cup. */
 export function worldCupGroups(order: readonly string[]): string[][] {
-  return worldTierGroups(order, 'worldCup');
+  return snake(worldCupField(order), WORLD_CUP_GROUPS);
 }
 
 /**

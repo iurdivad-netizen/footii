@@ -30,6 +30,7 @@ import {
   nationId,
   nationalTeam,
   selectionGap,
+  worldCupPlaces,
 } from '../../core/career/nations.ts';
 import { goalDifference, sortTable, tablePosition } from '../../core/career/league.ts';
 import { averageRating } from '../../core/career/seasonStats.ts';
@@ -39,6 +40,7 @@ import type { ClubInterest } from '../../core/career/transfers.ts';
 import { describeContract } from '../../core/career/contracts.ts';
 import {
   allClubIds,
+  confederationName,
   confederationOf,
   countryPrestige,
   getCountry,
@@ -422,19 +424,21 @@ export class CareerScreen {
       international.kind ?? 'continental',
       confederationOf(this.state.player.nationality),
     );
-    // Every nation is in one of the three world tiers or its own continental
-    // championship, so being in none is a data problem rather than a football
-    // one — but it must still read as a sentence rather than an empty card.
+    // Not qualifying is the ordinary case for most of the world in a World Cup
+    // year, and it has to read as football rather than as an empty card. How
+    // FAR outside is the part worth saying: a nation two places off its
+    // confederation's quota has something to play for.
     const missedOut =
       standing === -1
-        ? `<p class="hint">${nation.name} has no tournament on record this season.</p>`
+        ? `<p class="hint">
+             ${nation.name} did not qualify for ${competition.replace(/^The /, 'the ')}.
+             ${confederationName(confederationOf(this.state.player.nationality))} has
+             ${worldCupPlaces(confederationOf(this.state.player.nationality))} places, filled by
+             its highest-standing nations — so it is finishing above its neighbours that gets
+             ${nation.name} there, not finishing above the world.
+           </p>`
         : '';
-    const tier =
-      international.kind === 'continental'
-        ? ''
-        : `<p class="hint">${nation.name} plays in ${competition
-            .replace(/^The /, 'the ')} this year — which tier a nation gets is decided by its
-            standing, so it can climb into the one above and fall out of this one.</p>`;
+    const tier = '';
     const table =
       standing === -1
         ? ''
