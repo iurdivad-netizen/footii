@@ -39,14 +39,23 @@ import { matchResult } from '../core/match/matchState.ts';
 import { averageRating } from '../core/career/seasonStats.ts';
 import type { SaveData } from '../persistence/storage.ts';
 import {
+  activeCareer,
+  careerInSlot,
   clearCareer,
   clearHallOfFame,
+  clearSlot,
   enshrineCareer,
+  exportFilename,
+  exportSave,
+  firstEmptySlot,
+  importSave,
   loadSave,
   recordMatch,
   removeFromHallOfFame,
+  replaceSave,
   saveCareer,
   saveSettings,
+  selectSlot,
   writeSave,
 } from '../persistence/storage.ts';
 import type { GameSettings } from '../persistence/storage.ts';
@@ -113,24 +122,49 @@ export class App {
 
   // -------------------------------------------------------------- home ---
 
-  private showHome(): void {
+  private showHome(status?: string): void {
     this.matchScreen?.stop();
     this.matchScreen = null;
-    const career = this.save.careerState;
 
     this.mount(
       new HomeScreen({
-        onNewCareer: () => this.showSetup('career'),
+        slots: this.careerSlots(),
+        activeSlot: this.save.activeSlot,
+        // Every slot action SELECTS first and then acts, so no screen after
+        // this one needs to be told which career it is working on.
+        onContinueCareer: (slot) => {
+          this.save = selectSlot(this.save, slot);
+          this.showCareerHub();
+        },
+        onEndCareer: (slot) => {
+          this.save = selectSlot(this.save, slot);
+          const career = activeCareer(this.save);
+          if (career) this.showCareerEnd(career, 'abandoned', false);
+        },
+        onStartCareer: (slot) => {
+          this.save = selectSlot(this.save, slot);
+          this.showSetup('career');
+        },
         onQuickMatch: () => this.showSetup('quick'),
-        onContinueCareer: career ? () => this.showCareerHub() : undefined,
-        onEndCareer: career ? () => this.showCareerEnd(career, 'abandoned', false) : undefined,
-        career: this.careerSummary(),
         hallOfFame: this.save.hallOfFame,
         onHallOfFame: () => this.showHallOfFame(),
+        onExport: () => this.exportSaveFile(),
+        onImport: (text) => this.importSaveFile(text),
+        status,
         settings: this.save.settings,
         onSettingsChange: (settings) => this.updateSettings(settings),
       }).element,
     );
+  }
+
+  /**
+   * Every slot, described for the front door.
+   *
+   * Built per slot rather than for "the career", because the home screen now
+   * shows all three at once and a fault in one must not blank the other two.
+   */
+  private careerSlots(): (CareerSummary | null)[] {
+    return this.save.careers.map((_, slot) => this.careerSummary(slot));
   }
 
   /**
@@ -139,11 +173,12 @@ export class App {
    * Deliberately defensive: this reads deep into a saved career (statistics,
    * fixtures, the club it refers to), and a save written by another version —
    * or referring to a club that no longer exists — must not stop the game from
-   * starting. A career we cannot describe is simply not offered.
+   * starting. A career we cannot describe is simply not offered — and, now
+   * that there are three of them, only the unreadable slot is emptied.
    */
-  private careerSummary(): CareerSummary | undefined {
-    const career = this.save.careerState;
-    if (!career) return undefined;
+  private careerSummary(slot: number): CareerSummary | null {
+    const career = careerInSlot(this.save, slot);
+    if (!career) return null;
     try {
       return {
         name: career.player.name,
@@ -156,9 +191,62 @@ export class App {
       };
     } catch (error) {
       console.error('Saved career could not be read; dropping it', error);
-      this.save = clearCareer(this.save);
-      return undefined;
+      this.save = clearSlot(this.save, slot);
+      return null;
     }
+  }
+
+  // -------------------------------------------------- taking it with you ---
+
+  /**
+   * Hand the whole save over as a file.
+   *
+   * A blob and a synthetic click, rather than a data: URL, because a save with
+   * three long careers and a full wall runs to hundreds of kilobytes and a
+   * data: URL that size is refused by some browsers and truncated by others.
+   * The object URL is revoked straight away — the download has already been
+   * handed to the browser by the time the click returns.
+   */
+  private exportSaveFile(): void {
+    try {
+      const blob = new Blob([exportSave(this.save)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = exportFilename();
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      this.showHome(`Saved to ${exportFilename()}. Keep it somewhere that is not this browser.`);
+    } catch (error) {
+      console.error('Export failed', error);
+      this.showHome('The save could not be exported. Nothing has changed.');
+    }
+  }
+
+  /**
+   * Replace this browser's save with an imported one.
+   *
+   * The file is parsed and migrated BEFORE anything is written, so a bad import
+   * costs nothing — the worst case is a message and the save you already had.
+   * The screen the player lands on is the front door, rebuilt from the imported
+   * save, which is the shortest way to see that it worked.
+   */
+  private importSaveFile(text: string): void {
+    const imported = importSave(text);
+    if (!imported) {
+      this.showHome('That file could not be read as a Footii save. Nothing has changed.');
+      return;
+    }
+    this.save = replaceSave(imported);
+    this.applySettings();
+    const careers = this.save.careers.filter(Boolean).length;
+    const wall = this.save.hallOfFame.length;
+    this.showHome(
+      `Save imported: ${careers} ${careers === 1 ? 'career' : 'careers'} in progress, ` +
+        `${wall} on the wall of fame.`,
+    );
   }
 
   // -------------------------------------------------------- career end ---
@@ -427,7 +515,25 @@ export class App {
 
   // ------------------------------------------------------------ career ---
 
+  /**
+   * Start a career in the active slot.
+   *
+   * The slot is chosen before the setup screen, so by the time we get here it
+   * is already empty — but this checks anyway, because the ONE thing slots
+   * exist to prevent is a new career quietly writing over an old one. A guard
+   * in the markup is a guard somebody can route around; this is the point where
+   * the overwrite would actually happen.
+   */
   private beginCareer(selection: SetupSelection): void {
+    if (activeCareer(this.save)) {
+      const empty = firstEmptySlot(this.save);
+      if (empty === null) {
+        this.showHome('All three slots are in use. End one of those careers first.');
+        return;
+      }
+      this.save = selectSlot(this.save, empty);
+    }
+
     this.selectedPresetId = selection.presetId;
     this.save = { ...this.save, lastSelection: selection };
 
@@ -442,7 +548,7 @@ export class App {
   }
 
   private showCareerHub(): void {
-    const career = this.save.careerState;
+    const career = activeCareer(this.save);
     if (!career) {
       this.showHome();
       return;
@@ -510,7 +616,7 @@ export class App {
 
   /** Browse any league in the world. */
   private showWorld(): void {
-    const career = this.save.careerState;
+    const career = activeCareer(this.save);
     if (!career) return;
     const clubs = this.clubs(career);
     this.mount(
@@ -593,7 +699,7 @@ export class App {
   }
 
   private playCareerMatch(): void {
-    const career = this.save.careerState;
+    const career = activeCareer(this.save);
     if (!career) return;
     const next = this.nextMatchEngine(career);
     if (!next) return;
@@ -609,7 +715,7 @@ export class App {
    * hub reports the result instead.
    */
   private skipCareerMatch(): void {
-    const career = this.save.careerState;
+    const career = activeCareer(this.save);
     if (!career) return;
     const next = this.nextMatchEngine(career);
     if (!next) return;
@@ -684,7 +790,7 @@ export class App {
   }
 
   private reviewSeason(): void {
-    const career = this.save.careerState;
+    const career = activeCareer(this.save);
     if (!career || !seasonComplete(career)) return;
 
     const potentialBefore = career.player.potentialAbility;

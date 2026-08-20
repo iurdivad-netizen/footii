@@ -8,8 +8,14 @@ import { rankLegacies } from '../../core/career/legacy.ts';
 /**
  * HOME SCREEN
  *
- * The front door: pick a mode, and set how you want to play, before configuring
- * anything about a specific match.
+ * The front door: pick a career, and set how you want to play, before
+ * configuring anything about a specific match.
+ *
+ * It used to offer exactly one career, because the save held exactly one. That
+ * is what made starting a second career cost you the first, and it is why the
+ * button for it said "Abandon". The front door is now a rack of slots: every
+ * career you have going, side by side, with the empty ones as real places to
+ * start rather than an absence.
  *
  * Decision pace lives here rather than on the setup screen because it is a
  * global preference about difficulty, not a property of one match — and because
@@ -28,21 +34,28 @@ export interface CareerSummary {
 }
 
 export interface HomeHandlers {
-  onNewCareer: () => void;
-  onQuickMatch: () => void;
-  onContinueCareer?: () => void;
+  /** One entry per slot, in slot order. `null` is an empty slot. */
+  slots: readonly (CareerSummary | null)[];
+  /** The slot that was last played, marked so a rack of three has a "yours". */
+  activeSlot: number;
+  onContinueCareer: (slot: number) => void;
   /**
-   * Open the end screen for the saved career.
+   * Open the end screen for a career.
    *
    * Named for what it now does. This used to be `onAbandonCareer` and used to
    * mean it — a `confirm()` here, and the career was gone. Ending one is a
    * screen of its own now, so the home screen only opens it.
    */
-  onEndCareer?: () => void;
-  career?: CareerSummary;
+  onEndCareer: (slot: number) => void;
+  onStartCareer: (slot: number) => void;
+  onQuickMatch: () => void;
   /** Finished careers, for the wall. */
   hallOfFame?: readonly CareerLegacy[];
   onHallOfFame?: () => void;
+  onExport?: () => void;
+  onImport?: (text: string) => void;
+  /** The outcome of the last export or import, if there was one. */
+  status?: string;
   settings: GameSettings;
   onSettingsChange: (settings: Partial<GameSettings>) => void;
 }
@@ -51,7 +64,8 @@ export class HomeScreen {
   readonly element: HTMLElement;
 
   constructor(handlers: HomeHandlers) {
-    const { career, settings } = handlers;
+    const { settings, slots } = handlers;
+    const anyCareer = slots.some(Boolean);
 
     this.element = document.createElement('section');
     this.element.className = 'screen home-screen';
@@ -65,21 +79,37 @@ export class HomeScreen {
         <p class="tagline">One player. Ninety minutes. Six choices at a time.</p>
       </header>
 
-      ${career ? this.renderCareerCard(career) : ''}
+      ${handlers.status ? `<p class="home-status">${handlers.status}</p>` : ''}
+
+      <div class="home-careers">
+        <h2>Careers</h2>
+        <p class="hint">
+          ${
+            anyCareer
+              ? `Every career you have going. They are kept apart — playing one never touches
+                 another.`
+              : `Build or pick a footballer and follow him season by season. Your ratings drive
+                 development — and as your awareness and composure grow, you get measurably more
+                 time on the ball. You can keep three careers going at once.`
+          }
+        </p>
+        <div class="slot-rack">
+          ${slots
+            .map((career, slot) =>
+              career
+                ? this.renderCareerSlot(career, slot, slot === handlers.activeSlot)
+                : // On a save with nothing in it, the first empty slot is the
+                  // only thing to do, and should look like it. Once a career
+                  // exists, continuing it outranks starting another.
+                  this.renderEmptySlot(slot, !anyCareer && slot === slots.findIndex((c) => !c)),
+            )
+            .join('')}
+        </div>
+      </div>
+
       ${this.renderHallOfFame(handlers.hallOfFame ?? [])}
 
-      <div class="home-modes">
-        <button class="home-mode" id="new-career">
-          <span class="mode-icon" aria-hidden="true">◎</span>
-          <span class="mode-title">${career ? 'New career' : 'Career'}</span>
-          <span class="mode-desc">
-            Build or pick a footballer and follow him season by season. Your ratings drive
-            development — and as your awareness and composure grow, you get measurably more time
-            on the ball.
-          </span>
-          <span class="mode-cta">Start a career →</span>
-        </button>
-
+      <div class="home-modes single">
         <button class="home-mode" id="quick-match">
           <span class="mode-icon" aria-hidden="true">▶</span>
           <span class="mode-title">Quick match</span>
@@ -120,6 +150,8 @@ export class HomeScreen {
         </div>
       </div>
 
+      ${this.renderSaveData()}
+
       <details class="home-help">
         <summary>How it works</summary>
         <ul>
@@ -134,22 +166,44 @@ export class HomeScreen {
       </details>`;
 
     this.element
-      .querySelector<HTMLButtonElement>('#new-career')!
-      .addEventListener('click', handlers.onNewCareer);
-    this.element
       .querySelector<HTMLButtonElement>('#quick-match')!
       .addEventListener('click', handlers.onQuickMatch);
     this.element
-      .querySelector<HTMLButtonElement>('#continue-career')
-      ?.addEventListener('click', () => handlers.onContinueCareer?.());
-    // No browser dialog: the end screen shows what is about to be lost, which
-    // is a better question than "are you sure?" ever was.
-    this.element
-      .querySelector<HTMLButtonElement>('#end-career')
-      ?.addEventListener('click', () => handlers.onEndCareer?.());
-    this.element
       .querySelector<HTMLButtonElement>('#open-hall')
       ?.addEventListener('click', () => handlers.onHallOfFame?.());
+
+    const slotOf = (button: HTMLElement) => Number(button.dataset.slot);
+    for (const button of this.element.querySelectorAll<HTMLButtonElement>('[data-continue]')) {
+      button.addEventListener('click', () => handlers.onContinueCareer(slotOf(button)));
+    }
+    // No browser dialog: the end screen shows what is about to be lost, which
+    // is a better question than "are you sure?" ever was.
+    for (const button of this.element.querySelectorAll<HTMLButtonElement>('[data-end]')) {
+      button.addEventListener('click', () => handlers.onEndCareer(slotOf(button)));
+    }
+    for (const button of this.element.querySelectorAll<HTMLButtonElement>('[data-start]')) {
+      button.addEventListener('click', () => handlers.onStartCareer(slotOf(button)));
+    }
+
+    this.element
+      .querySelector<HTMLButtonElement>('#export-save')
+      ?.addEventListener('click', () => handlers.onExport?.());
+
+    // The file input does the picking; the button in front of it does the
+    // asking, because a bare <input type="file"> cannot be styled and reads as
+    // a form control on a screen that has none.
+    const file = this.element.querySelector<HTMLInputElement>('#import-file');
+    this.element
+      .querySelector<HTMLButtonElement>('#import-save')
+      ?.addEventListener('click', () => file?.click());
+    file?.addEventListener('change', async () => {
+      const chosen = file.files?.[0];
+      if (!chosen) return;
+      const text = await chosen.text();
+      // Cleared so that picking the SAME file twice fires `change` both times.
+      file.value = '';
+      handlers.onImport?.(text);
+    });
 
     const paceSelect = this.element.querySelector<HTMLSelectElement>('#home-pace')!;
     const paceNote = this.element.querySelector<HTMLElement>('#pace-note')!;
@@ -175,8 +229,8 @@ export class HomeScreen {
    * The wall, in miniature.
    *
    * Three entries and a way in. The home screen's job is to say that finished
-   * careers are kept and that this one will be too — the full list is a screen
-   * of its own, and putting it here would bury the button that starts a game.
+   * careers are kept and that these ones will be too — the full list is a
+   * screen of its own, and putting it here would bury the rack above it.
    *
    * Nothing is rendered until a career has actually finished. An empty wall
    * with an explanation would be a panel about a feature rather than a feature,
@@ -211,13 +265,15 @@ export class HomeScreen {
       </div>`;
   }
 
-  private renderCareerCard(career: CareerSummary): string {
+  private renderCareerSlot(career: CareerSummary, slot: number, active: boolean): string {
     const progress = career.total > 0 ? Math.round((career.played / career.total) * 100) : 0;
     return `
-      <div class="home-card featured">
+      <div class="slot-card occupied${active ? ' active' : ''}">
+        <div class="slot-label">
+          Slot ${slot + 1}${active ? ' <em>· last played</em>' : ''}
+        </div>
         <div class="career-card-head">
           <div>
-            <h2>Continue career</h2>
             <p class="career-card-name">${career.name}</p>
             <p class="home-summary">${career.detail}</p>
           </div>
@@ -235,9 +291,53 @@ export class HomeScreen {
         <div class="season-bar"><i style="width:${progress}%"></i></div>
 
         <div class="career-card-actions">
-          <button class="primary" id="continue-career">Continue</button>
-          <button class="ghost" id="end-career">End career</button>
+          <button class="primary" data-continue data-slot="${slot}">Continue</button>
+          <button class="ghost" data-end data-slot="${slot}">End career</button>
         </div>
       </div>`;
+  }
+
+  private renderEmptySlot(slot: number, primary: boolean): string {
+    return `
+      <div class="slot-card empty">
+        <div class="slot-label">Slot ${slot + 1}</div>
+        <p class="slot-empty-note">Empty. A career started here runs alongside the others.</p>
+        <div class="career-card-actions">
+          <button class="${primary ? 'primary' : 'ghost'}" data-start data-slot="${slot}">
+            Start a career
+          </button>
+        </div>
+      </div>`;
+  }
+
+  /**
+   * Taking the save somewhere else.
+   *
+   * Folded away in a `<details>` because it is maintenance rather than play:
+   * nobody opens the game to export a file, and it must not compete with the
+   * rack. It is on the front door at all rather than buried deeper because the
+   * moment it matters — a browser about to be cleared, a machine about to be
+   * replaced — is a moment when nobody wants to go looking.
+   */
+  private renderSaveData(): string {
+    return `
+      <details class="home-help save-data">
+        <summary>Your save</summary>
+        <p class="hint">
+          Everything — every career, the wall of fame and your preferences — lives in this
+          browser's storage, and nowhere else. Clearing site data deletes it, and another browser
+          or another machine will not have it. Exporting writes the lot to a file you keep.
+        </p>
+        <div class="save-actions">
+          <button class="ghost" id="export-save">Export to a file</button>
+          <button class="ghost" id="import-save">Import from a file</button>
+          <input type="file" id="import-file" accept="application/json,.json" hidden />
+        </div>
+        <p class="hint">
+          Importing <strong>replaces</strong> everything in this browser with the contents of the
+          file. It is not a merge — a half-imported save would have careers from one machine and a
+          wall from another. Export first if what is here is worth keeping.
+        </p>
+      </details>`;
   }
 }
