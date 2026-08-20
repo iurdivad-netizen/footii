@@ -7,8 +7,20 @@ import type { Team } from '../../core/team/team.ts';
 import { TACTICAL_STYLE_LABELS } from '../../core/team/team.ts';
 import { CUP_KINDS, cupName, roundName, totalRounds } from '../../core/career/cups.ts';
 import type { CupKind, CupState } from '../../core/career/cups.ts';
-import { EUROPEAN_TIERS, europeanCompetition, placesDescription } from '../../core/career/europe.ts';
+import {
+  EUROPEAN_TIERS,
+  europeanCompetition,
+  europeanPlaces,
+  placesDescription,
+} from '../../core/career/europe.ts';
 import type { EuropeanTier } from '../../core/career/europe.ts';
+import {
+  COEFFICIENT_WINDOW,
+  GROUP_DRAW,
+  GROUP_WIN,
+  countriesByStanding,
+  standingsTable,
+} from '../../core/career/coefficients.ts';
 import { GROUP_COUNT, countryOfNation, nationId } from '../../core/career/nations.ts';
 import {
   GROUP_ROUNDS,
@@ -90,6 +102,17 @@ export class WorldScreen {
     this.element = document.createElement('section');
     this.element.className = 'screen world-screen';
     this.render();
+  }
+
+  /**
+   * The European order as it currently stands, best first.
+   *
+   * Earned from the international tournament rather than fixed — see
+   * core/career/coefficients.ts — so every number this screen quotes about
+   * European places has to be read off it rather than off prestige.
+   */
+  private get order(): string[] {
+    return countriesByStanding(this.state.coefficients ?? {});
   }
 
   /** Country tabs steer the leagues and the cups; the rest are worldwide. */
@@ -245,7 +268,7 @@ export class WorldScreen {
     }).join('');
 
     return `
-      <p class="hint world-note">${placesDescription(this.state.countryId)}</p>
+      <p class="hint world-note">${placesDescription(this.state.countryId, this.order)}</p>
       ${cards}`;
   }
 
@@ -307,6 +330,60 @@ export class WorldScreen {
       <div class="career-card">
         <h2>Knockout</h2>
         ${bracket}
+      </div>
+      ${this.renderStandings()}`;
+  }
+
+  /**
+   * What the tournament is FOR, beyond the trophy.
+   *
+   * The international competition used to change nothing outside the player's
+   * own honours list: five matches a year that the world forgot by August. It
+   * now decides how many clubs each country sends to each European competition,
+   * and this table is where that becomes something you can look at. Without it
+   * the mechanic would be the third system in this game to be implemented,
+   * tested and invisible.
+   */
+  private renderStandings(): string {
+    const rows = standingsTable(this.state.coefficients ?? {})
+      .map((row, index) => {
+        const country = getCountry(row.countryId);
+        const places = europeanPlaces(row.countryId, this.order);
+        const home = row.countryId === this.state.player.nationality;
+        const playsHere = row.countryId === this.state.countryId;
+        const nudge = row.nudge === 0 ? '—' : `${row.nudge > 0 ? '+' : ''}${row.nudge.toFixed(2)}`;
+        return `<tr class="${home || playsHere ? 'own' : ''}">
+            <td>${index + 1}</td>
+            <td>${country.name}${home ? '<em class="own-tag">yours</em>' : ''}</td>
+            <td>${row.tournaments === 0 ? '—' : row.coefficient.toFixed(2)}</td>
+            <td class="dim">${nudge}</td>
+            <td><strong>${places.championsLeague}</strong></td>
+            <td>${places.europaLeague}</td>
+            <td>${places.conferenceLeague}</td>
+          </tr>`;
+      })
+      .join('');
+
+    return `
+      <div class="career-card">
+        <h2>European places</h2>
+        <p class="hint">
+          How a country's national side has been doing decides how many clubs it sends to each
+          European competition. The coefficient is points per tournament over the last
+          ${COEFFICIENT_WINDOW}: ${GROUP_WIN} for a group win, ${GROUP_DRAW} for a draw, and bonuses
+          for reaching the knockout, the final and for lifting it. It moves a country up or down the
+          order it started in — and climbing does not send more clubs to Europe, it sends the same
+          number to better competitions.
+        </p>
+        <table class="league-table">
+          <thead>
+            <tr>
+              <th>#</th><th>Country</th><th>Coef</th><th>Move</th>
+              <th>UCL</th><th>UEL</th><th>UECL</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
       </div>`;
   }
 

@@ -9,6 +9,7 @@ import { createCup } from '../core/career/cups.ts';
 import { seasonCalendar } from '../core/career/calendar.ts';
 import { createCareerRecords } from '../core/career/records.ts';
 import { createInternational } from '../core/career/international.ts';
+import { createLedger } from '../core/career/coefficients.ts';
 import { Rng } from '../core/rng.ts';
 import { initialStrengths } from '../core/career/clubDrift.ts';
 import { contractYears, offeredWage, squadRole } from '../core/career/transfers.ts';
@@ -26,7 +27,7 @@ import type { DecisionPace } from '../simulation/DecisionTimer.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 
 export interface CareerRecord {
   matches: number;
@@ -362,6 +363,23 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
       career.seasonCaps ??= 0;
     }
     save = { ...save, version: 9 };
+  }
+
+  if (save.version === 9) {
+    // v9 -> v10: how many Champions League places a country gets is now earned
+    // from its national side's recent tournaments rather than fixed.
+    //
+    // The ledger starts EMPTY rather than being invented. A past tournament
+    // cannot be reconstructed — national sides are built from their country's
+    // clubs as they stood at the time, and only the current strengths survive —
+    // so back-filling would mean making up a decade of international football
+    // and then awarding European places on it. An empty ledger means "nothing
+    // on record", which falls back to exactly the prestige order the save was
+    // already being played under. The order starts moving at the end of the
+    // season in progress, when its tournament is scored.
+    const career = save.careerState;
+    if (career) career.coefficients ??= createLedger();
+    save = { ...save, version: 10 };
   }
 
   if (save.version !== SAVE_VERSION) return null;

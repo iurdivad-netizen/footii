@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { COUNTRIES, teamsInCountry } from '../src/data/gameData.ts';
 import {
   CHAMPIONS_LEAGUE_PLACES,
-  CONFERENCE_PLACES,
-  EUROPA_PLACES,
+  CONFERENCE_LEAGUE_PLACES,
+  EUROPA_LEAGUE_PLACES,
+  PLACES_BY_TIER,
   EUROPEAN_FIELD,
   EUROPEAN_TIERS,
   championsLeaguePlaces,
@@ -106,10 +107,34 @@ describe('how many places a country gets', () => {
     expect(CHAMPIONS_LEAGUE_PLACES.reduce((a, b) => a + b, 0)).toBe(EUROPEAN_FIELD);
   });
 
-  it('gives every country the same number of places in the lower two', () => {
-    for (const country of COUNTRIES) {
-      expect(europeanPlaces(country.id).europaLeague).toBe(EUROPA_PLACES);
-      expect(europeanPlaces(country.id).conferenceLeague).toBe(CONFERENCE_PLACES);
+  it('fills every competition to sixteen from its own distribution', () => {
+    for (const tier of EUROPEAN_TIERS) {
+      expect(PLACES_BY_TIER[tier].reduce((a, b) => a + b, 0), tier).toBe(EUROPEAN_FIELD);
+      expect(PLACES_BY_TIER[tier]).toHaveLength(COUNTRIES.length);
+    }
+  });
+
+  it('sends a climbing country to BETTER competitions, not to more of them', () => {
+    // The totals are what they were when the lower two handed everybody a flat
+    // two apiece. Climbing the order trades a Conference place for a Europa one
+    // — which is the only thing a country outside the top five can win, since
+    // the Champions League row gives ranks six to eight one place each.
+    const entries = (rank: number) =>
+      CHAMPIONS_LEAGUE_PLACES[rank]! + EUROPA_LEAGUE_PLACES[rank]! + CONFERENCE_LEAGUE_PLACES[rank]!;
+    expect(COUNTRIES.map((_, rank) => entries(rank))).toEqual([7, 7, 7, 6, 6, 5, 5, 5]);
+  });
+
+  it('never gives a lower-ranked country a better competition than a higher one', () => {
+    for (const tier of ['championsLeague', 'europaLeague'] as const) {
+      const places = PLACES_BY_TIER[tier];
+      for (let i = 1; i < places.length; i++) {
+        expect(places[i - 1], `${tier} ${i}`).toBeGreaterThanOrEqual(places[i]!);
+      }
+    }
+    // The Conference League runs the other way: it is the competition you drop
+    // OUT of as you climb, so the smallest country sends the most clubs to it.
+    for (let i = 1; i < CONFERENCE_LEAGUE_PLACES.length; i++) {
+      expect(CONFERENCE_LEAGUE_PLACES[i - 1]).toBeLessThanOrEqual(CONFERENCE_LEAGUE_PLACES[i]!);
     }
   });
 
