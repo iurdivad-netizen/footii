@@ -2,6 +2,8 @@ import type { CareerState } from '../../core/career/career.ts';
 import { goalDifference } from '../../core/career/league.ts';
 import type { TableRow } from '../../core/career/league.ts';
 import {
+  allConfederations,
+  confederationName,
   confederationOf,
   getCountry,
   leagueName,
@@ -27,10 +29,10 @@ import {
   standingsTable,
 } from '../../core/career/coefficients.ts';
 import {
-  WORLD_TIERS,
   countryOfNation,
   nationId,
-  worldTierField,
+  worldCupField,
+  worldCupPlaces,
 } from '../../core/career/nations.ts';
 import {
   GROUP_ROUNDS,
@@ -351,51 +353,60 @@ export class WorldScreen {
         <h2>Knockout</h2>
         ${bracket}
       </div>
-      ${this.renderWorldOrder()}
+      ${this.renderQualification()}
       ${this.renderStandings()}`;
   }
 
   /**
-   * The three world tiers, and which one every nation is in.
+   * Who reaches the World Cup, and from where.
    *
-   * The structure this view exists to show. A player whose country is in the
-   * Challenge Cup needs to be able to see the World Cup above it and how far
-   * away it is — that is the whole climb, and a tier system nobody can look at
-   * is the mistake this screen was built twice to stop.
+   * The qualification picture, confederation by confederation: how many places
+   * each has, which of its nations hold them today, and who is next in line. A
+   * player whose country is outside the places needs to see how far outside —
+   * "two places off" is a season's ambition and "not in the World Cup" is only
+   * an absence, which is the same reason the squad card counts the reputation
+   * gap rather than merely saying no.
    */
-  private renderWorldOrder(): string {
+  private renderQualification(): string {
     const order = nationsByStanding(this.state.coefficients ?? createCoefficients());
+    const qualified = new Set(worldCupField(order));
     const mine = this.state.player.nationality;
 
-    const tiers = WORLD_TIERS.map((tier) => {
-      const field = worldTierField(order, tier);
-      const rows = field
-        .map((countryId) => {
-          const country = getCountry(countryId);
-          const own = countryId === mine;
-          return `<li class="${own ? 'own' : ''}">
-              <span class="tier-rank">${order.indexOf(countryId) + 1}</span>
-              ${country.name}${own ? '<em class="own-tag">yours</em>' : ''}
-            </li>`;
-        })
-        .join('');
-      const holdsMine = field.includes(mine);
-      return `
-        <div class="career-card${holdsMine ? ' european-card' : ''}">
-          <h2>${tournamentName(tier, '')}</h2>
-          <ol class="tier-list">${rows}</ol>
-        </div>`;
-    }).join('');
+    const cards = allConfederations()
+      .map((confederation) => {
+        const members = order.filter((id) => confederationOf(id) === confederation);
+        const places = worldCupPlaces(confederation);
+        const rows = members
+          .map((countryId, index) => {
+            const country = getCountry(countryId);
+            const inIt = qualified.has(countryId);
+            const own = countryId === mine;
+            return `<li class="${own ? 'own' : ''}${inIt ? ' qualified' : ''}">
+                <span class="tier-rank">${index + 1}</span>
+                ${country.name}${own ? '<em class="own-tag">yours</em>' : ''}
+                ${inIt ? '<em class="qualified-tag">in</em>' : ''}
+              </li>`;
+          })
+          .join('');
+        const holdsMine = members.includes(mine);
+        return `
+          <div class="career-card${holdsMine ? ' european-card' : ''}">
+            <h2>${confederationName(confederation)}</h2>
+            <p class="hint">${places} ${places === 1 ? 'place' : 'places'} at the World Cup.</p>
+            <ol class="tier-list">${rows}</ol>
+          </div>`;
+      })
+      .join('');
 
     return `
-      <h2 class="world-heading">The world order</h2>
+      <h2 class="world-heading">Reaching the World Cup</h2>
       <p class="hint world-note">
-        Every nation plays a world tournament in odd seasons and its own continental championship in
-        even ones. Which world tournament is decided by standing — the same number the European
-        places come from — so a country climbs into the World Cup by playing well and falls out of it
-        by not.
+        Sixteen places, shared out between the confederations, and each one filled by its own best.
+        A nation reaches a World Cup by being among the best of ITS part of the world rather than of
+        the whole of it — which is why every confederation is always at one, and why finishing above
+        your neighbours matters more than finishing above Spain.
       </p>
-      <div class="career-grid">${tiers}</div>`;
+      <div class="career-grid">${cards}</div>`;
   }
 
   /**

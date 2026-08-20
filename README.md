@@ -950,24 +950,25 @@ seasons and a peak is perhaps six of them. On a biennial cycle a career gets thr
 which a player is good enough for one or two — so the whole system would be something most careers
 glimpse once. Yearly makes international football something a career actually *has*.
 
-**Every nation plays every season**, in one of two kinds of tournament, alternating:
+**The FIFA shape**, alternating year by year:
 
 | | What runs | Field |
 | --- | --------- | ----- |
-| **Odd seasons** | three world tiers — **The World Cup**, **The Challenge Cup**, **The Conference Cup** | 16 nations each, by standing |
-| **Even seasons** | all five continental championships | every member: 16 for Europe, 8 for the rest |
+| **Odd seasons** | **The World Cup** | 16 nations, allocated by confederation |
+| **Even seasons** | every confederation's championship | every member: 16 for Europe, 8 for the rest |
 
-**The world tiers mirror the European club competitions**, and for the same reason. Europe has three
-so that a club outside the elite still has European nights; the international game had one, and the
-consequence was measurable — over eight seasons **twenty-five of forty-four nations never kicked a
-ball**, and four of them were countries a player can BE from, so choosing Scottish silently meant no
-caps for an entire career. Every nation is now in a tier, and **moves between them as its standing
-moves**: a Scotland that plays well climbs from the Conference Cup to the Challenge Cup and on toward
-the World Cup, which is the same climb the club tiers already offer.
+**A World Cup place belongs to a confederation, not to a ranking.** Europe six, South America three,
+Africa three, Asia two, North America two — sixteen, and every part of the world is always at one.
+Each confederation's places go to its own highest-standing nations, which is qualification standing
+in for a campaign: a nation reaches a World Cup by being among the best of ITS part of the world
+rather than of the whole of it. **Finishing above your neighbours matters more than finishing above
+Spain.**
 
-There are only **two shapes** in the whole international game, and they are the two the club cups
-already use: sixteen nations (four groups of four, then eight into a bracket) or eight (two groups,
-then four). Europe's championship has sixteen members and Asia's has eight — same brackets.
+**Not qualifying is ordinary.** Most of the world is outside any given World Cup and has no summer
+that year — which is what happens to real non-qualifiers. Nobody is shut out of football for a
+career, because the continental championship the year either side takes everybody: Scotland misses
+World Cups and plays every European Championship, and its route in is climbing Europe's order, not
+the world's.
 
 Alternating rather than adding, because the original argument against a biennial cycle still holds: a
 career is eighteen-odd seasons and a peak perhaps six of them, so a tournament every other year is a
@@ -978,62 +979,11 @@ making each an event. A career gets about nine of each, and it opens with a worl
 his is the only one the game plays out in detail. Seeding it from Europe regardless would have given
 a Brazilian a World Cup every other year and nothing at all in between, while an Englishman got both.
 
-**Which tier you play in is your standing** — the same number the European places come from, which
-ties a country's clubs and its national side into one standing rather than two. The world browser
-lists all forty-eight nations banded into their three tiers, so a player can see the tournament above
-his and how far off it is.
-
-The World Cup field was once a **quota** — so many places per confederation — which sounds fairer and
-was in fact a worse world: a quota guarantees the weakest confederation's best nation a place it has
-not earned while shutting out a better nation from a stronger one, and it makes the World Cup the one
-competition in the game that standing does not decide. The quota belongs in the continental
-championships, where it is exactly the right idea, and every confederation has one of those.
-
-Missing out is **not scored as a bad campaign**. A country outside the field simply has nothing on
-its national record that year — see the note under "Balancing notes", because scoring it as a zero
-was a trap that sealed the bottom of the order shut.
-
-**Selection is the whole international career.** You are picked when your reputation clears a bar
-that rises with your nation's own standing, which is what makes the nationality chosen at creation a
-decision rather than a label: a Scot is capped early and often, a Spaniard has to be among the best
-players in the world first. Reputation moves match by match, so you can climb into the squad in March
-and play only the last group match — and the tournament in June.
-
-The hub tells a player who is out **exactly how far out**: "eleven more reputation and you are". That
-is a season's goal; "not in the squad" is only an absence.
-
-**A cap is a match.** Caps used to be a number inferred from fame, because there were no
-international fixtures to count. There are now, so they are counted — and a tournament your country
-won while you watched it is a different line in the review to one you won.
-
-### A world of nations
-
-**Forty-eight countries, of which twelve have leagues.** The other thirty-six exist to field a
-national side and nothing else — which is what makes a World Cup possible without a hundred and
-fifty leagues behind it. A player from one of them plays his club football in Europe and his
-international football for home, which is a real football career and a more interesting one than the
-alternative.
-
-| Confederation | Countries | With leagues |
-| ------------- | --------- | ------------ |
-| Europe | 16 | 12 |
-| South America | 8 | — |
-| Africa | 8 | — |
-| Asia | 8 | — |
-| North America | 8 | — |
-
-**A nation with clubs is derived; a nation without them is authored.** The derived ones get their
-whole history for free — five strongest clubs, lifted by the country's depth, drifting as those
-clubs drift. The league-less ones carry a number instead, and **drift on their own**: a small seeded
-step each season pulled back toward where the country belongs. Without that, Brazil would field
-precisely the same side in season eighteen as in season one while every European nation moved around
-it, and over a career the two halves of the world would come apart.
-
-**The authored strengths are calibrated against the derived ones**, because they meet in the same
-tournament. The first numbers written were what a national side "felt" like in isolation, and they
-put ten of the twelve European sides above every nation outside Europe — a World Cup would have been
-a European procession with Brazil in it. Set against the derived scale, the two halves interleave:
-Brazil and Argentina sit fifth and sixth in the world, Japan and Mexico level with Scotland.
+**Standing decides everything**, and it is one number: prestige, bent by what a country's clubs did
+in Europe and what its national side did in its tournaments. It orders the European club places and
+it fills the World Cup slots, so a country's football is judged once rather than twice. The world
+browser shows the qualification picture confederation by confederation — how many places each has,
+who holds them today, and where your own country sits in the queue.
 
 ### The country coefficient
 
@@ -1316,20 +1266,28 @@ their constants:
   country, prestige step, squad level, tactical style and wages, and said nothing about it. You
   could turn down the Champions League for a bigger badge without ever being told. Each offer now
   names the competition it comes with, and so does staying.
-- **One tier is not a structure, it is a gate.** The international game had a single competition, and
-  a competition with a field smaller than the world is a competition most of the world is outside.
-  Measured: twenty-five of forty-four nations never played a match across eight seasons, and four of
-  them — Belgium, Greece, Scotland, Austria — were countries a player can BE from, so picking that
-  nationality was a silent guarantee of nought caps for an entire career. The club game had solved
-  this already with three European tiers and nobody noticed the international game needed the same
-  answer. Three world tiers of sixteen, everyone in one, movement between them by standing.
+- **A game-design argument is not an argument against the sport.** The World Cup field was first a
+  confederation quota, then rewritten as "rank the world and take the top sixteen" on the reasoning
+  that a quota guarantees the weakest confederation's best nation a place it has not earned while
+  shutting out a better nation from a stronger one. Every word of that is true and it is beside the
+  point: a World Cup is not the sixteen best teams, it is a tournament the whole world enters and
+  each part of the world sends its own. Ranking the globe produces a competition with a name it has
+  not earned. The quota is back, and the reasoning that removed it is recorded here so it does not
+  get made a third time.
+- **Reaching for the nearest structure builds the wrong competition.** The international game had one
+  tournament and most of the world outside it, which is a real problem — measured, twenty-five of
+  forty-four nations never played a match across eight seasons. The fix reached for was three world
+  tiers with promotion between them, mirroring the three European club competitions. That is the
+  UEFA Nations League: a league rather than a cup, a European invention rather than a FIFA one, and
+  not a World Cup at all. The hole was real and the answer was borrowed from the wrong sport's wrong
+  competition. FIFA's own answer is that everybody plays a continental championship and the best of
+  each confederation reach the World Cup — which fixes the same hole without inventing a tournament
+  football does not have.
 - **A tournament that never happens cannot score anybody.** Only the player's own tournament was
   played out, so in a continental season four of the five confederations simply did not exist that
   year — and every country in them recorded "did not compete", which meant their national side could
-  never move their standing again. The lower tiers would have been sealed shut by the same mechanism
-  that once sealed the bottom of the European order. Every tournament of a season is now played, the
-  player's for real and the rest in the background, exactly as the two European competitions he is
-  not in already are.
+  never move their standing again. Every tournament of a season is now played, the player's for real
+  and the rest in the background, exactly as the two European competitions he is not in already are.
 - **A world with no clubs in it stands perfectly still.** National sides are derived from their
   country's five strongest clubs, which is why they need no roster and drift for free. Thirty-six of
   the forty-eight countries have no clubs, so their authored strength would never have moved — Brazil

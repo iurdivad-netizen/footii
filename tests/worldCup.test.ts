@@ -7,14 +7,13 @@ import {
   GROUP_SIZE,
   WORLD_CUP_FIELD,
   WORLD_CUP_GROUPS,
-  WORLD_TIERS,
-  WORLD_TIER_FIELD,
+  WORLD_CUP_PLACES,
   nationId,
   nationalTeam,
+  qualifiedForWorldCup,
   worldCupField,
   worldCupGroups,
-  worldTierField,
-  worldTierOf,
+  worldCupPlaces,
 } from '../src/core/career/nations.ts';
 import {
   GROUP_ROUNDS,
@@ -143,55 +142,60 @@ describe('nations that drift without clubs', () => {
   });
 });
 
-describe('the world tiers', () => {
-  it('puts every nation in exactly one tier', () => {
-    // The hole this closes, measured: over eight seasons twenty-five of
-    // forty-four nations never kicked a ball, and four of them were countries a
-    // player can BE from — so choosing that nationality silently meant no caps
-    // for an entire career.
-    const seen = new Set<string>();
-    for (const tier of WORLD_TIERS) {
-      for (const id of worldTierField(WORLD, tier)) {
-        expect(seen.has(id), id).toBe(false);
-        seen.add(id);
-      }
+describe('qualifying for the World Cup', () => {
+  it('gives every confederation its own places, and fills exactly sixteen', () => {
+    const field = worldCupField(WORLD);
+    expect(field).toHaveLength(WORLD_CUP_FIELD);
+    for (const confederation of allConfederations()) {
+      const from = field.filter((id) => confederationOf(id) === confederation);
+      expect(from, confederation).toHaveLength(worldCupPlaces(confederation));
     }
-    expect(seen.size).toBe(COUNTRIES.length);
+    expect(Object.values(WORLD_CUP_PLACES).reduce((a, b) => a + b, 0)).toBe(WORLD_CUP_FIELD);
   });
 
-  it('makes every tier the same sixteen', () => {
-    for (const tier of WORLD_TIERS) {
-      expect(worldTierField(WORLD, tier), tier).toHaveLength(WORLD_TIER_FIELD);
+  it('never leaves a part of the world out of a World Cup', () => {
+    // The whole reason a quota beats ranking the globe and taking the top
+    // sixteen: a World Cup is a tournament the world enters, and each part of
+    // the world sends its own.
+    const field = worldCupField(WORLD);
+    for (const confederation of allConfederations()) {
+      expect(field.some((id) => confederationOf(id) === confederation), confederation).toBe(true);
     }
-    expect(WORLD_TIERS.length * WORLD_TIER_FIELD).toBe(COUNTRIES.length);
   });
 
-  it('puts a nation in the tier its standing earns', () => {
-    expect(worldTierOf(WORLD, WORLD[0]!)).toBe('worldCup');
-    expect(worldTierOf(WORLD, WORLD[WORLD_TIER_FIELD]!)).toBe('challengeCup');
-    expect(worldTierOf(WORLD, WORLD[WORLD.length - 1]!)).toBe('conferenceCup');
+  it('takes the best of a confederation rather than the first it meets', () => {
+    const field = worldCupField(WORLD);
+    for (const confederation of allConfederations()) {
+      const ranked = WORLD.filter((id) => confederationOf(id) === confederation);
+      expect(field.filter((id) => confederationOf(id) === confederation)).toEqual(
+        ranked.slice(0, worldCupPlaces(confederation)),
+      );
+    }
   });
 
-  it('moves a nation between tiers as the order moves', () => {
-    // The climb the tiers exist for. A country that was in the third tier last
-    // year plays the World Cup this year if its standing has risen that far.
-    const climbed = [WORLD[WORLD.length - 1]!, ...WORLD.slice(0, -1)];
-    expect(worldTierOf(WORLD, WORLD[WORLD.length - 1]!)).toBe('conferenceCup');
-    expect(worldTierOf(climbed, WORLD[WORLD.length - 1]!)).toBe('worldCup');
+  it('lets a nation qualify by climbing past its NEIGHBOURS, not the world', () => {
+    // The consequence of a quota, and the point of one: a South American nation
+    // reaches a World Cup by finishing above other South Americans. It does not
+    // have to overtake Spain.
+    const confederation = 'southAmerica';
+    const members = WORLD.filter((id) => confederationOf(id) === confederation);
+    const missing = members[worldCupPlaces(confederation)]!;
+    expect(qualifiedForWorldCup(WORLD, missing)).toBe(false);
+
+    // Move it above its neighbours without moving it up the world order past
+    // anybody else's confederation.
+    const climbed = [missing, ...WORLD.filter((id) => id !== missing)];
+    expect(qualifiedForWorldCup(climbed, missing)).toBe(true);
   });
 
-  it('treats a country nobody has heard of as the bottom tier', () => {
-    expect(worldTierOf(WORLD, 'atlantis')).toBe('conferenceCup');
-  });
-
-  it('splits a tier into four groups of four', () => {
+  it('splits the field into four groups of four', () => {
     const groups = worldCupGroups(WORLD);
     expect(groups).toHaveLength(WORLD_CUP_GROUPS);
     for (const group of groups) expect(group).toHaveLength(GROUP_SIZE);
     expect(new Set(groups.flat()).size).toBe(WORLD_CUP_FIELD);
   });
 
-  it('keeps the strongest nations apart', () => {
+  it('keeps the strongest qualifiers apart', () => {
     // The snake exists so the top four seeds are one per group. A draw that put
     // three of them together would read as a bug however fairly it was rolled.
     const groups = worldCupGroups(WORLD);
@@ -205,10 +209,15 @@ describe('the world tiers', () => {
 describe('a season\'s whole set of tournaments', () => {
   const members = (confederation: string) => countriesIn(confederation).map((c) => c.id);
 
-  it('gives every nation a tournament in a world season', () => {
+  it('holds exactly one tournament in a World Cup season, and most of the world is out of it', () => {
+    // That is what a World Cup IS. The nations that did not qualify have no
+    // summer, and get their football from their own championship the year
+    // either side of it.
     const set = seasonTournaments('world', WORLD, allConfederations(), members);
-    expect(set).toHaveLength(WORLD_TIERS.length);
-    expect(set.flatMap((t) => t.field).sort()).toEqual([...WORLD].sort());
+    expect(set).toHaveLength(1);
+    expect(set[0]!.kind).toBe('worldCup');
+    expect(set[0]!.field).toHaveLength(WORLD_CUP_FIELD);
+    expect(set[0]!.field.length).toBeLessThan(WORLD.length);
   });
 
   it('gives every nation a tournament in a continental season', () => {
@@ -223,14 +232,17 @@ describe('a season\'s whole set of tournaments', () => {
     }
   });
 
-  it('finds the one a nation is in', () => {
-    for (const era of ['world', 'continental'] as const) {
-      const set = seasonTournaments(era, WORLD, allConfederations(), members);
-      for (const country of COUNTRIES) {
-        expect(tournamentFieldFor(set, country.id), `${era} ${country.id}`).toBeTruthy();
-      }
-      expect(tournamentFieldFor(set, 'atlantis')).toBeNull();
+  it('finds the one a nation is in, and says so honestly when there is none', () => {
+    const continental = seasonTournaments('continental', WORLD, allConfederations(), members);
+    for (const country of COUNTRIES) {
+      expect(tournamentFieldFor(continental, country.id), country.id).toBeTruthy();
     }
+    expect(tournamentFieldFor(continental, 'atlantis')).toBeNull();
+
+    // In a World Cup year, most nations are in nothing.
+    const world = seasonTournaments('world', WORLD, allConfederations(), members);
+    const out = COUNTRIES.filter((c) => !tournamentFieldFor(world, c.id));
+    expect(out).toHaveLength(COUNTRIES.length - WORLD_CUP_FIELD);
   });
 });
 
