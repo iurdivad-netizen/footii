@@ -2779,3 +2779,57 @@ button.ghost.danger {
 .save-data .save-actions .ghost {
   margin-top: 0;
 }
+
+/* ------------------------------------------- a season's honours --------- */
+
+/*
+ * What a season won, in a table cell.
+ *
+ * The history's last column used to be a single emoji, so a treble read exactly
+ * like a minor cup. Badges rather than icons, because the names are the point —
+ * "Spanish champions" says something an icon cannot — and toned by kind so the
+ * eye can separate what the club won from what the player did, and both from a
+ * relegation.
+ */
+.season-honours {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.season-honour {
+  font-style: normal;
+  font-size: 0.66rem;
+  line-height: 1.3;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.season-honour.trophy {
+  border-color: var(--goal);
+  background: rgba(250, 204, 21, 0.12);
+  color: var(--goal);
+}
+
+.season-honour.award {
+  border-color: var(--accent);
+  background: rgba(74, 222, 128, 0.1);
+  color: var(--accent);
+}
+
+.season-honour.movement {
+  border-color: rgba(255, 255, 255, 0.25);
+  color: var(--text);
+}
+
+.season-honour.setback {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+}
+
+.season-honours-none {
+  color: var(--text-dim);
+}

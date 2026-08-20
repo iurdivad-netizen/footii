@@ -13,10 +13,12 @@ import {
   AWARD_MINIMUM_SHARE,
   CAP_MILESTONES,
   evaluateHonours,
+  honourTone,
+  honoursInSeason,
   leagueBenchmark,
   summariseHonours,
 } from '../src/core/career/awards.ts';
-import type { Honour, LeagueBenchmark } from '../src/core/career/awards.ts';
+import type { Honour, HonourKind, LeagueBenchmark } from '../src/core/career/awards.ts';
 
 const SEASON_LENGTH = 14;
 
@@ -549,5 +551,74 @@ describe('summarising an honours list', () => {
 
   it('handles an empty list', () => {
     expect(summariseHonours([])).toEqual([]);
+  });
+});
+
+
+/**
+ * A SEASON'S HONOURS, AS A HISTORY READS THEM
+ *
+ * The career history table used to print one emoji for the national cup and
+ * another for the league cup, so a season that took the league, the double and
+ * a European trophy read exactly like one that scraped a minor cup — and an
+ * individual award showed nothing at all. Everything was already recorded; only
+ * the reading of it was missing.
+ */
+
+function honourAt(kind: HonourKind, season: number, label: string = kind): Honour {
+  return {
+    kind,
+    season,
+    clubId: 'northport-city',
+    division: 1,
+    countryId: 'england',
+    label,
+    detail: `${label} detail`,
+  };
+}
+
+describe("a season's honours", () => {
+  it('returns everything won in that season and nothing from another', () => {
+    const honours = [
+      honourAt('title', 3, 'English champions'),
+      honourAt('nationalCup', 3, 'English Cup'),
+      honourAt('topScorer', 3, 'Top scorer'),
+      honourAt('title', 4, 'English champions'),
+    ];
+
+    const third = honoursInSeason(honours, 3);
+
+    expect(third.map((entry) => entry.label)).toEqual([
+      'English champions',
+      'English Cup',
+      'Top scorer',
+    ]);
+    expect(honoursInSeason(honours, 4)).toHaveLength(1);
+    expect(honoursInSeason(honours, 99)).toEqual([]);
+  });
+
+  it('carries each honour own detail, so a short badge is still readable', () => {
+    const [entry] = honoursInSeason([honourAt('title', 1, 'English champions')], 1);
+    expect(entry!.detail).toBe('English champions detail');
+  });
+
+  it('separates what the club won from what the player won', () => {
+    // The distinction the old single-icon column could not make.
+    expect(honourTone('title')).toBe('trophy');
+    expect(honourTone('europeanTitle')).toBe('trophy');
+    expect(honourTone('internationalTitle')).toBe('trophy');
+    expect(honourTone('topScorer')).toBe('award');
+    expect(honourTone('playerOfTheSeason')).toBe('award');
+  });
+
+  it('marks a relegation as a setback rather than an honour', () => {
+    expect(honourTone('relegation')).toBe('setback');
+    expect(honourTone('promotion')).toBe('movement');
+  });
+
+  it('includes a relegation in the season it happened, since it is what happened', () => {
+    const won = honoursInSeason([honourAt('relegation', 2, 'Relegated')], 2);
+    expect(won).toHaveLength(1);
+    expect(won[0]!.tone).toBe('setback');
   });
 });

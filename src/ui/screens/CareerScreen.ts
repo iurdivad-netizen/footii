@@ -49,7 +49,8 @@ import {
   locateClub,
 } from '../../core/career/countries.ts';
 import { applyStrength } from '../../core/career/clubDrift.ts';
-import { summariseHonours } from '../../core/career/awards.ts';
+import { honoursInSeason, summariseHonours } from '../../core/career/awards.ts';
+import type { Honour } from '../../core/career/awards.ts';
 import type { Team } from '../../core/team/team.ts';
 import { getTeam } from '../../data/gameData.ts';
 
@@ -760,8 +761,17 @@ export class CareerScreen {
       </div>`;
   }
 
+  /**
+   * Every season, and everything it won.
+   *
+   * The last column used to be a 🏆 or a 🥈 and nothing more, so a season that
+   * took the league, the double and a European trophy read identically to one
+   * that scraped a minor cup — and a golden boot did not appear at all. The
+   * honours list already held all of it, labelled in the country's own words.
+   */
   private renderHistory(): string {
     if (this.state.history.length === 0) return '';
+    const honours = this.state.honours ?? [];
     const rows = this.state.history
       .map(
         (h) =>
@@ -775,18 +785,36 @@ export class CareerScreen {
             <td>${h.stats.goals}</td>
             <td>${h.stats.assists}</td>
             <td>${averageRating(h.stats).toFixed(2)}</td>
-            <td>${(h.cupsWon ?? []).map((k) => (k === 'nationalCup' ? '🏆' : '🥈')).join('') || '—'}</td>
+            <td>${renderSeasonHonours(honours, h.seasonNumber)}</td>
           </tr>`,
       )
       .join('');
     return `<div class="career-card">
         <h2>Career history</h2>
         <table class="league-table">
-          <thead><tr><th>S</th><th>Club</th><th>Div</th><th>Age</th><th>Pos</th><th>Apps</th><th>G</th><th>A</th><th>Rating</th><th>Cups</th></tr></thead>
+          <thead><tr><th>S</th><th>Club</th><th>Div</th><th>Age</th><th>Pos</th><th>Apps</th><th>G</th><th>A</th><th>Rating</th><th>Won</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>`;
   }
+}
+
+/**
+ * One season's honours, as badges for a table cell.
+ *
+ * Shared with the end screen, which shows the same history for a career that
+ * has stopped. The `title` attribute carries the honour's own one-line detail,
+ * so a badge that has to be short is still readable in full on hover.
+ */
+export function renderSeasonHonours(honours: readonly Honour[], season: number): string {
+  const won = honoursInSeason(honours, season);
+  if (won.length === 0) return '<span class="season-honours-none">—</span>';
+  return `<span class="season-honours">${won
+    .map(
+      (entry) =>
+        `<em class="season-honour ${entry.tone}" title="${entry.detail}">${entry.label}</em>`,
+    )
+    .join('')}</span>`;
 }
 
 /** Scouting interest as a phrase rather than a probability. */

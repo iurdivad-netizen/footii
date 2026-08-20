@@ -65,8 +65,19 @@ export interface GameSettings {
   matchSpeed: number;
 }
 
+/**
+ * What a first-time player gets.
+ *
+ * Untimed rather than Standard, deliberately. The clock is the hardest thing in
+ * the game to meet cold: a two-second window on a decision whose six options you
+ * have never read before is not a decision, it is a reflex test, and somebody
+ * whose first three chances expire never finds out what the game actually is.
+ * The keeper still commits on schedule at this setting, so the READ — the thing
+ * the whole mechanic is about — is unchanged; only the punishment for thinking
+ * is gone. Turning the clock on afterwards is one control on the front door.
+ */
 export function defaultSettings(): GameSettings {
-  return { pace: 'standard', matchSpeed: 1 };
+  return { pace: 'untimed', matchSpeed: 1 };
 }
 
 export interface SaveData {
