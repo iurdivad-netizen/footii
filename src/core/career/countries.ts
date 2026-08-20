@@ -28,12 +28,34 @@ export interface Country {
   name: string;
   /** "English", "Spanish" — for honours that should read as football. */
   adjective: string;
-  /** What the league is called. */
-  league: string;
+  /**
+   * What the league is called. Absent for a country that has no league.
+   *
+   * Most of the world does not have one here: a country can field a national
+   * side without the game modelling its club football, which is what makes a
+   * World Cup possible without a hundred and fifty leagues behind it.
+   */
+  league?: string;
   /** Three-letter tag for tables and chips. */
   short: string;
+  /** Which continent's championship it plays in. */
+  confederation: string;
   /** How closely the football world watches, 0-1. */
   prestige: number;
+  /**
+   * How good its national side is, 0-100 — authored, and ONLY for a country
+   * with no league.
+   *
+   * A national side is normally derived from its country's strongest clubs,
+   * which is why it needs no roster and drifts as they drift. A country with no
+   * clubs has nothing to derive from, so it carries a number instead and drifts
+   * on its own — see core/career/nationDrift.ts.
+   */
+  nationalStrength?: number;
+  /** How it plays, for a country with no clubs to take a style from. */
+  style?: string;
+  /** Its colour, likewise. */
+  colour?: string;
 }
 
 /**
@@ -49,6 +71,7 @@ export const UNKNOWN_COUNTRY: Country = {
   adjective: 'Unknown',
   league: 'Unknown league',
   short: '???',
+  confederation: 'unknown',
   prestige: 0.5,
 };
 
@@ -79,8 +102,95 @@ export function countryOf(team: Team): string {
   return team.country;
 }
 
-/** Countries ranked by how closely they are watched, best first. */
+/**
+ * Does this country have a league of its own?
+ *
+ * The division that matters most in the registry. A country WITH a league has
+ * clubs, sends them to Europe, derives its national side from them and can be
+ * played in; a country WITHOUT one exists to field a national side and nothing
+ * else. Almost every question about club football means the first set only, and
+ * asking the registry for "every country" when you meant "every league" is how
+ * a South American nation ends up in the European places table.
+ */
+export function hasLeague(country: Country): boolean {
+  return !!country.league;
+}
+
+/** Every country that has a league, in registry order. */
+export function leagueCountries(): Country[] {
+  return registry.filter(hasLeague);
+}
+
+/** Which confederation a country plays in. */
+export function confederationOf(countryId: string): string {
+  return getCountry(countryId).confederation;
+}
+
+/** What each confederation is called. */
+export const CONFEDERATION_NAMES: Record<string, string> = {
+  europe: 'Europe',
+  southAmerica: 'South America',
+  africa: 'Africa',
+  asia: 'Asia',
+  northAmerica: 'North America',
+};
+
+/**
+ * And what its championship is called, which is not the same word.
+ *
+ * "The Europe Championship" is a place with a competition bolted to it; "The
+ * European Championship" is a competition. Football names these after the
+ * adjective, so this carries the adjective.
+ */
+export const CONFEDERATION_ADJECTIVES: Record<string, string> = {
+  europe: 'European',
+  southAmerica: 'South American',
+  africa: 'African',
+  asia: 'Asian',
+  northAmerica: 'North American',
+};
+
+export function confederationName(confederation: string): string {
+  return CONFEDERATION_NAMES[confederation] ?? 'The world';
+}
+
+export function confederationAdjective(confederation: string): string {
+  return CONFEDERATION_ADJECTIVES[confederation] ?? 'World';
+}
+
+/** Every confederation there is, in the order the registry lists them. */
+export function allConfederations(): string[] {
+  const seen: string[] = [];
+  for (const country of registry) {
+    if (!seen.includes(country.confederation)) seen.push(country.confederation);
+  }
+  return seen;
+}
+
+/** Every country in one confederation. */
+export function countriesIn(confederation: string): Country[] {
+  return registry.filter((country) => country.confederation === confederation);
+}
+
+/** What a country's league is called, or a plain statement that it has none. */
+export function leagueName(countryId: string): string {
+  return getCountry(countryId).league ?? 'No league of its own';
+}
+
+/**
+ * Countries ranked by how closely they are watched, best first.
+ *
+ * LEAGUE COUNTRIES ONLY. This ranking exists to hand out European places and to
+ * seed a European draw, and a country with no clubs can do neither. For a
+ * ranking of every nation in the world — which is what a World Cup is seeded
+ * off — see `nationsByPrestige`.
+ */
 export function countriesByPrestige(): Country[] {
+  return leagueCountries().sort((a, b) => b.prestige - a.prestige);
+}
+
+/** Every country in the world ranked by how closely it is watched, best first. */
+export function nationsByPrestige(): Country[] {
   return registry.slice().sort((a, b) => b.prestige - a.prestige);
 }
 

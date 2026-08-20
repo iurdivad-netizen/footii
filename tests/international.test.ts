@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Rng } from '../src/core/rng.ts';
-import { COUNTRIES, teamsInCountry, getTeam } from '../src/data/gameData.ts';
+import { LEAGUE_COUNTRIES, teamsInCountry, getTeam } from '../src/data/gameData.ts';
 import { createPlayer } from '../src/core/player/player.ts';
 import type { Player } from '../src/core/player/player.ts';
 import {
@@ -53,7 +53,7 @@ import { countryPrestige } from '../src/core/career/countries.ts';
  */
 
 const nations = new Map(
-  COUNTRIES.map((c) => [nationId(c.id), nationalTeam(c.id, teamsInCountry(c.id))]),
+  LEAGUE_COUNTRIES.map((c) => [nationId(c.id), nationalTeam(c.id, teamsInCountry(c.id))]),
 );
 const lookup = (id: string) => nations.get(id) ?? getTeam(id);
 
@@ -77,7 +77,7 @@ function playThrough(seed: string): InternationalState {
 describe('a national side', () => {
   it('is stronger than the best club in its own country', () => {
     // Otherwise being picked would be a demotion and the shirt would mean nothing.
-    for (const country of COUNTRIES) {
+    for (const country of LEAGUE_COUNTRIES) {
       const clubs = teamsInCountry(country.id);
       const nation = nationalTeam(country.id, clubs);
       const best = Math.max(...clubs.map(teamStrength));
@@ -186,7 +186,7 @@ describe('the groups', () => {
   it('takes the top of the order and leaves everybody else out', () => {
     // The world has more countries than the tournament has places, which is
     // what makes qualifying for it an achievement rather than an entitlement.
-    const order = COUNTRIES.map((c) => c.id);
+    const order = LEAGUE_COUNTRIES.map((c) => c.id);
     const groups = qualifyingGroups(order);
     expect(groups.flat().sort()).toEqual(order.slice(0, TOURNAMENT_FIELD).sort());
     for (const missed of order.slice(TOURNAMENT_FIELD)) {
@@ -195,7 +195,7 @@ describe('the groups', () => {
   });
 
   it('puts every qualifier in exactly one group', () => {
-    for (const country of COUNTRIES.slice(0, TOURNAMENT_FIELD)) {
+    for (const country of LEAGUE_COUNTRIES.slice(0, TOURNAMENT_FIELD)) {
       expect(groupOf(country.id), country.id).toBeGreaterThanOrEqual(0);
     }
     expect(groupOf('atlantis')).toBe(-1);
@@ -203,7 +203,7 @@ describe('the groups', () => {
 
   it('re-draws the field as the order moves', () => {
     // A country that climbs plays its way into a tournament it was not in.
-    const order = COUNTRIES.map((c) => c.id);
+    const order = LEAGUE_COUNTRIES.map((c) => c.id);
     const climbed = [order[order.length - 1]!, ...order.slice(0, -1)];
     expect(qualifyingGroups(order).flat()).not.toContain(order[order.length - 1]);
     expect(qualifyingGroups(climbed).flat()).toContain(order[order.length - 1]);
@@ -363,7 +363,7 @@ describe('the knockout', () => {
     expect(wins.get(worst) ?? 0).toBeGreaterThan(0);
     expect(wins.size).toBeGreaterThan(4);
     // And a country outside the field cannot win a tournament it is not in.
-    const missed = COUNTRIES.map((c) => c.id).find((id) => !field.includes(id))!;
+    const missed = LEAGUE_COUNTRIES.map((c) => c.id).find((id) => !field.includes(id))!;
     expect(wins.get(nationId(missed)) ?? 0).toBe(0);
   });
 

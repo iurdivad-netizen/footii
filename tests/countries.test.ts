@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TEAMS, COUNTRIES, getTeam, teamsInCountry } from '../src/data/gameData.ts';
+import { TEAMS, LEAGUE_COUNTRIES, getTeam, teamsInCountry } from '../src/data/gameData.ts';
 import {
   UNKNOWN_COUNTRY,
   allClubIds,
@@ -16,22 +16,22 @@ import {
 
 describe('the world as data', () => {
   it('has twelve countries of sixteen clubs each', () => {
-    expect(COUNTRIES).toHaveLength(12);
+    expect(LEAGUE_COUNTRIES).toHaveLength(12);
     expect(TEAMS).toHaveLength(192);
-    for (const country of COUNTRIES) {
+    for (const country of LEAGUE_COUNTRIES) {
       expect(teamsInCountry(country.id), country.id).toHaveLength(16);
     }
   });
 
   it('gives every club a country that exists', () => {
     for (const team of TEAMS) {
-      expect(COUNTRIES.some((c) => c.id === team.country), team.id).toBe(true);
+      expect(LEAGUE_COUNTRIES.some((c) => c.id === team.country), team.id).toBe(true);
     }
   });
 
   it('gives every club a unique id and every country a unique tag', () => {
     expect(new Set(TEAMS.map((t) => t.id)).size).toBe(TEAMS.length);
-    expect(new Set(COUNTRIES.map((c) => c.short)).size).toBe(COUNTRIES.length);
+    expect(new Set(LEAGUE_COUNTRIES.map((c) => c.short)).size).toBe(LEAGUE_COUNTRIES.length);
   });
 
   it('ranks the leagues into a ladder worth climbing', () => {
@@ -67,7 +67,7 @@ describe('placing clubs in the world', () => {
   });
 
   it('gives every country one tier of sixteen', () => {
-    for (const country of COUNTRIES) {
+    for (const country of LEAGUE_COUNTRIES) {
       expect(leagues[country.id], country.id).toHaveLength(1);
       expect(leagueMembers(leagues, country.id, 1), country.id).toHaveLength(16);
     }

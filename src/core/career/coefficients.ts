@@ -1,5 +1,11 @@
 import { clamp, round } from '../util/math.ts';
-import { allCountries, countriesByPrestige, countryPrestige } from './countries.ts';
+import {
+  allCountries,
+  confederationOf,
+  countriesByPrestige,
+  countryPrestige,
+  nationsByPrestige,
+} from './countries.ts';
 import type { InternationalState } from './international.ts';
 import { KNOCKOUT_ROUNDS, knockoutField } from './international.ts';
 import { countryOfNation } from './nations.ts';
@@ -73,6 +79,19 @@ export const KNOCKOUT_BONUS = 1.5;
 export const FINAL_BONUS = 1.5;
 /** Lifting it. */
 export const CHAMPION_BONUS = 2;
+
+/**
+ * How much each tournament counts.
+ *
+ * A World Cup is the harder thing by some distance — sixteen nations from every
+ * confederation rather than eight from one — so a group win in it is worth more
+ * than a group win at home. Without this a country could farm a weak
+ * confederation's championship into a standing its World Cups never justified.
+ */
+export const TOURNAMENT_WEIGHT: Record<string, number> = {
+  worldCup: 1.3,
+  continental: 1,
+};
 
 /** The most one nation can score in one tournament: win the group, win the lot. */
 export const MAX_CAMPAIGN = 3 * GROUP_WIN + KNOCKOUT_BONUS + FINAL_BONUS + CHAMPION_BONUS;
@@ -262,9 +281,11 @@ export function scoreTournament(state: InternationalState): Record<string, numbe
   const scores: Record<string, number> = {};
   const qualified = new Set(knockoutField(state));
   const knockout = state.knockout;
-  // The last round of a complete bracket is the final. Read that way rather
-  // than by index so a tournament of a different depth still scores.
-  const finalRound = knockout?.rounds[KNOCKOUT_ROUNDS - 1];
+  // The last round of a complete bracket is the final, read by the tournament's
+  // OWN depth: a World Cup is three rounds and a continental championship two,
+  // so a fixed index would score a World Cup semi-final as a final.
+  const depth = state.knockoutRounds ?? KNOCKOUT_ROUNDS;
+  const finalRound = knockout?.rounds[depth - 1];
   const finalists = new Set(
     finalRound ? finalRound.ties.flatMap((tie) => [tie.homeId, tie.awayId]) : [],
   );
@@ -278,7 +299,7 @@ export function scoreTournament(state: InternationalState): Record<string, numbe
     if (finalists.has(row.teamId)) score += FINAL_BONUS;
     if (knockout?.winnerId === row.teamId) score += CHAMPION_BONUS;
 
-    scores[countryId] = round(score, 2);
+    scores[countryId] = round(score * (TOURNAMENT_WEIGHT[state.kind] ?? 1), 2);
   }
 
   return scores;
@@ -437,6 +458,31 @@ export function countriesByStanding(record: Coefficients): string[] {
       const difference = standingOf(record, b) - standingOf(record, a);
       // Prestige order breaks a tie, so the ordering is total and stable and
       // two countries level on everything never swap from one look to the next.
+      if (difference !== 0) return difference;
+      return prestigeOrder.indexOf(a) - prestigeOrder.indexOf(b);
+    });
+}
+
+/** Every nation of ONE confederation in standing order, best first. */
+export function confederationByStanding(record: Coefficients, confederation: string): string[] {
+  return nationsByStanding(record).filter((id) => confederationOf(id) === confederation);
+}
+
+/**
+ * Every NATION in the world in standing order, best first.
+ *
+ * The wider cousin of `countriesByStanding`, which is deliberately Europe only
+ * because it hands out European places. This one includes the countries with no
+ * league of their own, because a World Cup is seeded from all of them.
+ */
+export function nationsByStanding(record: Coefficients): string[] {
+  const prestigeOrder = nationsByPrestige().map((country) => country.id);
+  if (!hasRecord(record)) return prestigeOrder;
+
+  return prestigeOrder
+    .slice()
+    .sort((a, b) => {
+      const difference = standingOf(record, b) - standingOf(record, a);
       if (difference !== 0) return difference;
       return prestigeOrder.indexOf(a) - prestigeOrder.indexOf(b);
     });

@@ -37,7 +37,7 @@ import { EUROPEAN_TIERS } from '../src/core/career/europe.ts';
 import {
   GROUP_ROUNDS,
   INTERNATIONAL,
-  KNOCKOUT_ROUNDS,
+  MAX_INTERNATIONAL_MATCHES,
 } from '../src/core/career/international.ts';
 
 const lookup = (id: string) => getTeam(id);
@@ -437,8 +437,10 @@ describe('the season calendar', () => {
   });
 
   it('is the longest a season can be: league, both cups, Europe and a country', () => {
-    // 30 league + 4 national cup + 4 league cup + 4 European + 5 international.
-    expect(maximumMatches(30)).toBe(47);
+    // 30 league + 4 national cup + 4 league cup + 4 European + 6 international,
+    // the six being a World Cup, which runs a knockout round deeper than a
+    // continental championship.
+    expect(maximumMatches(30)).toBe(30 + 4 + 4 + 4 + MAX_INTERNATIONAL_MATCHES);
     expect(maximumMatches(30)).toBeLessThan(calendarLength(30));
   });
 
@@ -448,7 +450,10 @@ describe('the season calendar', () => {
     const knockoutSlots = calendar
       .map((slot, index) => ({ slot, index }))
       .filter(({ slot }) => slot.competition === INTERNATIONAL && slot.round > GROUP_ROUNDS);
-    expect(knockoutSlots).toHaveLength(KNOCKOUT_ROUNDS);
+    // The calendar holds the LONGEST tournament there is, because it is a pure
+    // function of the league's length and cannot know which one is being played
+    // — the same reason it carries a slot for all three European competitions.
+    expect(knockoutSlots).toHaveLength(MAX_INTERNATIONAL_MATCHES - GROUP_ROUNDS);
     for (const { index } of knockoutSlots) expect(index).toBeGreaterThan(lastLeague);
   });
 

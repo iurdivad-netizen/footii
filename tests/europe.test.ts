@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COUNTRIES, teamsInCountry } from '../src/data/gameData.ts';
+import { LEAGUE_COUNTRIES, teamsInCountry } from '../src/data/gameData.ts';
 import {
   CHAMPIONS_LEAGUE_PLACES,
   CONFERENCE_LEAGUE_PLACES,
@@ -40,7 +40,7 @@ function tableInOrder(ids: readonly string[]): TableRow[] {
 /** Every country's table, each in its data-file order. */
 function worldTables(): Record<string, TableRow[]> {
   const tables: Record<string, TableRow[]> = {};
-  for (const country of COUNTRIES) {
+  for (const country of LEAGUE_COUNTRIES) {
     tables[country.id] = tableInOrder(teamsInCountry(country.id).map((t) => t.id));
   }
   return tables;
@@ -56,7 +56,7 @@ describe('the three competitions', () => {
   });
 
   it('is watched more closely than any single league', () => {
-    const best = Math.max(...COUNTRIES.map((c) => c.prestige));
+    const best = Math.max(...LEAGUE_COUNTRIES.map((c) => c.prestige));
     expect(europeanCompetition('championsLeague').prestige).toBeGreaterThanOrEqual(best);
   });
 
@@ -101,7 +101,7 @@ describe('how many places a country gets', () => {
 
   it('fills each competition exactly, with no place left over', () => {
     const total = (tier: EuropeanTier) =>
-      COUNTRIES.reduce((sum, c) => sum + europeanPlaces(c.id)[tier], 0);
+      LEAGUE_COUNTRIES.reduce((sum, c) => sum + europeanPlaces(c.id)[tier], 0);
     expect(total('championsLeague')).toBe(EUROPEAN_FIELD);
     expect(total('europaLeague')).toBe(EUROPEAN_FIELD);
     expect(total('conferenceLeague')).toBe(EUROPEAN_FIELD);
@@ -111,7 +111,7 @@ describe('how many places a country gets', () => {
   it('fills every competition to sixteen from its own distribution', () => {
     for (const tier of EUROPEAN_TIERS) {
       expect(PLACES_BY_TIER[tier].reduce((a, b) => a + b, 0), tier).toBe(EUROPEAN_FIELD);
-      expect(PLACES_BY_TIER[tier]).toHaveLength(COUNTRIES.length);
+      expect(PLACES_BY_TIER[tier]).toHaveLength(LEAGUE_COUNTRIES.length);
     }
   });
 
@@ -122,8 +122,8 @@ describe('how many places a country gets', () => {
     // the Champions League row gives ranks six to eight one place each.
     const entries = (rank: number) =>
       CHAMPIONS_LEAGUE_PLACES[rank]! + EUROPA_LEAGUE_PLACES[rank]! + CONFERENCE_LEAGUE_PLACES[rank]!;
-    expect(COUNTRIES.map((_, rank) => entries(rank))).toEqual(
-      COUNTRIES.map(() => EUROPEAN_ENTRIES_PER_COUNTRY),
+    expect(LEAGUE_COUNTRIES.map((_, rank) => entries(rank))).toEqual(
+      LEAGUE_COUNTRIES.map(() => EUROPEAN_ENTRIES_PER_COUNTRY),
     );
   });
 
@@ -185,7 +185,7 @@ describe('qualifying on league position', () => {
   });
 
   it('awards places strictly down the table', () => {
-    for (const country of COUNTRIES) {
+    for (const country of LEAGUE_COUNTRIES) {
       const order = teamsInCountry(country.id).map((t) => t.id);
       const places = europeanPlaces(country.id);
       for (let i = 0; i < places.championsLeague; i++) {
@@ -199,7 +199,7 @@ describe('qualifying on league position', () => {
   });
 
   it('leaves the bottom of every league out of Europe entirely', () => {
-    for (const country of COUNTRIES) {
+    for (const country of LEAGUE_COUNTRIES) {
       const order = teamsInCountry(country.id).map((t) => t.id);
       expect(entries[order[order.length - 1]!]).toBeUndefined();
     }
@@ -207,21 +207,21 @@ describe('qualifying on league position', () => {
 
   it('draws from every country that has a place, so a European draw crosses borders', () => {
     const countryOf = (id: string) =>
-      COUNTRIES.find((c) => teamsInCountry(c.id).some((t) => t.id === id))!.id;
+      LEAGUE_COUNTRIES.find((c) => teamsInCountry(c.id).some((t) => t.id === id))!.id;
 
     // The Champions League reaches every country with a place in it — and the
     // countries at the bottom of the order have none, which is the point of
     // being at the bottom of the order.
     const inTheCup = new Set(fieldFor(entries, 'championsLeague').map(countryOf));
-    const entitled = COUNTRIES.filter((c) => europeanPlaces(c.id).championsLeague > 0);
+    const entitled = LEAGUE_COUNTRIES.filter((c) => europeanPlaces(c.id).championsLeague > 0);
     expect(inTheCup.size).toBe(entitled.length);
-    expect(entitled.length).toBeLessThan(COUNTRIES.length);
+    expect(entitled.length).toBeLessThan(LEAGUE_COUNTRIES.length);
 
     // But every country is somewhere in Europe: nobody is shut out entirely.
     const anywhere = new Set(
       EUROPEAN_TIERS.flatMap((tier) => fieldFor(entries, tier)).map(countryOf),
     );
-    expect(anywhere.size).toBe(COUNTRIES.length);
+    expect(anywhere.size).toBe(LEAGUE_COUNTRIES.length);
   });
 
   it('is a pure function of its input', () => {
@@ -343,7 +343,7 @@ describe('how many people are watching', () => {
   });
 
   it('never makes a club LESS visible than its own league', () => {
-    for (const country of COUNTRIES) {
+    for (const country of LEAGUE_COUNTRIES) {
       for (const tier of EUROPEAN_TIERS) {
         expect(visibilityOf(country.id, tier), `${country.id}/${tier}`).toBeGreaterThanOrEqual(
           countryPrestige(country.id),

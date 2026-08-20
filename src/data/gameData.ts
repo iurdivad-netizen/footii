@@ -38,8 +38,18 @@ interface GoalkeeperJson {
  * This runs before `TEAMS` is built below, which is what lets country lookups
  * work from the first line of a career.
  */
+/** Every country in the world, with a league or without one. */
 export const COUNTRIES: Country[] = countriesJson as Country[];
 registerCountries(COUNTRIES);
+
+/**
+ * Only the countries that have a league of their own.
+ *
+ * Most questions about club football mean this set: European places, a
+ * browsable table, somewhere to be transferred to. The rest of the world exists
+ * to field a national side.
+ */
+export const LEAGUE_COUNTRIES: Country[] = COUNTRIES.filter((country) => !!country.league);
 
 export const TEAMS: Team[] = (teamsJson as TeamJson[]).map((entry) =>
   createTeam({

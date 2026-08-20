@@ -2233,3 +2233,17 @@ button.ghost {
 .bracket-winner strong {
   color: var(--accent);
 }
+
+/*
+ * A named competition above its groups: the international view shows a World
+ * Cup one season and a continental championship the next, and which one it is
+ * has to be the first thing read rather than inferred from the group count.
+ */
+.world-heading {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 6px;
+}

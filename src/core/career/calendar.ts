@@ -3,7 +3,7 @@ import { CUP_ROUNDS } from './cups.ts';
 import type { EuropeanTier } from './europe.ts';
 import { EUROPEAN_TIERS, europeanCompetition, isEuropeanTier } from './europe.ts';
 import type { InternationalKind } from './international.ts';
-import { GROUP_ROUNDS, INTERNATIONAL, INTERNATIONAL_MATCHES } from './international.ts';
+import { GROUP_ROUNDS, INTERNATIONAL, MAX_INTERNATIONAL_MATCHES } from './international.ts';
 
 /**
  * THE SEASON CALENDAR
@@ -85,7 +85,10 @@ export function cupSchedule(kind: CupKind): readonly number[] {
  * league of a different size still produces a sensible calendar — the cup
  * rounds are clamped into it rather than dropping off the end.
  */
-export function seasonCalendar(leagueRounds: number): CalendarSlot[] {
+export function seasonCalendar(
+  leagueRounds: number,
+  internationalMatches = MAX_INTERNATIONAL_MATCHES,
+): CalendarSlot[] {
   const slots: CalendarSlot[] = [];
 
   // Where each cup round falls, clamped so a short league cannot lose a round.
@@ -120,7 +123,7 @@ export function seasonCalendar(leagueRounds: number): CalendarSlot[] {
   }
 
   // The tournament closes the year, after every club competition is settled.
-  for (let i = GROUP_ROUNDS; i < INTERNATIONAL_MATCHES; i++) {
+  for (let i = GROUP_ROUNDS; i < internationalMatches; i++) {
     slots.push({ competition: INTERNATIONAL, round: i + 1 });
   }
 
@@ -138,12 +141,12 @@ export function seasonCalendar(leagueRounds: number): CalendarSlot[] {
  * be — in the same way it carries cup rounds for a cup you may go out of.
  */
 export function maximumMatches(leagueRounds: number): number {
-  return leagueRounds + CUP_ROUNDS * 3 + INTERNATIONAL_MATCHES;
+  return leagueRounds + CUP_ROUNDS * 3 + MAX_INTERNATIONAL_MATCHES;
 }
 
 /** How many slots the calendar holds, playable or not. */
 export function calendarLength(leagueRounds: number): number {
-  return leagueRounds + CUP_ROUNDS * (2 + EUROPEAN_TIERS.length) + INTERNATIONAL_MATCHES;
+  return leagueRounds + CUP_ROUNDS * (2 + EUROPEAN_TIERS.length) + MAX_INTERNATIONAL_MATCHES;
 }
 
 /**

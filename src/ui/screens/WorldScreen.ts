@@ -1,7 +1,12 @@
 import type { CareerState } from '../../core/career/career.ts';
 import { goalDifference } from '../../core/career/league.ts';
 import type { TableRow } from '../../core/career/league.ts';
-import { getCountry, playedCountries } from '../../core/career/countries.ts';
+import {
+  confederationOf,
+  getCountry,
+  leagueName,
+  playedCountries,
+} from '../../core/career/countries.ts';
 import { squadLevel } from '../../core/career/transfers.ts';
 import type { Team } from '../../core/team/team.ts';
 import { TACTICAL_STYLE_LABELS } from '../../core/team/team.ts';
@@ -20,12 +25,13 @@ import {
   createCoefficients,
   standingsTable,
 } from '../../core/career/coefficients.ts';
-import { GROUP_COUNT, countryOfNation, nationId } from '../../core/career/nations.ts';
+import { countryOfNation, nationId } from '../../core/career/nations.ts';
 import {
   GROUP_ROUNDS,
   KNOCKOUT_ROUNDS,
   groupTable,
   nationGroups,
+  tournamentName,
 } from '../../core/career/international.ts';
 
 /**
@@ -185,7 +191,7 @@ export class WorldScreen {
     const isOwn = this.selected === this.state.countryId;
     return `
       <div class="career-card">
-        <h2>${country.league}</h2>
+        <h2>${leagueName(country.id)}</h2>
         <p class="hint">
           ${country.name} · ${describePrestige(country.prestige)}
           ${isOwn ? ' · you play here' : ''}
@@ -278,7 +284,7 @@ export class WorldScreen {
     const me = nationId(this.state.player.nationality);
     const nationName = (id: string) => getCountry(countryOfNation(id) ?? '').name;
 
-    const groups = Array.from({ length: GROUP_COUNT }, (_, group) => {
+    const groups = Array.from({ length: nationGroups(international).length }, (_, group) => {
       const rows = groupTable(international, group);
       const body = rows
         .map(
@@ -314,8 +320,11 @@ export class WorldScreen {
 
     const knockout = international.knockout;
     const bracket = knockout
-      ? this.renderBracket(knockout, nationName, KNOCKOUT_ROUNDS)
-      : `<p class="hint">The top two of each group reach the semi-finals. ${
+      ? this.renderBracket(knockout, nationName, international.knockoutRounds ?? KNOCKOUT_ROUNDS)
+      : `<p class="hint">The top two of each group reach the ${roundName(
+          1,
+          international.knockoutRounds ?? KNOCKOUT_ROUNDS,
+        ).toLowerCase()}s. ${
           international.groupRoundsPlayed >= GROUP_ROUNDS
             ? 'The bracket is about to be drawn.'
             : `${GROUP_ROUNDS - international.groupRoundsPlayed} group round${
@@ -323,7 +332,13 @@ export class WorldScreen {
               } still to play.`
         }</p>`;
 
+    const competition = tournamentName(
+      international.kind ?? 'continental',
+      confederationOf(this.state.player.nationality),
+    );
+
     return `
+      <h2 class="world-heading">${competition}</h2>
       <p class="hint world-note">${drawn}</p>
       <div class="career-grid">${groups}</div>
       <div class="career-card">
@@ -355,7 +370,7 @@ export class WorldScreen {
             <td>${index + 1}</td>
             <td>${country.name}${home ? '<em class="own-tag">yours</em>' : ''}</td>
             <td>${row.seasons === 0 ? '—' : row.clubs.toFixed(2)}</td>
-            <td>${row.tournaments === 0 ? '<em class="dim">out</em>' : row.nations.toFixed(2)}</td>
+            <td>${nationCell(row)}</td>
             <td class="dim">${nudge}</td>
             <td><strong>${places.championsLeague}</strong></td>
             <td>${places.europaLeague}</td>
@@ -454,9 +469,25 @@ const HINTS: Record<View, string> = {
     'All three competitions, including the two your club did not qualify for — those are the ones ' +
     'a season is played to reach.',
   international:
-    'The tournament, whether or not you are in the squad. Two groups of four, then the top two of ' +
-    'each cross into the semi-finals.',
+    'The tournament, whether or not you are in the squad. A World Cup in odd seasons and your own ' +
+    "confederation's championship in even ones — groups of four, then the top two of each cross " +
+    'into the knockout.',
 };
+
+/**
+ * What a country's national record reads as.
+ *
+ * Three different things, and conflating the last two was a small lie: a season
+ * one world shows "—" because nothing has been played anywhere yet, while a
+ * country that has been missing tournaments shows "out". Both were "out" until
+ * this, which told a player in his first September that England had failed to
+ * qualify for something.
+ */
+function nationCell(row: { seasons: number; tournaments: number; nations: number }): string {
+  if (row.seasons === 0) return '—';
+  if (row.tournaments === 0) return '<em class="dim">out</em>';
+  return row.nations.toFixed(2);
+}
 
 /** Prestige as something a footballer would say rather than a number. */
 function describePrestige(prestige: number): string {

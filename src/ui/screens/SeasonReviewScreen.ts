@@ -5,13 +5,13 @@ import type { ReputationSettlement } from '../../core/career/reputation.ts';
 import { reputationTier } from '../../core/career/reputation.ts';
 import type { Honour } from '../../core/career/awards.ts';
 import type { DivisionMovement } from '../../core/career/divisions.ts';
-import { getCountry } from '../../core/career/countries.ts';
+import { confederationOf, getCountry, leagueName } from '../../core/career/countries.ts';
 import type { CupKind, CupState } from '../../core/career/cups.ts';
 import { CUP_KINDS, cupName, roundName, totalRounds } from '../../core/career/cups.ts';
 import type { EuropeanState, EuropeanTier } from '../../core/career/europe.ts';
 import { europeanCompetition, europeanNameInProse } from '../../core/career/europe.ts';
 import type { InternationalState } from '../../core/career/international.ts';
-import { KNOCKOUT_ROUNDS } from '../../core/career/international.ts';
+import { KNOCKOUT_ROUNDS, tournamentName } from '../../core/career/international.ts';
 import { countryOfNation, nationId } from '../../core/career/nations.ts';
 import { getTeam } from '../../data/gameData.ts';
 
@@ -97,10 +97,10 @@ export class SeasonReviewScreen {
       <h1>Season ${record.seasonNumber} review</h1>
       <p class="ft-score">
         ${club.name} finished <strong>${ordinal(record.position)}</strong> of ${context.leagueSize}
-        in ${country.league}
+        in ${leagueName(country.id)}
         ${won ? '<span class="verdict win">Champions</span>' : ''}
       </p>
-      ${won ? '' : `<p class="hint">${champion.name} won ${country.league}.</p>`}
+      ${won ? '' : `<p class="hint">${champion.name} won ${leagueName(country.id)}.</p>`}
       ${renderMovement(context.movement, context.nextCountryId)}
 
       <div class="ft-rating">
@@ -172,11 +172,11 @@ function renderMovement(movement: DivisionMovement | null, nextCountryId: string
   const arriving = getCountry(nextCountryId);
   if (movement === 'promoted') {
     return `<p class="division-move up">
-        <strong>Promoted.</strong> You will be playing in ${arriving.league} next season.
+        <strong>Promoted.</strong> You will be playing in ${leagueName(arriving.id)} next season.
       </p>`;
   }
   return `<p class="division-move down">
-      <strong>Relegated.</strong> Your club drops into ${arriving.league} next season — a smaller
+      <strong>Relegated.</strong> Your club drops into ${leagueName(arriving.id)} next season — a smaller
       stage, smaller wages and fewer people watching you play.
     </p>`;
 }
@@ -256,6 +256,10 @@ function renderInternational(
 
   const me = nationId(nationality);
   const nation = getCountry(nationality);
+  const competition = tournamentName(
+    international.kind ?? 'continental',
+    confederationOf(nationality),
+  );
   const champion = getCountry(countryOfNation(knockout.winnerId) ?? '');
   const wonIt = knockout.winnerId === me;
   const out = knockout.eliminatedInRound;
@@ -269,14 +273,14 @@ function renderInternational(
   } else if (wonIt) {
     line = `<strong>Champions with ${nation.name}.</strong>`;
   } else if (out !== null) {
-    line = `Out in the ${roundName(out, KNOCKOUT_ROUNDS).toLowerCase()}. ${champion.name} won it.`;
+    line = `Out in the ${roundName(out, international.knockoutRounds ?? KNOCKOUT_ROUNDS).toLowerCase()}. ${champion.name} won it.`;
   } else {
     line = `Out at the group stage. ${champion.name} won it.`;
   }
 
   return `
     <div class="career-card">
-      <h2>International</h2>
+      <h2>${competition}</h2>
       <ul class="honours-won">
         <li class="${wonIt && caps > 0 ? 'up' : ''}">
           <strong>${nation.name}</strong>

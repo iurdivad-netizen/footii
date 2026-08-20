@@ -19,6 +19,7 @@ import { countriesByStanding, createCoefficients } from '../../core/career/coeff
 import { milestones } from '../../core/career/records.ts';
 import {
   KNOCKOUT_ROUNDS,
+  tournamentName,
   groupIndexOf,
   groupTable,
   reachedKnockout,
@@ -38,9 +39,12 @@ import type { ClubInterest } from '../../core/career/transfers.ts';
 import { describeContract } from '../../core/career/contracts.ts';
 import {
   allClubIds,
+  confederationName,
+  confederationOf,
   countryPrestige,
   getCountry,
   leagueMembers,
+  leagueName,
   locateClub,
 } from '../../core/career/countries.ts';
 import { applyStrength } from '../../core/career/clubDrift.ts';
@@ -141,7 +145,7 @@ export class CareerScreen {
           <h1>${player.name}</h1>
           <p class="career-sub">
             ${positionLabel(player.position)} · age ${player.age} · ${club.name}
-            · ${country.league} · Season ${this.state.seasonNumber}
+            · ${leagueName(country.id)} · Season ${this.state.seasonNumber}
           </p>
         </div>
         <div class="career-ability">
@@ -163,7 +167,7 @@ export class CareerScreen {
               : `<p class="competition-tag ${scheduled!.competition}">
                    ${
                      scheduled!.competition === 'league'
-                       ? `${country.league} · round ${scheduled!.round}`
+                       ? `${leagueName(country.id)} · round ${scheduled!.round}`
                        : `${this.competitionName(scheduled!.competition)} · ${scheduled!.roundLabel}`
                    }
                  </p>
@@ -222,7 +226,7 @@ export class CareerScreen {
 
       <div class="career-grid wide">
         <div class="career-card">
-          <h2>${country.league}</h2>
+          <h2>${leagueName(country.id)}</h2>
           ${this.renderTable()}
           <button class="ghost" id="browse-world">Other leagues around the world</button>
         </div>
@@ -387,7 +391,7 @@ export class CareerScreen {
 
   /** What a competition is called, wherever it is played. */
   private competitionName(competition: CompetitionKind): string {
-    if (competition === 'league') return getCountry(this.state.countryId).league;
+    if (competition === 'league') return leagueName(this.state.countryId);
     if (isInternational(competition)) return getCountry(this.state.player.nationality).name;
     if (isEuropean(competition)) return europeanCompetition(competition).name;
     return cupName(competition, this.state.countryId);
@@ -415,11 +419,19 @@ export class CareerScreen {
     // twelve. Saying so plainly matters more than the table would — without it
     // a player whose reputation clears the bar simply never gets a fixture and
     // is left to work out why on his own.
+    const competition = tournamentName(
+      international.kind ?? 'continental',
+      confederationOf(this.state.player.nationality),
+    );
+    const field =
+      international.kind === 'worldCup'
+        ? 'the sixteen best nations in the world play it'
+        : `the eight best in ${confederationName(confederationOf(this.state.player.nationality))} play it`;
     const missedOut =
       standing === -1
-        ? `<p class="hint">${nation.name} did not qualify for this year's tournament — the eight
-             highest countries in the European order play it, and ${nation.name} is not among them.
-             Its clubs and its national side both climb that order.</p>`
+        ? `<p class="hint">${nation.name} did not qualify for ${competition} — ${field}, and
+             ${nation.name} is not among them. Its standing is what would get it there, and both
+             its clubs and its national side move that.</p>`
         : '';
     const table =
       standing === -1
@@ -449,11 +461,11 @@ export class CareerScreen {
       if (knockout.winnerId === me) run = '<strong>Champions.</strong>';
       else if (!qualified) run = 'Out at the group stage.';
       else if (knockout.eliminatedInRound !== null) {
-        run = `Out in the ${roundName(knockout.eliminatedInRound, KNOCKOUT_ROUNDS).toLowerCase()}.`;
+        run = `Out in the ${roundName(knockout.eliminatedInRound, international.knockoutRounds ?? KNOCKOUT_ROUNDS).toLowerCase()}.`;
       } else if (knockout.winnerId) {
         run = `Won by ${getCountry(countryOfNation(knockout.winnerId) ?? '').name}.`;
       } else {
-        run = `Through to the ${roundName(knockout.rounds.length || 1, KNOCKOUT_ROUNDS).toLowerCase()}.`;
+        run = `Through to the ${roundName(knockout.rounds.length || 1, international.knockoutRounds ?? KNOCKOUT_ROUNDS).toLowerCase()}.`;
       }
     }
 
@@ -477,7 +489,7 @@ export class CareerScreen {
 
     return `
       <div class="career-card">
-        <h2>${nation.name}</h2>
+        <h2>${nation.name} <em class="own-tag">${competition}</em></h2>
         ${status}
         ${missedOut}
         ${table}

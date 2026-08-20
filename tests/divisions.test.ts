@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Rng } from '../src/core/rng.ts';
-import { COUNTRIES, TEAMS, getTeam, teamsInCountry } from '../src/data/gameData.ts';
+import { LEAGUE_COUNTRIES, TEAMS, getTeam, teamsInCountry } from '../src/data/gameData.ts';
 import { initialLeagues, locateClub } from '../src/core/career/countries.ts';
 
 /** Every country fields a league of this size. */
@@ -205,7 +205,7 @@ describe('locating a club within a pyramid', () => {
   it('covers every club in the world', () => {
     // Asserted as the invariant rather than as a magic number: every country
     // fields a full league, and adding a country should not need this edited.
-    expect(TEAMS).toHaveLength(COUNTRIES.length * LEAGUE_SIZE);
+    expect(TEAMS).toHaveLength(LEAGUE_COUNTRIES.length * LEAGUE_SIZE);
     const leagues = initialLeagues(TEAMS);
     for (const team of TEAMS) {
       expect(locateClub(leagues, team.id), team.id).not.toBeNull();

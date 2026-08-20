@@ -5,6 +5,7 @@
     "adjective": "English",
     "league": "The Premier Division",
     "short": "ENG",
+    "confederation": "europe",
     "prestige": 1.0
   },
   {
@@ -13,6 +14,7 @@
     "adjective": "Spanish",
     "league": "La Liga Nacional",
     "short": "ESP",
+    "confederation": "europe",
     "prestige": 0.96
   },
   {
@@ -21,6 +23,7 @@
     "adjective": "German",
     "league": "Die Bundesliga",
     "short": "GER",
+    "confederation": "europe",
     "prestige": 0.92
   },
   {
@@ -29,6 +32,7 @@
     "adjective": "Italian",
     "league": "Serie Alta",
     "short": "ITA",
+    "confederation": "europe",
     "prestige": 0.9
   },
   {
@@ -37,6 +41,7 @@
     "adjective": "French",
     "league": "Le Championnat",
     "short": "FRA",
+    "confederation": "europe",
     "prestige": 0.8
   },
   {
@@ -45,6 +50,7 @@
     "adjective": "Turkish",
     "league": "The Super Group",
     "short": "TUR",
+    "confederation": "europe",
     "prestige": 0.72
   },
   {
@@ -53,6 +59,7 @@
     "adjective": "Portuguese",
     "league": "A Liga Principal",
     "short": "POR",
+    "confederation": "europe",
     "prestige": 0.68
   },
   {
@@ -61,6 +68,7 @@
     "adjective": "Dutch",
     "league": "De Eredivisie",
     "short": "NED",
+    "confederation": "europe",
     "prestige": 0.66
   },
   {
@@ -69,6 +77,7 @@
     "adjective": "Belgian",
     "league": "De Ereklasse",
     "short": "BEL",
+    "confederation": "europe",
     "prestige": 0.62
   },
   {
@@ -77,6 +86,7 @@
     "adjective": "Greek",
     "league": "The Alpha Division",
     "short": "GRE",
+    "confederation": "europe",
     "prestige": 0.56
   },
   {
@@ -85,6 +95,7 @@
     "adjective": "Scottish",
     "league": "The Premiership",
     "short": "SCO",
+    "confederation": "europe",
     "prestige": 0.5
   },
   {
@@ -93,6 +104,359 @@
     "adjective": "Austrian",
     "league": "Die Erste Klasse",
     "short": "AUT",
+    "confederation": "europe",
     "prestige": 0.46
+  },
+  {
+    "id": "brazil",
+    "name": "Brazil",
+    "adjective": "Brazilian",
+    "short": "BRA",
+    "confederation": "southAmerica",
+    "prestige": 0.94,
+    "nationalStrength": 93,
+    "style": "possession",
+    "colour": "#f7d117"
+  },
+  {
+    "id": "argentina",
+    "name": "Argentina",
+    "adjective": "Argentine",
+    "short": "ARG",
+    "confederation": "southAmerica",
+    "prestige": 0.92,
+    "nationalStrength": 92,
+    "style": "counterattack",
+    "colour": "#75aadb"
+  },
+  {
+    "id": "uruguay",
+    "name": "Uruguay",
+    "adjective": "Uruguayan",
+    "short": "URU",
+    "confederation": "southAmerica",
+    "prestige": 0.7,
+    "nationalStrength": 84,
+    "style": "defensive",
+    "colour": "#5b9bd5"
+  },
+  {
+    "id": "colombia",
+    "name": "Colombia",
+    "adjective": "Colombian",
+    "short": "COL",
+    "confederation": "southAmerica",
+    "prestige": 0.68,
+    "nationalStrength": 82,
+    "style": "widePlay",
+    "colour": "#fcd116"
+  },
+  {
+    "id": "chile",
+    "name": "Chile",
+    "adjective": "Chilean",
+    "short": "CHI",
+    "confederation": "southAmerica",
+    "prestige": 0.62,
+    "nationalStrength": 79,
+    "style": "highPress",
+    "colour": "#d52b1e"
+  },
+  {
+    "id": "peru",
+    "name": "Peru",
+    "adjective": "Peruvian",
+    "short": "PER",
+    "confederation": "southAmerica",
+    "prestige": 0.54,
+    "nationalStrength": 74,
+    "style": "balanced",
+    "colour": "#d91023"
+  },
+  {
+    "id": "paraguay",
+    "name": "Paraguay",
+    "adjective": "Paraguayan",
+    "short": "PAR",
+    "confederation": "southAmerica",
+    "prestige": 0.5,
+    "nationalStrength": 72,
+    "style": "defensive",
+    "colour": "#0038a8"
+  },
+  {
+    "id": "ecuador",
+    "name": "Ecuador",
+    "adjective": "Ecuadorean",
+    "short": "ECU",
+    "confederation": "southAmerica",
+    "prestige": 0.5,
+    "nationalStrength": 73,
+    "style": "direct",
+    "colour": "#ffd100"
+  },
+  {
+    "id": "nigeria",
+    "name": "Nigeria",
+    "adjective": "Nigerian",
+    "short": "NGA",
+    "confederation": "africa",
+    "prestige": 0.62,
+    "nationalStrength": 81,
+    "style": "direct",
+    "colour": "#008751"
+  },
+  {
+    "id": "senegal",
+    "name": "Senegal",
+    "adjective": "Senegalese",
+    "short": "SEN",
+    "confederation": "africa",
+    "prestige": 0.6,
+    "nationalStrength": 82,
+    "style": "highPress",
+    "colour": "#00853f"
+  },
+  {
+    "id": "morocco",
+    "name": "Morocco",
+    "adjective": "Moroccan",
+    "short": "MAR",
+    "confederation": "africa",
+    "prestige": 0.62,
+    "nationalStrength": 83,
+    "style": "possession",
+    "colour": "#c1272d"
+  },
+  {
+    "id": "egypt",
+    "name": "Egypt",
+    "adjective": "Egyptian",
+    "short": "EGY",
+    "confederation": "africa",
+    "prestige": 0.56,
+    "nationalStrength": 78,
+    "style": "counterattack",
+    "colour": "#ce1126"
+  },
+  {
+    "id": "ghana",
+    "name": "Ghana",
+    "adjective": "Ghanaian",
+    "short": "GHA",
+    "confederation": "africa",
+    "prestige": 0.54,
+    "nationalStrength": 77,
+    "style": "direct",
+    "colour": "#006b3f"
+  },
+  {
+    "id": "cameroon",
+    "name": "Cameroon",
+    "adjective": "Cameroonian",
+    "short": "CMR",
+    "confederation": "africa",
+    "prestige": 0.52,
+    "nationalStrength": 76,
+    "style": "widePlay",
+    "colour": "#007a5e"
+  },
+  {
+    "id": "ivory-coast",
+    "name": "Ivory Coast",
+    "adjective": "Ivorian",
+    "short": "CIV",
+    "confederation": "africa",
+    "prestige": 0.54,
+    "nationalStrength": 78,
+    "style": "balanced",
+    "colour": "#f77f00"
+  },
+  {
+    "id": "algeria",
+    "name": "Algeria",
+    "adjective": "Algerian",
+    "short": "ALG",
+    "confederation": "africa",
+    "prestige": 0.52,
+    "nationalStrength": 77,
+    "style": "possession",
+    "colour": "#006233"
+  },
+  {
+    "id": "japan",
+    "name": "Japan",
+    "adjective": "Japanese",
+    "short": "JPN",
+    "confederation": "asia",
+    "prestige": 0.66,
+    "nationalStrength": 81,
+    "style": "possession",
+    "colour": "#bc002d"
+  },
+  {
+    "id": "south-korea",
+    "name": "South Korea",
+    "adjective": "Korean",
+    "short": "KOR",
+    "confederation": "asia",
+    "prestige": 0.62,
+    "nationalStrength": 79,
+    "style": "highPress",
+    "colour": "#0047a0"
+  },
+  {
+    "id": "iran",
+    "name": "Iran",
+    "adjective": "Iranian",
+    "short": "IRN",
+    "confederation": "asia",
+    "prestige": 0.54,
+    "nationalStrength": 76,
+    "style": "defensive",
+    "colour": "#239f40"
+  },
+  {
+    "id": "australia",
+    "name": "Australia",
+    "adjective": "Australian",
+    "short": "AUS",
+    "confederation": "asia",
+    "prestige": 0.56,
+    "nationalStrength": 76,
+    "style": "direct",
+    "colour": "#00843d"
+  },
+  {
+    "id": "saudi-arabia",
+    "name": "Saudi Arabia",
+    "adjective": "Saudi",
+    "short": "KSA",
+    "confederation": "asia",
+    "prestige": 0.52,
+    "nationalStrength": 72,
+    "style": "counterattack",
+    "colour": "#165d31"
+  },
+  {
+    "id": "qatar",
+    "name": "Qatar",
+    "adjective": "Qatari",
+    "short": "QAT",
+    "confederation": "asia",
+    "prestige": 0.44,
+    "nationalStrength": 69,
+    "style": "possession",
+    "colour": "#8a1538"
+  },
+  {
+    "id": "iraq",
+    "name": "Iraq",
+    "adjective": "Iraqi",
+    "short": "IRQ",
+    "confederation": "asia",
+    "prestige": 0.42,
+    "nationalStrength": 68,
+    "style": "balanced",
+    "colour": "#ce1126"
+  },
+  {
+    "id": "uzbekistan",
+    "name": "Uzbekistan",
+    "adjective": "Uzbek",
+    "short": "UZB",
+    "confederation": "asia",
+    "prestige": 0.4,
+    "nationalStrength": 69,
+    "style": "direct",
+    "colour": "#1eb53a"
+  },
+  {
+    "id": "mexico",
+    "name": "Mexico",
+    "adjective": "Mexican",
+    "short": "MEX",
+    "confederation": "northAmerica",
+    "prestige": 0.68,
+    "nationalStrength": 81,
+    "style": "widePlay",
+    "colour": "#006847"
+  },
+  {
+    "id": "united-states",
+    "name": "United States",
+    "adjective": "American",
+    "short": "USA",
+    "confederation": "northAmerica",
+    "prestige": 0.66,
+    "nationalStrength": 80,
+    "style": "highPress",
+    "colour": "#3c3b6e"
+  },
+  {
+    "id": "costa-rica",
+    "name": "Costa Rica",
+    "adjective": "Costa Rican",
+    "short": "CRC",
+    "confederation": "northAmerica",
+    "prestige": 0.48,
+    "nationalStrength": 71,
+    "style": "defensive",
+    "colour": "#002b7f"
+  },
+  {
+    "id": "canada",
+    "name": "Canada",
+    "adjective": "Canadian",
+    "short": "CAN",
+    "confederation": "northAmerica",
+    "prestige": 0.5,
+    "nationalStrength": 73,
+    "style": "counterattack",
+    "colour": "#d80621"
+  },
+  {
+    "id": "honduras",
+    "name": "Honduras",
+    "adjective": "Honduran",
+    "short": "HON",
+    "confederation": "northAmerica",
+    "prestige": 0.4,
+    "nationalStrength": 67,
+    "style": "direct",
+    "colour": "#0073cf"
+  },
+  {
+    "id": "jamaica",
+    "name": "Jamaica",
+    "adjective": "Jamaican",
+    "short": "JAM",
+    "confederation": "northAmerica",
+    "prestige": 0.4,
+    "nationalStrength": 68,
+    "style": "counterattack",
+    "colour": "#009b3a"
+  },
+  {
+    "id": "panama",
+    "name": "Panama",
+    "adjective": "Panamanian",
+    "short": "PAN",
+    "confederation": "northAmerica",
+    "prestige": 0.38,
+    "nationalStrength": 66,
+    "style": "balanced",
+    "colour": "#005293"
+  },
+  {
+    "id": "el-salvador",
+    "name": "El Salvador",
+    "adjective": "Salvadorean",
+    "short": "SLV",
+    "confederation": "northAmerica",
+    "prestige": 0.36,
+    "nationalStrength": 64,
+    "style": "defensive",
+    "colour": "#0f47af"
   }
 ]

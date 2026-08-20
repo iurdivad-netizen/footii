@@ -18,6 +18,7 @@ import { CUP_KINDS, opponentIn, roundName, stillIn, tieFor } from './cups.ts';
 import type { EuropeanEntries, EuropeanState, EuropeanTier } from './europe.ts';
 import type { CareerRecords } from './records.ts';
 import type { Coefficients } from './coefficients.ts';
+import type { NationStrengths } from './nationDrift.ts';
 import { breakStreaks, recordMatch as recordMatchInBook } from './records.ts';
 import type { CalendarSlot, CompetitionKind } from './calendar.ts';
 import { isEuropean, isInternational, seasonCalendar } from './calendar.ts';
@@ -194,6 +195,13 @@ export interface CareerState {
    */
   coefficients: Coefficients;
   /**
+   * How far each league-less nation has drifted from its authored strength.
+   *
+   * The countries WITH leagues need nothing here: their sides are derived from
+   * clubs that drift on their own. See core/career/nationDrift.ts.
+   */
+  nationStrengths: NationStrengths;
+  /**
    * The record book: the peaks and runs a career is actually remembered for.
    * Accumulated per match and impossible to recompute afterwards.
    */
@@ -311,13 +319,17 @@ export function internationalMatch(
     round,
     opponentId: tie ? opponentIn(tie, nation) : '',
     home: tie ? tie.homeId === nation : true,
-    roundLabel: roundName(koRound, KNOCKOUT_ROUNDS),
+    roundLabel: roundName(koRound, international.knockoutRounds ?? KNOCKOUT_ROUNDS),
   };
 }
 
 /** The season's shape: league rounds and cup rounds in playing order. */
 export function calendarFor(state: CareerState): CalendarSlot[] {
-  return seasonCalendar(fixturesFor(state, state.clubId).length);
+  // The tournament's own depth: a World Cup runs one knockout round longer than
+  // a continental championship, so the season it is played in has one more
+  // international date at the end of it.
+  const knockouts = state.international?.knockoutRounds ?? KNOCKOUT_ROUNDS;
+  return seasonCalendar(fixturesFor(state, state.clubId).length, GROUP_ROUNDS + knockouts);
 }
 
 /** One entry in the season, resolved to an actual match the player will play. */
