@@ -93,30 +93,39 @@ export const EUROPEAN_FIELD = 16;
  * Hand-tuned rather than derived, because each row has to sum to exactly
  * sixteen and because the shape matters more than a formula.
  *
- * READ THE COLUMNS, NOT THE ROWS. A country does not send more clubs to Europe
- * as it climbs — it sends the same number to BETTER competitions:
+ * READ THE COLUMNS, NOT THE ROWS. Every country sends exactly FOUR clubs to
+ * Europe. What climbing the order changes is not how many go, but which
+ * competitions they go to:
  *
- *     rank        1  2  3  4  5  6  7  8
- *     Champions   3  3  3  2  2  1  1  1
- *     Europa      3  2  2  2  2  2  2  1
- *     Conference  1  2  2  2  2  2  2  3
- *     total       7  7  7  6  6  5  5  5
+ *     rank        1  2  3  4  5  6  7  8  9 10 11 12
+ *     Champions   3  3  2  2  2  1  1  1  1  0  0  0
+ *     Europa      1  1  2  2  2  2  2  1  1  1  1  0
+ *     Conference  0  0  0  0  0  1  1  2  2  3  3  4
+ *     total       4  4  4  4  4  4  4  4  4  4  4  4
  *
- * The totals are exactly what they were when the two lower competitions handed
- * every country a flat two apiece; all that has changed is that climbing the
- * order now trades a Conference place for a Europa one.
+ * The Europa row is a HUMP rather than a slope, and that is football rather
+ * than an accident: the biggest countries send most of their allocation to the
+ * Champions League and few to the Europa League, the smallest send theirs to
+ * the Conference League, and the countries in the middle are the ones the Europa
+ * League is mostly made of.
  *
- * That trade is the whole reason the lower rows exist. With only the Champions
- * League row responding, ranks six, seven and eight all got one place, so the
- * three smallest countries could climb two places in the order and see nothing
- * change — measured on a Scottish career that drove Scotland's coefficient to
- * 6.0, the best record in the world, and moved it from eighth to seventh for no
- * reward at all. The country with most to gain from the whole mechanic was the
- * one country it could not reach.
+ * The bottom three send nobody to the Champions League at all. That is a real
+ * and deliberate statement about a small league — and it is the strongest
+ * argument the transfer market has: if you want European nights of that kind at
+ * that club, the club has to climb, and if it cannot, you have to leave.
+ *
+ * These rows are what the coefficient reorders. With only the Champions League
+ * row responding, the countries at the bottom could climb and see nothing
+ * change, because ranks six to eight all got one place each — measured on a
+ * Scottish career that drove Scotland's coefficient to the best in the world
+ * and moved it from eighth to seventh for no reward at all.
  */
-export const CHAMPIONS_LEAGUE_PLACES: readonly number[] = [3, 3, 3, 2, 2, 1, 1, 1];
-export const EUROPA_LEAGUE_PLACES: readonly number[] = [3, 2, 2, 2, 2, 2, 2, 1];
-export const CONFERENCE_LEAGUE_PLACES: readonly number[] = [1, 2, 2, 2, 2, 2, 2, 3];
+export const CHAMPIONS_LEAGUE_PLACES: readonly number[] = [3, 3, 2, 2, 2, 1, 1, 1, 1, 0, 0, 0];
+export const EUROPA_LEAGUE_PLACES: readonly number[] = [1, 1, 2, 2, 2, 2, 2, 1, 1, 1, 1, 0];
+export const CONFERENCE_LEAGUE_PLACES: readonly number[] = [0, 0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4];
+
+/** Every country sends this many clubs to Europe, whatever its standing. */
+export const EUROPEAN_ENTRIES_PER_COUNTRY = 4;
 
 /** Every competition's allocation, in order of standing. */
 export const PLACES_BY_TIER: Record<EuropeanTier, readonly number[]> = {

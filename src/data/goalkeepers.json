@@ -1200,6 +1200,246 @@
     }
   },
   {
+    "id": "emre-sarıkaya",
+    "name": "Emre Sarıkaya",
+    "teamId": "besiktepe-sk",
+    "attributes": {
+      "reflexes": 81,
+      "positioning": 80,
+      "anticipation": 81,
+      "oneOnOne": 76,
+      "aggression": 81,
+      "decisionMaking": 78,
+      "handling": 76,
+      "distribution": 80
+    }
+  },
+  {
+    "id": "kerem-doğanay",
+    "name": "Kerem Doğanay",
+    "teamId": "karadeniz-spor",
+    "attributes": {
+      "reflexes": 77,
+      "positioning": 72,
+      "anticipation": 72,
+      "oneOnOne": 79,
+      "aggression": 67,
+      "decisionMaking": 72,
+      "handling": 76,
+      "distribution": 70
+    }
+  },
+  {
+    "id": "barış-ustundağ",
+    "name": "Barış Üstündağ",
+    "teamId": "yildizhan-fk",
+    "attributes": {
+      "reflexes": 74,
+      "positioning": 69,
+      "anticipation": 69,
+      "oneOnOne": 76,
+      "aggression": 57,
+      "decisionMaking": 73,
+      "handling": 75,
+      "distribution": 74
+    }
+  },
+  {
+    "id": "onur-beyazıt",
+    "name": "Onur Beyazıt",
+    "teamId": "anadolu-gencler",
+    "attributes": {
+      "reflexes": 75,
+      "positioning": 76,
+      "anticipation": 65,
+      "oneOnOne": 65,
+      "aggression": 39,
+      "decisionMaking": 69,
+      "handling": 74,
+      "distribution": 65
+    }
+  },
+  {
+    "id": "serkan-alptekin",
+    "name": "Serkan Alptekin",
+    "teamId": "bogazkent-sk",
+    "attributes": {
+      "reflexes": 65,
+      "positioning": 69,
+      "anticipation": 70,
+      "oneOnOne": 67,
+      "aggression": 69,
+      "decisionMaking": 64,
+      "handling": 68,
+      "distribution": 62
+    }
+  },
+  {
+    "id": "yusuf-kandemir",
+    "name": "Yusuf Kandemir",
+    "teamId": "selimoglu-spor",
+    "attributes": {
+      "reflexes": 66,
+      "positioning": 65,
+      "anticipation": 65,
+      "oneOnOne": 60,
+      "aggression": 74,
+      "decisionMaking": 61,
+      "handling": 66,
+      "distribution": 66
+    }
+  },
+  {
+    "id": "mert-ozdilek",
+    "name": "Mert Özdilek",
+    "teamId": "demirkale-fk",
+    "attributes": {
+      "reflexes": 61,
+      "positioning": 59,
+      "anticipation": 59,
+      "oneOnOne": 60,
+      "aggression": 41,
+      "decisionMaking": 57,
+      "handling": 61,
+      "distribution": 58
+    }
+  },
+  {
+    "id": "halil-turgutlu",
+    "name": "Halil Turgutlu",
+    "teamId": "altinsu-spor",
+    "attributes": {
+      "reflexes": 57,
+      "positioning": 57,
+      "anticipation": 54,
+      "oneOnOne": 58,
+      "aggression": 74,
+      "decisionMaking": 56,
+      "handling": 63,
+      "distribution": 61
+    }
+  },
+  {
+    "id": "burak-şenyurt",
+    "name": "Burak Şenyurt",
+    "teamId": "marmarahisar-sk",
+    "attributes": {
+      "reflexes": 55,
+      "positioning": 59,
+      "anticipation": 59,
+      "oneOnOne": 54,
+      "aggression": 61,
+      "decisionMaking": 51,
+      "handling": 60,
+      "distribution": 50
+    }
+  },
+  {
+    "id": "cem-karaduman",
+    "name": "Cem Karaduman",
+    "teamId": "cinarkoy-fk",
+    "attributes": {
+      "reflexes": 59,
+      "positioning": 58,
+      "anticipation": 54,
+      "oneOnOne": 52,
+      "aggression": 78,
+      "decisionMaking": 48,
+      "handling": 52,
+      "distribution": 52
+    }
+  },
+  {
+    "id": "efe-balcıoğlu",
+    "name": "Efe Balcıoğlu",
+    "teamId": "goksudere-spor",
+    "attributes": {
+      "reflexes": 50,
+      "positioning": 51,
+      "anticipation": 49,
+      "oneOnOne": 49,
+      "aggression": 47,
+      "decisionMaking": 50,
+      "handling": 47,
+      "distribution": 45
+    }
+  },
+  {
+    "id": "ozan-demirtaş",
+    "name": "Ozan Demirtaş",
+    "teamId": "kayalidag-sk",
+    "attributes": {
+      "reflexes": 48,
+      "positioning": 45,
+      "anticipation": 45,
+      "oneOnOne": 52,
+      "aggression": 73,
+      "decisionMaking": 45,
+      "handling": 46,
+      "distribution": 42
+    }
+  },
+  {
+    "id": "tolga-erguven",
+    "name": "Tolga Ergüven",
+    "teamId": "ege-firtinasi",
+    "attributes": {
+      "reflexes": 45,
+      "positioning": 45,
+      "anticipation": 48,
+      "oneOnOne": 47,
+      "aggression": 50,
+      "decisionMaking": 41,
+      "handling": 45,
+      "distribution": 42
+    }
+  },
+  {
+    "id": "kaan-yıldıray",
+    "name": "Kaan Yıldıray",
+    "teamId": "tuzlabeyi-fk",
+    "attributes": {
+      "reflexes": 42,
+      "positioning": 44,
+      "anticipation": 37,
+      "oneOnOne": 45,
+      "aggression": 57,
+      "decisionMaking": 39,
+      "handling": 45,
+      "distribution": 43
+    }
+  },
+  {
+    "id": "uğur-melikoğlu",
+    "name": "Uğur Melikoğlu",
+    "teamId": "harmanlik-spor",
+    "attributes": {
+      "reflexes": 41,
+      "positioning": 43,
+      "anticipation": 40,
+      "oneOnOne": 34,
+      "aggression": 50,
+      "decisionMaking": 37,
+      "handling": 38,
+      "distribution": 34
+    }
+  },
+  {
+    "id": "deniz-akbulut",
+    "name": "Deniz Akbulut",
+    "teamId": "serindere-sk",
+    "attributes": {
+      "reflexes": 32,
+      "positioning": 39,
+      "anticipation": 34,
+      "oneOnOne": 34,
+      "aggression": 59,
+      "decisionMaking": 38,
+      "handling": 34,
+      "distribution": 34
+    }
+  },
+  {
     "id": "rui-palminha",
     "name": "Rui Palminha",
     "teamId": "sporting-alvorada",
@@ -1680,6 +1920,486 @@
     }
   },
   {
+    "id": "wouter-claessens",
+    "name": "Wouter Claessens",
+    "teamId": "rsc-vaelbeke",
+    "attributes": {
+      "reflexes": 79,
+      "positioning": 77,
+      "anticipation": 72,
+      "oneOnOne": 70,
+      "aggression": 75,
+      "decisionMaking": 76,
+      "handling": 78,
+      "distribution": 76
+    }
+  },
+  {
+    "id": "thibaut-vermeersch",
+    "name": "Thibaut Vermeersch",
+    "teamId": "kv-doornhout",
+    "attributes": {
+      "reflexes": 74,
+      "positioning": 70,
+      "anticipation": 74,
+      "oneOnOne": 73,
+      "aggression": 61,
+      "decisionMaking": 69,
+      "handling": 70,
+      "distribution": 71
+    }
+  },
+  {
+    "id": "jonas-delcroix",
+    "name": "Jonas Delcroix",
+    "teamId": "standaard-liegny",
+    "attributes": {
+      "reflexes": 69,
+      "positioning": 72,
+      "anticipation": 70,
+      "oneOnOne": 63,
+      "aggression": 51,
+      "decisionMaking": 67,
+      "handling": 68,
+      "distribution": 63
+    }
+  },
+  {
+    "id": "maarten-buysse",
+    "name": "Maarten Buysse",
+    "teamId": "kaa-merksfoort",
+    "attributes": {
+      "reflexes": 67,
+      "positioning": 69,
+      "anticipation": 64,
+      "oneOnOne": 64,
+      "aggression": 75,
+      "decisionMaking": 63,
+      "handling": 71,
+      "distribution": 59
+    }
+  },
+  {
+    "id": "nils-vandewalle",
+    "name": "Nils Vandewalle",
+    "teamId": "rfc-hesbaville",
+    "attributes": {
+      "reflexes": 60,
+      "positioning": 62,
+      "anticipation": 62,
+      "oneOnOne": 59,
+      "aggression": 64,
+      "decisionMaking": 66,
+      "handling": 60,
+      "distribution": 65
+    }
+  },
+  {
+    "id": "arne-steegmans",
+    "name": "Arne Steegmans",
+    "teamId": "sk-westerlinde",
+    "attributes": {
+      "reflexes": 61,
+      "positioning": 62,
+      "anticipation": 64,
+      "oneOnOne": 60,
+      "aggression": 56,
+      "decisionMaking": 60,
+      "handling": 66,
+      "distribution": 60
+    }
+  },
+  {
+    "id": "robbe-dekempeneer",
+    "name": "Robbe Dekempeneer",
+    "teamId": "kvc-zandbergen",
+    "attributes": {
+      "reflexes": 56,
+      "positioning": 55,
+      "anticipation": 61,
+      "oneOnOne": 61,
+      "aggression": 66,
+      "decisionMaking": 59,
+      "handling": 61,
+      "distribution": 55
+    }
+  },
+  {
+    "id": "simon-lauwereys",
+    "name": "Simon Lauwereys",
+    "teamId": "rc-namuroise",
+    "attributes": {
+      "reflexes": 56,
+      "positioning": 58,
+      "anticipation": 57,
+      "oneOnOne": 53,
+      "aggression": 53,
+      "decisionMaking": 52,
+      "handling": 53,
+      "distribution": 49
+    }
+  },
+  {
+    "id": "kobe-verhulst",
+    "name": "Kobe Verhulst",
+    "teamId": "kfc-oostkamp",
+    "attributes": {
+      "reflexes": 56,
+      "positioning": 50,
+      "anticipation": 50,
+      "oneOnOne": 48,
+      "aggression": 47,
+      "decisionMaking": 49,
+      "handling": 56,
+      "distribution": 50
+    }
+  },
+  {
+    "id": "gilles-maertens",
+    "name": "Gilles Maertens",
+    "teamId": "union-verlaine",
+    "attributes": {
+      "reflexes": 54,
+      "positioning": 50,
+      "anticipation": 48,
+      "oneOnOne": 44,
+      "aggression": 71,
+      "decisionMaking": 47,
+      "handling": 48,
+      "distribution": 51
+    }
+  },
+  {
+    "id": "senne-vanoverbeke",
+    "name": "Senne Vanoverbeke",
+    "teamId": "kvv-turnhoven",
+    "attributes": {
+      "reflexes": 51,
+      "positioning": 47,
+      "anticipation": 47,
+      "oneOnOne": 41,
+      "aggression": 51,
+      "decisionMaking": 47,
+      "handling": 46,
+      "distribution": 45
+    }
+  },
+  {
+    "id": "lander-coppens",
+    "name": "Lander Coppens",
+    "teamId": "cs-borinage",
+    "attributes": {
+      "reflexes": 45,
+      "positioning": 40,
+      "anticipation": 42,
+      "oneOnOne": 39,
+      "aggression": 79,
+      "decisionMaking": 43,
+      "handling": 48,
+      "distribution": 45
+    }
+  },
+  {
+    "id": "milan-segers",
+    "name": "Milan Segers",
+    "teamId": "ksv-maldegheim",
+    "attributes": {
+      "reflexes": 39,
+      "positioning": 42,
+      "anticipation": 43,
+      "oneOnOne": 40,
+      "aggression": 39,
+      "decisionMaking": 40,
+      "handling": 41,
+      "distribution": 37
+    }
+  },
+  {
+    "id": "aaron-debusschere",
+    "name": "Aaron Debusschere",
+    "teamId": "rrc-thuinois",
+    "attributes": {
+      "reflexes": 43,
+      "positioning": 42,
+      "anticipation": 34,
+      "oneOnOne": 32,
+      "aggression": 69,
+      "decisionMaking": 35,
+      "handling": 34,
+      "distribution": 39
+    }
+  },
+  {
+    "id": "vincent-cauwenberghs",
+    "name": "Vincent Cauwenberghs",
+    "teamId": "kfc-lenniksveld",
+    "attributes": {
+      "reflexes": 32,
+      "positioning": 38,
+      "anticipation": 29,
+      "oneOnOne": 32,
+      "aggression": 42,
+      "decisionMaking": 34,
+      "handling": 38,
+      "distribution": 32
+    }
+  },
+  {
+    "id": "ruben-dhaenens",
+    "name": "Ruben Dhaenens",
+    "teamId": "sk-eeklode",
+    "attributes": {
+      "reflexes": 31,
+      "positioning": 35,
+      "anticipation": 27,
+      "oneOnOne": 31,
+      "aggression": 65,
+      "decisionMaking": 32,
+      "handling": 30,
+      "distribution": 25
+    }
+  },
+  {
+    "id": "nikos-stavrianos",
+    "name": "Nikos Stavrianos",
+    "teamId": "pae-kalithros",
+    "attributes": {
+      "reflexes": 71,
+      "positioning": 69,
+      "anticipation": 72,
+      "oneOnOne": 70,
+      "aggression": 62,
+      "decisionMaking": 77,
+      "handling": 70,
+      "distribution": 67
+    }
+  },
+  {
+    "id": "dimitris-kalogeras",
+    "name": "Dimitris Kalogeras",
+    "teamId": "aetos-larimna",
+    "attributes": {
+      "reflexes": 72,
+      "positioning": 72,
+      "anticipation": 65,
+      "oneOnOne": 70,
+      "aggression": 55,
+      "decisionMaking": 69,
+      "handling": 74,
+      "distribution": 64
+    }
+  },
+  {
+    "id": "yiannis-petrakos",
+    "name": "Yiannis Petrakos",
+    "teamId": "thermaikos-fc",
+    "attributes": {
+      "reflexes": 68,
+      "positioning": 70,
+      "anticipation": 63,
+      "oneOnOne": 63,
+      "aggression": 50,
+      "decisionMaking": 66,
+      "handling": 68,
+      "distribution": 61
+    }
+  },
+  {
+    "id": "vasilis-anagnostou",
+    "name": "Vasilis Anagnostou",
+    "teamId": "pandoros-athinon",
+    "attributes": {
+      "reflexes": 70,
+      "positioning": 65,
+      "anticipation": 61,
+      "oneOnOne": 69,
+      "aggression": 71,
+      "decisionMaking": 68,
+      "handling": 62,
+      "distribution": 62
+    }
+  },
+  {
+    "id": "kostas-fragoulis",
+    "name": "Kostas Fragoulis",
+    "teamId": "kentavros-veria",
+    "attributes": {
+      "reflexes": 60,
+      "positioning": 64,
+      "anticipation": 59,
+      "oneOnOne": 66,
+      "aggression": 58,
+      "decisionMaking": 65,
+      "handling": 67,
+      "distribution": 63
+    }
+  },
+  {
+    "id": "stelios-manolopoulos",
+    "name": "Stelios Manolopoulos",
+    "teamId": "egaleos-pyrgos",
+    "attributes": {
+      "reflexes": 60,
+      "positioning": 60,
+      "anticipation": 56,
+      "oneOnOne": 57,
+      "aggression": 76,
+      "decisionMaking": 59,
+      "handling": 61,
+      "distribution": 52
+    }
+  },
+  {
+    "id": "christos-vergados",
+    "name": "Christos Vergados",
+    "teamId": "apollonias-kos",
+    "attributes": {
+      "reflexes": 53,
+      "positioning": 53,
+      "anticipation": 57,
+      "oneOnOne": 56,
+      "aggression": 58,
+      "decisionMaking": 55,
+      "handling": 61,
+      "distribution": 54
+    }
+  },
+  {
+    "id": "alexis-roumeliotis",
+    "name": "Alexis Roumeliotis",
+    "teamId": "makedonikos-fc",
+    "attributes": {
+      "reflexes": 58,
+      "positioning": 51,
+      "anticipation": 56,
+      "oneOnOne": 54,
+      "aggression": 80,
+      "decisionMaking": 48,
+      "handling": 55,
+      "distribution": 53
+    }
+  },
+  {
+    "id": "panagiotis-drosakis",
+    "name": "Panagiotis Drosakis",
+    "teamId": "ionikos-halandri",
+    "attributes": {
+      "reflexes": 57,
+      "positioning": 50,
+      "anticipation": 54,
+      "oneOnOne": 47,
+      "aggression": 57,
+      "decisionMaking": 47,
+      "handling": 47,
+      "distribution": 52
+    }
+  },
+  {
+    "id": "thanasis-kolovos",
+    "name": "Thanasis Kolovos",
+    "teamId": "kerkyraikos-fc",
+    "attributes": {
+      "reflexes": 51,
+      "positioning": 44,
+      "anticipation": 50,
+      "oneOnOne": 49,
+      "aggression": 55,
+      "decisionMaking": 52,
+      "handling": 48,
+      "distribution": 42
+    }
+  },
+  {
+    "id": "michalis-varvaressos",
+    "name": "Michalis Varvaressos",
+    "teamId": "dorikos-messini",
+    "attributes": {
+      "reflexes": 44,
+      "positioning": 45,
+      "anticipation": 40,
+      "oneOnOne": 45,
+      "aggression": 66,
+      "decisionMaking": 44,
+      "handling": 45,
+      "distribution": 40
+    }
+  },
+  {
+    "id": "giorgos-tselios",
+    "name": "Giorgos Tselios",
+    "teamId": "olympos-katerini",
+    "attributes": {
+      "reflexes": 45,
+      "positioning": 45,
+      "anticipation": 41,
+      "oneOnOne": 44,
+      "aggression": 63,
+      "decisionMaking": 41,
+      "handling": 38,
+      "distribution": 40
+    }
+  },
+  {
+    "id": "sotiris-kanellakis",
+    "name": "Sotiris Kanellakis",
+    "teamId": "achaikos-patron",
+    "attributes": {
+      "reflexes": 36,
+      "positioning": 42,
+      "anticipation": 34,
+      "oneOnOne": 36,
+      "aggression": 53,
+      "decisionMaking": 40,
+      "handling": 41,
+      "distribution": 36
+    }
+  },
+  {
+    "id": "lefteris-mparoutsos",
+    "name": "Lefteris Mparoutsos",
+    "teamId": "nafpaktia-fc",
+    "attributes": {
+      "reflexes": 39,
+      "positioning": 39,
+      "anticipation": 32,
+      "oneOnOne": 40,
+      "aggression": 51,
+      "decisionMaking": 32,
+      "handling": 33,
+      "distribution": 34
+    }
+  },
+  {
+    "id": "andreas-zafeiriou",
+    "name": "Andreas Zafeiriou",
+    "teamId": "elpida-serron",
+    "attributes": {
+      "reflexes": 39,
+      "positioning": 33,
+      "anticipation": 29,
+      "oneOnOne": 30,
+      "aggression": 46,
+      "decisionMaking": 35,
+      "handling": 39,
+      "distribution": 31
+    }
+  },
+  {
+    "id": "manolis-tsirigotis",
+    "name": "Manolis Tsirigotis",
+    "teamId": "kymi-evias",
+    "attributes": {
+      "reflexes": 37,
+      "positioning": 31,
+      "anticipation": 34,
+      "oneOnOne": 29,
+      "aggression": 78,
+      "decisionMaking": 30,
+      "handling": 26,
+      "distribution": 32
+    }
+  },
+  {
     "id": "callum-rennieson",
     "name": "Callum Rennieson",
     "teamId": "kilbrannan-athletic",
@@ -1917,6 +2637,246 @@
       "decisionMaking": 32,
       "handling": 26,
       "distribution": 26
+    }
+  },
+  {
+    "id": "lukas-hinterberger",
+    "name": "Lukas Hinterberger",
+    "teamId": "sk-hochstein",
+    "attributes": {
+      "reflexes": 75,
+      "positioning": 73,
+      "anticipation": 69,
+      "oneOnOne": 74,
+      "aggression": 59,
+      "decisionMaking": 71,
+      "handling": 68,
+      "distribution": 70
+    }
+  },
+  {
+    "id": "florian-grubmuller",
+    "name": "Florian Grubmüller",
+    "teamId": "fc-wolkenau",
+    "attributes": {
+      "reflexes": 70,
+      "positioning": 67,
+      "anticipation": 65,
+      "oneOnOne": 69,
+      "aggression": 80,
+      "decisionMaking": 68,
+      "handling": 72,
+      "distribution": 64
+    }
+  },
+  {
+    "id": "matthias-puchleitner",
+    "name": "Matthias Puchleitner",
+    "teamId": "austria-lindenthal",
+    "attributes": {
+      "reflexes": 71,
+      "positioning": 67,
+      "anticipation": 64,
+      "oneOnOne": 63,
+      "aggression": 72,
+      "decisionMaking": 67,
+      "handling": 65,
+      "distribution": 60
+    }
+  },
+  {
+    "id": "dominik-ehrenfels",
+    "name": "Dominik Ehrenfels",
+    "teamId": "sv-marchegg",
+    "attributes": {
+      "reflexes": 65,
+      "positioning": 67,
+      "anticipation": 60,
+      "oneOnOne": 65,
+      "aggression": 39,
+      "decisionMaking": 63,
+      "handling": 66,
+      "distribution": 57
+    }
+  },
+  {
+    "id": "stefan-radlmayr",
+    "name": "Stefan Radlmayr",
+    "teamId": "wsg-tannbruck",
+    "attributes": {
+      "reflexes": 60,
+      "positioning": 64,
+      "anticipation": 56,
+      "oneOnOne": 58,
+      "aggression": 53,
+      "decisionMaking": 59,
+      "handling": 55,
+      "distribution": 53
+    }
+  },
+  {
+    "id": "christoph-windisch",
+    "name": "Christoph Windisch",
+    "teamId": "sk-ennsleithen",
+    "attributes": {
+      "reflexes": 54,
+      "positioning": 55,
+      "anticipation": 51,
+      "oneOnOne": 52,
+      "aggression": 58,
+      "decisionMaking": 51,
+      "handling": 54,
+      "distribution": 55
+    }
+  },
+  {
+    "id": "manuel-trattnig",
+    "name": "Manuel Trattnig",
+    "teamId": "fc-kaltenbrunn",
+    "attributes": {
+      "reflexes": 56,
+      "positioning": 55,
+      "anticipation": 51,
+      "oneOnOne": 52,
+      "aggression": 55,
+      "decisionMaking": 49,
+      "handling": 50,
+      "distribution": 53
+    }
+  },
+  {
+    "id": "patrick-auerbock",
+    "name": "Patrick Auerböck",
+    "teamId": "sv-ratzendorf",
+    "attributes": {
+      "reflexes": 51,
+      "positioning": 55,
+      "anticipation": 46,
+      "oneOnOne": 55,
+      "aggression": 72,
+      "decisionMaking": 47,
+      "handling": 49,
+      "distribution": 44
+    }
+  },
+  {
+    "id": "fabian-zwettler",
+    "name": "Fabian Zwettler",
+    "teamId": "hohenau-wien",
+    "attributes": {
+      "reflexes": 51,
+      "positioning": 47,
+      "anticipation": 44,
+      "oneOnOne": 43,
+      "aggression": 46,
+      "decisionMaking": 44,
+      "handling": 48,
+      "distribution": 50
+    }
+  },
+  {
+    "id": "sebastian-neuwirth",
+    "name": "Sebastian Neuwirth",
+    "teamId": "sk-purgstall",
+    "attributes": {
+      "reflexes": 46,
+      "positioning": 50,
+      "anticipation": 41,
+      "oneOnOne": 42,
+      "aggression": 61,
+      "decisionMaking": 45,
+      "handling": 46,
+      "distribution": 41
+    }
+  },
+  {
+    "id": "andreas-pilzbacher",
+    "name": "Andreas Pilzbacher",
+    "teamId": "fc-steyregg",
+    "attributes": {
+      "reflexes": 39,
+      "positioning": 42,
+      "anticipation": 37,
+      "oneOnOne": 45,
+      "aggression": 41,
+      "decisionMaking": 38,
+      "handling": 43,
+      "distribution": 41
+    }
+  },
+  {
+    "id": "daniel-hoflehner",
+    "name": "Daniel Hoflehner",
+    "teamId": "sv-oberfeld",
+    "attributes": {
+      "reflexes": 42,
+      "positioning": 43,
+      "anticipation": 40,
+      "oneOnOne": 41,
+      "aggression": 39,
+      "decisionMaking": 38,
+      "handling": 37,
+      "distribution": 33
+    }
+  },
+  {
+    "id": "michael-wolkersdorfer",
+    "name": "Michael Wolkersdorfer",
+    "teamId": "sk-villachtal",
+    "attributes": {
+      "reflexes": 36,
+      "positioning": 34,
+      "anticipation": 35,
+      "oneOnOne": 35,
+      "aggression": 60,
+      "decisionMaking": 41,
+      "handling": 38,
+      "distribution": 32
+    }
+  },
+  {
+    "id": "simon-gattringer",
+    "name": "Simon Gattringer",
+    "teamId": "fc-neusiedlbach",
+    "attributes": {
+      "reflexes": 32,
+      "positioning": 34,
+      "anticipation": 34,
+      "oneOnOne": 38,
+      "aggression": 70,
+      "decisionMaking": 33,
+      "handling": 35,
+      "distribution": 28
+    }
+  },
+  {
+    "id": "thomas-riedlsperger",
+    "name": "Thomas Riedlsperger",
+    "teamId": "sv-gramastetten",
+    "attributes": {
+      "reflexes": 28,
+      "positioning": 29,
+      "anticipation": 29,
+      "oneOnOne": 29,
+      "aggression": 46,
+      "decisionMaking": 33,
+      "handling": 28,
+      "distribution": 33
+    }
+  },
+  {
+    "id": "bernhard-kollmann",
+    "name": "Bernhard Kollmann",
+    "teamId": "sk-mattersdorf",
+    "attributes": {
+      "reflexes": 25,
+      "positioning": 25,
+      "anticipation": 31,
+      "oneOnOne": 26,
+      "aggression": 52,
+      "decisionMaking": 32,
+      "handling": 23,
+      "distribution": 24
     }
   }
 ]

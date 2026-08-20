@@ -4,6 +4,7 @@ import {
   CHAMPIONS_LEAGUE_PLACES,
   CONFERENCE_LEAGUE_PLACES,
   EUROPA_LEAGUE_PLACES,
+  EUROPEAN_ENTRIES_PER_COUNTRY,
   PLACES_BY_TIER,
   EUROPEAN_FIELD,
   EUROPEAN_TIERS,
@@ -121,25 +122,46 @@ describe('how many places a country gets', () => {
     // the Champions League row gives ranks six to eight one place each.
     const entries = (rank: number) =>
       CHAMPIONS_LEAGUE_PLACES[rank]! + EUROPA_LEAGUE_PLACES[rank]! + CONFERENCE_LEAGUE_PLACES[rank]!;
-    expect(COUNTRIES.map((_, rank) => entries(rank))).toEqual([7, 7, 7, 6, 6, 5, 5, 5]);
+    expect(COUNTRIES.map((_, rank) => entries(rank))).toEqual(
+      COUNTRIES.map(() => EUROPEAN_ENTRIES_PER_COUNTRY),
+    );
   });
 
   it('never gives a lower-ranked country a better competition than a higher one', () => {
-    for (const tier of ['championsLeague', 'europaLeague'] as const) {
-      const places = PLACES_BY_TIER[tier];
-      for (let i = 1; i < places.length; i++) {
-        expect(places[i - 1], `${tier} ${i}`).toBeGreaterThanOrEqual(places[i]!);
-      }
+    // The Champions League slopes down and the Conference League slopes up: it
+    // is the competition you drop OUT of as you climb.
+    for (let i = 1; i < CHAMPIONS_LEAGUE_PLACES.length; i++) {
+      expect(CHAMPIONS_LEAGUE_PLACES[i - 1], `ucl ${i}`).toBeGreaterThanOrEqual(
+        CHAMPIONS_LEAGUE_PLACES[i]!,
+      );
+      expect(CONFERENCE_LEAGUE_PLACES[i - 1], `uecl ${i}`).toBeLessThanOrEqual(
+        CONFERENCE_LEAGUE_PLACES[i]!,
+      );
     }
-    // The Conference League runs the other way: it is the competition you drop
-    // OUT of as you climb, so the smallest country sends the most clubs to it.
-    for (let i = 1; i < CONFERENCE_LEAGUE_PLACES.length; i++) {
-      expect(CONFERENCE_LEAGUE_PLACES[i - 1]).toBeLessThanOrEqual(CONFERENCE_LEAGUE_PLACES[i]!);
+  });
+
+  it('makes the Europa League a hump rather than a slope', () => {
+    // Football, not an accident: the biggest countries send most of their
+    // allocation to the Champions League and the smallest send theirs to the
+    // Conference League, so the Europa League is mostly made of the middle.
+    const peak = Math.max(...EUROPA_LEAGUE_PLACES);
+    const first = EUROPA_LEAGUE_PLACES.indexOf(peak);
+    const last = EUROPA_LEAGUE_PLACES.lastIndexOf(peak);
+    expect(first).toBeGreaterThan(0);
+    expect(last).toBeLessThan(EUROPA_LEAGUE_PLACES.length - 1);
+    // Rising into the hump, falling out of it, and never bouncing.
+    for (let i = 1; i <= first; i++) {
+      expect(EUROPA_LEAGUE_PLACES[i - 1]).toBeLessThanOrEqual(EUROPA_LEAGUE_PLACES[i]!);
+    }
+    for (let i = last + 1; i < EUROPA_LEAGUE_PLACES.length; i++) {
+      expect(EUROPA_LEAGUE_PLACES[i - 1]).toBeGreaterThanOrEqual(EUROPA_LEAGUE_PLACES[i]!);
     }
   });
 
   it('treats a country it has never heard of as the smallest', () => {
-    expect(championsLeaguePlaces('atlantis')).toBe(1);
+    expect(championsLeaguePlaces('atlantis')).toBe(
+      CHAMPIONS_LEAGUE_PLACES[CHAMPIONS_LEAGUE_PLACES.length - 1],
+    );
   });
 });
 
@@ -183,13 +205,23 @@ describe('qualifying on league position', () => {
     }
   });
 
-  it('draws from every country, so a European draw crosses borders', () => {
-    const countriesInvolved = new Set(
-      fieldFor(entries, 'championsLeague').map(
-        (id) => COUNTRIES.find((c) => teamsInCountry(c.id).some((t) => t.id === id))!.id,
-      ),
+  it('draws from every country that has a place, so a European draw crosses borders', () => {
+    const countryOf = (id: string) =>
+      COUNTRIES.find((c) => teamsInCountry(c.id).some((t) => t.id === id))!.id;
+
+    // The Champions League reaches every country with a place in it — and the
+    // countries at the bottom of the order have none, which is the point of
+    // being at the bottom of the order.
+    const inTheCup = new Set(fieldFor(entries, 'championsLeague').map(countryOf));
+    const entitled = COUNTRIES.filter((c) => europeanPlaces(c.id).championsLeague > 0);
+    expect(inTheCup.size).toBe(entitled.length);
+    expect(entitled.length).toBeLessThan(COUNTRIES.length);
+
+    // But every country is somewhere in Europe: nobody is shut out entirely.
+    const anywhere = new Set(
+      EUROPEAN_TIERS.flatMap((tier) => fieldFor(entries, tier)).map(countryOf),
     );
-    expect(countriesInvolved.size).toBe(COUNTRIES.length);
+    expect(anywhere.size).toBe(COUNTRIES.length);
   });
 
   it('is a pure function of its input', () => {

@@ -158,12 +158,20 @@ COUNTRIES = [
      "short": "ITA", "prestige": 0.9, "ceiling": 84, "floor": 41},
     {"id": "france", "adjective": "French", "name": "France", "league": "Le Championnat",
      "short": "FRA", "prestige": 0.8, "ceiling": 82, "floor": 38},
+    {"id": "turkey", "adjective": "Turkish", "name": "Turkey", "league": "The Super Group",
+     "short": "TUR", "prestige": 0.72, "ceiling": 79, "floor": 35},
     {"id": "portugal", "adjective": "Portuguese", "name": "Portugal", "league": "A Liga Principal",
      "short": "POR", "prestige": 0.68, "ceiling": 78, "floor": 34},
     {"id": "netherlands", "adjective": "Dutch", "name": "Netherlands", "league": "De Eredivisie",
      "short": "NED", "prestige": 0.66, "ceiling": 76, "floor": 33},
+    {"id": "belgium", "adjective": "Belgian", "name": "Belgium", "league": "De Ereklasse",
+     "short": "BEL", "prestige": 0.62, "ceiling": 74, "floor": 31},
+    {"id": "greece", "adjective": "Greek", "name": "Greece", "league": "The Alpha Division",
+     "short": "GRE", "prestige": 0.56, "ceiling": 73, "floor": 30},
     {"id": "scotland", "adjective": "Scottish", "name": "Scotland", "league": "The Premiership",
      "short": "SCO", "prestige": 0.5, "ceiling": 72, "floor": 28},
+    {"id": "austria", "adjective": "Austrian", "name": "Austria", "league": "Die Erste Klasse",
+     "short": "AUT", "prestige": 0.46, "ceiling": 70, "floor": 27},
 ]
 
 
@@ -300,6 +308,78 @@ CLUBS = {
         club("carrickbane-united", "Carrickbane United", "CKB", "balanced"),
         club("drumnaveigh-thistle", "Drumnaveigh Thistle", "DNT", "counterattack"),
     ],
+    "turkey": [
+        club("besiktepe-sk", "Beşiktepe SK", "BST", "highPress"),
+        club("karadeniz-spor", "Karadeniz Spor", "KDZ", "counterattack"),
+        club("yildizhan-fk", "Yıldızhan FK", "YLD", "possession"),
+        club("anadolu-gencler", "Anadolu Gençler", "ANG", "direct"),
+        club("bogazkent-sk", "Boğazkent SK", "BGK", "widePlay"),
+        club("selimoglu-spor", "Selimoğlu Spor", "SLM", "balanced"),
+        club("demirkale-fk", "Demirkale FK", "DMK", "defensive"),
+        club("altinsu-spor", "Altınsu Spor", "ALT", "counterattack"),
+        club("marmarahisar-sk", "Marmarahisar SK", "MRH", "possession"),
+        club("cinarkoy-fk", "Çınarköy FK", "CNK", "highPress"),
+        club("goksudere-spor", "Göksudere Spor", "GKS", "direct"),
+        club("kayalidag-sk", "Kayalıdağ SK", "KYD", "widePlay"),
+        club("ege-firtinasi", "Ege Fırtınası", "EGF", "balanced"),
+        club("tuzlabeyi-fk", "Tuzlabeyi FK", "TZB", "defensive"),
+        club("harmanlik-spor", "Harmanlık Spor", "HRM", "counterattack"),
+        club("serindere-sk", "Serindere SK", "SRD", "balanced"),
+    ],
+    "belgium": [
+        club("rsc-vaelbeke", "RSC Vaelbeke", "VAE", "possession"),
+        club("kv-doornhout", "KV Doornhout", "DHT", "highPress"),
+        club("standaard-liegny", "Standaard Liegny", "SLG", "counterattack"),
+        club("kaa-merksfoort", "KAA Merksfoort", "MKF", "widePlay"),
+        club("rfc-hesbaville", "RFC Hesbaville", "HSB", "direct"),
+        club("sk-westerlinde", "SK Westerlinde", "WSL", "balanced"),
+        club("kvc-zandbergen", "KVC Zandbergen", "ZND", "defensive"),
+        club("rc-namuroise", "RC Namuroise", "NMR", "possession"),
+        club("kfc-oostkamp", "KFC Oostkamp", "OKP", "counterattack"),
+        club("union-verlaine", "Union Verlaine", "UVL", "widePlay"),
+        club("kvv-turnhoven", "KVV Turnhoven", "TRH", "highPress"),
+        club("cs-borinage", "CS Borinage", "BRG", "direct"),
+        club("ksv-maldegheim", "KSV Maldegheim", "MLD", "defensive"),
+        club("rrc-thuinois", "RRC Thuinois", "THN", "balanced"),
+        club("kfc-lenniksveld", "KFC Lenniksveld", "LNV", "counterattack"),
+        club("sk-eeklode", "SK Eeklode", "EKL", "possession"),
+    ],
+    "greece": [
+        club("pae-kalithros", "PAE Kalithros", "KLT", "possession"),
+        club("aetos-larimna", "Aetos Larimna", "AET", "counterattack"),
+        club("thermaikos-fc", "Thermaikos FC", "THM", "highPress"),
+        club("pandoros-athinon", "Pandoros Athinon", "PDA", "direct"),
+        club("kentavros-veria", "Kentavros Veria", "KNV", "widePlay"),
+        club("egaleos-pyrgos", "Egaleos Pyrgos", "EGP", "balanced"),
+        club("apollonias-kos", "Apollonias Kos", "APK", "defensive"),
+        club("makedonikos-fc", "Makedonikos FC", "MKD", "counterattack"),
+        club("ionikos-halandri", "Ionikos Halandri", "IHL", "possession"),
+        club("kerkyraikos-fc", "Kerkyraikos FC", "KRK", "widePlay"),
+        club("dorikos-messini", "Dorikos Messini", "DRM", "direct"),
+        club("olympos-katerini", "Olympos Katerini", "OLK", "highPress"),
+        club("achaikos-patron", "Achaikos Patron", "ACH", "defensive"),
+        club("nafpaktia-fc", "Nafpaktia FC", "NFP", "balanced"),
+        club("elpida-serron", "Elpida Serron", "ELS", "counterattack"),
+        club("kymi-evias", "Kymi Evias", "KYM", "balanced"),
+    ],
+    "austria": [
+        club("sk-hochstein", "SK Hochstein", "HCH", "highPress"),
+        club("fc-wolkenau", "FC Wolkenau", "WLK", "possession"),
+        club("austria-lindenthal", "Austria Lindenthal", "LDT", "counterattack"),
+        club("sv-marchegg", "SV Marchegg", "MGG", "direct"),
+        club("wsg-tannbruck", "WSG Tannbruck", "TNB", "widePlay"),
+        club("sk-ennsleithen", "SK Ennsleithen", "ENS", "balanced"),
+        club("fc-kaltenbrunn", "FC Kaltenbrunn", "KBR", "defensive"),
+        club("sv-ratzendorf", "SV Ratzendorf", "RTZ", "counterattack"),
+        club("hohenau-wien", "Hohenau Wien", "HHW", "possession"),
+        club("sk-purgstall", "SK Purgstall", "PRG", "widePlay"),
+        club("fc-steyregg", "FC Steyregg", "STY", "highPress"),
+        club("sv-oberfeld", "SV Oberfeld", "OBF", "direct"),
+        club("sk-villachtal", "SK Villachtal", "VLT", "defensive"),
+        club("fc-neusiedlbach", "FC Neusiedlbach", "NSB", "balanced"),
+        club("sv-gramastetten", "SV Gramastetten", "GRM", "counterattack"),
+        club("sk-mattersdorf", "SK Mattersdorf", "MTD", "balanced"),
+    ],
 }
 
 KEEPERS = {
@@ -331,6 +411,22 @@ KEEPERS = {
                  "Fraser Dunwoodie", "Kieran Lauchlan", "Blair Cattanach", "Angus Murchison",
                  "Ewan Strachan", "Douglas Kilgour", "Innes MacRitchie", "Grant Fyvie",
                  "Lewis Tannahill", "Cameron Braidwood", "Murray Kinnaird", "Ross Auchinleck"],
+    "turkey": ["Emre Sarıkaya", "Kerem Doğanay", "Barış Üstündağ", "Onur Beyazıt",
+               "Serkan Alptekin", "Yusuf Kandemir", "Mert Özdilek", "Halil Turgutlu",
+               "Burak Şenyurt", "Cem Karaduman", "Efe Balcıoğlu", "Ozan Demirtaş",
+               "Tolga Ergüven", "Kaan Yıldıray", "Uğur Melikoğlu", "Deniz Akbulut"],
+    "belgium": ["Wouter Claessens", "Thibaut Vermeersch", "Jonas Delcroix", "Maarten Buysse",
+                "Nils Vandewalle", "Arne Steegmans", "Robbe Dekempeneer", "Simon Lauwereys",
+                "Kobe Verhulst", "Gilles Maertens", "Senne Vanoverbeke", "Lander Coppens",
+                "Milan Segers", "Aaron Debusschere", "Vincent Cauwenberghs", "Ruben Dhaenens"],
+    "greece": ["Nikos Stavrianos", "Dimitris Kalogeras", "Yiannis Petrakos", "Vasilis Anagnostou",
+               "Kostas Fragoulis", "Stelios Manolopoulos", "Christos Vergados", "Alexis Roumeliotis",
+               "Panagiotis Drosakis", "Thanasis Kolovos", "Michalis Varvaressos", "Giorgos Tselios",
+               "Sotiris Kanellakis", "Lefteris Mparoutsos", "Andreas Zafeiriou", "Manolis Tsirigotis"],
+    "austria": ["Lukas Hinterberger", "Florian Grubmüller", "Matthias Puchleitner", "Dominik Ehrenfels",
+                "Stefan Radlmayr", "Christoph Windisch", "Manuel Trattnig", "Patrick Auerböck",
+                "Fabian Zwettler", "Sebastian Neuwirth", "Andreas Pilzbacher", "Daniel Hoflehner",
+                "Michael Wolkersdorfer", "Simon Gattringer", "Thomas Riedlsperger", "Bernhard Kollmann"],
 }
 
 
@@ -410,6 +506,13 @@ def main():
     with open("src/data/countries.json", "w") as f:
         json.dump(countries, f, indent=2, ensure_ascii=False)
         f.write("\n")
+
+    # A short name is what a table, a chip and a transfer button show, so two
+    # clubs sharing one reads as a bug wherever they appear together — and with
+    # twelve leagues in one European draw, they appear together often.
+    shorts = [t["shortName"] for t in teams]
+    duplicates = sorted({s for s in shorts if shorts.count(s) > 1})
+    assert not duplicates, f"duplicate short names: {duplicates}"
 
     print(f"{len(teams)} clubs, {len(keepers)} keepers, {len(countries)} countries")
     for c in COUNTRIES:

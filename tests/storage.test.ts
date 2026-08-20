@@ -320,6 +320,36 @@ describe('save migration', () => {
     expect(nationCoefficient(restored.coefficients, 'england')).toBe(5);
   });
 
+  it('recovers a v11 tournament\'s groups from its own fixtures, not from today\'s order', () => {
+    const state = career();
+    state.seasonNumber = 3;
+
+    // A v11 tournament: fixtures drawn from an eight-country world, and no
+    // stored groups because the groups were recomputed from the registry.
+    const legacy = { ...state } as Record<string, unknown>;
+    const tournament = { ...state.international } as Record<string, unknown>;
+    const drawn = (tournament.groups as string[][]).map((g) => [...g]);
+    delete tournament.groups;
+    legacy.international = tournament;
+
+    const migrated = migrate({ version: 11, career: emptyCareer(), careerState: legacy } as never)!;
+    const restored = migrated.careerState!;
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    // Redrawing against a twelve-country order would hand the player a group he
+    // is not playing in, with a table that disagreed with every result already
+    // recorded. The fixtures ARE the groups, so they are read back from those.
+    const recovered = restored.international.groups.map((g) => [...g].sort());
+    expect(recovered).toEqual(drawn.map((g) => [...g].sort()));
+    // And every nation with a fixture is in exactly one group.
+    const all = restored.international.groups.flat();
+    expect(new Set(all).size).toBe(all.length);
+    for (const fixture of restored.international.fixtures) {
+      expect(all).toContain(fixture.homeId);
+      expect(all).toContain(fixture.awayId);
+    }
+  });
+
   it('joins a v8 career to international football without inventing a past', () => {
     const state = career();
     state.seasonNumber = 4;

@@ -6,6 +6,7 @@ import type { Player } from '../src/core/player/player.ts';
 import {
   GROUP_COUNT,
   GROUP_SIZE,
+  TOURNAMENT_FIELD,
   NATIONAL_LIFT,
   QUALIFY_PER_GROUP,
   SELECTION_POOL,
@@ -175,16 +176,37 @@ describe('being picked', () => {
 });
 
 describe('the groups', () => {
-  it('splits every country into two groups of four', () => {
+  it('splits the qualifiers into two groups of four', () => {
     const groups = qualifyingGroups();
     expect(groups).toHaveLength(GROUP_COUNT);
     for (const group of groups) expect(group).toHaveLength(GROUP_SIZE);
-    expect(groups.flat().sort()).toEqual(COUNTRIES.map((c) => c.id).sort());
+    expect(new Set(groups.flat()).size).toBe(TOURNAMENT_FIELD);
   });
 
-  it('puts every country in exactly one group', () => {
-    for (const country of COUNTRIES) expect(groupOf(country.id)).toBeGreaterThanOrEqual(0);
+  it('takes the top of the order and leaves everybody else out', () => {
+    // The world has more countries than the tournament has places, which is
+    // what makes qualifying for it an achievement rather than an entitlement.
+    const order = COUNTRIES.map((c) => c.id);
+    const groups = qualifyingGroups(order);
+    expect(groups.flat().sort()).toEqual(order.slice(0, TOURNAMENT_FIELD).sort());
+    for (const missed of order.slice(TOURNAMENT_FIELD)) {
+      expect(groupOf(missed, order), missed).toBe(-1);
+    }
+  });
+
+  it('puts every qualifier in exactly one group', () => {
+    for (const country of COUNTRIES.slice(0, TOURNAMENT_FIELD)) {
+      expect(groupOf(country.id), country.id).toBeGreaterThanOrEqual(0);
+    }
     expect(groupOf('atlantis')).toBe(-1);
+  });
+
+  it('re-draws the field as the order moves', () => {
+    // A country that climbs plays its way into a tournament it was not in.
+    const order = COUNTRIES.map((c) => c.id);
+    const climbed = [order[order.length - 1]!, ...order.slice(0, -1)];
+    expect(qualifyingGroups(order).flat()).not.toContain(order[order.length - 1]);
+    expect(qualifyingGroups(climbed).flat()).toContain(order[order.length - 1]);
   });
 
   it('seeds them so neither is the group everybody dreads', () => {
@@ -198,7 +220,7 @@ describe('the groups', () => {
   it('gives everybody three matches, against everybody else in the group', () => {
     const state = createInternational(new Rng('groups'));
     expect(state.fixtures).toHaveLength(GROUP_COUNT * ((GROUP_SIZE * (GROUP_SIZE - 1)) / 2));
-    for (const nation of nationGroups().flat()) {
+    for (const nation of nationGroups(state).flat()) {
       const own = state.fixtures.filter((f) => f.homeId === nation || f.awayId === nation);
       expect(own, nation).toHaveLength(GROUP_ROUNDS);
       // Everybody else in the group, once each — that is what makes the table fair.
@@ -274,7 +296,7 @@ describe('the knockout', () => {
       const positions = [tie.homeId, tie.awayId].map((id) => groupPosition(state, id));
       expect(positions.sort()).toEqual([1, 2]);
       // ...and from different groups.
-      expect(groupIndexOf(tie.homeId)).not.toBe(groupIndexOf(tie.awayId));
+      expect(groupIndexOf(state, tie.homeId)).not.toBe(groupIndexOf(state, tie.awayId));
     }
   });
 
@@ -303,7 +325,7 @@ describe('the knockout', () => {
     expect(field.filter((id) => reachedKnockout(state, id))).toHaveLength(
       GROUP_COUNT * QUALIFY_PER_GROUP,
     );
-    for (const nation of nationGroups().flat()) {
+    for (const nation of nationGroups(state).flat()) {
       expect(reachedKnockout(state, nation), nation).toBe(field.includes(nation));
     }
     expect(state.knockout!.survivors).toHaveLength(1);
@@ -330,12 +352,19 @@ describe('the knockout', () => {
       const champion = championNation(playThrough(`season-${i}`))!;
       wins.set(champion, (wins.get(champion) ?? 0) + 1);
     }
-    const best = nationId('england');
-    const worst = nationId('scotland');
+    // The weakest country IN THE TOURNAMENT, derived rather than named: the
+    // field is the top of the European order, so which country that is changes
+    // as the world does.
+    const field = qualifyingGroups().flat();
+    const best = nationId(field[0]!);
+    const worst = nationId(field[field.length - 1]!);
     expect(wins.get(best) ?? 0).toBeGreaterThan(wins.get(worst) ?? 0);
     // ...but never so lopsided that the tournament is a formality.
     expect(wins.get(worst) ?? 0).toBeGreaterThan(0);
     expect(wins.size).toBeGreaterThan(4);
+    // And a country outside the field cannot win a tournament it is not in.
+    const missed = COUNTRIES.map((c) => c.id).find((id) => !field.includes(id))!;
+    expect(wins.get(nationId(missed)) ?? 0).toBe(0);
   });
 
   it('is deterministic from its seed', () => {
