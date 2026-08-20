@@ -209,6 +209,13 @@ def nation(id, name, adjective, short, confederation, prestige, strength, style,
 
 
 NATIONS = [
+    # Europe, without leagues of their own. Twelve European countries have
+    # leagues and four do not, which makes Europe sixteen nations — the size of
+    # every world tier and of Europe's own championship.
+    nation("croatia", "Croatia", "Croatian", "CRO", "europe", 0.58, 80, "possession", "#ff0000"),
+    nation("poland", "Poland", "Polish", "POL", "europe", 0.56, 78, "direct", "#dc143c"),
+    nation("serbia", "Serbia", "Serbian", "SRB", "europe", 0.52, 77, "counterattack", "#c6363c"),
+    nation("sweden", "Sweden", "Swedish", "SWE", "europe", 0.52, 76, "highPress", "#006aa7"),
     # South America
     nation("brazil", "Brazil", "Brazilian", "BRA", "southAmerica", 0.94, 93, "possession", "#f7d117"),
     nation("argentina", "Argentina", "Argentine", "ARG", "southAmerica", 0.92, 92, "counterattack", "#75aadb"),
@@ -581,8 +588,11 @@ def main():
     by_confederation = {}
     for c in countries:
         by_confederation.setdefault(c["confederation"], []).append(c)
+    # Every confederation runs a championship of eight or sixteen, and the world
+    # tiers are sixteen apiece, so the total has to divide into thirds.
     for confederation, members in sorted(by_confederation.items()):
-        assert len(members) >= 8, f"{confederation} has only {len(members)} nations"
+        assert len(members) in (8, 16), f"{confederation} has {len(members)} nations"
+    assert len(countries) % 16 == 0, f"{len(countries)} nations does not divide into tiers of 16"
 
     with open("src/data/teams.json", "w") as f:
         json.dump(teams, f, indent=2, ensure_ascii=False)

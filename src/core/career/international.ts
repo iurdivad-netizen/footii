@@ -2,7 +2,7 @@ import type { Rng } from '../rng.ts';
 import { confederationAdjective } from './countries.ts';
 import type { Team } from '../team/team.ts';
 import type { CupState } from './cups.ts';
-import { createCup } from './cups.ts';
+import { createCup, finishCup } from './cups.ts';
 import type { Fixture, FixtureResult, TableRow } from './league.ts';
 import {
   applyResult,
@@ -12,11 +12,15 @@ import {
   sortTable,
 } from './league.ts';
 import {
+  CONTINENTAL_FIELD,
   QUALIFY_PER_GROUP,
+  continentalGroups,
   nationId,
   qualifyingGroups,
-  worldCupGroups as seedWorldCup,
+  worldTierGroups,
 } from './nations.ts';
+import { WORLD_TIERS, worldTierField } from './nations.ts';
+import type { WorldTier } from './nations.ts';
 
 /**
  * INTERNATIONAL FOOTBALL
@@ -52,19 +56,40 @@ import {
 export const INTERNATIONAL = 'international';
 export type InternationalKind = typeof INTERNATIONAL;
 
-/** Which of the two tournaments a season is playing. */
-export type TournamentKind = 'continental' | 'worldCup';
+/**
+ * Which competition a tournament is.
+ *
+ * Three world tiers and a continental championship, mirroring the club game's
+ * three European competitions and its domestic cups: everybody plays in one of
+ * them, and which one is decided by standing rather than by geography.
+ */
+export type TournamentKind = WorldTier | 'continental';
+
+/** Which half of the cycle a season is in. */
+export type TournamentEra = 'world' | 'continental';
 
 /** Group matches each nation plays: everybody else in a group of four. */
 export const GROUP_ROUNDS = 3;
-/** Knockout rounds in a continental championship: semi-final, final. */
+/** Knockout rounds in a tournament of eight: semi-final, final. */
 export const KNOCKOUT_ROUNDS = 2;
-/** And in a World Cup: quarter-final, semi-final, final. */
+/** And in one of sixteen: quarter-final, semi-final, final. */
 export const WORLD_CUP_KNOCKOUT_ROUNDS = 3;
 
-/** How many knockout rounds each tournament runs to. */
+/**
+ * How many knockout rounds a field of this size runs to.
+ *
+ * Read off the FIELD rather than the competition, because there are only two
+ * shapes in the whole game — eight nations or sixteen — and every tournament is
+ * one of them. Europe's championship has sixteen members and Asia's has eight;
+ * they are the same two brackets the world tiers and the domestic cups use.
+ */
+export function knockoutRoundsForField(fieldSize: number): number {
+  return fieldSize > CONTINENTAL_FIELD ? WORLD_CUP_KNOCKOUT_ROUNDS : KNOCKOUT_ROUNDS;
+}
+
+/** How many knockout rounds each competition runs to, by its usual field. */
 export function knockoutRoundsFor(kind: TournamentKind): number {
-  return kind === 'worldCup' ? WORLD_CUP_KNOCKOUT_ROUNDS : KNOCKOUT_ROUNDS;
+  return kind === 'continental' ? KNOCKOUT_ROUNDS : WORLD_CUP_KNOCKOUT_ROUNDS;
 }
 
 /** The most matches one nation can play in each tournament. */
@@ -82,8 +107,13 @@ export const MAX_INTERNATIONAL_MATCHES = WORLD_CUP_MATCHES;
  * opens with one — the biggest thing in the game should not be two years away
  * from a player's first match.
  */
+export function eraFor(seasonNumber: number): TournamentEra {
+  return seasonNumber % 2 === 1 ? 'world' : 'continental';
+}
+
+/** Kept for callers that only want to know whether it is a World Cup year. */
 export function tournamentFor(seasonNumber: number): TournamentKind {
-  return seasonNumber % 2 === 1 ? 'worldCup' : 'continental';
+  return eraFor(seasonNumber) === 'world' ? 'worldCup' : 'continental';
 }
 
 export interface InternationalState {
@@ -143,13 +173,20 @@ export function nationGroups(state: InternationalState): string[][] {
  * one — the same competition, played in different halves of the world.
  */
 export function tournamentName(kind: TournamentKind, confederation: string): string {
-  if (kind === 'worldCup') return 'The World Cup';
-  return `The ${confederationAdjective(confederation)} Championship`;
+  if (kind === 'continental') return `The ${confederationAdjective(confederation)} Championship`;
+  return WORLD_TIER_NAMES[kind] ?? 'The World Cup';
 }
+
+const WORLD_TIER_NAMES: Record<string, string> = {
+  worldCup: 'The World Cup',
+  challengeCup: 'The Challenge Cup',
+  conferenceCup: 'The Conference Cup',
+};
 
 /** Short form, for chips and tables. */
 export function tournamentShortName(kind: TournamentKind): string {
-  return kind === 'worldCup' ? 'World Cup' : 'Championship';
+  if (kind === 'continental') return 'Championship';
+  return (WORLD_TIER_NAMES[kind] ?? 'The World Cup').replace(/^The /, '');
 }
 
 /** The groups a fresh continental championship would be drawn into. */
@@ -157,9 +194,76 @@ export function drawGroups(order?: readonly string[]): string[][] {
   return qualifyingGroups(order).map((group) => group.map(nationId));
 }
 
-/** The groups a fresh World Cup would be drawn into, from a world order. */
-export function worldCupGroups(order: readonly string[]): string[][] {
-  return seedWorldCup(order).map((group) => group.map(nationId));
+
+
+/**
+ * Every tournament a season holds, in order of standing.
+ *
+ * A season is either three world tiers or five continental championships, and
+ * the player is in exactly one of them. The others still happen — they have to,
+ * or four confederations would go dark whenever the player was not from them,
+ * and a country outside his tier would never move in the standings again.
+ */
+export interface ScheduledTournament {
+  kind: TournamentKind;
+  /** Empty for a world tier, which is not any one part of the world. */
+  confederation: string;
+  /** Country ids, best first. */
+  field: string[];
+}
+
+export function seasonTournaments(
+  era: TournamentEra,
+  order: readonly string[],
+  confederations: readonly string[],
+  membersOf: (confederation: string) => readonly string[],
+): ScheduledTournament[] {
+  if (era === 'world') {
+    return WORLD_TIERS.map((tier) => ({
+      kind: tier as TournamentKind,
+      confederation: '',
+      field: worldTierField(order, tier),
+    }));
+  }
+
+  return confederations.map((confederation) => ({
+    kind: 'continental' as TournamentKind,
+    confederation,
+    // In standing order, so the snake seeds the championship properly.
+    field: order.filter((id) => membersOf(confederation).includes(id)),
+  }));
+}
+
+/**
+ * Play a whole tournament out with nobody watching.
+ *
+ * Used for the tournaments the player is not in — the other two world tiers, or
+ * the four confederations he is not from. They have to be played: without them
+ * a country outside his tier records "did not compete" every season and its
+ * national side stops moving its standing for ever, which is the same trap that
+ * scoring a non-qualifier as zero once was. And a world where Africa's
+ * championship simply never happens is not a world.
+ */
+export function playTournament(
+  rng: Rng,
+  state: InternationalState,
+  lookup: (nationId: string) => Team,
+): InternationalState {
+  for (let round = 1; round <= GROUP_ROUNDS; round++) {
+    playGroupRound(rng.fork(`group:${round}`), state, round, lookup);
+    closeGroupRound(state, round);
+  }
+  const knockout = startKnockout(state);
+  if (knockout) finishCup(rng.fork('knockout'), knockout, lookup);
+  return state;
+}
+
+/** The tournament a nation is in this season, or null if it is in none. */
+export function tournamentFieldFor(
+  tournaments: readonly ScheduledTournament[],
+  countryId: string,
+): ScheduledTournament | null {
+  return tournaments.find((tournament) => tournament.field.includes(countryId)) ?? null;
 }
 
 /**
@@ -174,8 +278,16 @@ export function createInternational(
   rng: Rng,
   order?: readonly string[],
   kind: TournamentKind = 'continental',
+  field?: readonly string[],
 ): InternationalState {
-  const groups = kind === 'worldCup' ? worldCupGroups(order ?? []) : drawGroups(order);
+  // An explicit field wins: a continental championship is every member of one
+  // confederation and a world tier is a band of the world order, and neither is
+  // a question this module can answer on its own.
+  const groups = field
+    ? continentalGroups(field.map(nationId))
+    : kind === 'continental'
+      ? drawGroups(order)
+      : worldTierGroups(order ?? [], kind).map((group) => group.map(nationId));
   const fixtures: Fixture[] = [];
   for (const group of groups) {
     // The same rng for both groups, drawn one after the other: it carries its
@@ -188,7 +300,7 @@ export function createInternational(
 
   return {
     kind,
-    knockoutRounds: knockoutRoundsFor(kind),
+    knockoutRounds: knockoutRoundsForField(groups.flat().length),
     fixtures,
     results: [],
     table: emptyTable(groups.flat()),

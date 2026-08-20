@@ -108,6 +108,50 @@
     "prestige": 0.46
   },
   {
+    "id": "croatia",
+    "name": "Croatia",
+    "adjective": "Croatian",
+    "short": "CRO",
+    "confederation": "europe",
+    "prestige": 0.58,
+    "nationalStrength": 80,
+    "style": "possession",
+    "colour": "#ff0000"
+  },
+  {
+    "id": "poland",
+    "name": "Poland",
+    "adjective": "Polish",
+    "short": "POL",
+    "confederation": "europe",
+    "prestige": 0.56,
+    "nationalStrength": 78,
+    "style": "direct",
+    "colour": "#dc143c"
+  },
+  {
+    "id": "serbia",
+    "name": "Serbia",
+    "adjective": "Serbian",
+    "short": "SRB",
+    "confederation": "europe",
+    "prestige": 0.52,
+    "nationalStrength": 77,
+    "style": "counterattack",
+    "colour": "#c6363c"
+  },
+  {
+    "id": "sweden",
+    "name": "Sweden",
+    "adjective": "Swedish",
+    "short": "SWE",
+    "confederation": "europe",
+    "prestige": 0.52,
+    "nationalStrength": 76,
+    "style": "highPress",
+    "colour": "#006aa7"
+  },
+  {
     "id": "brazil",
     "name": "Brazil",
     "adjective": "Brazilian",

@@ -23,9 +23,15 @@ import {
   COEFFICIENT_WINDOW,
   countriesByStanding,
   createCoefficients,
+  nationsByStanding,
   standingsTable,
 } from '../../core/career/coefficients.ts';
-import { countryOfNation, nationId } from '../../core/career/nations.ts';
+import {
+  WORLD_TIERS,
+  countryOfNation,
+  nationId,
+  worldTierField,
+} from '../../core/career/nations.ts';
 import {
   GROUP_ROUNDS,
   KNOCKOUT_ROUNDS,
@@ -345,7 +351,51 @@ export class WorldScreen {
         <h2>Knockout</h2>
         ${bracket}
       </div>
+      ${this.renderWorldOrder()}
       ${this.renderStandings()}`;
+  }
+
+  /**
+   * The three world tiers, and which one every nation is in.
+   *
+   * The structure this view exists to show. A player whose country is in the
+   * Challenge Cup needs to be able to see the World Cup above it and how far
+   * away it is — that is the whole climb, and a tier system nobody can look at
+   * is the mistake this screen was built twice to stop.
+   */
+  private renderWorldOrder(): string {
+    const order = nationsByStanding(this.state.coefficients ?? createCoefficients());
+    const mine = this.state.player.nationality;
+
+    const tiers = WORLD_TIERS.map((tier) => {
+      const field = worldTierField(order, tier);
+      const rows = field
+        .map((countryId) => {
+          const country = getCountry(countryId);
+          const own = countryId === mine;
+          return `<li class="${own ? 'own' : ''}">
+              <span class="tier-rank">${order.indexOf(countryId) + 1}</span>
+              ${country.name}${own ? '<em class="own-tag">yours</em>' : ''}
+            </li>`;
+        })
+        .join('');
+      const holdsMine = field.includes(mine);
+      return `
+        <div class="career-card${holdsMine ? ' european-card' : ''}">
+          <h2>${tournamentName(tier, '')}</h2>
+          <ol class="tier-list">${rows}</ol>
+        </div>`;
+    }).join('');
+
+    return `
+      <h2 class="world-heading">The world order</h2>
+      <p class="hint world-note">
+        Every nation plays a world tournament in odd seasons and its own continental championship in
+        even ones. Which world tournament is decided by standing — the same number the European
+        places come from — so a country climbs into the World Cup by playing well and falls out of it
+        by not.
+      </p>
+      <div class="career-grid">${tiers}</div>`;
   }
 
   /**

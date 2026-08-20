@@ -39,7 +39,6 @@ import type { ClubInterest } from '../../core/career/transfers.ts';
 import { describeContract } from '../../core/career/contracts.ts';
 import {
   allClubIds,
-  confederationName,
   confederationOf,
   countryPrestige,
   getCountry,
@@ -423,16 +422,19 @@ export class CareerScreen {
       international.kind ?? 'continental',
       confederationOf(this.state.player.nationality),
     );
-    const field =
-      international.kind === 'worldCup'
-        ? 'the sixteen best nations in the world play it'
-        : `the eight best in ${confederationName(confederationOf(this.state.player.nationality))} play it`;
+    // Every nation is in one of the three world tiers or its own continental
+    // championship, so being in none is a data problem rather than a football
+    // one — but it must still read as a sentence rather than an empty card.
     const missedOut =
       standing === -1
-        ? `<p class="hint">${nation.name} did not qualify for ${competition} — ${field}, and
-             ${nation.name} is not among them. Its standing is what would get it there, and both
-             its clubs and its national side move that.</p>`
+        ? `<p class="hint">${nation.name} has no tournament on record this season.</p>`
         : '';
+    const tier =
+      international.kind === 'continental'
+        ? ''
+        : `<p class="hint">${nation.name} plays in ${competition
+            .replace(/^The /, 'the ')} this year — which tier a nation gets is decided by its
+            standing, so it can climb into the one above and fall out of this one.</p>`;
     const table =
       standing === -1
         ? ''
@@ -492,6 +494,7 @@ export class CareerScreen {
         <h2>${nation.name} <em class="own-tag">${competition}</em></h2>
         ${status}
         ${missedOut}
+        ${tier}
         ${table}
         ${run ? `<p class="hint">${run}</p>` : ''}
         ${worth}
