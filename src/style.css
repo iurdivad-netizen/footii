@@ -2302,3 +2302,350 @@ button.ghost {
   font-style: normal;
   margin-left: auto;
 }
+
+/* --------------------------------------------- the end of a career ------ */
+
+/*
+ * The end screen and the wall of fame.
+ *
+ * Deliberately quieter than the match, and warmer than the hub. A career hub is
+ * a working screen — dense, scannable, built to be read between fixtures. These
+ * two are read once each, slowly, so they get space: bigger figures, more air
+ * around them, and the verdict given room to be the first thing you see.
+ */
+
+.career-end-head {
+  text-align: center;
+  padding: clamp(16px, 4vw, 32px) 0 20px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 20px;
+}
+
+.career-end-kicker {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.career-end-head h1 {
+  margin: 6px 0 4px;
+  font-size: clamp(1.8rem, 6vw, 2.6rem);
+}
+
+.career-end-detail {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.career-end-verdict {
+  margin: 14px auto 0;
+  max-width: 620px;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: var(--accent);
+}
+
+.career-end-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.career-end-figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 14px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+}
+
+.figure-value {
+  font-family: var(--mono);
+  font-size: 1.6rem;
+  line-height: 1.1;
+  color: var(--accent);
+}
+
+.figure-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* Honours and records side by side where there is room, stacked where there is not. */
+.career-end-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.career-end-screen .career-card {
+  overflow-x: auto;
+}
+
+.career-end-actions {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+
+.career-end-actions .hint {
+  max-width: 620px;
+  margin: 0 auto 16px;
+}
+
+.career-end-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+}
+
+.career-end-buttons .primary {
+  width: auto;
+}
+
+/* The retirement question, on the season review. */
+.retirement-panel {
+  border-color: var(--warn);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.retirement-panel.forced {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+/* ------------------------------------------------------ wall of fame ---- */
+
+.hall-head {
+  margin-bottom: 18px;
+}
+
+.hall-head h1 {
+  margin-bottom: 6px;
+}
+
+.hall-new {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: rgba(74, 222, 128, 0.1);
+  font-size: 0.9rem;
+}
+
+.hall-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hall-card {
+  display: flex;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+}
+
+.hall-card.new {
+  border-color: var(--accent);
+}
+
+.hall-rank {
+  font-family: var(--mono);
+  font-size: 1.5rem;
+  color: var(--text-dim);
+  min-width: 2ch;
+  text-align: right;
+}
+
+.hall-card.new .hall-rank {
+  color: var(--accent);
+}
+
+.hall-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.hall-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.hall-card-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.hall-detail {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.hall-score {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.score-value {
+  font-family: var(--mono);
+  font-size: 1.3rem;
+  color: var(--accent);
+  line-height: 1.1;
+}
+
+.score-label {
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.hall-verdict {
+  margin: 10px 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.hall-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-bottom: 10px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.hall-figures strong {
+  font-family: var(--mono);
+  color: var(--text);
+}
+
+.hall-highlights {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.hall-highlights strong {
+  font-family: var(--mono);
+  color: var(--text);
+}
+
+button.small {
+  padding: 5px 11px;
+  font-size: 0.78rem;
+  margin-top: 0;
+}
+
+button.ghost.danger {
+  color: var(--danger);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.hall-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.hall-actions .primary {
+  width: auto;
+}
+
+/*
+ * The wall in miniature, on the home screen.
+ *
+ * Quieter than the "continue career" card above it on purpose: the live career
+ * is what the front door is for, and finished ones must not compete with it.
+ */
+.hall-mini {
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 18px;
+}
+
+.hall-mini-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.hall-mini-head h2 {
+  margin: 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+}
+
+.hall-mini-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hall-mini-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 0.88rem;
+}
+
+.hall-mini-rank {
+  font-family: var(--mono);
+  color: var(--text-dim);
+  min-width: 1.5ch;
+}
+
+.hall-mini-name {
+  font-weight: 600;
+}
+
+.hall-mini-note {
+  flex: 1;
+  font-size: 0.76rem;
+  color: var(--text-dim);
+}
+
+.hall-mini-score {
+  font-family: var(--mono);
+  color: var(--accent);
+}

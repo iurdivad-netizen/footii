@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+  HALL_OF_FAME_LIMIT,
   SAVE_VERSION,
+  clearHallOfFame,
   defaultSettings,
   emptyCareer,
+  enshrineCareer,
   isUsableCareer,
+  isUsableLegacy,
   migrate,
+  removeFromHallOfFame,
 } from '../src/persistence/storage.ts';
+import type { CareerLegacy } from '../src/core/career/legacy.ts';
 import type { SaveData } from '../src/persistence/storage.ts';
 import { startCareer } from '../src/simulation/CareerService.ts';
 import { createPlayer } from '../src/core/player/player.ts';
@@ -438,6 +444,7 @@ describe('save migration', () => {
       career: { ...emptyCareer(), goals: 4 },
       settings: { pace: 'relaxed', matchSpeed: 2 },
       careerState: career(),
+      hallOfFame: [],
     };
     const restored = migrate(JSON.parse(JSON.stringify(original)))!;
     expect(restored.settings).toEqual(original.settings);
@@ -521,5 +528,183 @@ describe('career save validation', () => {
     } as never)!;
     expect(migrated.careerState).toBeDefined();
     expect(migrated.careerState!.history).toEqual([]);
+  });
+});
+
+
+/**
+ * THE WALL OF FAME
+ *
+ * The only part of the save that is not about the career being played, and the
+ * only part that has to survive one ending. Its failure modes are therefore the
+ * opposite of everything else's: not "does this load", but "does ending a
+ * career leave the save in exactly one of the two valid states".
+ */
+
+function legacy(overrides: Partial<CareerLegacy> = {}): CareerLegacy {
+  return {
+    id: 'legacy-1',
+    name: 'Someone',
+    position: 'ST',
+    nationality: 'england',
+    ending: 'retired',
+    endedAt: 1,
+    seasons: 10,
+    finalSeasonNumber: 11,
+    ageAtEnd: 34,
+    abilityAtEnd: 68,
+    finalClubId: 'northport-city',
+    finalClubName: 'Northport City',
+    finalCountryId: 'england',
+    finalCountryShort: 'ENG',
+    clubs: 2,
+    countries: 1,
+    appearances: 300,
+    goals: 120,
+    assists: 60,
+    averageRating: 7.1,
+    caps: 20,
+    earnings: 40,
+    honours: [],
+    titles: 1,
+    highlights: [],
+    score: 500,
+    verdict: 'A career.',
+    ...overrides,
+  };
+}
+
+function save(overrides: Partial<SaveData> = {}): SaveData {
+  return {
+    version: SAVE_VERSION,
+    career: emptyCareer(),
+    settings: defaultSettings(),
+    hallOfFame: [],
+    ...overrides,
+  };
+}
+
+describe('ending a career', () => {
+  it('clears the career and puts it on the wall in the SAME write', () => {
+    // The two halves must not be separable. A save holding both a live career
+    // and its own obituary is a state nothing downstream knows how to read.
+    const before = save({ careerState: career() });
+    const after = enshrineCareer(before, legacy());
+
+    expect(after.careerState).toBeUndefined();
+    expect(after.hallOfFame).toHaveLength(1);
+  });
+
+  it('keeps the wall in ranked order as careers are added to it', () => {
+    let state = save();
+    state = enshrineCareer(state, legacy({ id: 'middling', score: 300 }));
+    state = enshrineCareer(state, legacy({ id: 'best', score: 900 }));
+    state = enshrineCareer(state, legacy({ id: 'worst', score: 10 }));
+
+    expect(state.hallOfFame.map((entry) => entry.id)).toEqual(['best', 'middling', 'worst']);
+  });
+
+  it('drops the lowest-ranked career once the wall is full, never the newest', () => {
+    let state = save();
+    for (let i = 0; i < HALL_OF_FAME_LIMIT; i += 1) {
+      state = enshrineCareer(state, legacy({ id: `filler-${i}`, score: 100 + i }));
+    }
+    expect(state.hallOfFame).toHaveLength(HALL_OF_FAME_LIMIT);
+
+    state = enshrineCareer(state, legacy({ id: 'a-great-one', score: 10_000 }));
+
+    expect(state.hallOfFame).toHaveLength(HALL_OF_FAME_LIMIT);
+    expect(state.hallOfFame[0].id).toBe('a-great-one');
+    expect(state.hallOfFame.some((entry) => entry.id === 'filler-0')).toBe(false);
+  });
+
+  it('leaves a career that does not make the cut off the wall entirely', () => {
+    let state = save();
+    for (let i = 0; i < HALL_OF_FAME_LIMIT; i += 1) {
+      state = enshrineCareer(state, legacy({ id: `filler-${i}`, score: 1000 + i }));
+    }
+    state = enshrineCareer(state, legacy({ id: 'not-good-enough', score: 1 }));
+
+    expect(state.hallOfFame.some((entry) => entry.id === 'not-good-enough')).toBe(false);
+    // It still ended: enshrining is what clears the career, cut or not.
+    expect(state.careerState).toBeUndefined();
+  });
+});
+
+describe('resetting the wall', () => {
+  it('empties it without touching the career being played', () => {
+    const state = save({ careerState: career(), hallOfFame: [legacy(), legacy({ id: 'b' })] });
+    const cleared = clearHallOfFame(state);
+
+    expect(cleared.hallOfFame).toEqual([]);
+    expect(cleared.careerState).toBeDefined();
+    expect(cleared.careerState!.player.name).toBe('Test');
+  });
+
+  it('removes one career by id and leaves the rest alone', () => {
+    const state = save({
+      hallOfFame: [legacy({ id: 'a' }), legacy({ id: 'b' }), legacy({ id: 'c' })],
+    });
+    const after = removeFromHallOfFame(state, 'b');
+
+    expect(after.hallOfFame.map((entry) => entry.id)).toEqual(['a', 'c']);
+  });
+
+  it('ignores a removal for a career that is not there', () => {
+    const state = save({ hallOfFame: [legacy({ id: 'a' })] });
+    expect(removeFromHallOfFame(state, 'nope').hallOfFame).toHaveLength(1);
+  });
+});
+
+describe('the wall across versions', () => {
+  it('gives a v13 save an empty wall rather than inventing one', () => {
+    // Careers finished before the wall existed were deleted outright. There is
+    // nothing to reconstruct, and pretending otherwise would be a lie.
+    const migrated = migrate({
+      version: 13,
+      career: emptyCareer(),
+      careerState: career(),
+    } as never)!;
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.hallOfFame).toEqual([]);
+    expect(migrated.careerState).toBeDefined();
+  });
+
+  it('repairs a damaged wall instead of dropping the save that holds it', () => {
+    const migrated = migrate({
+      version: SAVE_VERSION,
+      career: emptyCareer(),
+      careerState: career(),
+      hallOfFame: 'not a list',
+    } as never)!;
+
+    expect(migrated.hallOfFame).toEqual([]);
+    // Losing the wall must never cost somebody the career they are in.
+    expect(migrated.careerState).toBeDefined();
+  });
+
+  it('drops only the entries it cannot read', () => {
+    const migrated = migrate({
+      version: SAVE_VERSION,
+      career: emptyCareer(),
+      hallOfFame: [legacy({ id: 'good' }), { id: 'broken' }, null],
+    } as never)!;
+
+    expect(migrated.hallOfFame.map((entry) => entry.id)).toEqual(['good']);
+  });
+
+  it('round-trips a wall through JSON without loss', () => {
+    const original = save({ hallOfFame: [legacy({ id: 'a', score: 700 })] });
+    const restored = migrate(JSON.parse(JSON.stringify(original)))!;
+
+    expect(restored.hallOfFame).toEqual(original.hallOfFame);
+  });
+
+  it('rejects an entry with nothing readable on it', () => {
+    expect(isUsableLegacy(null)).toBe(false);
+    expect(isUsableLegacy({})).toBe(false);
+    expect(isUsableLegacy({ id: 'x', name: 'y' })).toBe(false);
+    expect(isUsableLegacy(legacy())).toBe(true);
   });
 });

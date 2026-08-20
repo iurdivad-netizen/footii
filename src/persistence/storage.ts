@@ -16,6 +16,8 @@ import { Rng } from '../core/rng.ts';
 import { initialStrengths } from '../core/career/clubDrift.ts';
 import { contractYears, offeredWage, squadRole } from '../core/career/transfers.ts';
 import type { DecisionPace } from '../simulation/DecisionTimer.ts';
+import type { CareerLegacy } from '../core/career/legacy.ts';
+import { rankLegacies } from '../core/career/legacy.ts';
 
 /**
  * Persistence.
@@ -29,7 +31,7 @@ import type { DecisionPace } from '../simulation/DecisionTimer.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 14;
 
 export interface CareerRecord {
   matches: number;
@@ -82,7 +84,25 @@ export interface SaveData {
   };
   /** The in-progress career, if one has been started. */
   careerState?: CareerState;
+  /**
+   * Finished careers, best first.
+   *
+   * The only part of the save that OUTLIVES a career. Everything else is either
+   * the career being played or a preference about how to play it; this is what
+   * makes ending one a decision with a consequence rather than a delete button.
+   */
+  hallOfFame: CareerLegacy[];
 }
+
+/**
+ * How many finished careers the wall keeps.
+ *
+ * Capped because localStorage is not: a browser used for a year would otherwise
+ * accumulate entries nobody will ever scroll to, and the quota it eventually
+ * hit would take the LIVE career down with it. Twenty is far more than a wall
+ * anyone reads, and the ones dropped are always the lowest-ranked.
+ */
+export const HALL_OF_FAME_LIMIT = 20;
 
 export function emptyCareer(): CareerRecord {
   return {
@@ -104,7 +124,12 @@ export function emptyCareer(): CareerRecord {
 }
 
 function defaultSave(): SaveData {
-  return { version: SAVE_VERSION, career: emptyCareer(), settings: defaultSettings() };
+  return {
+    version: SAVE_VERSION,
+    career: emptyCareer(),
+    settings: defaultSettings(),
+    hallOfFame: [],
+  };
 }
 
 /**
@@ -496,6 +521,16 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
     save = { ...save, version: 13 };
   }
 
+  if (save.version === 13) {
+    // v13 -> v14: careers gained an ending, and a wall of fame that survives it.
+    //
+    // Nothing to recover, and deliberately nothing invented: a save written
+    // before the wall existed has finished careers that were DELETED rather
+    // than summarised, so there is no record left to reconstruct one from. An
+    // empty wall is the honest answer.
+    save = { ...save, version: 14, hallOfFame: save.hallOfFame ?? [] };
+  }
+
   if (save.version !== SAVE_VERSION) return null;
 
   // Settings are additive: an older save simply had none, and a save written
@@ -514,6 +549,17 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
   }
   if (save.careerState && !Array.isArray(save.careerState.honours)) {
     save.careerState.honours = [];
+  }
+  // The wall is additive in exactly the way settings are: a save written before
+  // it existed simply has none, and a damaged one is repaired rather than
+  // dropped — losing a wall must never cost somebody the career they are in.
+  if (!Array.isArray(save.hallOfFame)) {
+    save.hallOfFame = [];
+  } else {
+    save.hallOfFame = rankLegacies(save.hallOfFame.filter(isUsableLegacy)).slice(
+      0,
+      HALL_OF_FAME_LIMIT,
+    );
   }
   if (save.careerState && !isUsableCareer(save.careerState)) {
     save.careerState = undefined;
@@ -548,6 +594,62 @@ export function saveCareer(save: SaveData, careerState: CareerState): SaveData {
 
 export function clearCareer(save: SaveData): SaveData {
   const updated: SaveData = { ...save, careerState: undefined };
+  writeSave(updated);
+  return updated;
+}
+
+/**
+ * Is this entry structurally readable?
+ *
+ * Held to the same standard as `isUsableCareer` and for the same reason: the
+ * wall is rendered on the home screen, so one malformed entry from an older
+ * version must not be able to stop the game from starting. A bad entry is
+ * dropped; the rest of the wall, and the live career, are untouched.
+ */
+export function isUsableLegacy(entry: unknown): entry is CareerLegacy {
+  if (!entry || typeof entry !== 'object') return false;
+  const legacy = entry as Partial<CareerLegacy>;
+  return (
+    typeof legacy.id === 'string' &&
+    typeof legacy.name === 'string' &&
+    typeof legacy.score === 'number' &&
+    typeof legacy.endedAt === 'number' &&
+    typeof legacy.appearances === 'number' &&
+    Array.isArray(legacy.honours)
+  );
+}
+
+/**
+ * End the career and put it on the wall, in one write.
+ *
+ * Deliberately ONE operation rather than "add to the wall" plus "clear the
+ * career". Two writes have a moment between them, and a browser that dies in
+ * that moment leaves you either with a career you have already said goodbye to
+ * or with a wall entry for a career still being played. Ending is atomic.
+ */
+export function enshrineCareer(save: SaveData, legacy: CareerLegacy): SaveData {
+  const updated: SaveData = {
+    ...save,
+    careerState: undefined,
+    hallOfFame: rankLegacies([...(save.hallOfFame ?? []), legacy]).slice(0, HALL_OF_FAME_LIMIT),
+  };
+  writeSave(updated);
+  return updated;
+}
+
+/** Wipe the wall. The career being played, if any, is not touched. */
+export function clearHallOfFame(save: SaveData): SaveData {
+  const updated: SaveData = { ...save, hallOfFame: [] };
+  writeSave(updated);
+  return updated;
+}
+
+/** Remove one career from the wall, by id. */
+export function removeFromHallOfFame(save: SaveData, id: string): SaveData {
+  const updated: SaveData = {
+    ...save,
+    hallOfFame: (save.hallOfFame ?? []).filter((entry) => entry.id !== id),
+  };
   writeSave(updated);
   return updated;
 }
