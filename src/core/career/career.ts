@@ -17,7 +17,7 @@ import type { CupKind, CupState } from './cups.ts';
 import { CUP_KINDS, opponentIn, roundName, stillIn, tieFor } from './cups.ts';
 import type { EuropeanEntries, EuropeanState, EuropeanTier } from './europe.ts';
 import type { CareerRecords } from './records.ts';
-import type { CoefficientLedger } from './coefficients.ts';
+import type { Coefficients } from './coefficients.ts';
 import { breakStreaks, recordMatch as recordMatchInBook } from './records.ts';
 import type { CalendarSlot, CompetitionKind } from './calendar.ts';
 import { isEuropean, isInternational, seasonCalendar } from './calendar.ts';
@@ -182,7 +182,8 @@ export interface CareerState {
    */
   europeanEntries: EuropeanEntries;
   /**
-   * Every country's recent international record, five tournaments deep.
+   * Every country's recent European record, five seasons deep: what its clubs
+   * did in Europe and what its national side did in the summer.
    *
    * The one part of the world that has to be REMEMBERED rather than recomputed:
    * a national side is built from its country's clubs as they stood at the
@@ -191,7 +192,7 @@ export interface CareerState {
    * how many Champions League places each country gets — see
    * core/career/coefficients.ts.
    */
-  coefficients: CoefficientLedger;
+  coefficients: Coefficients;
   /**
    * The record book: the peaks and runs a career is actually remembered for.
    * Accumulated per match and impossible to recompute afterwards.

@@ -961,7 +961,13 @@ A country's Champions League allocation used to be a fixed list read off a fixed
 England always three, Scotland always one, for eighteen seasons — which made it a property of the
 data file rather than of anything that happened. It is now **earned**, over time.
 
-**One campaign is worth:**
+A country's standing has **two halves**, because its football does: what its **clubs** did in Europe
+over the winter, and what its **national side** did in the summer. Real football's coefficient is the
+club half alone; both are kept here because between them they say something neither says on its own —
+a country can have one great generation and no clubs to speak of, or a dominant league whose national
+side never turns up.
+
+**One international campaign is worth:**
 
 | | |
 | --- | --- |
@@ -970,9 +976,19 @@ data file rather than of anything that happened. It is now **earned**, over time
 | Reaching the final | +1.5 |
 | Winning it | +2 |
 
-A country's **coefficient** is its average over the last **five** tournaments. That average is
-measured against the field's, scaled, and clamped to **±0.20 of prestige** — so prestige stays the
-anchor and international form bends the order around it. Two reasons it is a nudge rather than the
+**One European club season is worth**, per club: 1 a round won, +2 for lifting it, all scaled by the
+competition — the Champions League counts full, the Europa League 0.7, the Conference League 0.5,
+because a quarter-final in one is not the same evening as a quarter-final in another.
+
+That club total is divided by **how many clubs the country entered**, and that division is the whole
+reason it works. A country at the top of the order sends seven clubs to Europe and one at the bottom
+sends five, so a raw total would reward a country for the places it already has: the rich would
+compound and the order would set like concrete. Per club entered asks the only question worth asking —
+how well did its clubs do, each of them?
+
+Each half is averaged over the last **five** seasons, measured against **its own** field average, and
+the two contributions are added and clamped to **±0.20 of prestige** — so prestige stays the anchor
+and the football bends the order around it. Two reasons it is a nudge rather than the
 whole ranking: prestige also scales wages, reputation and the bar for selection, so if European
 places came purely from international form "a big country" would mean one thing for what you are
 paid and another for what you can qualify for; and one tournament is five matches, which is far too
@@ -984,12 +1000,15 @@ on an average, also the loudest — a country that wins its first tournament has
 eight and nothing to temper it. So the map opens as the data file drew it and becomes earned as the
 seasons accumulate.
 
-**This is the one way a career changes football beyond its own club.** Your own performances for
-your country feed your country's coefficient. Played out: a Scottish striker capped five times a
-season drove Scotland's coefficient to 6.0 — the best record in the world — and from season ten
-Scotland held a second Europa League place it had never had, taken off the Netherlands. You cannot
-make Scotland England. You can make it the best of the small countries, and the clubs at home get
-better European football for it.
+**Your own performances feed the national half.** It is the one part of the world a career can move:
+a Scottish striker capped five times a season drove Scotland's national coefficient to 5.5, the best
+record in the world.
+
+**But it is the smaller half, and that is deliberate.** European places are places for CLUBS, and
+Scotland's clubs are the weakest in the world — its club coefficient sits below the field while its
+national one sits far above. The two pull against each other, so that career won Scotland a Europa
+League place in four separate seasons and lost it again in between. A great generation is worth
+something; it does not by itself make a country's clubs good enough for the Champions League.
 
 The world browser's **International** view shows the whole order — every country's coefficient, how
 far it has moved them, and what each is currently worth in all three competitions.
@@ -1214,6 +1233,21 @@ their constants:
   country, prestige step, squad level, tactical style and wages, and said nothing about it. You
   could turn down the Champions League for a bigger badge without ever being told. Each offer now
   names the competition it comes with, and so does staying.
+- **A weighted average of two movements is smaller than either.** When the coefficient gained its
+  club half, the obvious way to say "clubs count more" was to weight the two halves as shares of one
+  movement — 0.6 clubs, 0.4 nation. What that actually said was "each half alone can only reach its
+  share of the swing": a country with a perfect international record and ordinary clubs could move
+  0.08 where it used to move 0.19, which deleted the one thing in this game a player's own
+  performances can change. The halves are now additive contributions on their own scales with only
+  the total clamped, so "clubs count more" means what it should — a point of club form is worth more
+  prestige than a point of international form — and either half alone still carries as far as the
+  swing allows.
+- **The two halves are not on one scale, and guessing which is wider is not a plan.** Measured over
+  240 country-seasons, club coefficients run 0.19 to 1.52 with deviations reaching ±0.77, and
+  national coefficients run 0.50 to 6.10 with deviations reaching ±3.22 — five times wider, because
+  one is an average per club entered and the other is a whole campaign. A scale guessed for one is
+  wrong for the other by a factor of five. This is the same lesson as the mis-calibrated scale
+  below, learned a second time in the same file.
 - **A range that was really a ceiling.** The country coefficient was first allowed to move a
   country ±0.15 of prestige, which looked ample against neighbour gaps of 0.02 to 0.16. Played out,
   a Scottish career that won five caps a season for eighteen years drove Scotland's coefficient to

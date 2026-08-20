@@ -16,9 +16,8 @@ import {
 import type { EuropeanTier } from '../../core/career/europe.ts';
 import {
   COEFFICIENT_WINDOW,
-  GROUP_DRAW,
-  GROUP_WIN,
   countriesByStanding,
+  createCoefficients,
   standingsTable,
 } from '../../core/career/coefficients.ts';
 import { GROUP_COUNT, countryOfNation, nationId } from '../../core/career/nations.ts';
@@ -112,7 +111,7 @@ export class WorldScreen {
    * European places has to be read off it rather than off prestige.
    */
   private get order(): string[] {
-    return countriesByStanding(this.state.coefficients ?? {});
+    return countriesByStanding(this.state.coefficients ?? createCoefficients());
   }
 
   /** Country tabs steer the leagues and the cups; the rest are worldwide. */
@@ -345,7 +344,7 @@ export class WorldScreen {
    * tested and invisible.
    */
   private renderStandings(): string {
-    const rows = standingsTable(this.state.coefficients ?? {})
+    const rows = standingsTable(this.state.coefficients ?? createCoefficients())
       .map((row, index) => {
         const country = getCountry(row.countryId);
         const places = europeanPlaces(row.countryId, this.order);
@@ -355,7 +354,8 @@ export class WorldScreen {
         return `<tr class="${home || playsHere ? 'own' : ''}">
             <td>${index + 1}</td>
             <td>${country.name}${home ? '<em class="own-tag">yours</em>' : ''}</td>
-            <td>${row.tournaments === 0 ? '—' : row.coefficient.toFixed(2)}</td>
+            <td>${row.seasons === 0 ? '—' : row.clubs.toFixed(2)}</td>
+            <td>${row.seasons === 0 ? '—' : row.nations.toFixed(2)}</td>
             <td class="dim">${nudge}</td>
             <td><strong>${places.championsLeague}</strong></td>
             <td>${places.europaLeague}</td>
@@ -368,17 +368,18 @@ export class WorldScreen {
       <div class="career-card">
         <h2>European places</h2>
         <p class="hint">
-          How a country's national side has been doing decides how many clubs it sends to each
-          European competition. The coefficient is points per tournament over the last
-          ${COEFFICIENT_WINDOW}: ${GROUP_WIN} for a group win, ${GROUP_DRAW} for a draw, and bonuses
-          for reaching the knockout, the final and for lifting it. It moves a country up or down the
-          order it started in — and climbing does not send more clubs to Europe, it sends the same
-          number to better competitions.
+          How well a country's football has been going decides how many clubs it sends to each
+          European competition, over the last ${COEFFICIENT_WINDOW} seasons. <strong>Clubs</strong>
+          is what its clubs averaged in Europe, per club it entered — so a country is measured on
+          how its clubs did, not on how many it sent. <strong>Nation</strong> is what its national
+          side averaged per tournament. The two together move a country up or down the order it
+          started in, weighted toward the clubs as football weights them. Climbing does not send
+          more clubs to Europe; it sends the same number to better competitions.
         </p>
         <table class="league-table">
           <thead>
             <tr>
-              <th>#</th><th>Country</th><th>Coef</th><th>Move</th>
+              <th>#</th><th>Country</th><th>Clubs</th><th>Nation</th><th>Move</th>
               <th>UCL</th><th>UEL</th><th>UECL</th>
             </tr>
           </thead>

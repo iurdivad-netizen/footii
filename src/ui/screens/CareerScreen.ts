@@ -15,7 +15,7 @@ import {
   placesDescription,
   tierForPosition,
 } from '../../core/career/europe.ts';
-import { countriesByStanding } from '../../core/career/coefficients.ts';
+import { countriesByStanding, createCoefficients } from '../../core/career/coefficients.ts';
 import { milestones } from '../../core/career/records.ts';
 import {
   KNOCKOUT_ROUNDS,
@@ -455,7 +455,7 @@ export class CareerScreen {
     // moves the nation up the European order, and that is the one way a career
     // changes football beyond its own club — worth saying on the card where the
     // tournament lives rather than only in the world browser.
-    const order = countriesByStanding(this.state.coefficients ?? {});
+    const order = countriesByStanding(this.state.coefficients ?? createCoefficients());
     const rank = order.indexOf(this.state.player.nationality);
     const places = europeanPlaces(this.state.player.nationality, order);
     const worth =
@@ -493,7 +493,7 @@ export class CareerScreen {
       // position read off it is an artefact of the ordering rather than form.
       // Say what the places ARE instead of pretending to project a season.
       const played = this.state.table.find((row) => row.teamId === this.state.clubId)?.played ?? 0;
-      const order = countriesByStanding(this.state.coefficients ?? {});
+      const order = countriesByStanding(this.state.coefficients ?? createCoefficients());
       const target = tierForPosition(this.state.countryId, Math.max(1, position), order);
       const hint =
         played === 0

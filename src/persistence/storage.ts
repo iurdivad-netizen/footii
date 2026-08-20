@@ -9,7 +9,8 @@ import { createCup } from '../core/career/cups.ts';
 import { seasonCalendar } from '../core/career/calendar.ts';
 import { createCareerRecords } from '../core/career/records.ts';
 import { createInternational } from '../core/career/international.ts';
-import { createLedger } from '../core/career/coefficients.ts';
+import { createCoefficients } from '../core/career/coefficients.ts';
+import type { CoefficientLedger, Coefficients } from '../core/career/coefficients.ts';
 import { Rng } from '../core/rng.ts';
 import { initialStrengths } from '../core/career/clubDrift.ts';
 import { contractYears, offeredWage, squadRole } from '../core/career/transfers.ts';
@@ -27,7 +28,7 @@ import type { DecisionPace } from '../simulation/DecisionTimer.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 11;
 
 export interface CareerRecord {
   matches: number;
@@ -158,6 +159,18 @@ export function isUsableCareer(state: unknown): state is CareerState {
     typeof c.international === 'object' &&
     Array.isArray((c.international as { fixtures?: unknown }).fixtures)
   );
+}
+
+/**
+ * Is this already the two-ledger shape, or the flat one a v10 save wrote?
+ *
+ * An empty object is ambiguous and safely either: wrapping it produces an empty
+ * pair, which is what an empty flat ledger means anyway.
+ */
+function isSplitLedger(value: unknown): value is Coefficients {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  return Array.isArray(record.clubs) === false && ('clubs' in record || 'nations' in record);
 }
 
 export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveData | null {
@@ -378,8 +391,29 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
     // already being played under. The order starts moving at the end of the
     // season in progress, when its tournament is scored.
     const career = save.careerState;
-    if (career) career.coefficients ??= createLedger();
+    if (career) career.coefficients ??= createCoefficients();
     save = { ...save, version: 10 };
+  }
+
+  if (save.version === 10) {
+    // v10 -> v11: the coefficient gained its club half, so what was one ledger
+    // of national campaigns is now two ledgers — clubs and nations.
+    //
+    // A v10 save carries the flat shape, which is the nation ledger and nothing
+    // else. It is WRAPPED rather than discarded: those tournaments were really
+    // played, and throwing them away would reset a country's standing to
+    // prestige for a career that had already earned its way off it. The club
+    // side starts empty, because there is no record of it to recover — European
+    // seasons were never scored before this — and fills from the first season
+    // played on.
+    const career = save.careerState;
+    if (career) {
+      const stored = career.coefficients as unknown;
+      career.coefficients = isSplitLedger(stored)
+        ? stored
+        : { clubs: {}, nations: (stored as CoefficientLedger) ?? {} };
+    }
+    save = { ...save, version: 11 };
   }
 
   if (save.version !== SAVE_VERSION) return null;

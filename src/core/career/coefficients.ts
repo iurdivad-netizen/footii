@@ -3,6 +3,9 @@ import { allCountries, countriesByPrestige, countryPrestige } from './countries.
 import type { InternationalState } from './international.ts';
 import { KNOCKOUT_ROUNDS, knockoutField } from './international.ts';
 import { countryOfNation } from './nations.ts';
+import type { CupState } from './cups.ts';
+import type { EuropeanEntries, EuropeanTier } from './europe.ts';
+import { EUROPEAN_TIERS } from './europe.ts';
 
 /**
  * THE COUNTRY COEFFICIENT
@@ -31,6 +34,21 @@ import { countryOfNation } from './nations.ts';
  * bonuses are what separate a country that keeps qualifying from one that keeps
  * winning. Scoring the trophy alone would have made the coefficient as noisy as
  * the thing it is meant to summarise.
+ *
+ * TWO HALVES, MEASURED SEPARATELY. A country's standing is earned by its
+ * NATIONAL SIDE in the summer and by its CLUBS in Europe through the winter —
+ * and real football's coefficient is the club half alone. Both are kept here,
+ * because between them they say something neither says on its own: a country
+ * can have one great generation and no clubs to speak of, or a dominant league
+ * whose national side never turns up.
+ *
+ * They are two ledgers rather than one number because they are not on one
+ * scale. A national campaign is at most eight points across five matches; a
+ * club season is a longer, steadier thing measured per club entered. Adding
+ * them before normalising would let whichever happened to be noisier decide
+ * the order. Each is therefore measured against ITS OWN field average, and only
+ * the resulting movements are combined — weighted toward the clubs, as football
+ * weights them.
  *
  * WHY IT IS A NUDGE AND NOT THE WHOLE RANKING. Prestige is not only the
  * European pecking order: it scales wages, reputation and the bar for
@@ -103,20 +121,131 @@ export const COEFFICIENT_SWING = 0.2;
  */
 export const COEFFICIENT_SCALE = 0.06;
 
+/** What one club's European run is worth, per round it won. */
+export const EUROPEAN_ROUND_WIN = 1;
+/** And for lifting the thing. */
+export const EUROPEAN_TROPHY = 2;
+
 /**
- * Each country's most recent campaigns, oldest first, keyed by country id.
+ * How much each competition counts.
+ *
+ * A quarter-final in the Champions League is not the same evening as a
+ * quarter-final in the Conference League, and a coefficient that treated them
+ * alike would reward a country for sending clubs to competitions it could win
+ * rather than for being good at football.
+ */
+export const TIER_WEIGHT: Record<EuropeanTier, number> = {
+  championsLeague: 1,
+  europaLeague: 0.7,
+  conferenceLeague: 0.5,
+};
+
+/**
+ * How much a point of each half is worth, in prestige.
+ *
+ * ADDITIVE CONTRIBUTIONS, each on its own scale, with only the total clamped —
+ * and the first attempt got this wrong in a way worth recording. Weighting the
+ * two halves as shares of one movement (0.6 clubs, 0.4 nation) looked like the
+ * obvious way to say "clubs count more". What it actually said was "each half
+ * alone can only reach its share of the swing": a country with a perfect
+ * international record and ordinary clubs could move 0.08 where it used to move
+ * 0.19, which deleted the one thing in this game a player's own performances
+ * can change. A weighted average of two movements is smaller than either.
+ *
+ * So each half contributes on its own terms and the SUM is clamped. "Clubs
+ * count more" then means what it should: a point of club form is worth more
+ * prestige than a point of international form, and either, on its own, can
+ * still carry a country as far as the swing allows.
+ *
+ * Both scales are set from the MEASURED spread of their own ledger, because the
+ * two spreads are nothing like each other. Over 240 country-seasons: club
+ * coefficients ran 0.19 to 1.52 with deviations from the field reaching ±0.77
+ * (95th percentile 0.41), while national coefficients ran 0.50 to 6.10 with
+ * deviations reaching ±3.22 (95th percentile 1.98) — five times wider, because
+ * one is an average per club entered and the other is a whole campaign. Scaled
+ * as measured, a typical good club era is worth about 0.14 of prestige and a
+ * typical good international era about 0.12, so the clubs are the larger half
+ * without the smaller one being a rounding error.
+ */
+export const NATION_SCALE = 0.06;
+export const CLUB_SCALE = 0.34;
+
+/**
+ * What each country's clubs earned from one European season.
+ *
+ * PER CLUB ENTERED, which is the whole reason this is not a sum. A country at
+ * the top of the order sends seven clubs to Europe and one at the bottom sends
+ * five, so a raw total would reward a country for the places it already has and
+ * the order could never move — the rich would compound and the map would set
+ * like concrete. Dividing by the field a country actually sent asks the only
+ * question worth asking: how well did its clubs do, each of them?
+ */
+export function scoreEuropeanSeason(
+  entries: EuropeanEntries,
+  competitions: Partial<Record<EuropeanTier, CupState<EuropeanTier> | null>>,
+  countryOf: (clubId: string) => string | null,
+): Record<string, number> {
+  const earned: Record<string, number> = {};
+  const entered: Record<string, number> = {};
+
+  for (const tier of EUROPEAN_TIERS) {
+    const competition = competitions[tier];
+    if (!competition) continue;
+    const weight = TIER_WEIGHT[tier];
+
+    for (const [clubId, clubTier] of Object.entries(entries)) {
+      if (clubTier !== tier) continue;
+      const countryId = countryOf(clubId);
+      if (!countryId) continue;
+      entered[countryId] = (entered[countryId] ?? 0) + 1;
+
+      // A knockout tie cannot end level, so rounds survived IS the record: no
+      // draws to count and no table to read.
+      const roundsWon = competition.rounds.filter((round) =>
+        round.ties.some((tie) => tie.winnerId === clubId),
+      ).length;
+      const trophy = competition.winnerId === clubId ? EUROPEAN_TROPHY : 0;
+      earned[countryId] = (earned[countryId] ?? 0) + (roundsWon * EUROPEAN_ROUND_WIN + trophy) * weight;
+    }
+  }
+
+  const scores: Record<string, number> = {};
+  for (const [countryId, total] of Object.entries(earned)) {
+    const clubs = entered[countryId] ?? 0;
+    scores[countryId] = clubs > 0 ? round(total / clubs, 2) : 0;
+  }
+  // A country that entered nobody scores nothing, rather than being left out
+  // and quietly keeping last year's average.
+  for (const countryId of Object.keys(entered)) scores[countryId] ??= 0;
+
+  return scores;
+}
+
+/**
+ * One country's most recent seasons in one competition, oldest first.
  *
  * Stored rather than derived, unlike almost everything else about the world. A
- * past tournament CANNOT be recomputed: national sides are built from their
+ * past season CANNOT be recomputed: national sides are built from their
  * country's clubs as they stood at the time, and club drift only ever carries
  * the current strengths, so the world that played the tournament of season four
- * no longer exists by season nine. Eight countries times five numbers is a
+ * no longer exists by season nine. A dozen countries times five numbers is a
  * cheap thing to remember and an impossible thing to reconstruct.
  */
 export type CoefficientLedger = Record<string, number[]>;
 
-export function createLedger(): CoefficientLedger {
-  return {};
+/**
+ * A country's whole European record: what its clubs did, and what its nation did.
+ *
+ * Two ledgers rather than one, because the two are not on one scale — see the
+ * note at the top of this file.
+ */
+export interface Coefficients {
+  clubs: CoefficientLedger;
+  nations: CoefficientLedger;
+}
+
+export function createCoefficients(): Coefficients {
+  return { clubs: {}, nations: {} };
 }
 
 /** What each country's national side earned from one finished tournament. */
@@ -147,17 +276,24 @@ export function scoreTournament(state: InternationalState): Record<string, numbe
 }
 
 /**
- * Add one tournament to the ledger, dropping whatever has fallen out of the
+ * Add one season to both ledgers, dropping whatever has fallen out of the
  * window.
  *
  * A country absent from the scores still ages: it is given a zero rather than
- * being left alone, so a country that somehow stops entering slides down the
- * order instead of freezing at whatever it last managed.
+ * being left alone, so a country that stops competing slides down the order
+ * instead of freezing at whatever it last managed.
  */
-export function recordTournament(
-  ledger: CoefficientLedger,
-  scores: Record<string, number>,
-): CoefficientLedger {
+export function recordEuropeanSeason(
+  record: Coefficients,
+  scores: { clubs: Record<string, number>; nations: Record<string, number> },
+): Coefficients {
+  return {
+    clubs: pushSeason(record.clubs, scores.clubs),
+    nations: pushSeason(record.nations, scores.nations),
+  };
+}
+
+function pushSeason(ledger: CoefficientLedger, scores: Record<string, number>): CoefficientLedger {
   const updated: CoefficientLedger = {};
   const countries = new Set([
     ...Object.keys(ledger),
@@ -174,11 +310,11 @@ export function recordTournament(
 }
 
 /**
- * A country's coefficient: what its national side has averaged per tournament.
+ * What a country has averaged per season in one ledger.
  *
  * An average rather than a total, so a country is not punished for a career
  * that has not run long enough to fill the window yet — in season two, one good
- * tournament is the whole record and counts as such.
+ * season is the whole record and counts as such.
  */
 export function coefficientOf(ledger: CoefficientLedger, countryId: string): number {
   const history = ledger[countryId];
@@ -186,13 +322,25 @@ export function coefficientOf(ledger: CoefficientLedger, countryId: string): num
   return round(history.reduce((sum, score) => sum + score, 0) / history.length, 2);
 }
 
-/** True once there is any tournament on record at all. */
-export function hasRecord(ledger: CoefficientLedger): boolean {
-  return Object.values(ledger).some((history) => history.length > 0);
+/** What a country's clubs have averaged in Europe. */
+export function clubCoefficient(record: Coefficients, countryId: string): number {
+  return coefficientOf(record.clubs, countryId);
+}
+
+/** What a country's national side has averaged. */
+export function nationCoefficient(record: Coefficients, countryId: string): number {
+  return coefficientOf(record.nations, countryId);
+}
+
+/** True once there is any season on record at all, in either ledger. */
+export function hasRecord(record: Coefficients): boolean {
+  return [record.clubs, record.nations].some((ledger) =>
+    Object.values(ledger).some((history) => history.length > 0),
+  );
 }
 
 /**
- * The average coefficient across every country that has actually played.
+ * The average across every country that has actually competed in one ledger.
  *
  * Countries with no record at all are left out rather than counted as zero: a
  * country the world has never heard of should not drag the bar down for the
@@ -205,46 +353,54 @@ export function fieldAverage(ledger: CoefficientLedger): number {
 }
 
 /**
- * How much a country's record moves it from its prestige, positive or negative.
+ * How far one ledger alone moves a country from its prestige.
  *
  * Measured against the FIELD's average rather than against the best and worst
  * of it. Normalising to the extremes would hand the leading country the full
  * swing every single year however narrow the gap behind it — an era in which
- * all eight nations are level would read as an era of total dominance. Against
- * the average, a field that is level produces nudges of nearly nothing, which
- * is the honest answer.
+ * all the nations are level would read as an era of total dominance. Against
+ * the average, a level field produces nudges of nearly nothing, which is the
+ * honest answer.
  */
-export function coefficientNudge(ledger: CoefficientLedger, countryId: string): number {
-  if (!hasRecord(ledger)) return 0;
+function ledgerNudge(ledger: CoefficientLedger, countryId: string, scale: number): number {
+  const played = ledger[countryId]?.length ?? 0;
+  if (played === 0) return 0;
   const deviation = coefficientOf(ledger, countryId) - fieldAverage(ledger);
-  const moved = clamp(deviation * COEFFICIENT_SCALE, -COEFFICIENT_SWING, COEFFICIENT_SWING);
-  return round(moved * confidence(ledger, countryId), 3);
+  const moved = deviation * scale;
+  // How much of the window a country has filled, 0-1. One season is the
+  // noisiest evidence there is and, on an average, also the loudest: a country
+  // that wins its first tournament has a coefficient of eight and nothing to
+  // temper it. Ramping by the record's depth means a single good year moves a
+  // country a fifth as far as five consistent ones do, which is both the honest
+  // reading of the evidence and the better career arc — the map opens as the
+  // data file drew it and becomes earned as the seasons accumulate.
+  return moved * Math.min(1, played / COEFFICIENT_WINDOW);
 }
 
 /**
- * How much of the window a country has actually filled, 0-1.
+ * How much a country's whole record moves it from its prestige.
  *
- * One tournament is the noisiest evidence there is and, on an average, it is
- * also the loudest: a country that wins its first tournament has a coefficient
- * of eight and nothing to temper it. Ramping the nudge by how full the record
- * is means a single good summer moves a country a fifth as far as five
- * consistent ones do, which is both the honest reading of the evidence and the
- * better career arc — the map opens as the data file drew it and becomes
- * earned as the seasons accumulate.
+ * Each half is measured against its OWN field average — the right
+ * normalisation, since a club season and an international campaign are not on
+ * one scale — and the two contributions are added. Only the total is clamped,
+ * so a country that is excellent at both is capped rather than doubled, and a
+ * country that is excellent at one is not quietly halved for it.
  */
-function confidence(ledger: CoefficientLedger, countryId: string): number {
-  const played = ledger[countryId]?.length ?? 0;
-  return Math.min(1, played / COEFFICIENT_WINDOW);
+export function coefficientNudge(record: Coefficients, countryId: string): number {
+  const moved =
+    ledgerNudge(record.clubs, countryId, CLUB_SCALE) +
+    ledgerNudge(record.nations, countryId, NATION_SCALE);
+  return round(clamp(moved, -COEFFICIENT_SWING, COEFFICIENT_SWING), 3);
 }
 
 /**
  * Where a country stands in the European order today.
  *
- * Prestige, bent by what its national side has been doing. This is the number
- * the Champions League places are handed out on.
+ * Prestige, bent by what its clubs and its national side have been doing. This
+ * is the number the European places are handed out on.
  */
-export function standingOf(ledger: CoefficientLedger, countryId: string): number {
-  return round(countryPrestige(countryId) + coefficientNudge(ledger, countryId), 3);
+export function standingOf(record: Coefficients, countryId: string): number {
+  return round(countryPrestige(countryId) + coefficientNudge(record, countryId), 3);
 }
 
 /**
@@ -252,17 +408,16 @@ export function standingOf(ledger: CoefficientLedger, countryId: string): number
  *
  * Falls back to plain prestige order while nothing has been played, which is
  * exactly season one: the allocation a career opens with is the one the data
- * file describes, and it starts moving the moment there is a tournament to
- * move it.
+ * file describes, and it starts moving the moment there is a season to move it.
  */
-export function countriesByStanding(ledger: CoefficientLedger): string[] {
+export function countriesByStanding(record: Coefficients): string[] {
   const prestigeOrder = countriesByPrestige().map((country) => country.id);
-  if (!hasRecord(ledger)) return prestigeOrder;
+  if (!hasRecord(record)) return prestigeOrder;
 
   return prestigeOrder
     .slice()
     .sort((a, b) => {
-      const difference = standingOf(ledger, b) - standingOf(ledger, a);
+      const difference = standingOf(record, b) - standingOf(record, a);
       // Prestige order breaks a tie, so the ordering is total and stable and
       // two countries level on everything never swap from one look to the next.
       if (difference !== 0) return difference;
@@ -273,23 +428,29 @@ export function countriesByStanding(ledger: CoefficientLedger): string[] {
 /** One row of the European order, for showing the player why he gets what he gets. */
 export interface StandingRow {
   countryId: string;
-  /** Average points per tournament over the window. */
-  coefficient: number;
-  /** How far that has moved the country from its prestige. */
+  /** Average points per European season, per club entered. */
+  clubs: number;
+  /** Average points per tournament for the national side. */
+  nations: number;
+  /** How far the two together have moved the country from its prestige. */
   nudge: number;
   /** Prestige plus the nudge: what the order is actually sorted on. */
   standing: number;
-  /** How many tournaments are on record, up to the window. */
-  tournaments: number;
+  /** How many seasons are on record, up to the window. */
+  seasons: number;
 }
 
 /** The whole European order, best first, with the numbers behind it. */
-export function standingsTable(ledger: CoefficientLedger): StandingRow[] {
-  return countriesByStanding(ledger).map((countryId) => ({
+export function standingsTable(record: Coefficients): StandingRow[] {
+  return countriesByStanding(record).map((countryId) => ({
     countryId,
-    coefficient: coefficientOf(ledger, countryId),
-    nudge: coefficientNudge(ledger, countryId),
-    standing: standingOf(ledger, countryId),
-    tournaments: ledger[countryId]?.length ?? 0,
+    clubs: clubCoefficient(record, countryId),
+    nations: nationCoefficient(record, countryId),
+    nudge: coefficientNudge(record, countryId),
+    standing: standingOf(record, countryId),
+    seasons: Math.max(
+      record.clubs[countryId]?.length ?? 0,
+      record.nations[countryId]?.length ?? 0,
+    ),
   }));
 }

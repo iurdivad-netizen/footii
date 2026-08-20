@@ -12,7 +12,7 @@ import { createPlayer } from '../src/core/player/player.ts';
 import { TEAMS } from '../src/data/gameData.ts';
 import { seasonCalendar } from '../src/core/career/calendar.ts';
 import { createCareerRecords, milestones, recordMatch } from '../src/core/career/records.ts';
-import { countriesByStanding, hasRecord } from '../src/core/career/coefficients.ts';
+import { countriesByStanding, hasRecord, nationCoefficient } from '../src/core/career/coefficients.ts';
 import { countriesByPrestige } from '../src/core/career/countries.ts';
 
 function career() {
@@ -288,7 +288,7 @@ describe('save migration', () => {
     // time, and only the current strengths survive — so inventing six seasons
     // of international football and awarding European places on it would be
     // worse than starting from nothing.
-    expect(restored.coefficients).toEqual({});
+    expect(restored.coefficients).toEqual({ clubs: {}, nations: {} });
     expect(hasRecord(restored.coefficients)).toBe(false);
     // Which means the save keeps the exact European order it was being played
     // under until the season in progress is finished and scored.
@@ -297,6 +297,27 @@ describe('save migration', () => {
     );
     // The season in progress is untouched.
     expect(restored.calendarIndex).toBe(20);
+  });
+
+  it('keeps a v10 career\'s tournaments when the coefficient gains its club half', () => {
+    const state = career();
+    state.seasonNumber = 9;
+
+    // The flat shape a v10 save wrote: national campaigns and nothing else.
+    const legacy = { ...state } as Record<string, unknown>;
+    legacy.coefficients = { england: [4, 5, 6], scotland: [1, 2, 1] };
+
+    const migrated = migrate({ version: 10, career: emptyCareer(), careerState: legacy } as never)!;
+    const restored = migrated.careerState!;
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    // Those tournaments were really played. Discarding them would reset a
+    // country that had already earned its way off prestige.
+    expect(restored.coefficients.nations).toEqual({ england: [4, 5, 6], scotland: [1, 2, 1] });
+    // The club side starts empty because there is no record of it to recover:
+    // European seasons were never scored before this.
+    expect(restored.coefficients.clubs).toEqual({});
+    expect(nationCoefficient(restored.coefficients, 'england')).toBe(5);
   });
 
   it('joins a v8 career to international football without inventing a past', () => {
