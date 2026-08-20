@@ -4,6 +4,7 @@ import { DECISION_PACE, UNTIMED_PACE } from '../simulation/DecisionTimer.ts';
 import {
   acceptOffer,
   canStay,
+  negotiateDeal,
   careerTeams,
   europeanState,
   prepareNextMatch,
@@ -15,7 +16,9 @@ import {
   stayAtClub,
 } from '../simulation/CareerService.ts';
 import { allClubIds, countryPrestige, getCountry, locateClub } from '../core/career/countries.ts';
-import { nextMatch, seasonComplete } from '../core/career/career.ts';
+import { knockoutFor, nextMatch, seasonComplete } from '../core/career/career.ts';
+import type { ScheduledMatch } from '../core/career/career.ts';
+import { competitionLabel } from '../core/career/calendar.ts';
 import { europeanTierOf } from '../core/career/europe.ts';
 import type { CareerState } from '../core/career/career.ts';
 import { Rng } from '../core/rng.ts';
@@ -33,7 +36,7 @@ import {
   getTeam,
 } from '../data/gameData.ts';
 import type { Team } from '../core/team/team.ts';
-import { INTERNATIONAL } from '../core/career/international.ts';
+import { GROUP_ROUNDS, INTERNATIONAL } from '../core/career/international.ts';
 import { countryOfNation, nationId } from '../core/career/nations.ts';
 import { matchResult } from '../core/match/matchState.ts';
 import { averageRating } from '../core/career/seasonStats.ts';
@@ -64,6 +67,12 @@ import { DebugPanel } from './components/DebugPanel.ts';
 import { EventOverlay } from './components/EventOverlay.ts';
 import { InputController } from './interaction/InputController.ts';
 import { CareerScreen } from './screens/CareerScreen.ts';
+import { ShootoutEngine } from '../simulation/ShootoutEngine.ts';
+import { ShootoutScreen } from './screens/ShootoutScreen.ts';
+import { PreferencesScreen } from './screens/PreferencesScreen.ts';
+import { defaultPreferences } from '../core/career/preferences.ts';
+import type { ShootoutSide } from '../core/career/shootout.ts';
+import { simulateShootout } from '../core/career/shootout.ts';
 import { CareerEndScreen } from './screens/CareerEndScreen.ts';
 import { HallOfFameScreen } from './screens/HallOfFameScreen.ts';
 import type { TotalsView } from './screens/FullTimeScreen.ts';
@@ -91,6 +100,14 @@ export class App {
   private readonly overlay: EventOverlay;
   private save: SaveData;
   private matchScreen: MatchScreen | null = null;
+  /**
+   * A shootout in progress, if one is.
+   *
+   * Held for the same reason `matchScreen` is: it drives itself on a timer and
+   * has to be told to stop when the screen it lives on is replaced, or a
+   * shootout the player has walked away from goes on taking kicks.
+   */
+  private shootoutScreen: ShootoutScreen | null = null;
   private paceScale = 1;
   /** A player built in the creator this session, if any. */
   private customPlayer: Player | null = null;
@@ -113,6 +130,12 @@ export class App {
   }
 
   private mount(element: HTMLElement): void {
+    // A shootout drives itself on a timer, so leaving one behind would have it
+    // taking kicks against a screen nobody is looking at. Stopped here rather
+    // than at each call site, because every navigation goes through this.
+    this.shootoutScreen?.stop();
+    this.shootoutScreen = null;
+
     for (const child of Array.from(this.root.children)) {
       if (child !== this.debug.element) child.remove();
     }
@@ -598,6 +621,7 @@ export class App {
         onWorld: () => this.showWorld(),
         onEndSeason: () => this.reviewSeason(),
         onQuit: () => this.showHome(),
+        onPreferences: () => this.showPreferences(career),
       }).element,
     );
   }
@@ -625,6 +649,19 @@ export class App {
         club: clubs,
         cup: (countryId, kind) => worldCup(career, countryId, kind, getTeam),
         europe: (tier) => europeanState(career, tier, getTeam),
+        onBack: () => this.showCareerHub(),
+      }).element,
+    );
+  }
+
+  /** Where he says what he wants from a move, before the summer asks. */
+  private showPreferences(career: CareerState): void {
+    this.mount(
+      new PreferencesScreen(career.preferences ?? defaultPreferences(), career.countryId, {
+        onChange: (preferences) => {
+          career.preferences = preferences;
+          this.save = saveCareer(this.save, career);
+        },
         onBack: () => this.showCareerHub(),
       }).element,
     );
@@ -721,12 +758,63 @@ export class App {
     if (!next) return;
 
     runMatchAutomatically(next.engine, next.seed);
-    this.recordCareerMatch(next.engine, career, true);
+
+    // A skipped tie that finished level still goes to penalties, and the
+    // shootout is still played out properly — just without him. Skipping a
+    // match is a choice to let the season resolve itself, not a reason for the
+    // hub to be unable to say how the tie ended.
+    const tie = this.levelKnockout(next.engine, career);
+    this.recordCareerMatch(
+      next.engine,
+      career,
+      true,
+      tie ? this.autoShootout(career, tie) : undefined,
+    );
     this.showCareerHub();
   }
 
   /** Fold a finished match into the career and persist it. */
-  private recordCareerMatch(engine: MatchEngine, career: CareerState, skipped: boolean): void {
+  /**
+   * A shootout nobody took, for a tie the player skipped.
+   *
+   * Deliberately a real shootout rather than the single weighted roll this used
+   * to be. The roll produced a winner and nothing else, so there was no score
+   * for the hub to report and nothing to distinguish going out on penalties
+   * from losing 1-0.
+   */
+  private autoShootout(
+    career: CareerState,
+    tie: ScheduledMatch,
+  ): { winnerId: string; scored: number; conceded: number } {
+    const clubs = this.clubs(career);
+    const international = tie.competition === INTERNATIONAL;
+    const ownId = international ? nationId(career.player.nationality) : career.clubId;
+    const own = clubs(ownId);
+    const opponent = clubs(tie.opponentId);
+    const keeperFor = (team: Team) => {
+      const country = countryOfNation(team.id);
+      return country ? bestGoalkeeperIn(country) : getGoalkeeperForTeam(team.id);
+    };
+
+    const state = simulateShootout(
+      new Rng(`${career.seed}:s${career.seasonNumber}:c${career.calendarIndex}:shootout`),
+      { player: own, opponent },
+      { player: keeperFor(own), opponent: keeperFor(opponent) },
+    );
+
+    return {
+      winnerId: state.winner === 'player' ? ownId : tie.opponentId,
+      scored: state.playerScore,
+      conceded: state.opponentScore,
+    };
+  }
+
+  private recordCareerMatch(
+    engine: MatchEngine,
+    career: CareerState,
+    skipped: boolean,
+    shootout?: { winnerId: string; scored: number; conceded: number },
+  ): void {
     recordPlayerMatch(
       career,
       {
@@ -736,20 +824,114 @@ export class App {
         opponentScore: engine.state.opponentScore,
         fitnessAtEnd: engine.matchPlayer.fitness,
         skipped,
+        shootout,
       },
       getTeam,
     );
     this.save = saveCareer(this.save, career);
   }
 
-  private finishCareerMatch(engine: MatchEngine, career: CareerState): void {
-    this.recordCareerMatch(engine, career, false);
+  /**
+   * A knockout tie that has finished level, if that is what just happened.
+   *
+   * Asked BEFORE the match is recorded, because recording it settles the tie —
+   * and settling it is the thing the shootout has to happen first. Returns the
+   * scheduled match rather than a boolean, since the shootout needs to know who
+   * the opponent was and what competition this is.
+   */
+  private levelKnockout(engine: MatchEngine, career: CareerState): ScheduledMatch | null {
+    if (engine.state.playerTeamScore !== engine.state.opponentScore) return null;
+    const scheduled = nextMatch(career);
+    if (!scheduled || scheduled.competition === 'league') return null;
+    // An international GROUP match can end level and stay level; only its
+    // knockout has to produce a winner.
+    if (!knockoutFor(career, scheduled.competition)) return null;
+    if (scheduled.competition === INTERNATIONAL && scheduled.round <= GROUP_ROUNDS) return null;
+    return scheduled;
+  }
 
+  private finishCareerMatch(engine: MatchEngine, career: CareerState): void {
+    const tie = this.levelKnockout(engine, career);
+    if (tie) {
+      this.showShootout(engine, career, tie);
+      return;
+    }
+
+    this.recordCareerMatch(engine, career, false);
+    this.showFullTime(engine, career);
+  }
+
+  /**
+   * Ninety minutes were not enough. Go and take the kicks.
+   *
+   * The tie is deliberately NOT recorded before this. Recording settles the
+   * bracket, and a bracket settled before the shootout would either have to be
+   * rewritten afterwards or would quietly contradict the kicks the player just
+   * took — which is the bug this whole feature exists to fix, in a new place.
+   */
+  private showShootout(engine: MatchEngine, career: CareerState, tie: ScheduledMatch): void {
+    const clubs = this.clubs(career);
+    const international = tie.competition === INTERNATIONAL;
+    const ownId = international ? nationId(career.player.nationality) : career.clubId;
+    const own = clubs(ownId);
+    const opponent = clubs(tie.opponentId);
+    const keeperFor = (team: Team) => {
+      const country = countryOfNation(team.id);
+      return country ? bestGoalkeeperIn(country) : getGoalkeeperForTeam(team.id);
+    };
+
+    const shootout = new ShootoutEngine(
+      {
+        player: career.player,
+        playerTeam: own,
+        opponent,
+        opponentGoalkeeper: keeperFor(opponent),
+        ownGoalkeeper: keeperFor(own),
+        paceScale: this.paceScale,
+      },
+      `${career.seed}:s${career.seasonNumber}:c${career.calendarIndex}`,
+    );
+
+    const screen = new ShootoutScreen(
+      shootout,
+      this.overlay,
+      {
+        player: own.shortName,
+        opponent: opponent.shortName,
+        competition: `${competitionLabel(tie.competition)}${tie.roundLabel ? ` — ${tie.roundLabel}` : ''}`,
+      },
+      (winner: ShootoutSide) => {
+        this.recordCareerMatch(engine, career, false, {
+          winnerId: winner === 'player' ? ownId : tie.opponentId,
+          scored: shootout.state.playerScore,
+          conceded: shootout.state.opponentScore,
+        });
+        this.showFullTime(engine, career, {
+          won: winner === 'player',
+          scored: shootout.state.playerScore,
+          conceded: shootout.state.opponentScore,
+        });
+      },
+    );
+
+    // Mounted before it is remembered: `mount` stops whatever shootout was
+    // running, and that must not be the one being started.
+    this.mount(screen.element);
+    this.shootoutScreen = screen;
+    screen.start();
+  }
+
+  private showFullTime(
+    engine: MatchEngine,
+    career: CareerState,
+    shootout?: { won: boolean; scored: number; conceded: number },
+  ): void {
     this.mount(
       new FullTimeScreen(engine, () => this.showCareerHub(), {
         continueLabel: seasonComplete(career) ? 'End of season' : 'Back to career',
         development: career.lastDevelopment,
         totals: this.careerTotals(career),
+        shootout,
       }).element,
     );
   }
@@ -888,7 +1070,13 @@ export class App {
   }
 
   /** Summer: decide where you are playing next season. */
-  private showTransferWindow(career: CareerState, points: number, notes: string[]): void {
+  private showTransferWindow(
+    career: CareerState,
+    points: number,
+    notes: string[],
+    /** What the last ask produced, so the redrawn screen can report it. */
+    negotiation?: { offerId: string | null; outcome: string; message: string },
+  ): void {
     const clubs = this.clubs(career);
     const close = () => {
       this.save = saveCareer(this.save, career);
@@ -913,6 +1101,9 @@ export class App {
           renewal: career.renewal,
           outOfContract: career.contract.yearsRemaining <= 0,
           canStay: canStay(career),
+          // No offers and an expired deal means no leverage — see negotiateDeal.
+          canNegotiateRenewal:
+            career.offers.length > 0 || career.contract.yearsRemaining > 0,
           club: clubs,
         },
         {
@@ -924,7 +1115,23 @@ export class App {
             stayAtClub(career);
             close();
           },
+          onNegotiate: (offerId, ask) => {
+            const result = negotiateDeal(career, offerId, ask);
+            // Written before the redraw: a withdrawal has to survive a reload,
+            // or closing the tab would quietly hand the offer back.
+            this.save = saveCareer(this.save, career);
+            if (!result) {
+              this.showTransferWindow(career, points, notes);
+              return;
+            }
+            this.showTransferWindow(career, points, notes, {
+              offerId,
+              outcome: result.outcome,
+              message: result.message,
+            });
+          },
         },
+        negotiation,
       ).element,
     );
   }

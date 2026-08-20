@@ -14,6 +14,7 @@ import { initialNationStrengths } from '../core/career/nationDrift.ts';
 import type { CoefficientLedger, Coefficients } from '../core/career/coefficients.ts';
 import { Rng } from '../core/rng.ts';
 import { initialStrengths } from '../core/career/clubDrift.ts';
+import { defaultPreferences } from '../core/career/preferences.ts';
 import { contractYears, offeredWage, squadRole } from '../core/career/transfers.ts';
 import type { DecisionPace } from '../simulation/DecisionTimer.ts';
 import type { CareerLegacy } from '../core/career/legacy.ts';
@@ -31,7 +32,7 @@ import { rankLegacies } from '../core/career/legacy.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 15;
+export const SAVE_VERSION = 16;
 
 export interface CareerRecord {
   matches: number;
@@ -599,6 +600,22 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
     save = { ...save, version: 15, careers: slots, activeSlot: 0 };
   }
 
+  if (save.version === 15) {
+    // v15 -> v16: a career can say what it wants from a move.
+    //
+    // Every existing career starts open to anything, which is exactly what it
+    // has been all along — there was no way to say otherwise, so "no stated
+    // preference" is the truthful reading of an older save rather than a
+    // default standing in for a lost one.
+    save = { ...save, version: 16 };
+    for (const career of save.careers ?? []) {
+      if (career) career.preferences ??= defaultPreferences();
+    }
+    // A v15 save that still carries the flat field has not reached the slot
+    // step yet; its career is handled by the v14 step above.
+    if (save.careerState) save.careerState.preferences ??= defaultPreferences();
+  }
+
   // The flat field is a migration detail and must not survive into the save.
   // Leaving it would give the game two answers to "which career is this", and
   // the stale one would win on any code path that had not been updated.
@@ -621,6 +638,14 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
     if (!Array.isArray(career.offers)) career.offers = [];
     if (!Array.isArray(career.transfers)) career.transfers = [];
     if (!Array.isArray(career.honours)) career.honours = [];
+    // Preferences are additive in the way settings are: a career from before
+    // they existed simply had none, and a damaged one is repaired rather than
+    // costing somebody the career that holds it.
+    if (!career.preferences || typeof career.preferences !== 'object') {
+      career.preferences = defaultPreferences();
+    }
+    if (!Array.isArray(career.preferences.refused)) career.preferences.refused = [];
+    if (!Array.isArray(career.preferences.favoured)) career.preferences.favoured = [];
     return career;
   });
   // The wall is additive in exactly the way settings are: a save written before

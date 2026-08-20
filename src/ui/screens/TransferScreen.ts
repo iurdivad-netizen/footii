@@ -16,6 +16,8 @@ import { reputationTier } from '../../core/career/reputation.ts';
 import { getCountry, leagueName } from '../../core/career/countries.ts';
 import { europeanNameInProse } from '../../core/career/europe.ts';
 import type { EuropeanTier } from '../../core/career/europe.ts';
+import { NEGOTIATION_LABELS, canAsk } from '../../core/career/negotiation.ts';
+import type { NegotiationAsk, Negotiable } from '../../core/career/negotiation.ts';
 
 /**
  * THE TRANSFER WINDOW
@@ -53,6 +55,14 @@ export interface TransferScreenContext {
   outOfContract: boolean;
   /** Whether staying is possible at all. */
   canStay: boolean;
+  /**
+   * Whether his club's renewal can be pushed.
+   *
+   * False when it is the only thing on the table — a player out of contract
+   * with no other bids has no leverage, and letting him haggle would let him
+   * talk himself into a summer with nothing to sign.
+   */
+  canNegotiateRenewal: boolean;
   /** Resolve a club id to the club as the career currently knows it. */
   club: (id: string) => Team;
   /**
@@ -74,7 +84,17 @@ export class TransferScreen {
     currentClub: Team,
     offers: readonly TransferOffer[],
     context: TransferScreenContext,
-    handlers: { onAccept: (offerId: string) => void; onStay: () => void },
+    handlers: {
+      onAccept: (offerId: string) => void;
+      onStay: () => void;
+      /**
+       * Push a deal on one thing. `offerId` is null for the club's own
+       * renewal, which has no id because there is only ever one of them.
+       */
+      onNegotiate?: (offerId: string | null, ask: NegotiationAsk) => void;
+    },
+    /** What the last ask produced, so the screen can report it. */
+    negotiation?: { offerId: string | null; outcome: string; message: string },
   ) {
     const tier = reputationTier(player.reputation);
     const country = getCountry(context.currentCountryId);
@@ -103,16 +123,26 @@ export class TransferScreen {
       </div>
 
       <div class="offer-grid">
-        ${offers.map((offer) => offerCard(player, currentClub, offer, context)).join('')}
+        ${offers
+          .map((offer) => offerCard(player, currentClub, offer, context, negotiation))
+          .join('')}
       </div>
 
-      ${stayCard(currentClub, context)}`;
+      ${stayCard(currentClub, context, negotiation)}`;
 
     this.element
       .querySelector<HTMLButtonElement>('#stay-put')
       ?.addEventListener('click', handlers.onStay);
     for (const button of this.element.querySelectorAll<HTMLButtonElement>('button[data-offer]')) {
       button.addEventListener('click', () => handlers.onAccept(button.dataset.offer!));
+    }
+    for (const button of this.element.querySelectorAll<HTMLButtonElement>('button[data-ask]')) {
+      button.addEventListener('click', () =>
+        handlers.onNegotiate?.(
+          button.dataset.deal === 'renewal' ? null : button.dataset.deal!,
+          button.dataset.ask as NegotiationAsk,
+        ),
+      );
     }
   }
 }
@@ -141,7 +171,11 @@ function headline(count: number, context: TransferScreenContext): string {
  * want to renew it on stated terms; or your deal ran out and they do not, in
  * which case there is nothing to stay on and the button is gone.
  */
-function stayCard(club: Team, context: TransferScreenContext): string {
+function stayCard(
+  club: Team,
+  context: TransferScreenContext,
+  negotiation?: { offerId: string | null; outcome: string; message: string },
+): string {
   const europe = europeanLine(context.europeanTierOf(club.id));
   if (!context.canStay) {
     return `
@@ -182,6 +216,14 @@ function stayCard(club: Team, context: TransferScreenContext): string {
         <div><dt>Your role</dt><dd>${SQUAD_ROLE_LABELS[renewal.role]}</dd></div>
       </dl>
       ${renewal.notes.length ? `<ul class="offer-notes">${renewal.notes.map((n) => `<li>${n}</li>`).join('')}</ul>` : ''}
+      ${
+        context.canNegotiateRenewal
+          ? negotiationRow(renewal, 'renewal', negotiation)
+          : `<p class="hint">
+               It is the only deal in front of you, so there is nothing to push with. Another
+               season like the last one and there will be.
+             </p>`
+      }
       <button class="primary" id="stay-put">Sign a new ${describeYears(renewal.years)} deal</button>
     </div>`;
 }
@@ -192,6 +234,7 @@ function offerCard(
   currentClub: Team,
   offer: TransferOffer,
   context: TransferScreenContext,
+  negotiation?: { offerId: string | null; outcome: string; message: string },
 ): string {
   const club = context.club(offer.clubId);
   const level = squadLevel(club);
@@ -248,7 +291,56 @@ function offerCard(
 
       ${offer.notes.length ? `<ul class="offer-notes">${offer.notes.map((n) => `<li>${n}</li>`).join('')}</ul>` : ''}
 
-      <button class="primary" data-offer="${offer.id}">Join ${club.shortName}</button>
+      ${negotiationRow(offer, offer.id, negotiation)}
+
+      ${
+        offer.withdrawn
+          ? ''
+          : `<button class="primary" data-offer="${offer.id}">Join ${club.shortName}</button>`
+      }
+    </div>`;
+}
+
+/**
+ * What he can say back.
+ *
+ * Three asks, one of which he may make. Rendered as buttons that disappear once
+ * spent rather than as disabled ones, because a spent negotiation is over: the
+ * club has answered, and a greyed-out row of things you can no longer do is
+ * just clutter on a card you are about to make a decision on.
+ */
+function negotiationRow(
+  deal: Negotiable,
+  dealId: string,
+  negotiation?: { offerId: string | null; outcome: string; message: string },
+): string {
+  const answer =
+    negotiation && (negotiation.offerId ?? 'renewal') === dealId
+      ? `<p class="negotiation-answer ${negotiation.outcome}">${negotiation.message}</p>`
+      : '';
+
+  if (deal.withdrawn) {
+    return `${answer}<p class="negotiation-gone">This offer is gone.</p>`;
+  }
+  if (deal.negotiated) return answer;
+
+  const asks = (Object.keys(NEGOTIATION_LABELS) as NegotiationAsk[])
+    .filter((ask) => canAsk(deal, ask))
+    .map(
+      (ask) =>
+        `<button class="ghost small" data-ask="${ask}" data-deal="${dealId}">
+           ${NEGOTIATION_LABELS[ask]}
+         </button>`,
+    )
+    .join('');
+
+  if (!asks) return answer;
+  return `${answer}
+    <div class="negotiation">
+      <p class="hint">
+        You can push them on one thing, once. A club that only half wants you may walk away.
+      </p>
+      <div class="negotiation-asks">${asks}</div>
     </div>`;
 }
 

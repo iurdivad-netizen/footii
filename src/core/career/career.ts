@@ -27,6 +27,7 @@ import { GROUP_ROUNDS, INTERNATIONAL, KNOCKOUT_ROUNDS, groupFixture } from './in
 import { isSelected, nationId } from './nations.ts';
 import type { ClubStrengths } from './clubDrift.ts';
 import type { Honour } from './awards.ts';
+import type { CareerPreferences } from './preferences.ts';
 
 /**
  * CAREER STATE
@@ -141,6 +142,14 @@ export interface CareerState {
   renewal: ContractOffer | null;
   /** Everything won, oldest first. The only part of a career that only grows. */
   honours: Honour[];
+  /**
+   * What he wants from a move, stated before the window opens.
+   *
+   * Read by `generateOffers` at the end of a season, which is the only moment
+   * it can matter: a preference applied afterwards would be a filter on a list
+   * that had already been decided. See core/career/preferences.ts.
+   */
+  preferences: CareerPreferences;
   /** Total wages banked across the career, in millions. */
   careerEarnings: number;
   /**
@@ -228,6 +237,15 @@ export interface MatchResultSummary {
   rating: number;
   /** True when it was resolved automatically rather than played. */
   skipped: boolean;
+  /**
+   * The shootout, when the tie went to one.
+   *
+   * Present only for a knockout that finished level. The hub reads it because
+   * "1-1" is not a result in a cup — going out on penalties and going through
+   * on them are the same scoreline and opposite seasons, and for a long time
+   * the game showed only the scoreline.
+   */
+  shootout?: { won: boolean; scored: number; conceded: number };
 }
 
 /** How much fitness a player recovers between fixtures. */

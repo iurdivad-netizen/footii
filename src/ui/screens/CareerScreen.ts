@@ -72,6 +72,8 @@ export class CareerScreen {
       onWorld: () => void;
       onEndSeason: () => void;
       onQuit: () => void;
+      /** Open the panel where he says what he wants from a move. */
+      onPreferences: () => void;
     },
   ) {
     this.element = document.createElement('section');
@@ -87,6 +89,9 @@ export class CareerScreen {
     this.element
       .querySelector<HTMLButtonElement>('#browse-world')
       ?.addEventListener('click', handlers.onWorld);
+    this.element
+      .querySelector<HTMLButtonElement>('#transfer-preferences')
+      ?.addEventListener('click', handlers.onPreferences);
     this.element
       .querySelector<HTMLButtonElement>('#end-season')
       ?.addEventListener('click', handlers.onEndSeason);
@@ -231,6 +236,7 @@ export class CareerScreen {
           <h2>${leagueName(country.id)}</h2>
           ${this.renderTable()}
           <button class="ghost" id="browse-world">Other leagues around the world</button>
+          <button class="ghost" id="transfer-preferences">${preferenceLabel(this.state)}</button>
         </div>
         <div class="career-card">
           <h2>Key attributes</h2>
@@ -257,8 +263,17 @@ export class CareerScreen {
     const last = this.state.lastResult;
     if (!last) return '';
 
-    const verdict =
-      last.goalsFor > last.goalsAgainst ? 'win' : last.goalsFor < last.goalsAgainst ? 'loss' : 'draw';
+    // A knockout settled from the spot has a verdict its scoreline does not
+    // show: 1-1 is the same line whether you went through or went out.
+    const verdict = last.shootout
+      ? last.shootout.won
+        ? 'win'
+        : 'loss'
+      : last.goalsFor > last.goalsAgainst
+        ? 'win'
+        : last.goalsFor < last.goalsAgainst
+          ? 'loss'
+          : 'draw';
     const contributions = [
       last.goals > 0 ? `${last.goals} goal${last.goals === 1 ? '' : 's'}` : '',
       last.assists > 0 ? `${last.assists} assist${last.assists === 1 ? '' : 's'}` : '',
@@ -273,6 +288,14 @@ export class CareerScreen {
           ${last.home ? 'v' : 'away to'} ${this.side(last.opponentId).name} ·
           rated ${last.rating.toFixed(1)}${contributions.length ? ` · ${contributions.join(', ')}` : ''}
         </span>
+        ${
+          last.shootout
+            ? `<span class="last-result-tag pens">
+                 ${last.shootout.won ? 'Won' : 'Lost'} on pens
+                 ${last.shootout.scored}-${last.shootout.conceded}
+               </span>`
+            : ''
+        }
         ${last.skipped ? '<span class="last-result-tag">Skipped</span>' : ''}
       </div>`;
   }
@@ -815,6 +838,24 @@ export function renderSeasonHonours(honours: readonly Honour[], season: number):
         `<em class="season-honour ${entry.tone}" title="${entry.detail}">${entry.label}</em>`,
     )
     .join('')}</span>`;
+}
+
+/**
+ * What the button says about the position he has taken.
+ *
+ * The label carries the state rather than a badge beside it, because this is
+ * the only place in the hub where a setting has consequences somebody could
+ * forget having chosen — a summer in which nobody bids should never be a
+ * mystery.
+ */
+function preferenceLabel(state: CareerState): string {
+  const preferences = state.preferences;
+  if (!preferences) return 'What you want from a move';
+  if (preferences.settled) return 'Not looking to move — change that';
+  const stated = preferences.favoured.length + preferences.refused.length;
+  return stated > 0
+    ? `What you want from a move · ${stated} stated`
+    : 'What you want from a move';
 }
 
 /** Scouting interest as a phrase rather than a probability. */
