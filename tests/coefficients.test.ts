@@ -10,18 +10,26 @@ import {
   GROUP_WIN,
   KNOCKOUT_BONUS,
   MAX_CAMPAIGN,
+  CLUB_SCALE,
+  EUROPEAN_ROUND_WIN,
+  EUROPEAN_TROPHY,
+  NATION_SCALE,
+  TIER_WEIGHT,
+  clubCoefficient,
   coefficientNudge,
-  coefficientOf,
   countriesByStanding,
-  createLedger,
+  createCoefficients,
   fieldAverage,
   hasRecord,
-  recordTournament,
+  nationCoefficient,
+  recordEuropeanSeason,
+  scoreEuropeanSeason,
   scoreTournament,
   standingOf,
   standingsTable,
 } from '../src/core/career/coefficients.ts';
-import type { CoefficientLedger } from '../src/core/career/coefficients.ts';
+import type { Coefficients } from '../src/core/career/coefficients.ts';
+import type { EuropeanEntries, EuropeanState } from '../src/core/career/europe.ts';
 import { countriesByPrestige } from '../src/core/career/countries.ts';
 import { createCup } from '../src/core/career/cups.ts';
 import { INTERNATIONAL } from '../src/core/career/international.ts';
@@ -83,15 +91,48 @@ function tournament(
 }
 
 /** Play the same campaign for one country `times` over, everyone else blank. */
-function ledgerOf(campaigns: Record<string, Parameters<typeof tournament>[0][string]>, times = COEFFICIENT_WINDOW): CoefficientLedger {
-  let ledger = createLedger();
+function ledgerOf(
+  campaigns: Record<string, Parameters<typeof tournament>[0][string]>,
+  times = COEFFICIENT_WINDOW,
+): Coefficients {
+  let record = createCoefficients();
   const keyed = Object.fromEntries(
     Object.entries(campaigns).map(([countryId, campaign]) => [nationId(countryId), campaign]),
   );
   for (let i = 0; i < times; i++) {
-    ledger = recordTournament(ledger, scoreTournament(tournament(keyed)));
+    record = recordEuropeanSeason(record, {
+      clubs: {},
+      nations: scoreTournament(tournament(keyed)),
+    });
   }
-  return ledger;
+  return record;
+}
+
+/** The same, for a European season described as club scores. */
+function clubLedger(
+  scores: Record<string, number>,
+  times = COEFFICIENT_WINDOW,
+): Coefficients {
+  let record = createCoefficients();
+  for (let i = 0; i < times; i++) {
+    record = recordEuropeanSeason(record, { clubs: scores, nations: {} });
+  }
+  return record;
+}
+
+/** A finished European competition: `winners` went through in each round. */
+function competition(tier: EuropeanState['kind'], rounds: string[][], winnerId?: string): EuropeanState {
+  return {
+    kind: tier,
+    countryId: tier,
+    rounds: rounds.map((through, index) => ({
+      round: index + 1,
+      ties: through.map((clubId) => ({ homeId: clubId, awayId: `beaten-${clubId}-${index}`, winnerId: clubId })),
+    })),
+    survivors: winnerId ? [winnerId] : [],
+    winnerId: winnerId ?? null,
+    eliminatedInRound: null,
+  };
 }
 
 describe('scoring one campaign', () => {
@@ -129,42 +170,203 @@ describe('scoring one campaign', () => {
   });
 });
 
+describe('scoring a European season', () => {
+  /** Two English clubs and one Scottish, all in the Champions League. */
+  const entries: EuropeanEntries = {
+    'ashford-united': 'championsLeague',
+    'northport-city': 'championsLeague',
+    'glenmorra-rangers': 'championsLeague',
+  };
+  const countryOf = (id: string) => (id === 'glenmorra-rangers' ? 'scotland' : 'england');
+
+  it('counts the rounds a club won', () => {
+    const scores = scoreEuropeanSeason(
+      entries,
+      {
+        championsLeague: competition('championsLeague', [
+          ['ashford-united', 'northport-city', 'glenmorra-rangers'],
+          ['ashford-united'],
+        ]),
+      },
+      countryOf,
+    );
+    // England: one club won two rounds, one won one — three between two clubs.
+    expect(scores.england).toBeCloseTo((3 * EUROPEAN_ROUND_WIN) / 2, 5);
+    expect(scores.scotland).toBeCloseTo(EUROPEAN_ROUND_WIN, 5);
+  });
+
+  it('adds a bonus for lifting it', () => {
+    const withTrophy = scoreEuropeanSeason(
+      entries,
+      {
+        championsLeague: competition(
+          'championsLeague',
+          [['glenmorra-rangers'], ['glenmorra-rangers']],
+          'glenmorra-rangers',
+        ),
+      },
+      countryOf,
+    );
+    expect(withTrophy.scotland).toBeCloseTo(2 * EUROPEAN_ROUND_WIN + EUROPEAN_TROPHY, 5);
+  });
+
+  it('is measured PER CLUB ENTERED, not as a total', () => {
+    // The property the whole thing rests on. A country at the top of the order
+    // enters seven clubs and one at the bottom five, so a raw total would
+    // reward a country for the places it already has: the rich would compound
+    // and the order could never move again.
+    const oneClub = scoreEuropeanSeason(
+      { a: 'championsLeague' },
+      { championsLeague: competition('championsLeague', [['a'], ['a']]) },
+      () => 'spain',
+    );
+    const fourClubs = scoreEuropeanSeason(
+      { a: 'championsLeague', b: 'championsLeague', c: 'championsLeague', d: 'championsLeague' },
+      { championsLeague: competition('championsLeague', [['a'], ['a']]) },
+      () => 'spain',
+    );
+    expect(oneClub.spain).toBeGreaterThan(fourClubs.spain!);
+  });
+
+  it('weights the competitions against each other', () => {
+    const run = (tier: 'championsLeague' | 'conferenceLeague') =>
+      scoreEuropeanSeason(
+        { a: tier },
+        { [tier]: competition(tier, [['a'], ['a']]) },
+        () => 'italy',
+      ).italy;
+    expect(run('championsLeague')).toBeCloseTo(2 * EUROPEAN_ROUND_WIN * TIER_WEIGHT.championsLeague, 5);
+    expect(run('conferenceLeague')).toBeCloseTo(2 * EUROPEAN_ROUND_WIN * TIER_WEIGHT.conferenceLeague, 5);
+    expect(run('championsLeague')).toBeGreaterThan(run('conferenceLeague')!);
+  });
+
+  it('scores nothing rather than nothing at all for a club that lost its first tie', () => {
+    const scores = scoreEuropeanSeason(
+      { a: 'championsLeague' },
+      { championsLeague: competition('championsLeague', [['somebody-else']]) },
+      () => 'france',
+    );
+    expect(scores.france).toBe(0);
+  });
+
+  it('ignores a competition that was never played', () => {
+    const scores = scoreEuropeanSeason(entries, { championsLeague: null }, countryOf);
+    expect(scores).toEqual({});
+  });
+});
+
+describe('the two halves together', () => {
+  it('lets a country climb on its clubs alone', () => {
+    const smallest = IDS[IDS.length - 1]!;
+    const above = IDS[IDS.length - 2]!;
+    const record = clubLedger({ [smallest]: 4, [above]: 0 });
+    expect(standingOf(record, smallest)).toBeGreaterThan(standingOf(record, above));
+  });
+
+  it('makes a point of club form worth more than a point of international form', () => {
+    // The same numeric deviation in each half, so only the scales differ. Small
+    // enough that neither hits the clamp, which is where the comparison would
+    // stop meaning anything.
+    const country = IDS[0]!;
+    const onClubs = clubLedger({ [country]: 1 });
+    const onNations = recordAcross({ [country]: 1 }, 'nations');
+    expect(coefficientNudge(onClubs, country)).toBeGreaterThan(
+      coefficientNudge(onNations, country),
+    );
+    expect(CLUB_SCALE).toBeGreaterThan(NATION_SCALE);
+  });
+
+  it('lets either half alone carry a country as far as the swing allows', () => {
+    // The mistake this replaced: weighting the halves as shares of one movement
+    // meant a country with a perfect international record and ordinary clubs
+    // could only reach its share of the swing, which deleted the one thing a
+    // player's own performances can change about the world.
+    const country = IDS[IDS.length - 1]!;
+    const nationsOnly = recordAcross({ [country]: MAX_CAMPAIGN }, 'nations');
+    const clubsOnly = clubLedger({ [country]: 3 });
+    expect(coefficientNudge(nationsOnly, country)).toBeGreaterThan(COEFFICIENT_SWING * 0.6);
+    expect(coefficientNudge(clubsOnly, country)).toBeGreaterThan(COEFFICIENT_SWING * 0.6);
+  });
+
+  it('never moves a country past the swing, however well it does at both', () => {
+    const country = IDS[IDS.length - 1]!;
+    let record = createCoefficients();
+    for (let i = 0; i < COEFFICIENT_WINDOW; i++) {
+      record = recordEuropeanSeason(record, {
+        clubs: { [country]: 99 },
+        nations: { [country]: 99 },
+      });
+    }
+    expect(coefficientNudge(record, country)).toBeLessThanOrEqual(COEFFICIENT_SWING);
+    expect(coefficientNudge(record, country)).toBeGreaterThan(0);
+  });
+
+  it('reports the two halves separately', () => {
+    const country = IDS[0]!;
+    let record = createCoefficients();
+    for (let i = 0; i < COEFFICIENT_WINDOW; i++) {
+      record = recordEuropeanSeason(record, { clubs: { [country]: 3 }, nations: { [country]: 5 } });
+    }
+    expect(clubCoefficient(record, country)).toBe(3);
+    expect(nationCoefficient(record, country)).toBe(5);
+  });
+});
+
+/** A record built by repeating one season's scores into one half. */
+function recordAcross(scores: Record<string, number>, half: 'clubs' | 'nations'): Coefficients {
+  let record = createCoefficients();
+  for (let i = 0; i < COEFFICIENT_WINDOW; i++) {
+    record = recordEuropeanSeason(record, {
+      clubs: half === 'clubs' ? scores : {},
+      nations: half === 'nations' ? scores : {},
+    });
+  }
+  return record;
+}
+
 describe('the rolling window', () => {
   it('remembers only the most recent tournaments', () => {
-    let ledger = createLedger();
+    let record = createCoefficients();
     for (let i = 0; i < COEFFICIENT_WINDOW + 3; i++) {
-      ledger = recordTournament(ledger, { england: i });
+      record = recordEuropeanSeason(record, { clubs: {}, nations: { england: i } });
     }
-    expect(ledger.england).toHaveLength(COEFFICIENT_WINDOW);
+    expect(record.nations.england).toHaveLength(COEFFICIENT_WINDOW);
     // The oldest have fallen off the front, not the newest off the back.
-    expect(ledger.england?.at(-1)).toBe(COEFFICIENT_WINDOW + 2);
+    expect(record.nations.england?.at(-1)).toBe(COEFFICIENT_WINDOW + 2);
   });
 
   it('ages a country that scores nothing rather than freezing it', () => {
-    let ledger = recordTournament(createLedger(), { england: MAX_CAMPAIGN });
-    expect(coefficientOf(ledger, 'england')).toBe(MAX_CAMPAIGN);
-    for (let i = 0; i < COEFFICIENT_WINDOW; i++) ledger = recordTournament(ledger, {});
-    expect(coefficientOf(ledger, 'england')).toBe(0);
+    let record = recordEuropeanSeason(createCoefficients(), {
+      clubs: {},
+      nations: { england: MAX_CAMPAIGN },
+    });
+    expect(nationCoefficient(record, 'england')).toBe(MAX_CAMPAIGN);
+    for (let i = 0; i < COEFFICIENT_WINDOW; i++) {
+      record = recordEuropeanSeason(record, { clubs: {}, nations: {} });
+    }
+    expect(nationCoefficient(record, 'england')).toBe(0);
   });
 
   it('averages rather than totals, so a short career is not punished', () => {
-    const one = recordTournament(createLedger(), { england: 4 });
-    const two = recordTournament(one, { england: 4 });
-    expect(coefficientOf(one, 'england')).toBe(4);
-    expect(coefficientOf(two, 'england')).toBe(4);
+    const one = recordEuropeanSeason(createCoefficients(), { clubs: {}, nations: { england: 4 } });
+    const two = recordEuropeanSeason(one, { clubs: {}, nations: { england: 4 } });
+    expect(nationCoefficient(one, 'england')).toBe(4);
+    expect(nationCoefficient(two, 'england')).toBe(4);
   });
 
   it('knows when it has nothing on record', () => {
-    expect(hasRecord(createLedger())).toBe(false);
-    expect(hasRecord(recordTournament(createLedger(), {}))).toBe(true);
+    expect(hasRecord(createCoefficients())).toBe(false);
+    expect(hasRecord(recordEuropeanSeason(createCoefficients(), { clubs: {}, nations: {} }))).toBe(
+      true,
+    );
   });
 });
 
 describe('the European order', () => {
   it('is plain prestige order before anything has been played', () => {
-    expect(countriesByStanding(createLedger())).toEqual(IDS);
+    expect(countriesByStanding(createCoefficients())).toEqual(IDS);
     for (const id of IDS) {
-      expect(standingOf(createLedger(), id)).toBe(
+      expect(standingOf(createCoefficients(), id)).toBe(
         countriesByPrestige().find((c) => c.id === id)!.prestige,
       );
     }
@@ -226,10 +428,13 @@ describe('the European order', () => {
   });
 
   it('averages only the countries that have played', () => {
-    const ledger = recordTournament(createLedger(), { england: 4 });
+    const record = recordEuropeanSeason(createCoefficients(), {
+      clubs: {},
+      nations: { england: 4 },
+    });
     // Everybody was entered, so everybody is averaged — the seven who scored
     // nothing included.
-    expect(fieldAverage(ledger)).toBeCloseTo(4 / IDS.length, 5);
+    expect(fieldAverage(record.nations)).toBeCloseTo(4 / IDS.length, 5);
   });
 });
 
@@ -302,14 +507,15 @@ describe('reading the order back', () => {
     expect(rows.map((row) => row.countryId)).toEqual(countriesByStanding(ledger));
     for (const row of rows) {
       expect(row.standing).toBeCloseTo(row.nudge + (row.standing - row.nudge), 5);
-      expect(row.tournaments).toBe(COEFFICIENT_WINDOW);
+      expect(row.seasons).toBe(COEFFICIENT_WINDOW);
     }
   });
 
   it('says nothing has been played when nothing has', () => {
-    for (const row of standingsTable(createLedger())) {
-      expect(row.tournaments).toBe(0);
-      expect(row.coefficient).toBe(0);
+    for (const row of standingsTable(createCoefficients())) {
+      expect(row.seasons).toBe(0);
+      expect(row.clubs).toBe(0);
+      expect(row.nations).toBe(0);
       expect(row.nudge).toBe(0);
     }
   });
