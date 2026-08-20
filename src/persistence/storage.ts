@@ -10,6 +10,7 @@ import { seasonCalendar } from '../core/career/calendar.ts';
 import { createCareerRecords } from '../core/career/records.ts';
 import { createInternational } from '../core/career/international.ts';
 import { createCoefficients } from '../core/career/coefficients.ts';
+import { initialNationStrengths } from '../core/career/nationDrift.ts';
 import type { CoefficientLedger, Coefficients } from '../core/career/coefficients.ts';
 import { Rng } from '../core/rng.ts';
 import { initialStrengths } from '../core/career/clubDrift.ts';
@@ -28,7 +29,7 @@ import type { DecisionPace } from '../simulation/DecisionTimer.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 12;
+export const SAVE_VERSION = 13;
 
 export interface CareerRecord {
   matches: number;
@@ -479,6 +480,20 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
       tournament.groups = groupsFromFixtures(tournament);
     }
     save = { ...save, version: 12 };
+  }
+
+  if (save.version === 12) {
+    // v12 -> v13: the world gained thirty-two countries with no league of their
+    // own, which field a national side from an authored strength and drift on
+    // their own.
+    //
+    // Nothing to recover: a career that has never had them starts them where
+    // the data file puts them, which is what an undrifted world looks like. The
+    // countries it does know are untouched, because their sides are derived
+    // from clubs whose drift is already in the save.
+    const career = save.careerState;
+    if (career) career.nationStrengths ??= initialNationStrengths();
+    save = { ...save, version: 13 };
   }
 
   if (save.version !== SAVE_VERSION) return null;

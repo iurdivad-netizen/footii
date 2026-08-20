@@ -20,7 +20,10 @@ import { CUP_KINDS } from '../src/core/career/cups.ts';
 import { maximumMatches } from '../src/core/career/calendar.ts';
 import { createMatchStats } from '../src/core/match/matchStats.ts';
 import { lifetimeTotals } from '../src/core/career/records.ts';
-import { GROUP_ROUNDS, INTERNATIONAL_MATCHES } from '../src/core/career/international.ts';
+import {
+  GROUP_ROUNDS,
+  MAX_INTERNATIONAL_MATCHES,
+} from '../src/core/career/international.ts';
 import { isSelected, nationId } from '../src/core/career/nations.ts';
 
 /**
@@ -373,7 +376,9 @@ describe('a whole career, played out', () => {
       let counted = 0;
       for (const outcome of career.seasons) {
         expect(outcome.caps).toBeGreaterThanOrEqual(0);
-        expect(outcome.caps).toBeLessThanOrEqual(INTERNATIONAL_MATCHES);
+        // A World Cup runs a knockout round deeper than a continental
+        // championship, so the most caps a season can hold is the longer one.
+        expect(outcome.caps).toBeLessThanOrEqual(MAX_INTERNATIONAL_MATCHES);
         counted += outcome.caps;
       }
       expect(career.state.player.caps).toBe(counted);

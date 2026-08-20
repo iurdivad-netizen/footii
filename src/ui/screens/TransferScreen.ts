@@ -13,7 +13,7 @@ import {
 } from '../../core/career/transfers.ts';
 import type { ContractOffer } from '../../core/career/contracts.ts';
 import { reputationTier } from '../../core/career/reputation.ts';
-import { getCountry } from '../../core/career/countries.ts';
+import { getCountry, leagueName } from '../../core/career/countries.ts';
 import { europeanNameInProse } from '../../core/career/europe.ts';
 import type { EuropeanTier } from '../../core/career/europe.ts';
 
@@ -232,7 +232,7 @@ function offerCard(
         <span class="offer-step ${stepClass}${downClass}">${stepLabel}</span>
       </div>
       <p class="hint">
-        ${country.league} · ${TACTICAL_STYLE_LABELS[club.style]} · squad level ${level} ·
+        ${leagueName(country.id)} · ${TACTICAL_STYLE_LABELS[club.style]} · squad level ${level} ·
         expects ${withArticle(reputationTier(reputationRequired(club, prestige)).label.toLowerCase())} player
       </p>
       ${europeanLine(context.europeanTierOf(offer.clubId))}

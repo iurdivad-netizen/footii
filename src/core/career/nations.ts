@@ -2,7 +2,7 @@ import { clamp, clamp01, round } from '../util/math.ts';
 import type { Team, TeamRatings } from '../team/team.ts';
 import { teamStrength } from '../team/team.ts';
 import type { Player } from '../player/player.ts';
-import { countriesByPrestige, countryPrestige, getCountry } from './countries.ts';
+import { confederationOf, countriesByPrestige, countryPrestige, getCountry } from './countries.ts';
 
 /**
  * NATIONAL TEAMS
@@ -74,13 +74,13 @@ export function selectionDepth(pool: readonly Team[]): number {
 }
 
 /** The ratings a nation fields, from the clubs it selects from. */
-function nationalRatings(pool: readonly Team[]): TeamRatings {
+function nationalRatings(pool: readonly Team[], adjustment = 0): TeamRatings {
   const best = pool[0]!;
   const lift = NATIONAL_LIFT * selectionDepth(pool);
   const keys = Object.keys(best.ratings) as (keyof TeamRatings)[];
   const ratings = {} as TeamRatings;
   for (const key of keys) {
-    ratings[key] = clamp(round(best.ratings[key] + lift, 0), 1, 99);
+    ratings[key] = clamp(round(best.ratings[key] + lift + adjustment, 0), 1, 99);
   }
   return ratings;
 }
@@ -92,23 +92,75 @@ function nationalRatings(pool: readonly Team[]): TeamRatings {
  * pass them through the career's own lookup or the nation will be built from
  * the data file rather than from the world the player has been living in.
  */
-export function nationalTeam(countryId: string, clubs: readonly Team[]): Team {
+export function nationalTeam(
+  countryId: string,
+  clubs: readonly Team[],
+  strengthAdjustment = 0,
+): Team {
   const country = getCountry(countryId);
   const pool = [...clubs].sort((a, b) => teamStrength(b) - teamStrength(a)).slice(0, SELECTION_POOL);
+
+  // A country with clubs derives its side from them. A country without any
+  // carries an authored strength instead — see `authoredRatings`.
+  const derived = pool.length > 0;
 
   return {
     id: nationId(countryId),
     name: country.name,
     shortName: country.short,
     // A national side plays the football its country's football is known for,
-    // taken from its strongest club rather than invented separately.
-    style: pool[0]?.style ?? 'balanced',
-    colour: pool[0]?.colour ?? '#4aa3ff',
+    // taken from its strongest club where there is one and authored where there
+    // is not.
+    style: (derived ? pool[0]?.style : (country.style as Team['style'])) ?? 'balanced',
+    colour: (derived ? pool[0]?.colour : country.colour) ?? '#4aa3ff',
     division: 1,
     country: countryId,
-    ratings: pool.length > 0 ? nationalRatings(pool) : blankRatings(),
+    ratings: derived
+      ? nationalRatings(pool, strengthAdjustment)
+      : authoredRatings(country.nationalStrength, country.style, strengthAdjustment),
   };
 }
+
+/**
+ * The ratings of a national side with no clubs behind it.
+ *
+ * Built from one authored number the way a club is built from its standing:
+ * every rating starts at the base and the country's style bends it, so a
+ * counter-attacking nation really does counter-attack rather than merely
+ * being labelled that way. Without this a league-less country fielded a side of
+ * flat fifties — every nation outside Europe identical, and none of them moving
+ * while the European ones drifted with their clubs for eighteen seasons.
+ */
+function authoredRatings(
+  strength: number | undefined,
+  style: string | undefined,
+  adjustment: number,
+): TeamRatings {
+  const base = clamp(round((strength ?? 50) + adjustment, 0), 1, 99);
+  const shape = STYLE_SHAPE[style ?? 'balanced'] ?? {};
+  const ratings = blankRatings();
+  for (const key of Object.keys(ratings) as (keyof TeamRatings)[]) {
+    ratings[key] = clamp(round(base + (shape[key] ?? 0), 0), 1, 99);
+  }
+  return ratings;
+}
+
+/**
+ * How each style bends a side's ratings away from its base.
+ *
+ * The same shape the world generator applies to clubs, so an authored nation
+ * and a derived one are recognisably the same kind of team. Kept here rather
+ * than imported because `core` may not read `data`.
+ */
+const STYLE_SHAPE: Record<string, Partial<Record<keyof TeamRatings, number>>> = {
+  possession: { possession: 16, passing: 14, creativity: 10, tempo: -8, width: -6, crossing: -6 },
+  counterattack: { counterattack: 20, tempo: 14, possession: -14, creativity: -2, pressing: -4 },
+  highPress: { pressing: 20, defensiveIntensity: 12, tempo: 12, possession: -2 },
+  direct: { tempo: 8, crossing: 8, width: 6, possession: -18, creativity: -14, passing: -10 },
+  widePlay: { crossing: 20, width: 18, creativity: 2, possession: -6 },
+  defensive: { defensiveIntensity: 20, possession: -14, tempo: -10, creativity: -14, pressing: -8 },
+  balanced: {},
+};
 
 function blankRatings(): TeamRatings {
   const base = 50;
@@ -149,34 +201,95 @@ export function isNation(id: string): boolean {
 }
 
 /**
- * THE GROUPS
+ * THE TOURNAMENTS
  *
- * Two of four, so every nation plays every other nation in its group and the
- * table it produces is fair — the thing a four-match campaign against four of
- * seven possible opponents could never be.
+ * Two of them, played in alternate years, so a career gets about nine of each:
  *
- * NOT EVERY COUNTRY IS IN IT. The tournament has eight places and the world has
- * more countries than that, so the eight are the eight highest in the European
- * order — which the coefficient moves. A country outside the eight does not
- * play international football that year, which makes qualifying for it an
- * achievement rather than an entitlement, and gives a small country's clubs and
- * national side something to climb toward together.
+ *   CONTINENTAL   eight nations from ONE confederation, two groups of four,
+ *                 then a four-team knockout. Your country's own championship.
+ *   WORLD CUP     sixteen nations from every confederation, four groups of
+ *                 four, then an eight-team knockout.
  *
- * Seeded by a snake down that order (1,4,5,8 and 2,3,6,7) rather than drawn, so
- * the two groups are as even as eight nations allow and neither becomes the one
- * everybody dreads. A random draw would put the three strongest together
- * roughly a fifth of the time, which reads as a bug however fairly it was
- * rolled.
+ * WHY ALTERNATE RATHER THAN ADD. The README's original argument against a
+ * biennial cycle still holds: a career is eighteen-odd seasons and a peak is
+ * perhaps six of them, so a tournament every other year is a tournament most
+ * careers glimpse. Alternating keeps one every single season — so nothing is
+ * lost — while making each of them an event rather than the same eight teams
+ * every June.
+ *
+ * A GROUP IS ALWAYS FOUR, in both. Everybody plays everybody in it, three
+ * matches each, and the table that produces is fair — the thing a campaign
+ * against some of the field could never be. Only the NUMBER of groups differs,
+ * which is why one model serves both.
+ *
+ * NOT EVERY COUNTRY IS IN EITHER. The world has forty-four nations, the World
+ * Cup sixteen and a continental championship eight, so qualifying is an
+ * achievement rather than an entitlement — and what qualifies you is your
+ * STANDING, which your clubs and your national side both move.
+ *
+ * Seeded by a snake down that order (1,4,5,8 and 2,3,6,7 for two groups) rather
+ * than drawn, so the groups are as even as the field allows and none becomes
+ * the one everybody dreads. A random draw would put the three strongest
+ * together often enough to read as a bug however fairly it was rolled.
  */
 export const GROUP_SIZE = 4;
-export const GROUP_COUNT = 2;
 /** How many from each group reach the knockout. */
 export const QUALIFY_PER_GROUP = 2;
-/** How many nations the tournament holds. */
-export const TOURNAMENT_FIELD = GROUP_SIZE * GROUP_COUNT;
+
+/** A continental championship: two groups of four. */
+export const CONTINENTAL_GROUPS = 2;
+/** A World Cup: four groups of four. */
+export const WORLD_CUP_GROUPS = 4;
+
+/** Kept for the continental championship, which is the older of the two. */
+export const GROUP_COUNT = CONTINENTAL_GROUPS;
+
+/** How many nations each tournament holds. */
+export const CONTINENTAL_FIELD = GROUP_SIZE * CONTINENTAL_GROUPS;
+export const WORLD_CUP_FIELD = GROUP_SIZE * WORLD_CUP_GROUPS;
+/** Kept under its old name for the continental championship. */
+export const TOURNAMENT_FIELD = CONTINENTAL_FIELD;
 
 /**
- * The groups, from an ordered list of countries (best first).
+ * How many places each confederation has at the World Cup.
+ *
+ * Hand-tuned rather than derived, because it has to sum to exactly sixteen and
+ * because the shape is a statement: Europe has twelve leagues and the strongest
+ * sides, so it takes six, and every confederation takes at least two so that no
+ * part of the world is ever absent from a World Cup.
+ */
+export const WORLD_CUP_PLACES: Record<string, number> = {
+  europe: 6,
+  southAmerica: 3,
+  africa: 3,
+  asia: 2,
+  northAmerica: 2,
+};
+
+/** How many places a confederation has, for one the table has never heard of. */
+export function worldCupPlaces(confederation: string): number {
+  return WORLD_CUP_PLACES[confederation] ?? 1;
+}
+
+/**
+ * Snake-seed a field into groups.
+ *
+ * The snake — 0,1,1,0,0,1,1,0 for two groups — puts the second seed of one
+ * group in the third slot of the other, which is what keeps the halves level.
+ */
+function snake(field: readonly string[], groupCount: number): string[][] {
+  const groups: string[][] = Array.from({ length: groupCount }, () => []);
+  for (const [index, id] of field.entries()) {
+    const row = Math.floor(index / groupCount);
+    const inRow = index % groupCount;
+    const group = row % 2 === 0 ? inRow : groupCount - 1 - inRow;
+    groups[group]!.push(id);
+  }
+  return groups;
+}
+
+/**
+ * The groups of a continental championship, from an ordered list of countries.
  *
  * The order is passed in rather than read from prestige here, because what
  * decides it lives outside this module — see core/career/coefficients.ts, where
@@ -186,17 +299,36 @@ export const TOURNAMENT_FIELD = GROUP_SIZE * GROUP_COUNT;
  */
 export function qualifyingGroups(order?: readonly string[]): string[][] {
   const ranked = (order && order.length > 0 ? order.slice() : countriesByPrestige().map((c) => c.id))
-    .slice(0, TOURNAMENT_FIELD);
-  const groups: string[][] = Array.from({ length: GROUP_COUNT }, () => []);
-  for (const [index, id] of ranked.entries()) {
-    // Snake: 0,1,1,0,0,1,1,0 — the second seed of one group is the third of the
-    // other, which is what keeps the two halves level.
-    const row = Math.floor(index / GROUP_COUNT);
-    const inRow = index % GROUP_COUNT;
-    const group = row % 2 === 0 ? inRow : GROUP_COUNT - 1 - inRow;
-    groups[group]!.push(id);
+    .slice(0, CONTINENTAL_FIELD);
+  return snake(ranked, CONTINENTAL_GROUPS);
+}
+
+/**
+ * The World Cup field: the best of each confederation, by standing.
+ *
+ * Ordered so the whole field is snake-seeded by standing afterwards, which is
+ * what stops the three strongest nations in the world sharing a group.
+ */
+export function worldCupField(order: readonly string[]): string[] {
+  const taken: Record<string, number> = {};
+  const field: string[] = [];
+
+  for (const countryId of order) {
+    const confederation = confederationOf(countryId);
+    const places = worldCupPlaces(confederation);
+    if ((taken[confederation] ?? 0) >= places) continue;
+    taken[confederation] = (taken[confederation] ?? 0) + 1;
+    field.push(countryId);
   }
-  return groups;
+
+  // Back into standing order, so the snake seeds the field rather than the
+  // order the confederations happened to fill up in.
+  return order.filter((id) => field.includes(id));
+}
+
+/** The groups of a World Cup, from a world order. */
+export function worldCupGroups(order: readonly string[]): string[][] {
+  return snake(worldCupField(order), WORLD_CUP_GROUPS);
 }
 
 /** Which group a country is in, or -1 if it plays no international football. */

@@ -950,12 +950,33 @@ seasons and a peak is perhaps six of them. On a biennial cycle a career gets thr
 which a player is good enough for one or two — so the whole system would be something most careers
 glimpse once. Yearly makes international football something a career actually *has*.
 
-**Not every country is in it.** The tournament holds eight nations and the world has twelve, so the
-field is the eight highest in the **European order** — the same order the European places are handed
-out on. A country that has been climbing plays its way into a tournament it was not in last year,
+**There are two tournaments, played in alternate years.**
+
+| | Field | Shape | Named |
+| --- | ----- | ----- | ----- |
+| **World Cup** — odd seasons | 16 nations, every confederation | 4 groups of 4, then 8 into a bracket | The World Cup |
+| **Continental** — even seasons | 8 nations from ONE confederation | 2 groups of 4, then 4 into a bracket | The European / South American / African / Asian / North American Championship |
+
+Alternating rather than adding, because the original argument against a biennial cycle still holds: a
+career is eighteen-odd seasons and a peak perhaps six of them, so a tournament every other year is a
+tournament most careers glimpse. Alternating keeps one every single season — nothing is lost — while
+making each an event rather than the same eight teams every June. A career gets about nine of each,
+and it opens with a World Cup, because the biggest thing in the game should not be two years away
+from a player's first match.
+
+**The continental championship is YOURS.** It is seeded from the player's own confederation, because
+his is the only one the game plays out in detail. Seeding it from Europe regardless would have given
+a Brazilian a World Cup every other year and nothing at all in between, while an Englishman got both.
+
+**Not every country is in either.** The World Cup holds sixteen and a continental championship eight,
+out of forty-four. What qualifies you is your **standing** — the same number the European places come
+from — so a country that has been climbing plays its way into a tournament it was not in last year,
 and one that has been sliding misses out. That ties a country's clubs and its national side into one
-standing rather than two, and it is why the hub tells a player from a country outside the eight
+standing rather than two, and it is why the hub tells a player from a country outside the field
 exactly that, rather than leaving him to wonder why no call-up ever comes.
+
+Every confederation has at least **two** World Cup places, so no part of the world is ever absent
+from one: Europe six, South America three, Africa three, Asia two, North America two.
 
 Missing out is **not scored as a bad campaign**. A country outside the field simply has nothing on
 its national record that year — see the note under "Balancing notes", because scoring it as a zero
@@ -973,6 +994,35 @@ is a season's goal; "not in the squad" is only an absence.
 **A cap is a match.** Caps used to be a number inferred from fame, because there were no
 international fixtures to count. There are now, so they are counted — and a tournament your country
 won while you watched it is a different line in the review to one you won.
+
+### A world of nations
+
+**Forty-four countries, of which twelve have leagues.** The other thirty-two exist to field a
+national side and nothing else — which is what makes a World Cup possible without a hundred and
+fifty leagues behind it. A player from one of them plays his club football in Europe and his
+international football for home, which is a real football career and a more interesting one than the
+alternative.
+
+| Confederation | Countries | With leagues |
+| ------------- | --------- | ------------ |
+| Europe | 12 | 12 |
+| South America | 8 | — |
+| Africa | 8 | — |
+| Asia | 8 | — |
+| North America | 8 | — |
+
+**A nation with clubs is derived; a nation without them is authored.** The derived ones get their
+whole history for free — five strongest clubs, lifted by the country's depth, drifting as those
+clubs drift. The league-less ones carry a number instead, and **drift on their own**: a small seeded
+step each season pulled back toward where the country belongs. Without that, Brazil would field
+precisely the same side in season eighteen as in season one while every European nation moved around
+it, and over a career the two halves of the world would come apart.
+
+**The authored strengths are calibrated against the derived ones**, because they meet in the same
+tournament. The first numbers written were what a national side "felt" like in isolation, and they
+put ten of the twelve European sides above every nation outside Europe — a World Cup would have been
+a European procession with Brazil in it. Set against the derived scale, the two halves interleave:
+Brazil and Argentina sit fifth and sixth in the world, Japan and Mexico level with Scotland.
 
 ### The country coefficient
 
@@ -1255,6 +1305,20 @@ their constants:
   country, prestige step, squad level, tactical style and wages, and said nothing about it. You
   could turn down the Champions League for a bigger badge without ever being told. Each offer now
   names the competition it comes with, and so does staying.
+- **A world with no clubs in it stands perfectly still.** National sides are derived from their
+  country's five strongest clubs, which is why they need no roster and drift for free. Thirty-two of
+  the forty-four countries have no clubs, so their authored strength would never have moved — Brazil
+  fielding precisely the same side in season eighteen as in season one while every European nation
+  drifted a dozen rating points around it. Over a career the two halves of the world come apart: the
+  derived nations spread out and the authored ones stand in a line. They now drift on their own, and
+  are pulled back toward where they belong so that a random walk does not eventually produce a world
+  with Panama above Brazil.
+- **Two scales that have to meet.** The authored strengths were first written as what a national side
+  felt like in isolation, and the result put ten of the twelve European sides above every nation
+  outside Europe. A World Cup would have been a European procession with Brazil in it. A derived side
+  is its best club lifted by its country's depth — Spain lands at 0.977 of the scale and Austria, the
+  twelfth league, at 0.813 — and any number authored without measuring against that is authored
+  against nothing. Calibrated, the two halves interleave.
 - **"Scored nothing" and "did not compete" are different facts.** The tournament holds eight nations
   and the world has twelve, so four countries play no international football each year. Recording
   that as a zero looked harmless — it is what the ledger does for a country that entered and lost
@@ -1338,7 +1402,8 @@ nationality, seeded match engine, thirteen situation archetypes (including penal
 kicks, corners, aerial duels and pressing traps), ~60 contextual actions, dynamic decision timer,
 build-up narration, goalkeeper commit mechanic, action resolution with separated choice/execution,
 instinctive fallback on expiry, match statistics and rating, five playable presets across four
-positions, **a world of twelve countries and 192 clubs across twelve live leagues**, **a national cup and a
+positions, **a world of forty-four countries across five confederations — twelve of them with leagues of their
+own, 192 clubs in all**, **a national cup and a
 league cup in every country**, **a Champions League, a Europa League and a Conference League entered
 by league position and by winning a cup**, **a yearly international tournament contested by the eight countries highest in the European
 order, with groups, a seeded knockout and a squad you have to be good enough to be picked for**, **a country coefficient

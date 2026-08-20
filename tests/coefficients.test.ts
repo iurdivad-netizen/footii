@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import '../src/data/gameData.ts';
-import { COUNTRIES } from '../src/data/gameData.ts';
+import { LEAGUE_COUNTRIES } from '../src/data/gameData.ts';
 import {
   CHAMPION_BONUS,
   COEFFICIENT_SWING,
@@ -32,7 +32,7 @@ import type { Coefficients } from '../src/core/career/coefficients.ts';
 import type { EuropeanEntries, EuropeanState } from '../src/core/career/europe.ts';
 import { countriesByPrestige, countryPrestige } from '../src/core/career/countries.ts';
 import { createCup } from '../src/core/career/cups.ts';
-import { INTERNATIONAL } from '../src/core/career/international.ts';
+import { INTERNATIONAL, KNOCKOUT_ROUNDS } from '../src/core/career/international.ts';
 import type { InternationalState } from '../src/core/career/international.ts';
 import { emptyTable } from '../src/core/career/league.ts';
 import { nationId } from '../src/core/career/nations.ts';
@@ -87,7 +87,16 @@ function tournament(
     knockout.winnerId = champion;
   }
 
-  return { fixtures: [], results: [], table, groups: [nations], groupRoundsPlayed: 3, knockout };
+  return {
+    kind: 'continental',
+    knockoutRounds: KNOCKOUT_ROUNDS,
+    fixtures: [],
+    results: [],
+    table,
+    groups: [nations],
+    groupRoundsPlayed: 3,
+    knockout,
+  };
 }
 
 /** Play the same campaign for one country `times` over, everyone else blank. */
@@ -487,7 +496,7 @@ describe('what the order is worth', () => {
     });
     const order = countriesByStanding(shuffled);
     for (const tier of ['championsLeague', 'europaLeague', 'conferenceLeague'] as const) {
-      const total = COUNTRIES.reduce((sum, c) => sum + europeanPlaces(c.id, order)[tier], 0);
+      const total = LEAGUE_COUNTRIES.reduce((sum, c) => sum + europeanPlaces(c.id, order)[tier], 0);
       expect(total, tier).toBe(16);
     }
   });

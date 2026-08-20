@@ -62,9 +62,12 @@ import {
 } from '../core/career/europe.ts';
 import type { EuropeanEntries, EuropeanState, EuropeanTier } from '../core/career/europe.ts';
 import { createCareerRecords, recordSeason } from '../core/career/records.ts';
+import type { Coefficients } from '../core/career/coefficients.ts';
 import {
+  confederationByStanding,
   countriesByStanding,
   createCoefficients,
+  nationsByStanding,
   recordEuropeanSeason,
   scoreEuropeanSeason,
   scoreTournament,
@@ -76,6 +79,7 @@ import {
   championNation,
   closeGroupRound,
   createInternational,
+  tournamentFor,
   groupFixture,
   playGroupRound,
   recordGroupResult,
@@ -85,6 +89,7 @@ import { countryOfNation, nationalTeam } from '../core/career/nations.ts';
 import type { DivisionMovement } from '../core/career/divisions.ts';
 import {
   allClubIds,
+  confederationOf,
   countryPrestige,
   initialLeagues,
   leagueMembers,
@@ -92,6 +97,11 @@ import {
   playedCountries,
 } from '../core/career/countries.ts';
 import { applyStrength, driftSeason, initialStrengths } from '../core/career/clubDrift.ts';
+import {
+  driftNations,
+  initialNationStrengths,
+  nationAdjustment,
+} from '../core/career/nationDrift.ts';
 import { evaluateHonours, leagueBenchmark } from '../core/career/awards.ts';
 import type { Honour, LeagueBenchmark } from '../core/career/awards.ts';
 import type { CompetitionKind } from '../core/career/calendar.ts';
@@ -144,7 +154,10 @@ export function clubIn(state: CareerState, lookup: TeamLookup, id: string): Team
  */
 export function nationIn(state: CareerState, lookup: TeamLookup, countryId: string): Team {
   const clubs = leagueMembers(state.leagues, countryId, 1).map((id) => clubIn(state, lookup, id));
-  return nationalTeam(countryId, clubs);
+  // A country with clubs inherits their drift for free. One without any carries
+  // its own, or the half of the world with no leagues would stand perfectly
+  // still while the half with them spread out over eighteen seasons.
+  return nationalTeam(countryId, clubs, nationAdjustment(state.nationStrengths ?? {}, countryId));
 }
 
 /**
@@ -409,11 +422,17 @@ export function startCareer(options: StartCareerOptions): CareerState {
     europeanEntries: {},
     // Season one has nothing on record, so the field is the eight best-watched
     // countries — which is what the world looks like before it has a history.
-    international: newInternational(options.seed, 1, countriesByStanding(createCoefficients())),
+    international: newInternational(
+      options.seed,
+      1,
+      createCoefficients(),
+      options.player.nationality,
+    ),
     seasonCaps: 0,
     // Nothing has been played, so every country stands exactly where the data
     // file says it does. The order starts moving with the first tournament.
     coefficients: createCoefficients(),
+    nationStrengths: initialNationStrengths(),
     records: createCareerRecords(),
   };
 }
@@ -430,9 +449,24 @@ export function startCareer(options: StartCareerOptions): CareerState {
 function newInternational(
   seed: string,
   seasonNumber: number,
-  order: readonly string[],
+  record: Coefficients,
+  nationality: string,
 ): InternationalState {
-  return createInternational(new Rng(`${seed}:s${seasonNumber}:international:draw`), order);
+  const kind = tournamentFor(seasonNumber);
+  // A World Cup is seeded from every nation there is. A continental
+  // championship is seeded from ONE confederation — and it is the PLAYER'S,
+  // because his is the only one the game plays out in detail. Seeding it from
+  // Europe regardless would have given a Brazilian a World Cup every other year
+  // and nothing at all in between, while an Englishman got both.
+  const order =
+    kind === 'worldCup'
+      ? nationsByStanding(record)
+      : confederationByStanding(record, confederationOf(nationality));
+  return createInternational(
+    new Rng(`${seed}:s${seasonNumber}:${kind}:draw`),
+    order,
+    kind,
+  );
 }
 
 /** The rng one international round is settled with. */
@@ -1146,6 +1180,11 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     tables: settled,
     lookup,
   });
+  // And the nations with no clubs to drift behind them, on the same night.
+  state.nationStrengths = driftNations(
+    new Rng(`${state.seed}:s${state.seasonNumber}:nations:drift`),
+    state.nationStrengths ?? {},
+  );
 
   state.leagues = { ...state.leagues, [countryId]: outcome.divisions };
   const located = locateClub(state.leagues, state.clubId);
@@ -1180,7 +1219,12 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   // season number on, so this is next year's draw and not a repeat of the one
   // just played — leaving the old one in place would freeze the groups at
   // full-time and never offer another international match again.
-  state.international = newInternational(state.seed, state.seasonNumber, europeanOrder);
+  state.international = newInternational(
+    state.seed,
+    state.seasonNumber,
+    state.coefficients,
+    state.player.nationality,
+  );
   state.seasonCaps = 0;
   state.europeanEntries = nextEuropeanEntries;
   state.europe = newEurope(nextEuropeanEntries, state.clubId);

@@ -149,29 +149,102 @@ def build_keeper(club, rank, country, rng, name):
 
 COUNTRIES = [
     {"id": "england", "adjective": "English", "name": "England", "league": "The Premier Division",
-     "short": "ENG", "prestige": 1.0, "ceiling": 86, "floor": 40},
+     "short": "ENG", "confederation": "europe", "prestige": 1.0, "ceiling": 86, "floor": 40},
     {"id": "spain", "adjective": "Spanish", "name": "Spain", "league": "La Liga Nacional",
-     "short": "ESP", "prestige": 0.96, "ceiling": 87, "floor": 42},
+     "short": "ESP", "confederation": "europe", "prestige": 0.96, "ceiling": 87, "floor": 42},
     {"id": "germany", "adjective": "German", "name": "Germany", "league": "Die Bundesliga",
-     "short": "GER", "prestige": 0.92, "ceiling": 85, "floor": 44},
+     "short": "GER", "confederation": "europe", "prestige": 0.92, "ceiling": 85, "floor": 44},
     {"id": "italy", "adjective": "Italian", "name": "Italy", "league": "Serie Alta",
-     "short": "ITA", "prestige": 0.9, "ceiling": 84, "floor": 41},
+     "short": "ITA", "confederation": "europe", "prestige": 0.9, "ceiling": 84, "floor": 41},
     {"id": "france", "adjective": "French", "name": "France", "league": "Le Championnat",
-     "short": "FRA", "prestige": 0.8, "ceiling": 82, "floor": 38},
+     "short": "FRA", "confederation": "europe", "prestige": 0.8, "ceiling": 82, "floor": 38},
     {"id": "turkey", "adjective": "Turkish", "name": "Turkey", "league": "The Super Group",
-     "short": "TUR", "prestige": 0.72, "ceiling": 79, "floor": 35},
+     "short": "TUR", "confederation": "europe", "prestige": 0.72, "ceiling": 79, "floor": 35},
     {"id": "portugal", "adjective": "Portuguese", "name": "Portugal", "league": "A Liga Principal",
-     "short": "POR", "prestige": 0.68, "ceiling": 78, "floor": 34},
+     "short": "POR", "confederation": "europe", "prestige": 0.68, "ceiling": 78, "floor": 34},
     {"id": "netherlands", "adjective": "Dutch", "name": "Netherlands", "league": "De Eredivisie",
-     "short": "NED", "prestige": 0.66, "ceiling": 76, "floor": 33},
+     "short": "NED", "confederation": "europe", "prestige": 0.66, "ceiling": 76, "floor": 33},
     {"id": "belgium", "adjective": "Belgian", "name": "Belgium", "league": "De Ereklasse",
-     "short": "BEL", "prestige": 0.62, "ceiling": 74, "floor": 31},
+     "short": "BEL", "confederation": "europe", "prestige": 0.62, "ceiling": 74, "floor": 31},
     {"id": "greece", "adjective": "Greek", "name": "Greece", "league": "The Alpha Division",
-     "short": "GRE", "prestige": 0.56, "ceiling": 73, "floor": 30},
+     "short": "GRE", "confederation": "europe", "prestige": 0.56, "ceiling": 73, "floor": 30},
     {"id": "scotland", "adjective": "Scottish", "name": "Scotland", "league": "The Premiership",
-     "short": "SCO", "prestige": 0.5, "ceiling": 72, "floor": 28},
+     "short": "SCO", "confederation": "europe", "prestige": 0.5, "ceiling": 72, "floor": 28},
     {"id": "austria", "adjective": "Austrian", "name": "Austria", "league": "Die Erste Klasse",
-     "short": "AUT", "prestige": 0.46, "ceiling": 70, "floor": 27},
+     "short": "AUT", "confederation": "europe", "prestige": 0.46, "ceiling": 70, "floor": 27},
+]
+
+
+# --------------------------------------------------------------- nations ---
+#
+# COUNTRIES WITH NO LEAGUE.
+#
+# A national side is normally DERIVED — built from its country's five strongest
+# clubs and lifted by the country's depth — which is why it needs no roster and
+# drifts as its clubs drift. A country with no league has no clubs to derive
+# from, so these carry an authored `strength` instead, and drift on their own
+# (see core/career/nationDrift.ts).
+#
+# They exist so the World Cup is a world cup. None of them has a league yet, so
+# a player from one of them plays his club football in Europe and his
+# international football for home, which is a real football career and a more
+# interesting one than the alternative.
+#
+# `prestige` is still how closely the football world watches. It is NOT strength:
+# a country can be watched everywhere and mediocre.
+#
+# STRENGTH IS CALIBRATED AGAINST THE DERIVED SIDES, because the two have to meet
+# in the same tournament. A derived nation is its best club lifted by its
+# country's depth — Spain comes out at 0.977 of the scale and Austria, the
+# twelfth European league, at 0.813. The first numbers written here were the
+# strength a national side "felt" like in isolation, and they put ten of the
+# twelve European sides above every nation outside Europe: a World Cup would
+# have been a European procession with Brazil in it. These are set so the two
+# halves of the world interleave.
+
+def nation(id, name, adjective, short, confederation, prestige, strength, style, colour):
+    return {"id": id, "name": name, "adjective": adjective, "short": short,
+            "confederation": confederation, "prestige": prestige,
+            "nationalStrength": strength, "style": style, "colour": colour}
+
+
+NATIONS = [
+    # South America
+    nation("brazil", "Brazil", "Brazilian", "BRA", "southAmerica", 0.94, 93, "possession", "#f7d117"),
+    nation("argentina", "Argentina", "Argentine", "ARG", "southAmerica", 0.92, 92, "counterattack", "#75aadb"),
+    nation("uruguay", "Uruguay", "Uruguayan", "URU", "southAmerica", 0.70, 84, "defensive", "#5b9bd5"),
+    nation("colombia", "Colombia", "Colombian", "COL", "southAmerica", 0.68, 82, "widePlay", "#fcd116"),
+    nation("chile", "Chile", "Chilean", "CHI", "southAmerica", 0.62, 79, "highPress", "#d52b1e"),
+    nation("peru", "Peru", "Peruvian", "PER", "southAmerica", 0.54, 74, "balanced", "#d91023"),
+    nation("paraguay", "Paraguay", "Paraguayan", "PAR", "southAmerica", 0.50, 72, "defensive", "#0038a8"),
+    nation("ecuador", "Ecuador", "Ecuadorean", "ECU", "southAmerica", 0.50, 73, "direct", "#ffd100"),
+    # Africa
+    nation("nigeria", "Nigeria", "Nigerian", "NGA", "africa", 0.62, 81, "direct", "#008751"),
+    nation("senegal", "Senegal", "Senegalese", "SEN", "africa", 0.60, 82, "highPress", "#00853f"),
+    nation("morocco", "Morocco", "Moroccan", "MAR", "africa", 0.62, 83, "possession", "#c1272d"),
+    nation("egypt", "Egypt", "Egyptian", "EGY", "africa", 0.56, 78, "counterattack", "#ce1126"),
+    nation("ghana", "Ghana", "Ghanaian", "GHA", "africa", 0.54, 77, "direct", "#006b3f"),
+    nation("cameroon", "Cameroon", "Cameroonian", "CMR", "africa", 0.52, 76, "widePlay", "#007a5e"),
+    nation("ivory-coast", "Ivory Coast", "Ivorian", "CIV", "africa", 0.54, 78, "balanced", "#f77f00"),
+    nation("algeria", "Algeria", "Algerian", "ALG", "africa", 0.52, 77, "possession", "#006233"),
+    # Asia
+    nation("japan", "Japan", "Japanese", "JPN", "asia", 0.66, 81, "possession", "#bc002d"),
+    nation("south-korea", "South Korea", "Korean", "KOR", "asia", 0.62, 79, "highPress", "#0047a0"),
+    nation("iran", "Iran", "Iranian", "IRN", "asia", 0.54, 76, "defensive", "#239f40"),
+    nation("australia", "Australia", "Australian", "AUS", "asia", 0.56, 76, "direct", "#00843d"),
+    nation("saudi-arabia", "Saudi Arabia", "Saudi", "KSA", "asia", 0.52, 72, "counterattack", "#165d31"),
+    nation("qatar", "Qatar", "Qatari", "QAT", "asia", 0.44, 69, "possession", "#8a1538"),
+    nation("iraq", "Iraq", "Iraqi", "IRQ", "asia", 0.42, 68, "balanced", "#ce1126"),
+    nation("uzbekistan", "Uzbekistan", "Uzbek", "UZB", "asia", 0.40, 69, "direct", "#1eb53a"),
+    # North and Central America
+    nation("mexico", "Mexico", "Mexican", "MEX", "northAmerica", 0.68, 81, "widePlay", "#006847"),
+    nation("united-states", "United States", "American", "USA", "northAmerica", 0.66, 80, "highPress", "#3c3b6e"),
+    nation("costa-rica", "Costa Rica", "Costa Rican", "CRC", "northAmerica", 0.48, 71, "defensive", "#002b7f"),
+    nation("canada", "Canada", "Canadian", "CAN", "northAmerica", 0.50, 73, "counterattack", "#d80621"),
+    nation("honduras", "Honduras", "Honduran", "HON", "northAmerica", 0.40, 67, "direct", "#0073cf"),
+    nation("jamaica", "Jamaica", "Jamaican", "JAM", "northAmerica", 0.40, 68, "counterattack", "#009b3a"),
+    nation("panama", "Panama", "Panamanian", "PAN", "northAmerica", 0.38, 66, "balanced", "#005293"),
+    nation("el-salvador", "El Salvador", "Salvadorean", "SLV", "northAmerica", 0.36, 64, "defensive", "#0f47af"),
 ]
 
 
@@ -493,9 +566,23 @@ def main():
             )
 
     countries = [
-        {k: c[k] for k in ("id", "name", "adjective", "league", "short", "prestige")}
+        {k: c[k] for k in ("id", "name", "adjective", "league", "short", "confederation", "prestige")}
         for c in COUNTRIES
-    ]
+    ] + NATIONS
+
+    # Ids, short names and confederations all have to be sound across the whole
+    # world, not just the part of it that has leagues.
+    ids = [c["id"] for c in countries]
+    assert len(set(ids)) == len(ids), "duplicate country ids"
+    shorts = [c["short"] for c in countries]
+    assert len(set(shorts)) == len(shorts), "duplicate country short names"
+    # Every confederation runs the same eight-nation championship, so every
+    # confederation needs at least eight nations in it.
+    by_confederation = {}
+    for c in countries:
+        by_confederation.setdefault(c["confederation"], []).append(c)
+    for confederation, members in sorted(by_confederation.items()):
+        assert len(members) >= 8, f"{confederation} has only {len(members)} nations"
 
     with open("src/data/teams.json", "w") as f:
         json.dump(teams, f, indent=2, ensure_ascii=False)

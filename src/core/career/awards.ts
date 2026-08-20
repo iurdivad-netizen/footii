@@ -6,7 +6,7 @@ import { sortTable } from './league.ts';
 import type { SeasonStats } from './seasonStats.ts';
 import { averageRating } from './seasonStats.ts';
 import type { DivisionMovement } from './divisions.ts';
-import { getCountry } from './countries.ts';
+import { getCountry, leagueName } from './countries.ts';
 import type { CupKind } from './cups.ts';
 import type { EuropeanTier } from './europe.ts';
 import { europeanCompetition } from './europe.ts';
@@ -208,7 +208,7 @@ export function evaluateHonours(input: HonoursInput): HonoursResult {
 
   if (input.position === 1) {
     honours.push(
-      at('title', `${info.adjective} champions`, `You finished top of ${info.league}.`),
+      at('title', `${info.adjective} champions`, `You finished top of ${leagueName(info.id)}.`),
     );
   }
   // Cups are the club's, not the player's, so they are recorded whatever kind of
@@ -258,7 +258,7 @@ export function evaluateHonours(input: HonoursInput): HonoursResult {
   const trophies = (input.position === 1 ? 1 : 0) + input.cupsWon.length;
   if (trophies === 3) {
     honours.push(
-      at('domesticTreble', 'The treble', `League, Cup and League Cup in ${info.league}.`),
+      at('domesticTreble', 'The treble', `League, Cup and League Cup in ${leagueName(info.id)}.`),
     );
   } else if (trophies === 2) {
     honours.push(at('domesticDouble', 'The double', `Two of the three domestic trophies.`));
@@ -274,10 +274,10 @@ export function evaluateHonours(input: HonoursInput): HonoursResult {
   }
 
   if (input.movement === 'promoted') {
-    honours.push(at('promotion', 'Promoted', `Your club is going up out of ${info.league}.`));
+    honours.push(at('promotion', 'Promoted', `Your club is going up out of ${leagueName(info.id)}.`));
   }
   if (input.movement === 'relegated') {
-    honours.push(at('relegation', 'Relegated', `Your club is going down out of ${info.league}.`));
+    honours.push(at('relegation', 'Relegated', `Your club is going down out of ${leagueName(info.id)}.`));
   }
 
   const played =

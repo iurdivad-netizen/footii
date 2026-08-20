@@ -4,7 +4,11 @@ import { currentAbility } from '../../core/player/player.ts';
 import type { Position } from '../../core/player/positions.ts';
 import { OUTFIELD_POSITIONS, POSITION_PROFILES } from '../../core/player/positions.ts';
 import type { CustomPlayerSpec, PlayingStyle } from '../../core/player/playerBuilder.ts';
-import { allCountries } from '../../core/career/countries.ts';
+import {
+  allConfederations,
+  confederationName,
+  countriesIn,
+} from '../../core/career/countries.ts';
 import {
   CREATION_CAP,
   CREATION_FLOOR,
@@ -87,14 +91,24 @@ export class PlayerCreatorScreen {
         <div class="field">
           <label for="cp-nationality">Nationality</label>
           <select id="cp-nationality">
-            ${allCountries()
+            ${allConfederations()
               .map(
-                (c) =>
-                  `<option value="${c.id}" ${c.id === 'england' ? 'selected' : ''}>${c.name}</option>`,
+                (confederation) => `<optgroup label="${confederationName(confederation)}">
+                  ${countriesIn(confederation)
+                    .map(
+                      (c) =>
+                        `<option value="${c.id}" ${c.id === 'england' ? 'selected' : ''}>${c.name}</option>`,
+                    )
+                    .join('')}
+                </optgroup>`,
               )
               .join('')}
           </select>
-          <p class="hint">Who may pick you, and which move counts as going home.</p>
+          <p class="hint">
+            Who may pick you, which move counts as going home, and which championship you play in
+            the summers between World Cups. A country whose football is watched everywhere asks
+            far more of you before it picks you.
+          </p>
         </div>
         <div class="field">
           <label for="cp-age">Age <span id="cp-age-value">${this.forCareer ? 17 : 24}</span></label>
