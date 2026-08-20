@@ -1270,6 +1270,49 @@ Enshrining and clearing the career are **one write**, never two. Two writes have
 them, and a browser that dies in that moment leaves you either with a career you have already said
 goodbye to, or with a wall entry for a career still being played.
 
+### Three careers, and taking them with you
+
+A career used to be the only thing the save could hold. One `careerState`, one slot, one footballer
+at a time — which is the whole reason ending a career was destructive, and why the button for it
+said **Abandon**. The wall of fame softened that (what a career did survives it) but did not remove
+it: trying something else still meant putting down what you had.
+
+The front door is now a **rack of three slots**. Each holds a career in progress, and each is
+completely independent — playing one never touches another. Three rather than one, and three rather
+than ten: one made starting a career cost you the last one, and ten would make the front door a file
+manager. The point is to be able to keep a long career while trying something else, not to run a
+league of your own saves.
+
+One slot is **active** at a time, and everything that acts on "the career" — saving a match, opening
+the hub, ending it — acts on that one. Every action offered on the rack *selects* its slot and then
+acts, so no screen downstream is ever told which career it is working on. There is one answer to
+that question, not two. Starting a career checks the slot is empty at the point the write would
+actually happen, rather than trusting the markup: a guard in the UI is one somebody can route
+around, and the single thing slots exist to prevent is a new career quietly overwriting an old one.
+
+An unreadable slot empties *that slot*, and nothing else. Dropping the whole save over one damaged
+career would cost somebody two careers to punish a fault in a third.
+
+#### Exporting and importing the save
+
+localStorage is not storage anybody chose. It is per-browser, per-profile and per-origin; it is
+cleared by the same button that clears cookies, by private browsing, and by a browser deciding it
+needs the space. Everything the game has ever recorded — three careers, a wall of fame, a season
+somebody has been playing for a month — lives in one key that a routine tidy-up deletes without
+asking. That is a fine default and an unacceptable only option.
+
+**Export** writes the save to a dated JSON file. The exported file is the *save itself*, not a
+summary or a separate export format, and two things follow from that: an export can be imported by
+any version that can migrate it, because it goes in through exactly the same door as a save read off
+disk; and there is no second serialiser to keep in step with the first. An older export is brought
+forward on import rather than refused.
+
+**Import replaces everything.** It is not a merge, deliberately — a half-imported save would have
+careers from one machine and a wall from another, duplicate entries, and careers whose transfers
+refer to a world the other half does not have. Import means "make this browser be that browser", and
+the copy in front of it says so. The file is parsed and migrated *before* anything is written, so a
+bad import costs nothing: the worst case is a message and the save you already had.
+
 ### Balancing notes worth knowing
 
 Two calibration bugs were found by measurement rather than by eye, and both are documented at
@@ -1473,7 +1516,8 @@ European trophies, domestic and continental trebles, top scorer, player of the s
 international caps and tournament wins, **a career record book of braces, hat-tricks, four- and five-goal games, perfect
 ratings, scoring and unbeaten runs and per-competition totals**, **an ending — retirement offered
 from 34 and forced at 39, an end screen that shows a career in full before you stop it, and a wall
-of fame that ranks every career this browser has finished**, promotion and relegation machinery
+of fame that ranks every career this browser has finished**, **three independent career slots**,
+**export and import of the whole save**, promotion and relegation machinery
 (dormant on a one-tier world), debug mode, and a versioned localStorage save with migration.
 
 Deliberately **not** built yet: multiplayer, accounts, a backend, 3D, physics, large player
@@ -1516,7 +1560,7 @@ other item on this list is waiting for.
    behind the same `Zone` interface. Deliberately last: nothing else is waiting on it, and it is
    worth more once there are teammates to have positions.
 
-Deliberately not on the list, and worth saying why: **multiple career slots**. The save holds
-exactly one career, which is why ending one used to be destructive. The wall of fame softens that —
-what a career did survives it — but it does not remove it, and slots would. It is the obvious next
-quality-of-life change if ending a career still feels too expensive.
+Done since this list was last written, and worth recording because both were listed here as
+obvious next steps: **three career slots**, so ending a career is no longer the price of starting
+another, and **export/import of the save**, so a browser clearing its storage is no longer the end
+of everything the game has recorded. Both are documented under *Career mode*.

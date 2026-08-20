@@ -31,7 +31,7 @@ import { rankLegacies } from '../core/career/legacy.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 14;
+export const SAVE_VERSION = 15;
 
 export interface CareerRecord {
   matches: number;
@@ -82,8 +82,25 @@ export interface SaveData {
     length: number;
     pace?: string;
   };
-  /** The in-progress career, if one has been started. */
-  careerState?: CareerState;
+  /**
+   * Careers in progress, one per slot. `null` is an empty slot.
+   *
+   * Always exactly `CAREER_SLOTS` long, so a slot is addressed by its index and
+   * an empty one is a real, clickable thing rather than an absence. The save
+   * used to hold a single `careerState`, which is what made ending a career
+   * destructive: starting a second meant destroying the first, and the only
+   * button offered for that said "Abandon".
+   */
+  careers: (CareerState | null)[];
+  /**
+   * The slot being played.
+   *
+   * Every operation that acts on "the career" — saving a match, ending it,
+   * opening the hub — acts on THIS one. Screens that offer a choice of career
+   * select the slot first and then act, so there is never a second notion of
+   * which career an action meant.
+   */
+  activeSlot: number;
   /**
    * Finished careers, best first.
    *
@@ -103,6 +120,22 @@ export interface SaveData {
  * anyone reads, and the ones dropped are always the lowest-ranked.
  */
 export const HALL_OF_FAME_LIMIT = 20;
+
+/**
+ * How many careers can be in progress at once.
+ *
+ * Three rather than one, and three rather than ten. One made ending a career
+ * the price of starting another, which is the whole reason abandoning was ever
+ * a destructive button. Ten would make the front door a file manager: the point
+ * is to be able to keep a long career while trying something else, not to run a
+ * league of your own saves.
+ */
+export const CAREER_SLOTS = 3;
+
+/** A fresh, empty set of slots. */
+export function emptySlots(): (CareerState | null)[] {
+  return Array.from({ length: CAREER_SLOTS }, () => null);
+}
 
 export function emptyCareer(): CareerRecord {
   return {
@@ -128,6 +161,8 @@ function defaultSave(): SaveData {
     version: SAVE_VERSION,
     career: emptyCareer(),
     settings: defaultSettings(),
+    careers: emptySlots(),
+    activeSlot: 0,
     hallOfFame: [],
   };
 }
@@ -245,10 +280,21 @@ function groupsFromFixtures(state: { fixtures: { homeId: string; awayId: string 
   return groups;
 }
 
+/**
+ * The shape the migration chain works in.
+ *
+ * Every step up to v15 was written against a save with ONE career, in a field
+ * called `careerState`, and rewriting fourteen historical migrations to speak
+ * in slots would be rewriting history — they would then be migrating a shape
+ * that never existed on anybody's disk. So the chain keeps the flat field, and
+ * v15 is the step that puts it into a slot.
+ */
+type MigratingSave = SaveData & { careerState?: CareerState };
+
 export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveData | null {
   if (!parsed || typeof parsed !== 'object' || !parsed.career) return null;
 
-  let save = { ...defaultSave(), ...parsed } as SaveData;
+  let save = { ...defaultSave(), ...parsed } as MigratingSave;
 
   if (parsed.version === 1) {
     // v1 -> v2: quick-match totals are unchanged; there is simply no career yet.
@@ -531,25 +577,41 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
     save = { ...save, version: 14, hallOfFame: save.hallOfFame ?? [] };
   }
 
+  if (save.version === 14) {
+    // v14 -> v15: one career becomes one of three slots.
+    //
+    // The career being played goes into the first slot and stays the active
+    // one, so a save reloads exactly where it was — the change is that there
+    // are now two empty slots beside it rather than nothing.
+    const slots = emptySlots();
+    if (save.careerState) slots[0] = save.careerState;
+    save = { ...save, version: 15, careers: slots, activeSlot: 0 };
+  }
+
+  // The flat field is a migration detail and must not survive into the save.
+  // Leaving it would give the game two answers to "which career is this", and
+  // the stale one would win on any code path that had not been updated.
+  delete save.careerState;
+
   if (save.version !== SAVE_VERSION) return null;
 
   // Settings are additive: an older save simply had none, and a save written
   // before a new preference existed must still load.
   save.settings = { ...defaultSettings(), ...(save.settings ?? {}) };
 
-  // A career that predates a field must not crash the game.
-  if (save.careerState && !Array.isArray(save.careerState.history)) {
-    save.careerState.history = [];
-  }
-  if (save.careerState && !Array.isArray(save.careerState.offers)) {
-    save.careerState.offers = [];
-  }
-  if (save.careerState && !Array.isArray(save.careerState.transfers)) {
-    save.careerState.transfers = [];
-  }
-  if (save.careerState && !Array.isArray(save.careerState.honours)) {
-    save.careerState.honours = [];
-  }
+  // A career that predates a field must not crash the game. Applied to every
+  // slot, not just the active one: a slot you are not currently playing is
+  // still read by the front door, and would break it just as thoroughly.
+  if (!Array.isArray(save.careers)) save.careers = emptySlots();
+  save.careers = Array.from({ length: CAREER_SLOTS }, (_, slot) => {
+    const career = save.careers[slot] ?? null;
+    if (!career) return null;
+    if (!Array.isArray(career.history)) career.history = [];
+    if (!Array.isArray(career.offers)) career.offers = [];
+    if (!Array.isArray(career.transfers)) career.transfers = [];
+    if (!Array.isArray(career.honours)) career.honours = [];
+    return career;
+  });
   // The wall is additive in exactly the way settings are: a save written before
   // it existed simply has none, and a damaged one is repaired rather than
   // dropped — losing a wall must never cost somebody the career they are in.
@@ -561,9 +623,21 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
       HALL_OF_FAME_LIMIT,
     );
   }
-  if (save.careerState && !isUsableCareer(save.careerState)) {
-    save.careerState = undefined;
+  // One unreadable slot empties that slot and nothing else. Dropping the whole
+  // save over it would cost somebody two careers to punish a fault in a third.
+  save.careers = save.careers.map((career) => (career && isUsableCareer(career) ? career : null));
+
+  // An active slot pointing outside the rack is a save that cannot say which
+  // career it is playing. Falling back to the first is always safe: the front
+  // door lists every slot anyway, so nothing is unreachable.
+  if (
+    !Number.isInteger(save.activeSlot) ||
+    save.activeSlot < 0 ||
+    save.activeSlot >= CAREER_SLOTS
+  ) {
+    save.activeSlot = 0;
   }
+
   return save;
 }
 
@@ -586,14 +660,65 @@ export function writeSave(save: SaveData): void {
   }
 }
 
+/**
+ * Write a slot.
+ *
+ * The one place slots are actually mutated. Everything else that changes a
+ * career — saving a match, clearing a slot, ending a career — goes through
+ * here, so the array is rebuilt rather than written into and its length can
+ * never drift from `CAREER_SLOTS`.
+ */
+function withSlot(save: SaveData, slot: number, career: CareerState | null): SaveData {
+  const careers = Array.from({ length: CAREER_SLOTS }, (_, index) =>
+    index === slot ? career : (save.careers[index] ?? null),
+  );
+  return { ...save, careers };
+}
+
+/** The career being played, if the active slot holds one. */
+export function activeCareer(save: SaveData): CareerState | undefined {
+  return save.careers[save.activeSlot] ?? undefined;
+}
+
+/** Whatever is in one slot, empty or not. */
+export function careerInSlot(save: SaveData, slot: number): CareerState | undefined {
+  return save.careers[slot] ?? undefined;
+}
+
+/**
+ * Point every subsequent operation at a different slot.
+ *
+ * Selecting is separate from acting on purpose: the front door offers three
+ * careers and several things to do to each, and threading a slot number
+ * through every one of those actions would give the game two ways to say which
+ * career it meant. There is one — this.
+ */
+export function selectSlot(save: SaveData, slot: number): SaveData {
+  if (!Number.isInteger(slot) || slot < 0 || slot >= CAREER_SLOTS) return save;
+  const updated: SaveData = { ...save, activeSlot: slot };
+  writeSave(updated);
+  return updated;
+}
+
+/** The lowest empty slot, or null when all three are in use. */
+export function firstEmptySlot(save: SaveData): number | null {
+  const slot = save.careers.findIndex((career) => !career);
+  return slot === -1 ? null : slot;
+}
+
 export function saveCareer(save: SaveData, careerState: CareerState): SaveData {
-  const updated: SaveData = { ...save, careerState };
+  const updated = withSlot(save, save.activeSlot, careerState);
   writeSave(updated);
   return updated;
 }
 
 export function clearCareer(save: SaveData): SaveData {
-  const updated: SaveData = { ...save, careerState: undefined };
+  return clearSlot(save, save.activeSlot);
+}
+
+/** Empty one slot, leaving the other careers and the wall alone. */
+export function clearSlot(save: SaveData, slot: number): SaveData {
+  const updated = withSlot(save, slot, null);
   writeSave(updated);
   return updated;
 }
@@ -629,12 +754,76 @@ export function isUsableLegacy(entry: unknown): entry is CareerLegacy {
  */
 export function enshrineCareer(save: SaveData, legacy: CareerLegacy): SaveData {
   const updated: SaveData = {
-    ...save,
-    careerState: undefined,
+    ...withSlot(save, save.activeSlot, null),
     hallOfFame: rankLegacies([...(save.hallOfFame ?? []), legacy]).slice(0, HALL_OF_FAME_LIMIT),
   };
   writeSave(updated);
   return updated;
+}
+
+// ------------------------------------------------- taking it with you ---
+
+/**
+ * TRANSFERRING A SAVE
+ *
+ * localStorage is not storage anybody chose. It is per-browser, per-profile and
+ * per-origin; it is cleared by the same button that clears cookies, by private
+ * browsing, and by a browser deciding it needs the space. Everything the game
+ * has ever recorded — three careers, a wall of fame, a season somebody has been
+ * playing for a month — lives in one key that a routine tidy-up deletes without
+ * asking. That is a fine default and an unacceptable only option.
+ *
+ * The exported file is the SAVE ITSELF, not a summary or a special export
+ * format. Two consequences, both wanted: an export can be imported by any
+ * version that can migrate it, because it goes in through exactly the same door
+ * as a save read off disk; and there is no second serialiser to keep in step
+ * with the first.
+ */
+
+/** The save as a file's worth of text. Indented, because people open these. */
+export function exportSave(save: SaveData): string {
+  return JSON.stringify(save, null, 2);
+}
+
+/** What to call the file. Dated, because the point of one is having several. */
+export function exportFilename(now: Date = new Date()): string {
+  const stamp = now.toISOString().slice(0, 10);
+  return `footii-save-${stamp}.json`;
+}
+
+/**
+ * Read a save back in, or refuse.
+ *
+ * Runs the text through the SAME migration every boot uses, so an older
+ * export is brought forward rather than rejected, and a file that is not a
+ * Footii save at all fails the same way a corrupt one does — with a null, not
+ * with a half-applied import.
+ *
+ * Nothing is written here. Deciding to overwrite everything the browser holds
+ * is the caller's to make, and it should be made against a save it has already
+ * seen parse.
+ */
+export function importSave(text: string): SaveData | null {
+  try {
+    const parsed = JSON.parse(text) as Partial<SaveData>;
+    return migrate(parsed);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Replace everything with an imported save.
+ *
+ * Deliberately total. A partial import — careers but not the wall, or a wall
+ * merged into the existing one — would produce a save that never existed on
+ * either machine, with duplicate wall entries and careers whose transfers refer
+ * to a world the other half does not have. Import is "make this browser be that
+ * browser", and the confirmation in front of it says so.
+ */
+export function replaceSave(save: SaveData): SaveData {
+  writeSave(save);
+  return save;
 }
 
 /** Wipe the wall. The career being played, if any, is not touched. */

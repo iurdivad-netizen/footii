@@ -7,10 +7,10 @@ import { positionLabel } from '../../core/player/positions.ts';
  *
  * Every career this browser has finished, best first.
  *
- * The one thing in the game that outlives a career. Careers are otherwise
- * completely disposable — one save slot, and starting a second means destroying
- * the first — so without this there was no reason for the tenth career to be
- * different from the first, and no record that the first had happened.
+ * The one thing in the game that outlives a career. A career in a slot is
+ * eventually ended, and the slot reused; without this there would be no reason
+ * for the tenth career to be different from the first, and no record that the
+ * first had ever happened.
  *
  * The ranking is `careerScore`, which is blunt on purpose: it exists to put the
  * best career at the top, not to settle an argument. What it is made of is

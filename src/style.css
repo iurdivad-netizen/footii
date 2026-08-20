@@ -2649,3 +2649,133 @@ button.ghost.danger {
   font-family: var(--mono);
   color: var(--accent);
 }
+
+/* ------------------------------------------------------ career slots ---- */
+
+/*
+ * The rack.
+ *
+ * Three careers side by side where there is room, stacked where there is not.
+ * An empty slot is styled as a real card rather than a gap, because it is
+ * something to click — the whole point of slots is that starting a career is no
+ * longer a thing you do INSTEAD of keeping one.
+ */
+.home-careers {
+  margin: 24px 0;
+}
+
+.home-careers > h2 {
+  margin: 0 0 4px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+
+.home-careers > .hint {
+  margin: 0 0 14px;
+}
+
+.slot-rack {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+.slot-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+}
+
+.slot-card.occupied {
+  border-color: rgba(74, 222, 128, 0.35);
+  background: rgba(74, 222, 128, 0.05);
+}
+
+/* The one you were last in, so a rack of three still has a "yours". */
+.slot-card.occupied.active {
+  border-color: var(--accent);
+  background: rgba(74, 222, 128, 0.09);
+}
+
+.slot-card.empty {
+  border-style: dashed;
+  justify-content: space-between;
+}
+
+.slot-label {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.slot-card.occupied.active .slot-label em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.slot-empty-note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  flex: 1;
+}
+
+/* Inside a slot the actions are the full width of a narrow card. */
+.slot-card .career-card-actions {
+  margin-top: auto;
+}
+
+.slot-card .career-card-actions .primary {
+  padding: 10px 20px;
+  font-size: 0.95rem;
+}
+
+.slot-card .career-card-name {
+  margin: 0 0 2px;
+}
+
+.slot-card .home-summary {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+}
+
+/* One mode card on its own should not stretch across the whole screen. */
+.home-modes.single {
+  grid-template-columns: minmax(280px, 420px);
+}
+
+/*
+ * The outcome of an export or an import.
+ *
+ * Rendered at the top of the front door rather than beside the buttons that
+ * caused it, because an import REBUILDS this screen — the panel the button was
+ * in is folded away again by the time there is anything to say.
+ */
+.home-status {
+  margin: 0 0 18px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: rgba(74, 222, 128, 0.1);
+  font-size: 0.9rem;
+}
+
+.save-data .save-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.save-data .save-actions .ghost {
+  margin-top: 0;
+}

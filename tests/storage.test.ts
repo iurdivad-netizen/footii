@@ -1,9 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CAREER_SLOTS,
   HALL_OF_FAME_LIMIT,
   SAVE_VERSION,
+  activeCareer,
+  careerInSlot,
   clearHallOfFame,
+  clearSlot,
   defaultSettings,
+  emptySlots,
+  exportFilename,
+  exportSave,
+  firstEmptySlot,
+  importSave,
+  saveCareer,
+  selectSlot,
   emptyCareer,
   enshrineCareer,
   isUsableCareer,
@@ -42,7 +53,7 @@ describe('save migration', () => {
     expect(migrated).not.toBeNull();
     expect(migrated.version).toBe(SAVE_VERSION);
     expect(migrated.career.goals).toBe(7);
-    expect(migrated.careerState).toBeUndefined();
+    expect(migrated.careers[0]).toBeNull();
     expect(migrated.settings).toEqual(defaultSettings());
   });
 
@@ -62,7 +73,7 @@ describe('save migration', () => {
     } as never)!;
 
     expect(migrated.version).toBe(SAVE_VERSION);
-    const restored = migrated.careerState!;
+    const restored = migrated.careers[0]!;
     expect(restored.seasonStartAttributes).toEqual(restored.player.attributes);
     expect(restored.seasonStartAbility).toBeGreaterThan(0);
     expect(restored.trainingPoints).toBe(0);
@@ -82,8 +93,8 @@ describe('save migration', () => {
     } as never)!;
 
     expect(migrated.version).toBe(SAVE_VERSION);
-    expect(migrated.careerState!.offers).toEqual([]);
-    expect(migrated.careerState!.transfers).toEqual([]);
+    expect(migrated.careers[0]!.offers).toEqual([]);
+    expect(migrated.careers[0]!.transfers).toEqual([]);
   });
 
   it('backfills a v4 career with a pyramid, a contract and an honours list', () => {
@@ -109,7 +120,7 @@ describe('save migration', () => {
     expect(migrated).not.toBeNull();
     expect(migrated.version).toBe(SAVE_VERSION);
 
-    const restored = migrated.careerState!;
+    const restored = migrated.careers[0]!;
     // The career keeps its club, and is placed in whichever division it is in.
     expect(restored.clubId).toBe('northport-city');
     expect(restored.division).toBe(1);
@@ -133,7 +144,7 @@ describe('save migration', () => {
     delete legacy.contract;
 
     const migrated = migrate({ version: 4, career: emptyCareer(), careerState: legacy } as never)!;
-    expect(migrated.careerState!.history[0]!.division).toBe(1);
+    expect(migrated.careers[0]!.history[0]!.division).toBe(1);
   });
 
   it('drops a v4 career whose club no longer exists rather than half-migrating it', () => {
@@ -144,7 +155,7 @@ describe('save migration', () => {
     delete legacy.divisions;
 
     const migrated = migrate({ version: 4, career: emptyCareer(), careerState: legacy } as never)!;
-    expect(migrated.careerState).toBeUndefined();
+    expect(migrated.careers[0]).toBeNull();
   });
 
   it('leaves a migrated v5 career with a PLAYABLE season, not an empty one', () => {
@@ -158,7 +169,7 @@ describe('save migration', () => {
     delete legacy.leagues;
 
     const migrated = migrate({ version: 5, career: emptyCareer(), careerState: legacy } as never)!;
-    const restored = migrated.careerState!;
+    const restored = migrated.careers[0]!;
 
     expect(restored.leagueTeamIds).toHaveLength(16);
     expect(restored.table).toHaveLength(16);
@@ -181,7 +192,7 @@ describe('save migration', () => {
     delete legacy.calendarIndex;
 
     const migrated = migrate({ version: 6, career: emptyCareer(), careerState: legacy } as never)!;
-    const restored = migrated.careerState!;
+    const restored = migrated.careers[0]!;
 
     expect(migrated.version).toBe(SAVE_VERSION);
     // The league season is untouched: seven matches in is still seven in.
@@ -232,7 +243,7 @@ describe('save migration', () => {
     delete (legacy.history as Record<string, unknown>[])[0]!.wonEurope;
 
     const migrated = migrate({ version: 7, career: emptyCareer(), careerState: legacy } as never)!;
-    const restored = migrated.careerState!;
+    const restored = migrated.careers[0]!;
 
     expect(migrated.version).toBe(SAVE_VERSION);
     // The season in progress is untouched — a migration is not a new season.
@@ -268,13 +279,14 @@ describe('save migration', () => {
     const migrated = migrate({
       version: SAVE_VERSION,
       career: emptyCareer(),
-      careerState: state,
+      careers: [state, null, null],
+      activeSlot: 0,
     } as never)!;
 
     // Nothing is recomputed for a save that is already current.
-    expect(migrated.careerState!.records.hauls.hatTricks).toBe(1);
-    expect(migrated.careerState!.records.ratings.perfect).toBe(1);
-    expect(migrated.careerState!.records.byCompetition.championsLeague?.goals).toBe(3);
+    expect(migrated.careers[0]!.records.hauls.hatTricks).toBe(1);
+    expect(migrated.careers[0]!.records.ratings.perfect).toBe(1);
+    expect(migrated.careers[0]!.records.byCompetition.championsLeague?.goals).toBe(3);
   });
 
   it('joins a v9 career to the coefficient with an empty record, not a made-up one', () => {
@@ -286,7 +298,7 @@ describe('save migration', () => {
     delete legacy.coefficients;
 
     const migrated = migrate({ version: 9, career: emptyCareer(), careerState: legacy } as never)!;
-    const restored = migrated.careerState!;
+    const restored = migrated.careers[0]!;
 
     expect(migrated.version).toBe(SAVE_VERSION);
     // NOTHING is back-filled. A past tournament cannot be reconstructed — a
@@ -314,7 +326,7 @@ describe('save migration', () => {
     legacy.coefficients = { england: [4, 5, 6], scotland: [1, 2, 1] };
 
     const migrated = migrate({ version: 10, career: emptyCareer(), careerState: legacy } as never)!;
-    const restored = migrated.careerState!;
+    const restored = migrated.careers[0]!;
 
     expect(migrated.version).toBe(SAVE_VERSION);
     // Those tournaments were really played. Discarding them would reset a
@@ -339,7 +351,7 @@ describe('save migration', () => {
     legacy.international = tournament;
 
     const migrated = migrate({ version: 11, career: emptyCareer(), careerState: legacy } as never)!;
-    const restored = migrated.careerState!;
+    const restored = migrated.careers[0]!;
 
     expect(migrated.version).toBe(SAVE_VERSION);
     // Redrawing against a twelve-country order would hand the player a group he
@@ -367,7 +379,7 @@ describe('save migration', () => {
     delete legacy.seasonCaps;
 
     const migrated = migrate({ version: 8, career: emptyCareer(), careerState: legacy } as never)!;
-    const restored = migrated.careerState!;
+    const restored = migrated.careers[0]!;
 
     expect(migrated.version).toBe(SAVE_VERSION);
     // A tournament is drawn for the season he is actually in, with nothing yet
@@ -433,9 +445,10 @@ describe('save migration', () => {
     const migrated = migrate({
       version: SAVE_VERSION,
       career: emptyCareer(),
-      careerState: state,
+      careers: [state, null, null],
+      activeSlot: 0,
     } as never)!;
-    expect(Array.isArray(migrated.careerState!.history)).toBe(true);
+    expect(Array.isArray(migrated.careers[0]!.history)).toBe(true);
   });
 
   it('round-trips a full save through JSON without loss', () => {
@@ -443,14 +456,15 @@ describe('save migration', () => {
       version: SAVE_VERSION,
       career: { ...emptyCareer(), goals: 4 },
       settings: { pace: 'relaxed', matchSpeed: 2 },
-      careerState: career(),
+      careers: [career(), null, null],
+      activeSlot: 0,
       hallOfFame: [],
     };
     const restored = migrate(JSON.parse(JSON.stringify(original)))!;
     expect(restored.settings).toEqual(original.settings);
     expect(restored.career.goals).toBe(4);
-    expect(restored.careerState!.player.name).toBe('Test');
-    expect(restored.careerState!.fixtures.length).toBe(original.careerState!.fixtures.length);
+    expect(restored.careers[0]!.player.name).toBe('Test');
+    expect(restored.careers[0]!.fixtures.length).toBe(original.careers[0]!.fixtures.length);
   });
 });
 
@@ -498,7 +512,7 @@ describe('career save validation', () => {
     } as never)!;
 
     expect(migrated).not.toBeNull();
-    expect(migrated.careerState).toBeUndefined();
+    expect(migrated.careers[0]).toBeNull();
     // Everything else survives.
     expect(migrated.career.goals).toBe(9);
     expect(migrated.settings).toEqual(defaultSettings());
@@ -511,11 +525,12 @@ describe('career save validation', () => {
     const migrated = migrate({
       version: SAVE_VERSION,
       career: emptyCareer(),
-      careerState: state,
+      careers: [state, null, null],
+      activeSlot: 0,
     } as never)!;
-    expect(migrated.careerState).toBeDefined();
-    expect(migrated.careerState!.offers).toEqual([]);
-    expect(migrated.careerState!.transfers).toEqual([]);
+    expect(migrated.careers[0]).toBeDefined();
+    expect(migrated.careers[0]!.offers).toEqual([]);
+    expect(migrated.careers[0]!.transfers).toEqual([]);
   });
 
   it('keeps a career that is merely missing history, since that is repairable', () => {
@@ -524,10 +539,11 @@ describe('career save validation', () => {
     const migrated = migrate({
       version: SAVE_VERSION,
       career: emptyCareer(),
-      careerState: state,
+      careers: [state, null, null],
+      activeSlot: 0,
     } as never)!;
-    expect(migrated.careerState).toBeDefined();
-    expect(migrated.careerState!.history).toEqual([]);
+    expect(migrated.careers[0]).toBeDefined();
+    expect(migrated.careers[0]!.history).toEqual([]);
   });
 });
 
@@ -579,6 +595,8 @@ function save(overrides: Partial<SaveData> = {}): SaveData {
     version: SAVE_VERSION,
     career: emptyCareer(),
     settings: defaultSettings(),
+    careers: emptySlots(),
+    activeSlot: 0,
     hallOfFame: [],
     ...overrides,
   };
@@ -588,10 +606,10 @@ describe('ending a career', () => {
   it('clears the career and puts it on the wall in the SAME write', () => {
     // The two halves must not be separable. A save holding both a live career
     // and its own obituary is a state nothing downstream knows how to read.
-    const before = save({ careerState: career() });
+    const before = save({ careers: [career(), null, null] });
     const after = enshrineCareer(before, legacy());
 
-    expect(after.careerState).toBeUndefined();
+    expect(after.careers[0]).toBeNull();
     expect(after.hallOfFame).toHaveLength(1);
   });
 
@@ -627,18 +645,18 @@ describe('ending a career', () => {
 
     expect(state.hallOfFame.some((entry) => entry.id === 'not-good-enough')).toBe(false);
     // It still ended: enshrining is what clears the career, cut or not.
-    expect(state.careerState).toBeUndefined();
+    expect(state.careers[0]).toBeNull();
   });
 });
 
 describe('resetting the wall', () => {
   it('empties it without touching the career being played', () => {
-    const state = save({ careerState: career(), hallOfFame: [legacy(), legacy({ id: 'b' })] });
+    const state = save({ careers: [career(), null, null], hallOfFame: [legacy(), legacy({ id: 'b' })] });
     const cleared = clearHallOfFame(state);
 
     expect(cleared.hallOfFame).toEqual([]);
-    expect(cleared.careerState).toBeDefined();
-    expect(cleared.careerState!.player.name).toBe('Test');
+    expect(cleared.careers[0]).toBeDefined();
+    expect(cleared.careers[0]!.player.name).toBe('Test');
   });
 
   it('removes one career by id and leaves the rest alone', () => {
@@ -668,7 +686,7 @@ describe('the wall across versions', () => {
 
     expect(migrated.version).toBe(SAVE_VERSION);
     expect(migrated.hallOfFame).toEqual([]);
-    expect(migrated.careerState).toBeDefined();
+    expect(migrated.careers[0]).toBeDefined();
   });
 
   it('repairs a damaged wall instead of dropping the save that holds it', () => {
@@ -681,7 +699,7 @@ describe('the wall across versions', () => {
 
     expect(migrated.hallOfFame).toEqual([]);
     // Losing the wall must never cost somebody the career they are in.
-    expect(migrated.careerState).toBeDefined();
+    expect(migrated.careers[0]).toBeDefined();
   });
 
   it('drops only the entries it cannot read', () => {
@@ -706,5 +724,234 @@ describe('the wall across versions', () => {
     expect(isUsableLegacy({})).toBe(false);
     expect(isUsableLegacy({ id: 'x', name: 'y' })).toBe(false);
     expect(isUsableLegacy(legacy())).toBe(true);
+  });
+});
+
+
+/**
+ * CAREER SLOTS
+ *
+ * Three careers instead of one, and the reason the change was worth making:
+ * starting a second career used to cost you the first. So what these check is
+ * ISOLATION — that every operation touches exactly the slot it was aimed at and
+ * no other — rather than that three of something can be stored.
+ */
+
+describe('career slots', () => {
+  it('starts with three empty slots and plays the first', () => {
+    const fresh = migrate({ version: SAVE_VERSION, career: emptyCareer() } as never)!;
+
+    expect(fresh.careers).toHaveLength(CAREER_SLOTS);
+    expect(fresh.careers.every((slot) => slot === null)).toBe(true);
+    expect(fresh.activeSlot).toBe(0);
+    expect(activeCareer(fresh)).toBeUndefined();
+  });
+
+  it('writes a career to the active slot and leaves the others empty', () => {
+    let state = selectSlot(save(), 1);
+    state = saveCareer(state, career());
+
+    expect(careerInSlot(state, 0)).toBeUndefined();
+    expect(careerInSlot(state, 1)!.player.name).toBe('Test');
+    expect(careerInSlot(state, 2)).toBeUndefined();
+  });
+
+  it('keeps three careers apart, so playing one never touches another', () => {
+    let state = save();
+    for (const slot of [0, 1, 2]) {
+      state = selectSlot(state, slot);
+      const one = career();
+      one.player.name = `Player ${slot}`;
+      state = saveCareer(state, one);
+    }
+
+    // Advance only the middle one.
+    state = selectSlot(state, 1);
+    const middle = activeCareer(state)!;
+    middle.seasonNumber = 9;
+    state = saveCareer(state, middle);
+
+    expect(careerInSlot(state, 0)!.seasonNumber).toBe(1);
+    expect(careerInSlot(state, 1)!.seasonNumber).toBe(9);
+    expect(careerInSlot(state, 2)!.seasonNumber).toBe(1);
+    expect(state.careers.map((slot) => slot!.player.name)).toEqual([
+      'Player 0',
+      'Player 1',
+      'Player 2',
+    ]);
+  });
+
+  it('empties one slot without disturbing the rest', () => {
+    let state = save();
+    for (const slot of [0, 1, 2]) {
+      state = saveCareer(selectSlot(state, slot), career());
+    }
+    state = clearSlot(state, 1);
+
+    expect(state.careers.map(Boolean)).toEqual([true, false, true]);
+    // Clearing a slot is not the same as leaving it: the player is still there.
+    expect(state.activeSlot).toBe(2);
+  });
+
+  it('finds the lowest empty slot, and says so when there is none', () => {
+    let state = save();
+    expect(firstEmptySlot(state)).toBe(0);
+
+    state = saveCareer(selectSlot(state, 0), career());
+    expect(firstEmptySlot(state)).toBe(1);
+
+    state = saveCareer(selectSlot(state, 1), career());
+    state = saveCareer(selectSlot(state, 2), career());
+    expect(firstEmptySlot(state)).toBeNull();
+  });
+
+  it('refuses to select a slot that is not on the rack', () => {
+    const state = selectSlot(save(), 0);
+    expect(selectSlot(state, -1).activeSlot).toBe(0);
+    expect(selectSlot(state, CAREER_SLOTS).activeSlot).toBe(0);
+  });
+
+  it('ends only the career in the active slot', () => {
+    let state = save();
+    state = saveCareer(selectSlot(state, 0), career());
+    state = saveCareer(selectSlot(state, 2), career());
+
+    state = enshrineCareer(state, legacy());
+
+    expect(state.careers.map(Boolean)).toEqual([true, false, false]);
+    expect(state.hallOfFame).toHaveLength(1);
+  });
+});
+
+describe('slots across versions', () => {
+  it('moves a v14 career into the first slot and keeps playing it', () => {
+    const state = career();
+    const migrated = migrate({
+      version: 14,
+      career: emptyCareer(),
+      careerState: state,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(migrated.careers[0]!.player.name).toBe('Test');
+    expect(migrated.careers[1]).toBeNull();
+    expect(migrated.activeSlot).toBe(0);
+    // The flat field is a migration detail and must not survive: two answers to
+    // "which career is this" is worse than none.
+    expect((migrated as unknown as Record<string, unknown>).careerState).toBeUndefined();
+  });
+
+  it('gives a v14 save with no career three empty slots, not a phantom one', () => {
+    const migrated = migrate({ version: 14, career: emptyCareer(), hallOfFame: [] } as never)!;
+    expect(migrated.careers).toEqual(emptySlots());
+  });
+
+  it('empties only the unreadable slot, keeping the careers either side of it', () => {
+    const migrated = migrate({
+      version: SAVE_VERSION,
+      career: emptyCareer(),
+      careers: [career(), { player: 'not a career' }, career()],
+      activeSlot: 0,
+    } as never)!;
+
+    expect(migrated.careers.map(Boolean)).toEqual([true, false, true]);
+  });
+
+  it('pads a short slot array rather than trusting its length', () => {
+    const migrated = migrate({
+      version: SAVE_VERSION,
+      career: emptyCareer(),
+      careers: [career()],
+      activeSlot: 0,
+    } as never)!;
+
+    expect(migrated.careers).toHaveLength(CAREER_SLOTS);
+    expect(migrated.careers[0]).toBeDefined();
+  });
+
+  it('falls back to the first slot when the active one is off the rack', () => {
+    for (const activeSlot of [-1, CAREER_SLOTS, 1.5, 'two']) {
+      const migrated = migrate({
+        version: SAVE_VERSION,
+        career: emptyCareer(),
+        careers: emptySlots(),
+        activeSlot,
+      } as never)!;
+      expect(migrated.activeSlot).toBe(0);
+    }
+  });
+});
+
+/**
+ * TAKING A SAVE SOMEWHERE ELSE
+ *
+ * The export is the save itself, so the thing to check is that it goes back in
+ * through the same door it came out of — and that a file which is not a save
+ * fails without costing anybody the one they already had.
+ */
+
+describe('export and import', () => {
+  it('round-trips everything: careers, the wall, and preferences', () => {
+    let original = save({ settings: { pace: 'relaxed', matchSpeed: 2 } });
+    original = saveCareer(selectSlot(original, 1), career());
+    original = { ...original, hallOfFame: [legacy({ id: 'kept' })] };
+
+    const restored = importSave(exportSave(original))!;
+
+    expect(restored).not.toBeNull();
+    expect(restored.careers[1]!.player.name).toBe('Test');
+    expect(restored.careers[0]).toBeNull();
+    expect(restored.activeSlot).toBe(1);
+    expect(restored.hallOfFame.map((entry) => entry.id)).toEqual(['kept']);
+    expect(restored.settings).toEqual({ pace: 'relaxed', matchSpeed: 2 });
+  });
+
+  it('brings an OLDER export forward, rather than refusing it', () => {
+    // An export is a save, so importing one goes through the same migration a
+    // save read off disk does. A file from a previous version still works.
+    const v14 = JSON.stringify({
+      version: 14,
+      career: { ...emptyCareer(), goals: 3 },
+      settings: defaultSettings(),
+      careerState: career(),
+      hallOfFame: [],
+    });
+
+    const restored = importSave(v14)!;
+
+    expect(restored.version).toBe(SAVE_VERSION);
+    expect(restored.careers[0]!.player.name).toBe('Test');
+    expect(restored.career.goals).toBe(3);
+  });
+
+  it('refuses a file that is not a save, without throwing', () => {
+    expect(importSave('')).toBeNull();
+    expect(importSave('not json at all')).toBeNull();
+    expect(importSave('{"hello":"world"}')).toBeNull();
+    expect(importSave('[1,2,3]')).toBeNull();
+  });
+
+  it('refuses a save from a version this build cannot reach', () => {
+    // A file from a NEWER build, or one with a version no step recognises. The
+    // chain cannot walk it to the current version, so it is refused whole
+    // rather than half-applied.
+    expect(importSave(JSON.stringify({ version: 99, career: emptyCareer() }))).toBeNull();
+    expect(importSave(JSON.stringify({ version: 15 }))).toBeNull();
+  });
+
+  it('still accepts a genuinely old save, since that is the point', () => {
+    const ancient = JSON.stringify({ version: 3, career: { ...emptyCareer(), goals: 2 } });
+    expect(importSave(ancient)!.career.goals).toBe(2);
+  });
+
+  it('names the file by the day it was written', () => {
+    expect(exportFilename(new Date('2026-08-20T11:00:00Z'))).toBe('footii-save-2026-08-20.json');
+  });
+
+  it('writes something a person can open and read', () => {
+    // Indented on purpose: an exported save is a file somebody may well look
+    // inside, and a single-line blob is not one.
+    expect(exportSave(save())).toContain('\n');
   });
 });
