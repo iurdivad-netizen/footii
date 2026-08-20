@@ -3257,3 +3257,110 @@ button.ghost.danger {
 .group-table tr.own td {
   color: var(--accent);
 }
+
+/* ------------------------------------------------------------ trial ----- */
+
+/*
+ * The verdict on a trial.
+ *
+ * Two numbers side by side and one sentence, because that is the whole of it:
+ * what you managed against what they wanted. A screen that buried the bar would
+ * make a refusal feel arbitrary, and the reason a trial exists rather than a
+ * filtered club list is that reaching should be a decision you can weigh.
+ */
+.trial-head {
+  text-align: center;
+  padding: clamp(16px, 4vw, 32px) 0 8px;
+}
+
+.trial-kicker {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.trial-head h1 {
+  margin: 6px 0 0;
+  font-size: clamp(1.6rem, 5vw, 2.3rem);
+}
+
+.trial-screen.passed .trial-head h1 {
+  color: var(--accent);
+}
+
+.trial-screen.failed .trial-head h1 {
+  color: var(--danger);
+}
+
+.trial-marks {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin: 20px 0;
+}
+
+.trial-mark {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.trial-value {
+  font-family: var(--mono);
+  font-size: clamp(2.2rem, 9vw, 3.2rem);
+  line-height: 1;
+}
+
+.trial-value.good {
+  color: var(--accent);
+}
+
+.trial-value.bad {
+  color: var(--danger);
+}
+
+.trial-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.trial-versus {
+  font-family: var(--mono);
+  color: var(--text-dim);
+  align-self: flex-start;
+  margin-top: 14px;
+}
+
+.trial-verdict {
+  max-width: 620px;
+  margin: 0 auto 22px;
+  text-align: center;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.trial-actions {
+  max-width: 520px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.trial-actions .hint {
+  margin-bottom: 14px;
+}
+
+.trial-actions .primary {
+  width: auto;
+}
+
+/* The trial warning under the club list, on the setup screen. */
+#club-note.trial {
+  color: var(--goal);
+}

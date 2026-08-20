@@ -1,8 +1,11 @@
-import { PLAYER_PRESETS, TEAMS } from '../../data/gameData.ts';
+import { PLAYER_PRESETS, TEAMS, getPreset } from '../../data/gameData.ts';
+import type { Player } from '../../core/player/player.ts';
 import { positionLabel } from '../../core/player/positions.ts';
 import { TACTICAL_STYLE_LABELS } from '../../core/team/team.ts';
 import type { Team } from '../../core/team/team.ts';
 import { getCountry } from '../../core/career/countries.ts';
+import { clubStanding, describeTrial, reachOf, trialRequirement } from '../../core/career/trial.ts';
+import type { ClubStanding } from '../../core/career/trial.ts';
 import { CUSTOM_PLAYER_ID } from '../../data/gameData.ts';
 
 export interface SetupSelection {
@@ -25,11 +28,32 @@ export interface SetupHandlers {
   onBack: () => void;
   /** A custom player built this session, offered alongside the pre-builds. */
   customLabel?: string;
+  /**
+   * That custom player himself, when there is one.
+   *
+   * The club list is banded by who you are — see core/career/trial.ts — so the
+   * screen needs the actual player and not only his label. Without it a created
+   * player would be offered the pre-build's clubs, which is a different list.
+   */
+  customPlayer?: Player;
 }
 
 /** Team selection, player selection, match seed, and the two entry points. */
 export class SetupScreen {
   readonly element: HTMLElement;
+
+  /**
+   * The player a preset id refers to.
+   *
+   * Falls back to the young prospect for a custom slot with nothing built yet,
+   * which is what the career flow does with it too.
+   */
+  private playerFor(presetId: string): Player {
+    if (presetId === CUSTOM_PLAYER_ID) {
+      return this.handlers.customPlayer ?? getPreset('young-prospect').create();
+    }
+    return (PLAYER_PRESETS.find((p) => p.id === presetId) ?? PLAYER_PRESETS[0]!).create();
+  }
 
   constructor(private readonly handlers: SetupHandlers) {
     this.element = document.createElement('section');
@@ -65,12 +89,8 @@ export class SetupScreen {
 
         <div class="field">
           <label for="team">Your club</label>
-          <select id="team">
-            ${TEAMS.map(
-              (t) =>
-                `<option value="${t.id}" ${t.id === 'northport-city' ? 'selected' : ''}>${clubOption(t)}</option>`,
-            ).join('')}
-          </select>
+          <select id="team"></select>
+          <p class="hint" id="club-note"></p>
         </div>
 
         <div class="field" ${handlers.mode === 'career' ? 'hidden' : ''}>
@@ -129,8 +149,77 @@ export class SetupScreen {
       const player = preset.create();
       description.textContent = `${preset.description} (${positionLabel(player.position)})`;
     };
-    presetSelect.addEventListener('change', updateDescription);
+    // The club list depends on WHO you are, so it is rebuilt whenever the
+    // player changes: a veteran and a seventeen-year-old are not offered the
+    // same clubs, and a list that did not move would be offering one of them a
+    // lie. Only in career mode — a quick match is a friendly against anybody.
+    const teamSelect = this.element.querySelector<HTMLSelectElement>('#team')!;
+    const clubNote = this.element.querySelector<HTMLElement>('#club-note')!;
+
+    const renderClubs = () => {
+      const previous = teamSelect.value;
+      if (handlers.mode !== 'career') {
+        teamSelect.innerHTML = TEAMS.map(
+          (t) => `<option value="${t.id}">${clubOption(t)}</option>`,
+        ).join('');
+        clubNote.textContent = '';
+        teamSelect.value = previous || 'northport-city';
+        return;
+      }
+
+      const player = this.playerFor(presetSelect.value);
+      const banded: Record<ClubStanding, Team[]> = { open: [], trial: [], closed: [] };
+      for (const team of TEAMS) banded[clubStanding(player, team)].push(team);
+
+      const group = (standing: ClubStanding, label: string) => {
+        const clubs = banded[standing];
+        if (clubs.length === 0) return '';
+        return `<optgroup label="${label} (${clubs.length})">${clubs
+          .map(
+            (t) =>
+              `<option value="${t.id}" ${standing === 'closed' ? 'disabled' : ''}>${clubOption(t)}${
+                standing === 'trial' ? ` — trial, ${trialRequirement(reachOf(player, t))} needed` : ''
+              }</option>`,
+          )
+          .join('')}</optgroup>`;
+      };
+
+      teamSelect.innerHTML =
+        group('open', 'Would sign you') +
+        group('trial', 'Would give you a trial') +
+        group('closed', 'Out of your reach');
+
+      // Keep the choice if it is still available; otherwise fall to the best
+      // club that would simply take him, which is the sensible default.
+      const stillThere = [...banded.open, ...banded.trial].some((t) => t.id === previous);
+      teamSelect.value = stillThere
+        ? previous
+        : (banded.open[0] ?? banded.trial[0] ?? TEAMS[0]!).id;
+      updateClubNote();
+    };
+
+    const updateClubNote = () => {
+      if (handlers.mode !== 'career') return;
+      const team = TEAMS.find((t) => t.id === teamSelect.value);
+      if (!team) return;
+      const player = this.playerFor(presetSelect.value);
+      if (clubStanding(player, team) !== 'trial') {
+        clubNote.textContent = 'They would take you. Pick them and the season starts.';
+        clubNote.classList.remove('trial');
+        return;
+      }
+      const required = trialRequirement(reachOf(player, team));
+      clubNote.textContent = `A trial: one match for ${team.shortName}, and you need a ${required} rating. ${describeTrial(required)}`;
+      clubNote.classList.add('trial');
+    };
+
+    teamSelect.addEventListener('change', updateClubNote);
+    presetSelect.addEventListener('change', () => {
+      updateDescription();
+      renderClubs();
+    });
     updateDescription();
+    renderClubs();
 
     const collect = (): SetupSelection => {
       const teamId = this.element.querySelector<HTMLSelectElement>('#team')!.value;

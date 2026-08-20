@@ -454,6 +454,37 @@ export interface TransferOffer {
 }
 
 /**
+ * Model units to thousands a week.
+ *
+ * The wage CURVE was right and its scale was wrong. An ability-95 player at the
+ * best club in the world earned £86k a week, where the real figure is three to
+ * five times that; an ability-75 first-teamer earned £18k against a real £60k or
+ * more. Meanwhile market values were about right — £177m for that same player —
+ * so fees and wages disagreed with each other by a factor of four, and
+ * `careerEarnings` (and the "£Xm earned" figure on the end screen) read low for
+ * a whole career.
+ *
+ * Applied to BOTH what a club offers and what a player expects, which is the
+ * whole reason this is safe to change. The wage gate asks whether the offer
+ * clears the demand, and scaling both sides by the same number leaves every
+ * answer it has ever given identical. Nothing about who can sign whom moves;
+ * only the figures on screen do.
+ */
+export const WAGE_SCALE = 4;
+
+/**
+ * The floor and ceiling on a weekly wage, in thousands.
+ *
+ * A professional at the bottom of the smallest league in the world is on
+ * something rather than nothing, and nobody anywhere earns more than the top.
+ * Exported because `fallbackContract` has to clamp to the same range — it used
+ * to carry its own copy of the numbers, which is exactly the kind of duplicate
+ * that goes stale the first time one of them is tuned.
+ */
+export const MIN_WAGE = 2;
+export const MAX_WAGE = 750;
+
+/**
  * Weekly wage a club would pay, in thousands.
  *
  * Scaled by the division as well as the club, because the money in the game is
@@ -468,8 +499,9 @@ export function offeredWage(player: Player, team: Team, role: SquadRole, prestig
     2 ** ((ability - 40) / 9) *
     (0.35 + clubStature(team) * 1.05) *
     roleFactor *
-    divisionPay(prestige);
-  return round(clamp(wage, 1, 500), 1);
+    divisionPay(prestige) *
+    WAGE_SCALE;
+  return round(clamp(wage, MIN_WAGE, MAX_WAGE), 1);
 }
 
 /**
@@ -501,8 +533,11 @@ export function wageDemand(player: Player, prestige = 1): number {
   // afford you is how well known you are against how big they are — which is
   // the question the gate exists to ask.
   const profile = 0.6 + unit(player.reputation) * 0.85;
-  const demand = 2 ** ((ability - 42) / 9) * profile * divisionPay(prestige);
-  return round(clamp(demand, 1, 520), 1);
+  const demand = 2 ** ((ability - 42) / 9) * profile * divisionPay(prestige) * WAGE_SCALE;
+  // A shade above the offer ceiling, so a player at the very top of the scale
+  // still wants marginally more than anybody will pay — which is what a
+  // ceiling is for.
+  return round(clamp(demand, MIN_WAGE, MAX_WAGE * 1.04), 1);
 }
 
 /**

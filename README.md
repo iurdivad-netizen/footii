@@ -1451,6 +1451,70 @@ longer still. The pace settings are now named by the window they give rather tha
 because "Standard — 1x" said nothing and only became sayable once the scale was one a person could
 hold in their head.
 
+### Where a career may begin
+
+The setup screen has always offered every one of the 192 clubs in the world. That is the right
+freedom and it had no cost attached: you could start an eighteen-year-old with 54 ability at the
+best side on earth, which no club anywhere would do, and the career that followed was decided before
+a ball was kicked.
+
+The missing piece was never the **choice**. It was the gate.
+
+Every club now falls into one of three bands, measured against the squad it already has:
+
+| | |
+| --- | --- |
+| **Would sign you** | you are at or above their level. Pick them and the season starts. |
+| **Would give you a trial** | you are short of their level, but not absurdly. One match decides. |
+| **Out of your reach** | not a player they would look at. The option is there and disabled. |
+
+**A trial rather than a filtered list.** A refusal is a rule you read and obey; a trial is a decision
+with a consequence. You can reach above yourself and find out in ninety minutes whether you were
+right — and it answers with the one thing the game is actually about, a match, rather than with a
+number in a menu. The rating you need is shown before you commit and scales with how far you are
+reaching: a club barely above you wants a good afternoon, one sixteen points better wants the best
+match you have ever played.
+
+The trial is an ordinary match — same decisions, same clock — played against a real side from the
+club's own league, so the standard you are judged at is the standard you would be playing at.
+**Nothing is recorded from it**: there is no career yet, which is the entire point of it.
+
+**Potential counts, because this is the one moment where it should.** Clubs sign teenagers on what
+they might become and nobody signs a thirty-year-old on it, so a share of the gap between ability
+and potential is added to what a club sees — tapering to nothing by 24. That is exactly the
+difference between *arriving* and *transferring*, and it is why this is not the transfer market's
+`reputationRequired` gate: that one asks whether a club can afford a known player, and a career
+starts with nobody who is known.
+
+**A failed trial is never a dead end.** The screen names the best club that would have taken you
+anyway and offers it directly. And the gate has a floor: the weakest squads in the world take
+anybody who turns up, so a player built badly enough in the creator to be below the worst club in
+the game still has somewhere to start. A gate with no floor would put a dead end behind the
+character creator, which is the worst possible place for one.
+
+### What the money looks like
+
+The wage curve was always the right **shape** and the wrong **scale**. An ability-95 player at the
+best club in the world was on £86k a week against a real figure three to five times that; an
+ability-75 first-teamer earned £18k against a real £60k or more. Market values were about right —
+£177m for that same player — so fees and wages disagreed with each other by a factor of four, and
+`careerEarnings`, including the "£Xm earned" figure on the end screen, read low for a whole career.
+
+So the curve was **rescaled rather than retuned**: one constant, applied to both what a club offers
+and what a player expects. That is the whole reason it was safe. The wage gate asks whether the
+offer clears the demand, and scaling both sides by the same number leaves every answer it has ever
+given identical — not one signing in the game moved, only the figures on screen.
+
+Roughly, at a top club:
+
+| ability | weekly wage |
+| --- | --- |
+| 55 — a young squad player | £16k |
+| 65 | £34k |
+| 75 — a first-team regular | £74k |
+| 85 | £160k |
+| 95 — the best in the world | £346k |
+
 ### Balancing notes worth knowing
 
 Two calibration bugs were found by measurement rather than by eye, and both are documented at
@@ -1656,7 +1720,8 @@ ratings, scoring and unbeaten runs and per-competition totals**, **an ending —
 from 34 and forced at 39, an end screen that shows a career in full before you stop it, and a wall
 of fame that ranks every career this browser has finished**, **three independent career slots**,
 **export and import of the whole save**, **penalty shootouts you take the kicks in**,
-**contracts you can push back on and stated preferences about where you will play**, promotion and relegation machinery
+**contracts you can push back on and stated preferences about where you will play**,
+**a trial to earn a start at a club above your level**, promotion and relegation machinery
 (dormant on a one-tier world), debug mode, and a versioned localStorage save with migration.
 
 Deliberately **not** built yet: multiplayer, accounts, a backend, 3D, physics, large player
@@ -1714,13 +1779,10 @@ Four groups of four, then quarter-final, semi-final and final. Six matches for a
 the way and three guaranteed for one that does not, where a straight knockout gave most qualifiers
 exactly one European night a year. See *European competitions* above.
 
-**2. You should be able to choose where to start, or play a trial.**
-Half of this already works and the other half is the real problem. The setup screen's club list is
-**every one of the 192 clubs, unrestricted** — so you can already start anywhere, including starting
-an 18-year-old with 54 ability at the best side in the world, which no club would do. What is
-missing is not the choice but the *gate*: a trial match, or a reputation and ability check that
-decides which clubs would actually take you, with the rest greyed out or reachable only by earning
-them.
+**2. You should be able to choose where to start, or play a trial.** ✅ **Done.**
+The choice was never the problem — the gate was. Clubs are now banded by whether they would sign
+you, give you a trial, or not look at you, and a trial is one real match. See *Where a career may
+begin* above.
 
 **3. You should be able to respond to a contract offer.** ✅ **Done.**
 You can push once, on wages, length or squad role, on any offer and on your own club's renewal —
@@ -1747,13 +1809,10 @@ only one survived:
 One match, before the first league round: last season's champions against last season's cup winners,
 or the league runner-up when one club did both. See *The super cup* above.
 
-**7. Salaries should look more like real ones.**
-Confirmed, with numbers. `offeredWage` is `2 ** ((ability - 40) / 9)` scaled by club and division,
-which puts an ability-70 first-division starter on roughly **£12k a week** and an ability-85 one on
-about **£38k**. The £500k ceiling needs an ability around 110, so it is unreachable and the curve
-never gets near it. Real top-flight money is several times that through the middle of the range,
-which also means `careerEarnings` — and the "£Xm earned" figure on the end screen — currently reads
-low for a whole career.
+**7. Salaries should look more like real ones.** ✅ **Done.**
+The curve was the right shape and the wrong scale, so it was rescaled rather than retuned — by the
+same factor on both what a club offers and what a player expects, which is why not one signing in
+the game moved. See *What the money looks like* above.
 
 **8. The career history table should show every trophy, season by season.** ✅ **Done.**
 It was a rendering gap, not a data one — the honours list already held a season's trophies, awards
@@ -1778,14 +1837,13 @@ the most recent one survives, in `lastResult`. This needs a counter on `CareerSt
 can only count matches skipped *after* the change; existing careers would start from zero rather
 than being retro-scored.
 
-#### What is left, and where it would go next
+#### What is left
 
-(3), (4), (5), (8) and (10) are done. Of the rest:
+Ten of the eleven are done. One remains:
 
-(7) is the most contained — a re-calibration with a clear target, and one that also fixes the "£Xm
-earned" figure on the end screen. (1) and (6) both want room in an already full calendar, so they
-are worth planning together rather than one at a time. (9) is a deliberate rebalance rather than a
-constant edit, since the keeper's commit point moves with the window and every balancing note below
-was measured against the current scale. (2) needs a gate rather than a choice, and is the one that
-most changes how a career begins. (11) should wait for the counter it needs, and can only ever count
-forward from the change.
+**(11) — penalties on the end-of-career score for skipped matches and an easy decision pace.** It
+was always the item that should go last, because it can only ever count forward from the change: a
+career already played carries no record of how many of its matches were skipped or what pace they
+were played at, so the counter has to start at zero and mean nothing until it has a career's worth
+of data behind it. It is also a larger job now than when it was listed, since the pace settings it
+would read are no longer the ones it was written against — see *The decision window, rescaled*.
