@@ -10,10 +10,12 @@ import { competitionLabel, isEuropean, isInternational } from '../../core/career
 import {
   europeanCompetition,
   europeanNameInProse,
+  europeanPlaces,
   europeanTierOf,
   placesDescription,
   tierForPosition,
 } from '../../core/career/europe.ts';
+import { countriesByStanding } from '../../core/career/coefficients.ts';
 import { milestones } from '../../core/career/records.ts';
 import {
   KNOCKOUT_ROUNDS,
@@ -449,12 +451,27 @@ export class CareerScreen {
       ? `<p class="hint">You are in the ${nation.name} squad.</p>`
       : `<p class="hint">Not in the ${nation.name} squad — ${gap} more reputation and you are.</p>`;
 
+    // What the shirt is worth to the country, not just to him. A tournament run
+    // moves the nation up the European order, and that is the one way a career
+    // changes football beyond its own club — worth saying on the card where the
+    // tournament lives rather than only in the world browser.
+    const order = countriesByStanding(this.state.coefficients ?? {});
+    const rank = order.indexOf(this.state.player.nationality);
+    const places = europeanPlaces(this.state.player.nationality, order);
+    const worth =
+      rank === -1
+        ? ''
+        : `<p class="hint">${ordinal(rank + 1)} in the European order, so ${nation.name} sends
+             ${places.championsLeague} to the Champions League and ${places.europaLeague} to the
+             Europa League. How this side does decides that.</p>`;
+
     return `
       <div class="career-card">
         <h2>${nation.name}</h2>
         ${status}
         ${table}
         ${run ? `<p class="hint">${run}</p>` : ''}
+        ${worth}
       </div>`;
   }
 
@@ -476,10 +493,11 @@ export class CareerScreen {
       // position read off it is an artefact of the ordering rather than form.
       // Say what the places ARE instead of pretending to project a season.
       const played = this.state.table.find((row) => row.teamId === this.state.clubId)?.played ?? 0;
-      const target = tierForPosition(this.state.countryId, Math.max(1, position));
+      const order = countriesByStanding(this.state.coefficients ?? {});
+      const target = tierForPosition(this.state.countryId, Math.max(1, position), order);
       const hint =
         played === 0
-          ? placesDescription(this.state.countryId)
+          ? placesDescription(this.state.countryId, order)
           : target
             ? `On current form you would qualify for ${europeanNameInProse(target)} next season.`
             : `Finish higher, or win a cup, and you are in Europe next season.`;
@@ -747,4 +765,10 @@ function describeInterest(score: number): string {
   if (score >= 0.36) return 'Ready to bid';
   if (score >= 0.28) return 'Keeping tabs';
   return 'Aware of you';
+}
+
+/** "1st", "2nd" — the European order reads as a placing, not an index. */
+function ordinal(n: number): string {
+  const suffix = ['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) || n % 10 > 3 ? 0 : n % 10];
+  return `${n}${suffix}`;
 }

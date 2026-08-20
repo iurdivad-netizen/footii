@@ -833,13 +833,23 @@ gets watched by big ones without having to sign for them first.
 
 | | |
 | --- | --- |
-| Champions League | the top **1 to 3** places, by how closely the country's league is watched |
-| Europa League | the next **2**, one of which goes to the **national cup winner** |
-| Conference League | the next **2**, one of which goes to the **league cup winner** |
+| Champions League | the top **1 to 3** places, by where the country stands in Europe |
+| Europa League | the next **1 to 3**, one of which goes to the **national cup winner** |
+| Conference League | the next **1 to 3**, one of which goes to the **league cup winner** |
 
-Champions League places are hand-tuned rather than derived — `3, 3, 3, 2, 2, 1, 1, 1` down the
-prestige order — because they have to sum to exactly sixteen and because the shape matters more than
-a formula: a country's league is a level, and this is where that stops being flavour.
+How many each country gets is hand-tuned rather than derived, because each row has to sum to exactly
+sixteen and because the shape matters more than a formula. **Read the columns, not the rows:**
+
+| rank | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+| ---- | - | - | - | - | - | - | - | - |
+| Champions League | 3 | 3 | 3 | 2 | 2 | 1 | 1 | 1 |
+| Europa League | 3 | 2 | 2 | 2 | 2 | 2 | 2 | 1 |
+| Conference League | 1 | 2 | 2 | 2 | 2 | 2 | 2 | 3 |
+| **total** | 7 | 7 | 7 | 6 | 6 | 5 | 5 | 5 |
+
+A country climbing the order does not send **more** clubs to Europe — it sends the same number to
+**better** competitions, trading a Conference place for a Europa one. And the order itself is
+**earned**: see "The country coefficient" below.
 
 A cup winner **takes** a place rather than adding one, so the total never moves. If it already
 qualified higher on merit it keeps the better place and the one it would have taken **passes down
@@ -941,6 +951,48 @@ is a season's goal; "not in the squad" is only an absence.
 **A cap is a match.** Caps used to be a number inferred from fame, because there were no
 international fixtures to count. There are now, so they are counted — and a tournament your country
 won while you watched it is a different line in the review to one you won.
+
+### The country coefficient
+
+The tournament used to change nothing outside your own honours list: five matches a year the world
+forgot by August. It now decides **how many clubs each country sends to each European competition**.
+
+A country's Champions League allocation used to be a fixed list read off a fixed prestige order —
+England always three, Scotland always one, for eighteen seasons — which made it a property of the
+data file rather than of anything that happened. It is now **earned**, over time.
+
+**One campaign is worth:**
+
+| | |
+| --- | --- |
+| Each group win | 1 point (a draw, half) |
+| Reaching the knockout | +1.5 |
+| Reaching the final | +1.5 |
+| Winning it | +2 |
+
+A country's **coefficient** is its average over the last **five** tournaments. That average is
+measured against the field's, scaled, and clamped to **±0.20 of prestige** — so prestige stays the
+anchor and international form bends the order around it. Two reasons it is a nudge rather than the
+whole ranking: prestige also scales wages, reputation and the bar for selection, so if European
+places came purely from international form "a big country" would mean one thing for what you are
+paid and another for what you can qualify for; and one tournament is five matches, which is far too
+little football to redraw a map with.
+
+**The nudge ramps with the evidence.** A country that has played one tournament gets a fifth of the
+movement one with a full window gets. A single good summer is the noisiest evidence there is and,
+on an average, also the loudest — a country that wins its first tournament has a coefficient of
+eight and nothing to temper it. So the map opens as the data file drew it and becomes earned as the
+seasons accumulate.
+
+**This is the one way a career changes football beyond its own club.** Your own performances for
+your country feed your country's coefficient. Played out: a Scottish striker capped five times a
+season drove Scotland's coefficient to 6.0 — the best record in the world — and from season ten
+Scotland held a second Europa League place it had never had, taken off the Netherlands. You cannot
+make Scotland England. You can make it the best of the small countries, and the clubs at home get
+better European football for it.
+
+The world browser's **International** view shows the whole order — every country's coefficient, how
+far it has moved them, and what each is currently worth in all three competitions.
 
 ### The season calendar
 
@@ -1162,6 +1214,26 @@ their constants:
   country, prestige step, squad level, tactical style and wages, and said nothing about it. You
   could turn down the Champions League for a bigger badge without ever being told. Each offer now
   names the competition it comes with, and so does staying.
+- **A range that was really a ceiling.** The country coefficient was first allowed to move a
+  country ±0.15 of prestige, which looked ample against neighbour gaps of 0.02 to 0.16. Played out,
+  a Scottish career that won five caps a season for eighteen years drove Scotland's coefficient to
+  6.0 — the best record in the world by a distance — and Scotland's allocation never moved once. The
+  gap to the Netherlands was 0.16, more than the entire swing, so no record however good could cover
+  it without the country above collapsing at the same moment. The one country with everything to
+  gain from the mechanic was the one country the mechanic could not reach.
+- **A distribution with no step where the country stands.** Widening the swing fixed the ordering
+  and changed nothing: Scotland climbed to seventh and still had exactly what it had at eighth,
+  because the Champions League row gives ranks six, seven and eight one place each. A mechanic can
+  be correct, visible, well tested and still deliver nothing, if the thing it moves has a plateau
+  exactly where the movement happens. The two lower competitions now respond to the order as well,
+  so climbing trades a Conference place for a Europa one — the totals are unchanged and the football
+  is better.
+- **Scaling calibrated on the wrong measurement.** The coefficient's scale was set from the spread
+  of country averages over sixty tournaments (2.0 to 3.3) — but no country is ever judged on sixty
+  tournaments. Judged on the five in the window, real coefficients ran 1.7 to 5.3, every deviation
+  clamped, and five countries of eight sat pinned at exactly the maximum swing. The nudge had
+  stopped being a gradient and become "top group up, bottom group down", which flips an allocation
+  whenever two countries trade places by a hair. Calibrate on the window you actually measure over.
 - **Twelve independent maxima compound.** A national side was first built by taking the best of
   each rating across its country's top five clubs, which sounds like what a selection is. It put all
   eight nations between 0.82 and 0.97 strength: a country with one good defence and another club's
@@ -1204,7 +1276,8 @@ instinctive fallback on expiry, match statistics and rating, five playable prese
 positions, **a world of eight countries and 128 clubs across eight live leagues**, **a national cup and a
 league cup in every country**, **a Champions League, a Europa League and a Conference League entered
 by league position and by winning a cup**, **a yearly international tournament of eight national sides, with groups, a
-seeded knockout and a squad you have to be good enough to be picked for**, **a season calendar
+seeded knockout and a squad you have to be good enough to be picked for**, **a country coefficient
+that turns those results into how many clubs each country sends to each European competition**, **a season calendar
 interleaving all of them**, season fixtures,
 a world browser covering **every competition there is — any country's league, both of its cups, all
 three European competitions and the international tournament**, each shown as far as the season has

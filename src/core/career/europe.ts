@@ -87,33 +87,94 @@ export function isEuropeanTier(value: string): value is EuropeanTier {
 /** Clubs in each competition. Sixteen apiece makes a clean four-round bracket. */
 export const EUROPEAN_FIELD = 16;
 
-/** Places every country gets in the two lower competitions. */
-export const EUROPA_PLACES = 2;
-export const CONFERENCE_PLACES = 2;
-
 /**
- * Champions League places per country, best-watched league first.
+ * Places per country, best first, one row per competition.
  *
- * Hand-tuned rather than derived, because it has to sum to exactly sixteen and
- * because the shape matters more than the formula: the big leagues get three,
- * the middle two, and the smallest one apiece. A country's league is a level,
- * and this is where that stops being flavour.
+ * Hand-tuned rather than derived, because each row has to sum to exactly
+ * sixteen and because the shape matters more than a formula.
+ *
+ * READ THE COLUMNS, NOT THE ROWS. A country does not send more clubs to Europe
+ * as it climbs — it sends the same number to BETTER competitions:
+ *
+ *     rank        1  2  3  4  5  6  7  8
+ *     Champions   3  3  3  2  2  1  1  1
+ *     Europa      3  2  2  2  2  2  2  1
+ *     Conference  1  2  2  2  2  2  2  3
+ *     total       7  7  7  6  6  5  5  5
+ *
+ * The totals are exactly what they were when the two lower competitions handed
+ * every country a flat two apiece; all that has changed is that climbing the
+ * order now trades a Conference place for a Europa one.
+ *
+ * That trade is the whole reason the lower rows exist. With only the Champions
+ * League row responding, ranks six, seven and eight all got one place, so the
+ * three smallest countries could climb two places in the order and see nothing
+ * change — measured on a Scottish career that drove Scotland's coefficient to
+ * 6.0, the best record in the world, and moved it from eighth to seventh for no
+ * reward at all. The country with most to gain from the whole mechanic was the
+ * one country it could not reach.
  */
 export const CHAMPIONS_LEAGUE_PLACES: readonly number[] = [3, 3, 3, 2, 2, 1, 1, 1];
+export const EUROPA_LEAGUE_PLACES: readonly number[] = [3, 2, 2, 2, 2, 2, 2, 1];
+export const CONFERENCE_LEAGUE_PLACES: readonly number[] = [1, 2, 2, 2, 2, 2, 2, 3];
+
+/** Every competition's allocation, in order of standing. */
+export const PLACES_BY_TIER: Record<EuropeanTier, readonly number[]> = {
+  championsLeague: CHAMPIONS_LEAGUE_PLACES,
+  europaLeague: EUROPA_LEAGUE_PLACES,
+  conferenceLeague: CONFERENCE_LEAGUE_PLACES,
+};
+
+/**
+ * The European order: country ids, best first.
+ *
+ * Passed in rather than derived here, because what decides it lives outside
+ * this module — see core/career/coefficients.ts, where prestige is bent by how
+ * a country's national side has been doing. Omitting it falls back to plain
+ * prestige, which is what a world with no tournaments on record looks like.
+ */
+export type EuropeanOrder = readonly string[];
+
+function orderOrPrestige(order?: EuropeanOrder): EuropeanOrder {
+  return order && order.length > 0 ? order : countriesByPrestige().map((c) => c.id);
+}
+
+/**
+ * How many places this country has in one competition.
+ *
+ * The DISTRIBUTIONS are fixed and the ORDER is earned. Whatever moves countries
+ * around, each row is still handed out down the order, so every competition
+ * always has exactly sixteen clubs in it — a country climbing a place takes one
+ * off whoever it passed rather than inventing one.
+ *
+ * A country the order has never heard of takes the bottom row, which is what an
+ * unknown country's football is worth.
+ */
+export function placesIn(
+  tier: EuropeanTier,
+  countryId: string,
+  order?: EuropeanOrder,
+): number {
+  const places = PLACES_BY_TIER[tier];
+  const rank = orderOrPrestige(order).indexOf(countryId);
+  if (rank === -1) return places[places.length - 1] ?? 1;
+  return places[rank] ?? places[places.length - 1] ?? 1;
+}
 
 /** How many Champions League places this country has. */
-export function championsLeaguePlaces(countryId: string): number {
-  const rank = countriesByPrestige().findIndex((c) => c.id === countryId);
-  if (rank === -1) return 1;
-  return CHAMPIONS_LEAGUE_PLACES[rank] ?? 1;
+export function championsLeaguePlaces(countryId: string, order?: EuropeanOrder): number {
+  return placesIn('championsLeague', countryId, order);
 }
 
 /** Everything one country sends to Europe, in order of standing. */
-export function europeanPlaces(countryId: string): Record<EuropeanTier, number> {
+export function europeanPlaces(
+  countryId: string,
+  order?: EuropeanOrder,
+): Record<EuropeanTier, number> {
   return {
-    championsLeague: championsLeaguePlaces(countryId),
-    europaLeague: EUROPA_PLACES,
-    conferenceLeague: CONFERENCE_PLACES,
+    championsLeague: placesIn('championsLeague', countryId, order),
+    europaLeague: placesIn('europaLeague', countryId, order),
+    conferenceLeague: placesIn('conferenceLeague', countryId, order),
   };
 }
 
@@ -127,6 +188,14 @@ export interface QualificationInput {
   nationalCupWinners: Record<string, string | null>;
   /** League cup winner per country, if there is one. */
   leagueCupWinners: Record<string, string | null>;
+  /**
+   * The European order, best first. Omit for plain prestige order.
+   *
+   * This is where the international tournament reaches club football: a
+   * country that has been doing well sits higher here and sends another club
+   * to the Champions League for it.
+   */
+  order?: EuropeanOrder;
 }
 
 /**
@@ -144,7 +213,7 @@ export function qualifyForEurope(input: QualificationInput): EuropeanEntries {
     const ranked = sortTable(table).map((row) => row.teamId);
     if (ranked.length === 0) continue;
 
-    const places = europeanPlaces(countryId);
+    const places = europeanPlaces(countryId, input.order);
     const taken = new Set<string>();
 
     /** Give a named club a place, unless it already has a better one. */
@@ -204,13 +273,13 @@ export type EuropeanState = CupState<EuropeanTier>;
  * player mid-season what finishing where would be worth, which is the whole
  * reason a league position matters beyond the trophy.
  */
-export function placesDescription(countryId: string): string {
+export function placesDescription(countryId: string, order?: EuropeanOrder): string {
   const country = getCountry(countryId);
-  const cl = championsLeaguePlaces(countryId);
+  const places = europeanPlaces(countryId, order);
   return (
-    `${country.name}: top ${cl} into the Champions League, ` +
-    `next ${EUROPA_PLACES} into the Europa League, ` +
-    `next ${CONFERENCE_PLACES} into the Conference League.`
+    `${country.name}: top ${places.championsLeague} into the Champions League, ` +
+    `next ${places.europaLeague} into the Europa League, ` +
+    `next ${places.conferenceLeague} into the Conference League.`
   );
 }
 
@@ -218,8 +287,12 @@ export function placesDescription(countryId: string): string {
  * The competition a club would enter from a given league position, ignoring
  * cups. Null when the position is not good enough for Europe at all.
  */
-export function tierForPosition(countryId: string, position: number): EuropeanTier | null {
-  const places = europeanPlaces(countryId);
+export function tierForPosition(
+  countryId: string,
+  position: number,
+  order?: EuropeanOrder,
+): EuropeanTier | null {
+  const places = europeanPlaces(countryId, order);
   if (position <= places.championsLeague) return 'championsLeague';
   if (position <= places.championsLeague + places.europaLeague) return 'europaLeague';
   if (position <= places.championsLeague + places.europaLeague + places.conferenceLeague) {

@@ -617,6 +617,8 @@ export class App {
           nextEuropeanTier: outcome.nextEuropeanTier,
           international: outcome.international,
           caps: outcome.caps,
+          placesBefore: outcome.placesBefore,
+          placesAfter: outcome.placesAfter,
           nationality: career.player.nationality,
           contractDecision: career.offers.length === 0 && this.summerNeedsADecision(career),
         },

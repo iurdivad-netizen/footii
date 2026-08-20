@@ -53,6 +53,7 @@ import {
 } from '../core/career/cups.ts';
 import type { CupKind, CupState } from '../core/career/cups.ts';
 import {
+  championsLeaguePlaces,
   europeanTierOf,
   fieldFor,
   qualifyForEurope,
@@ -60,6 +61,12 @@ import {
 } from '../core/career/europe.ts';
 import type { EuropeanEntries, EuropeanState, EuropeanTier } from '../core/career/europe.ts';
 import { createCareerRecords, recordSeason } from '../core/career/records.ts';
+import {
+  countriesByStanding,
+  createLedger,
+  recordTournament,
+  scoreTournament,
+} from '../core/career/coefficients.ts';
 import type { InternationalState } from '../core/career/international.ts';
 import {
   GROUP_ROUNDS,
@@ -400,6 +407,9 @@ export function startCareer(options: StartCareerOptions): CareerState {
     europeanEntries: {},
     international: newInternational(options.seed, 1),
     seasonCaps: 0,
+    // Nothing has been played, so every country stands exactly where the data
+    // file says it does. The order starts moving with the first tournament.
+    coefficients: createLedger(),
     records: createCareerRecords(),
   };
 }
@@ -863,6 +873,17 @@ export interface SeasonEnd {
   caps: number;
   /** The nation that won the tournament. */
   internationalChampion: string | null;
+  /**
+   * Champions League places his country had this season, and has next.
+   *
+   * The two differ when the tournament just played moved his country in the
+   * European order. It is the one outcome of an international summer that
+   * changes club football, so the review says so plainly.
+   */
+  placesBefore: number;
+  placesAfter: number;
+  /** The European order the places were handed out on, best first. */
+  europeanOrder: string[];
   /** True when that nation was his. */
   wonInternational: boolean;
   /**
@@ -913,6 +934,23 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   const wonInternational = internationalChampion === playerNation(state);
   // Read before the summer resets it for next year's tournament.
   const capsThisSeason = state.seasonCaps;
+
+  // The tournament that has just finished goes on every country's record, and
+  // the European order is re-read off it — BEFORE places are awarded below, so
+  // a country that has just reached the final is rewarded for it this summer
+  // rather than next. This is the whole point of the coefficient: five matches
+  // a year for your country now decide how many clubs from it play in the
+  // Champions League.
+  const placesBefore = championsLeaguePlaces(
+    state.countryId,
+    countriesByStanding(state.coefficients),
+  );
+  state.coefficients = recordTournament(
+    state.coefficients,
+    scoreTournament(state.international),
+  );
+  const europeanOrder = countriesByStanding(state.coefficients);
+  const placesAfter = championsLeaguePlaces(state.countryId, europeanOrder);
 
   // The European competition finishes too, whether or not he was still in it.
   if (state.europe) {
@@ -1071,6 +1109,7 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     tables: finalTables,
     nationalCupWinners,
     leagueCupWinners,
+    order: europeanOrder,
   });
 
   // Clubs are only as good as their last season — everywhere, not just where
@@ -1204,6 +1243,9 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     caps: capsThisSeason,
     internationalChampion,
     wonInternational,
+    placesBefore,
+    placesAfter,
+    europeanOrder,
     nextEuropeanTier: europeanTierOf(nextEuropeanEntries, state.clubId),
   };
 }

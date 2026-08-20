@@ -12,6 +12,8 @@ import { createPlayer } from '../src/core/player/player.ts';
 import { TEAMS } from '../src/data/gameData.ts';
 import { seasonCalendar } from '../src/core/career/calendar.ts';
 import { createCareerRecords, milestones, recordMatch } from '../src/core/career/records.ts';
+import { countriesByStanding, hasRecord } from '../src/core/career/coefficients.ts';
+import { countriesByPrestige } from '../src/core/career/countries.ts';
 
 function career() {
   return startCareer({
@@ -267,6 +269,34 @@ describe('save migration', () => {
     expect(migrated.careerState!.records.hauls.hatTricks).toBe(1);
     expect(migrated.careerState!.records.ratings.perfect).toBe(1);
     expect(migrated.careerState!.records.byCompetition.championsLeague?.goals).toBe(3);
+  });
+
+  it('joins a v9 career to the coefficient with an empty record, not a made-up one', () => {
+    const state = career();
+    state.seasonNumber = 7;
+    state.calendarIndex = 20;
+
+    const legacy = { ...state } as Record<string, unknown>;
+    delete legacy.coefficients;
+
+    const migrated = migrate({ version: 9, career: emptyCareer(), careerState: legacy } as never)!;
+    const restored = migrated.careerState!;
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    // NOTHING is back-filled. A past tournament cannot be reconstructed — a
+    // national side is built from its country's clubs as they stood at the
+    // time, and only the current strengths survive — so inventing six seasons
+    // of international football and awarding European places on it would be
+    // worse than starting from nothing.
+    expect(restored.coefficients).toEqual({});
+    expect(hasRecord(restored.coefficients)).toBe(false);
+    // Which means the save keeps the exact European order it was being played
+    // under until the season in progress is finished and scored.
+    expect(countriesByStanding(restored.coefficients)).toEqual(
+      countriesByPrestige().map((c) => c.id),
+    );
+    // The season in progress is untouched.
+    expect(restored.calendarIndex).toBe(20);
   });
 
   it('joins a v8 career to international football without inventing a past', () => {

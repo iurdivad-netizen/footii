@@ -64,6 +64,16 @@ export class SeasonReviewScreen {
       international: InternationalState;
       /** International matches he played in it. Zero when he was not picked. */
       caps: number;
+      /**
+       * Champions League places his LEAGUE had this season, and has next.
+       *
+       * They differ when the tournament just played moved his country in the
+       * European order. It is the one outcome of an international summer that
+       * changes club football, and without saying so the allocation would
+       * simply be different one September with nothing to explain it.
+       */
+      placesBefore: number;
+      placesAfter: number;
       /** The player's own nationality, which is who he plays FOR. */
       nationality: string;
       /**
@@ -127,7 +137,11 @@ export class SeasonReviewScreen {
       </div>
 
       ${renderEurope(context.europe, record.clubId, context.nextEuropeanTier)}
-      ${renderInternational(context.international, context.nationality, context.caps)}
+      ${renderInternational(context.international, context.nationality, context.caps, {
+        countryId: context.nextCountryId,
+        before: context.placesBefore,
+        after: context.placesAfter,
+      })}
       ${renderCupRuns(context.cups, record.clubId, context.countryId)}
       ${renderHonours(context.honours, context.capsGained)}
       ${renderProgress(context.progress)}
@@ -235,6 +249,7 @@ function renderInternational(
   international: InternationalState,
   nationality: string,
   caps: number,
+  places: { countryId: string; before: number; after: number },
 ): string {
   const knockout = international.knockout;
   if (!knockout?.winnerId) return '';
@@ -269,7 +284,31 @@ function renderInternational(
         </li>
       </ul>
       ${caps > 0 ? `<p class="hint">${caps} ${caps === 1 ? 'cap' : 'caps'} this season.</p>` : ''}
+      ${renderPlacesChange(places)}
     </div>`;
+}
+
+/**
+ * When the summer's football has changed what your league is worth.
+ *
+ * Reported on the international card rather than the European one because this
+ * is where it was decided: national sides moved their countries up and down the
+ * order, and one of those countries is the one you play in.
+ */
+export function renderPlacesChange(places: {
+  countryId: string;
+  before: number;
+  after: number;
+}): string {
+  if (places.before === places.after) return '';
+  const country = getCountry(places.countryId);
+  const gained = places.after > places.before;
+  const count = (n: number) => `${n} ${n === 1 ? 'place' : 'places'}`;
+  return `<p class="division-move ${gained ? 'up' : 'down'}">
+      <strong>${gained ? 'A place gained.' : 'A place lost.'}</strong>
+      ${country.name} ${gained ? 'climbs' : 'slips'} in the European order and now has
+      ${count(places.after)} in the Champions League rather than ${count(places.before)}.
+    </p>`;
 }
 
 /**
