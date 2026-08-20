@@ -7,12 +7,14 @@ import {
   GROUP_SIZE,
   WORLD_CUP_FIELD,
   WORLD_CUP_GROUPS,
-  WORLD_CUP_PLACES,
+  WORLD_TIERS,
+  WORLD_TIER_FIELD,
   nationId,
   nationalTeam,
   worldCupField,
   worldCupGroups,
-  worldCupPlaces,
+  worldTierField,
+  worldTierOf,
 } from '../src/core/career/nations.ts';
 import {
   GROUP_ROUNDS,
@@ -25,6 +27,8 @@ import {
   nationGroups,
   playGroupRound,
   startKnockout,
+  seasonTournaments,
+  tournamentFieldFor,
   tournamentFor,
   tournamentName,
 } from '../src/core/career/international.ts';
@@ -139,40 +143,48 @@ describe('nations that drift without clubs', () => {
   });
 });
 
-describe('the World Cup field', () => {
-  it('takes the best of every confederation and fills exactly sixteen', () => {
-    const field = worldCupField(WORLD);
-    expect(field).toHaveLength(WORLD_CUP_FIELD);
-    for (const confederation of allConfederations()) {
-      const from = field.filter((id) => confederationOf(id) === confederation);
-      expect(from, confederation).toHaveLength(worldCupPlaces(confederation));
+describe('the world tiers', () => {
+  it('puts every nation in exactly one tier', () => {
+    // The hole this closes, measured: over eight seasons twenty-five of
+    // forty-four nations never kicked a ball, and four of them were countries a
+    // player can BE from — so choosing that nationality silently meant no caps
+    // for an entire career.
+    const seen = new Set<string>();
+    for (const tier of WORLD_TIERS) {
+      for (const id of worldTierField(WORLD, tier)) {
+        expect(seen.has(id), id).toBe(false);
+        seen.add(id);
+      }
     }
-    expect(
-      Object.values(WORLD_CUP_PLACES).reduce((a, b) => a + b, 0),
-    ).toBe(WORLD_CUP_FIELD);
+    expect(seen.size).toBe(COUNTRIES.length);
   });
 
-  it('never leaves a part of the world out of a World Cup', () => {
-    const field = worldCupField(WORLD);
-    for (const confederation of allConfederations()) {
-      expect(field.some((id) => confederationOf(id) === confederation), confederation).toBe(true);
+  it('makes every tier the same sixteen', () => {
+    for (const tier of WORLD_TIERS) {
+      expect(worldTierField(WORLD, tier), tier).toHaveLength(WORLD_TIER_FIELD);
     }
+    expect(WORLD_TIERS.length * WORLD_TIER_FIELD).toBe(COUNTRIES.length);
   });
 
-  it('takes the best of a confederation, not merely the first it meets', () => {
-    const field = worldCupField(WORLD);
-    for (const confederation of allConfederations()) {
-      const ranked = countriesIn(confederation)
-        .map((c) => c.id)
-        .sort((a, b) => WORLD.indexOf(a) - WORLD.indexOf(b));
-      const expected = ranked.slice(0, worldCupPlaces(confederation));
-      expect(field.filter((id) => confederationOf(id) === confederation).sort()).toEqual(
-        expected.sort(),
-      );
-    }
+  it('puts a nation in the tier its standing earns', () => {
+    expect(worldTierOf(WORLD, WORLD[0]!)).toBe('worldCup');
+    expect(worldTierOf(WORLD, WORLD[WORLD_TIER_FIELD]!)).toBe('challengeCup');
+    expect(worldTierOf(WORLD, WORLD[WORLD.length - 1]!)).toBe('conferenceCup');
   });
 
-  it('splits it into four groups of four', () => {
+  it('moves a nation between tiers as the order moves', () => {
+    // The climb the tiers exist for. A country that was in the third tier last
+    // year plays the World Cup this year if its standing has risen that far.
+    const climbed = [WORLD[WORLD.length - 1]!, ...WORLD.slice(0, -1)];
+    expect(worldTierOf(WORLD, WORLD[WORLD.length - 1]!)).toBe('conferenceCup');
+    expect(worldTierOf(climbed, WORLD[WORLD.length - 1]!)).toBe('worldCup');
+  });
+
+  it('treats a country nobody has heard of as the bottom tier', () => {
+    expect(worldTierOf(WORLD, 'atlantis')).toBe('conferenceCup');
+  });
+
+  it('splits a tier into four groups of four', () => {
     const groups = worldCupGroups(WORLD);
     expect(groups).toHaveLength(WORLD_CUP_GROUPS);
     for (const group of groups) expect(group).toHaveLength(GROUP_SIZE);
@@ -183,10 +195,41 @@ describe('the World Cup field', () => {
     // The snake exists so the top four seeds are one per group. A draw that put
     // three of them together would read as a bug however fairly it was rolled.
     const groups = worldCupGroups(WORLD);
-    const field = worldCupField(WORLD);
-    const topFour = field.slice(0, WORLD_CUP_GROUPS);
+    const topFour = worldCupField(WORLD).slice(0, WORLD_CUP_GROUPS);
     for (const group of groups) {
       expect(group.filter((id) => topFour.includes(id))).toHaveLength(1);
+    }
+  });
+});
+
+describe('a season\'s whole set of tournaments', () => {
+  const members = (confederation: string) => countriesIn(confederation).map((c) => c.id);
+
+  it('gives every nation a tournament in a world season', () => {
+    const set = seasonTournaments('world', WORLD, allConfederations(), members);
+    expect(set).toHaveLength(WORLD_TIERS.length);
+    expect(set.flatMap((t) => t.field).sort()).toEqual([...WORLD].sort());
+  });
+
+  it('gives every nation a tournament in a continental season', () => {
+    // Every confederation's championship runs, not only the player's — without
+    // that, four of the five simply never happen and the countries in them stop
+    // moving in the standings for ever.
+    const set = seasonTournaments('continental', WORLD, allConfederations(), members);
+    expect(set).toHaveLength(allConfederations().length);
+    expect(set.flatMap((t) => t.field).sort()).toEqual([...WORLD].sort());
+    for (const tournament of set) {
+      expect([8, 16]).toContain(tournament.field.length);
+    }
+  });
+
+  it('finds the one a nation is in', () => {
+    for (const era of ['world', 'continental'] as const) {
+      const set = seasonTournaments(era, WORLD, allConfederations(), members);
+      for (const country of COUNTRIES) {
+        expect(tournamentFieldFor(set, country.id), `${era} ${country.id}`).toBeTruthy();
+      }
+      expect(tournamentFieldFor(set, 'atlantis')).toBeNull();
     }
   });
 });

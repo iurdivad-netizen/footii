@@ -64,7 +64,6 @@ import type { EuropeanEntries, EuropeanState, EuropeanTier } from '../core/caree
 import { createCareerRecords, recordSeason } from '../core/career/records.ts';
 import type { Coefficients } from '../core/career/coefficients.ts';
 import {
-  confederationByStanding,
   countriesByStanding,
   createCoefficients,
   nationsByStanding,
@@ -72,24 +71,31 @@ import {
   scoreEuropeanSeason,
   scoreTournament,
 } from '../core/career/coefficients.ts';
-import type { InternationalState } from '../core/career/international.ts';
+import type {
+  InternationalState,
+  ScheduledTournament,
+} from '../core/career/international.ts';
 import {
   GROUP_ROUNDS,
   INTERNATIONAL,
   championNation,
   closeGroupRound,
   createInternational,
-  tournamentFor,
+  eraFor,
+  seasonTournaments,
+  tournamentFieldFor,
   groupFixture,
   playGroupRound,
   recordGroupResult,
   startKnockout,
+  playTournament,
 } from '../core/career/international.ts';
-import { countryOfNation, nationalTeam } from '../core/career/nations.ts';
+import { countryOfNation, nationId, nationalTeam } from '../core/career/nations.ts';
 import type { DivisionMovement } from '../core/career/divisions.ts';
 import {
   allClubIds,
-  confederationOf,
+  allConfederations,
+  countriesIn,
   countryPrestige,
   initialLeagues,
   leagueMembers,
@@ -452,20 +458,64 @@ function newInternational(
   record: Coefficients,
   nationality: string,
 ): InternationalState {
-  const kind = tournamentFor(seasonNumber);
-  // A World Cup is seeded from every nation there is. A continental
-  // championship is seeded from ONE confederation — and it is the PLAYER'S,
-  // because his is the only one the game plays out in detail. Seeding it from
-  // Europe regardless would have given a Brazilian a World Cup every other year
-  // and nothing at all in between, while an Englishman got both.
-  const order =
-    kind === 'worldCup'
-      ? nationsByStanding(record)
-      : confederationByStanding(record, confederationOf(nationality));
+  const scheduled = tournamentsFor(seasonNumber, record);
+  // The one HIS nation is in. Every nation is in exactly one, so this only
+  // misses for a country the registry has never heard of.
+  const own = tournamentFieldFor(scheduled, nationality) ?? scheduled[scheduled.length - 1]!;
+  return buildTournament(seed, seasonNumber, own);
+}
+
+/**
+ * What every nation earned from this season's international football.
+ *
+ * The player's own tournament is the real one he played in. The others — the
+ * two world tiers he is not in, or the four confederations he is not from — are
+ * played out here, because a tournament that never happens is not a tournament
+ * a country can be scored on, and a country scored on nothing never moves in
+ * the standings again. That would seal the lower tiers shut exactly as scoring
+ * a non-qualifier as zero once sealed the bottom of the European order.
+ */
+function scoreAllTournaments(state: CareerState, lookup: TeamLookup): Record<string, number> {
+  const scores: Record<string, number> = { ...scoreTournament(state.international) };
+  const played = new Set(state.international.groups.flat());
+
+  for (const scheduled of tournamentsFor(state.seasonNumber, state.coefficients)) {
+    // His own, already played and already scored.
+    if (scheduled.field.some((id) => played.has(nationId(id)))) continue;
+    const tournament = buildTournament(state.seed, state.seasonNumber, scheduled);
+    playTournament(
+      new Rng(`${state.seed}:s${state.seasonNumber}:${scheduled.confederation || scheduled.kind}:play`),
+      tournament,
+      (id) => teamIn(state, lookup, id),
+    );
+    Object.assign(scores, scoreTournament(tournament));
+  }
+
+  return scores;
+}
+
+/** Every tournament of one season, the player's included. */
+function tournamentsFor(seasonNumber: number, record: Coefficients): ScheduledTournament[] {
+  return seasonTournaments(
+    eraFor(seasonNumber),
+    nationsByStanding(record),
+    allConfederations(),
+    (confederation) => countriesIn(confederation).map((country) => country.id),
+  );
+}
+
+/** Draw one tournament, from a seed that names it. */
+function buildTournament(
+  seed: string,
+  seasonNumber: number,
+  scheduled: ScheduledTournament,
+): InternationalState {
+  const label = scheduled.confederation || scheduled.kind;
   return createInternational(
-    new Rng(`${seed}:s${seasonNumber}:${kind}:draw`),
-    order,
-    kind,
+    new Rng(`${seed}:s${seasonNumber}:${label}:draw`),
+    undefined,
+    scheduled.kind,
+    scheduled.field,
   );
 }
 
@@ -1018,7 +1068,7 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     clubs: scoreEuropeanSeason(state.europeanEntries ?? {}, allEurope, (id) =>
       countryOfClub(state, id),
     ),
-    nations: scoreTournament(state.international),
+    nations: scoreAllTournaments(state, lookup),
   });
   const europeanOrder = countriesByStanding(state.coefficients);
   const placesAfter = championsLeaguePlaces(state.countryId, europeanOrder);

@@ -2247,3 +2247,42 @@ button.ghost {
   color: var(--accent);
   margin: 0 0 6px;
 }
+
+/*
+ * The three world tiers, listed rather than tabled: what matters is which band
+ * a country is in and how far it is from the one above, not a row of numbers.
+ */
+.tier-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tier-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.84rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.tier-list li.own {
+  background: var(--accent-dim);
+  color: var(--text);
+}
+
+.tier-rank {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  min-width: 1.6em;
+  text-align: right;
+}
+
+.tier-list li.own .tier-rank {
+  color: var(--text);
+}

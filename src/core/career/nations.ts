@@ -2,7 +2,7 @@ import { clamp, clamp01, round } from '../util/math.ts';
 import type { Team, TeamRatings } from '../team/team.ts';
 import { teamStrength } from '../team/team.ts';
 import type { Player } from '../player/player.ts';
-import { confederationOf, countriesByPrestige, countryPrestige, getCountry } from './countries.ts';
+import { countriesByPrestige, countryPrestige, getCountry } from './countries.ts';
 
 /**
  * NATIONAL TEAMS
@@ -236,39 +236,53 @@ export const GROUP_SIZE = 4;
 /** How many from each group reach the knockout. */
 export const QUALIFY_PER_GROUP = 2;
 
-/** A continental championship: two groups of four. */
+/** A championship of eight: two groups of four, then four into a bracket. */
 export const CONTINENTAL_GROUPS = 2;
-/** A World Cup: four groups of four. */
+/** A tournament of sixteen: four groups of four, then eight into a bracket. */
 export const WORLD_CUP_GROUPS = 4;
 
-/** Kept for the continental championship, which is the older of the two. */
+/** Kept for the smaller of the two shapes, which is the older of them. */
 export const GROUP_COUNT = CONTINENTAL_GROUPS;
 
-/** How many nations each tournament holds. */
+/** How many nations each shape holds. */
 export const CONTINENTAL_FIELD = GROUP_SIZE * CONTINENTAL_GROUPS;
 export const WORLD_CUP_FIELD = GROUP_SIZE * WORLD_CUP_GROUPS;
-/** Kept under its old name for the continental championship. */
+/** Kept under its old name for the smaller shape. */
 export const TOURNAMENT_FIELD = CONTINENTAL_FIELD;
 
 /**
- * How many places each confederation has at the World Cup.
+ * THE THREE WORLD TIERS
  *
- * Hand-tuned rather than derived, because it has to sum to exactly sixteen and
- * because the shape is a statement: Europe has twelve leagues and the strongest
- * sides, so it takes six, and every confederation takes at least two so that no
- * part of the world is ever absent from a World Cup.
+ * The club game has three European competitions so that a club outside the
+ * elite still has European nights. The international game had one, and the
+ * consequence was measurable: over eight seasons, twenty-five of forty-four
+ * nations never kicked a ball, and four of them — Belgium, Greece, Scotland,
+ * Austria — were countries a player can BE from, so choosing that nationality
+ * silently meant no caps for an entire career.
+ *
+ * So the world tournaments are tiered exactly as the European ones are. Every
+ * nation is in one of them, seeded by standing, and moves between them season
+ * to season as its standing moves — which is a climb the coefficient already
+ * knows how to produce.
  */
-export const WORLD_CUP_PLACES: Record<string, number> = {
-  europe: 6,
-  southAmerica: 3,
-  africa: 3,
-  asia: 2,
-  northAmerica: 2,
-};
+export const WORLD_TIERS = ['worldCup', 'challengeCup', 'conferenceCup'] as const;
+export type WorldTier = (typeof WORLD_TIERS)[number];
 
-/** How many places a confederation has, for one the table has never heard of. */
-export function worldCupPlaces(confederation: string): number {
-  return WORLD_CUP_PLACES[confederation] ?? 1;
+/** How many nations each world tier holds — the same sixteen, three times over. */
+export const WORLD_TIER_FIELD = WORLD_CUP_FIELD;
+
+/** Which world tier a nation is in, given the world order. */
+export function worldTierOf(order: readonly string[], countryId: string): WorldTier {
+  const rank = order.indexOf(countryId);
+  if (rank === -1) return WORLD_TIERS[WORLD_TIERS.length - 1]!;
+  const tier = Math.floor(rank / WORLD_TIER_FIELD);
+  return WORLD_TIERS[Math.min(tier, WORLD_TIERS.length - 1)]!;
+}
+
+/** The sixteen nations of one world tier, best first. */
+export function worldTierField(order: readonly string[], tier: WorldTier): string[] {
+  const index = WORLD_TIERS.indexOf(tier);
+  return order.slice(index * WORLD_TIER_FIELD, (index + 1) * WORLD_TIER_FIELD);
 }
 
 /**
@@ -304,31 +318,39 @@ export function qualifyingGroups(order?: readonly string[]): string[][] {
 }
 
 /**
- * The World Cup field: the best of each confederation, by standing.
+ * The World Cup field: the top sixteen of the world order.
  *
- * Ordered so the whole field is snake-seeded by standing afterwards, which is
- * what stops the three strongest nations in the world sharing a group.
+ * It was once the best of each confederation on a quota, which sounds fairer
+ * and was in fact a worse world: a quota guarantees the weakest confederation's
+ * best nation a place it has not earned while shutting out a better nation from
+ * a stronger one, and it makes the World Cup the one competition in the game
+ * that standing does not decide. Every nation now plays in the tier its
+ * standing puts it in, and every confederation keeps its own championship where
+ * a quota is exactly the right idea.
  */
 export function worldCupField(order: readonly string[]): string[] {
-  const taken: Record<string, number> = {};
-  const field: string[] = [];
-
-  for (const countryId of order) {
-    const confederation = confederationOf(countryId);
-    const places = worldCupPlaces(confederation);
-    if ((taken[confederation] ?? 0) >= places) continue;
-    taken[confederation] = (taken[confederation] ?? 0) + 1;
-    field.push(countryId);
-  }
-
-  // Back into standing order, so the snake seeds the field rather than the
-  // order the confederations happened to fill up in.
-  return order.filter((id) => field.includes(id));
+  return worldTierField(order, 'worldCup');
 }
 
-/** The groups of a World Cup, from a world order. */
+/** The groups of one world tier, from a world order. */
+export function worldTierGroups(order: readonly string[], tier: WorldTier): string[][] {
+  return snake(worldTierField(order, tier), WORLD_CUP_GROUPS);
+}
+
+/** The groups of a World Cup specifically. */
 export function worldCupGroups(order: readonly string[]): string[][] {
-  return snake(worldCupField(order), WORLD_CUP_GROUPS);
+  return worldTierGroups(order, 'worldCup');
+}
+
+/**
+ * The groups of one confederation's championship.
+ *
+ * Every member plays: eight for four of the confederations and sixteen for
+ * Europe, which is why the two shapes are the only two shapes in the game.
+ */
+export function continentalGroups(field: readonly string[]): string[][] {
+  const groups = field.length > CONTINENTAL_FIELD ? WORLD_CUP_GROUPS : CONTINENTAL_GROUPS;
+  return snake(field.slice(0, groups * GROUP_SIZE), groups);
 }
 
 /** Which group a country is in, or -1 if it plays no international football. */
