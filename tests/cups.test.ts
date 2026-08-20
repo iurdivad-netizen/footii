@@ -24,6 +24,7 @@ import {
 } from '../src/core/career/cups.ts';
 import type { CupState } from '../src/core/career/cups.ts';
 import {
+  EUROPEAN_SCHEDULE,
   LEAGUE_CUP_SCHEDULE,
   NATIONAL_CUP_SCHEDULE,
   calendarLength,
@@ -381,8 +382,9 @@ describe('how far into a knockout the season is', () => {
     for (const kind of CUP_KINDS) {
       expect(knockoutRoundsPlayed(kind, 30, 30)).toBe(CUP_ROUNDS);
     }
+    // Europe runs to six: three group matches and three knockout rounds.
     for (const tier of EUROPEAN_TIERS) {
-      expect(knockoutRoundsPlayed(tier, 30, 30)).toBe(CUP_ROUNDS);
+      expect(knockoutRoundsPlayed(tier, 30, 30)).toBe(EUROPEAN_SCHEDULE.length);
     }
   });
 
@@ -432,15 +434,20 @@ describe('the season calendar', () => {
     // same dates and the walk skips the two that are not the player's.
     expect(calendar).toHaveLength(calendarLength(30));
     for (const tier of EUROPEAN_TIERS) {
-      expect(calendar.filter((slot) => slot.competition === tier), tier).toHaveLength(CUP_ROUNDS);
+      expect(calendar.filter((slot) => slot.competition === tier), tier).toHaveLength(
+        EUROPEAN_SCHEDULE.length,
+      );
     }
   });
 
   it('is the longest a season can be: league, both cups, Europe and a country', () => {
-    // 30 league + 4 national cup + 4 league cup + 4 European + 6 international,
-    // the six being a World Cup, which runs a knockout round deeper than a
+    // 1 super cup + 30 league + 4 national cup + 4 league cup + 6 European
+    // (three group matches and three knockout rounds) + 6 international, the
+    // six being a World Cup, which runs a knockout round deeper than a
     // continental championship.
-    expect(maximumMatches(30)).toBe(30 + 4 + 4 + 4 + MAX_INTERNATIONAL_MATCHES);
+    expect(maximumMatches(30)).toBe(
+      1 + 30 + 4 + 4 + EUROPEAN_SCHEDULE.length + MAX_INTERNATIONAL_MATCHES,
+    );
     expect(maximumMatches(30)).toBeLessThan(calendarLength(30));
   });
 

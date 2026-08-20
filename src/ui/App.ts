@@ -1019,6 +1019,7 @@ export class App {
           outOfContract: outcome.outOfContract,
           fellBackOnClub: outcome.fellBackOnClub,
           cups: outcome.cups,
+          superCup: outcome.superCup,
           europe: outcome.europe,
           nextEuropeanTier: outcome.nextEuropeanTier,
           international: outcome.international,

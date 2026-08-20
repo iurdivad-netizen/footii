@@ -9,7 +9,7 @@ import {
 import type { InternationalState } from './international.ts';
 import { KNOCKOUT_ROUNDS, knockoutField } from './international.ts';
 import { countryOfNation } from './nations.ts';
-import type { CupState } from './cups.ts';
+import type { EuropeanState } from './europe.ts';
 import type { EuropeanEntries, EuropeanTier } from './europe.ts';
 import { EUROPEAN_TIERS } from './europe.ts';
 
@@ -140,10 +140,21 @@ export const COEFFICIENT_SWING = 0.2;
  */
 export const COEFFICIENT_SCALE = 0.06;
 
-/** What one club's European run is worth, per round it won. */
+/** What one club's European run is worth, per knockout round it won. */
 export const EUROPEAN_ROUND_WIN = 1;
 /** And for lifting the thing. */
 export const EUROPEAN_TROPHY = 2;
+
+/**
+ * What a group match is worth.
+ *
+ * A third of a knockout round, and half that for a draw. Deliberately small:
+ * there are three group matches and only three knockout rounds, so pricing them
+ * equally would make a country's coefficient mostly a record of the group stage
+ * — which is the half where nobody is eliminated.
+ */
+export const EUROPEAN_GROUP_WIN = 0.34;
+export const EUROPEAN_GROUP_DRAW = 0.17;
 
 /**
  * How much each competition counts.
@@ -201,7 +212,7 @@ export const CLUB_SCALE = 0.34;
  */
 export function scoreEuropeanSeason(
   entries: EuropeanEntries,
-  competitions: Partial<Record<EuropeanTier, CupState<EuropeanTier> | null>>,
+  competitions: Partial<Record<EuropeanTier, EuropeanState | null>>,
   countryOf: (clubId: string) => string | null,
 ): Record<string, number> {
   const earned: Record<string, number> = {};
@@ -218,13 +229,36 @@ export function scoreEuropeanSeason(
       if (!countryId) continue;
       entered[countryId] = (entered[countryId] ?? 0) + 1;
 
-      // A knockout tie cannot end level, so rounds survived IS the record: no
-      // draws to count and no table to read.
-      const roundsWon = competition.rounds.filter((round) =>
-        round.ties.some((tie) => tie.winnerId === clubId),
+      // Two halves, counted the same way and for the same reason: what a
+      // country earns is what its clubs actually did, and a group stage is
+      // football a club won or lost as much as a tie is. Group MATCHES are
+      // worth less than knockout rounds because there are three of them and a
+      // club that wins all three has still not knocked anybody out.
+      const groupWins = competition.results.filter(
+        (result) =>
+          (result.homeId === clubId && result.homeGoals > result.awayGoals) ||
+          (result.awayId === clubId && result.awayGoals > result.homeGoals),
       ).length;
-      const trophy = competition.winnerId === clubId ? EUROPEAN_TROPHY : 0;
-      earned[countryId] = (earned[countryId] ?? 0) + (roundsWon * EUROPEAN_ROUND_WIN + trophy) * weight;
+      const groupDraws = competition.results.filter(
+        (result) =>
+          (result.homeId === clubId || result.awayId === clubId) &&
+          result.homeGoals === result.awayGoals,
+      ).length;
+
+      // A knockout tie cannot end level, so rounds survived IS the record.
+      const knockout = competition.knockout;
+      const roundsWon = knockout
+        ? knockout.rounds.filter((round) => round.ties.some((tie) => tie.winnerId === clubId))
+            .length
+        : 0;
+      const trophy = knockout?.winnerId === clubId ? EUROPEAN_TROPHY : 0;
+      earned[countryId] =
+        (earned[countryId] ?? 0) +
+        (groupWins * EUROPEAN_GROUP_WIN +
+          groupDraws * EUROPEAN_GROUP_DRAW +
+          roundsWon * EUROPEAN_ROUND_WIN +
+          trophy) *
+          weight;
     }
   }
 

@@ -9,12 +9,24 @@ import { confederationOf, getCountry, leagueName } from '../../core/career/count
 import type { CupKind, CupState } from '../../core/career/cups.ts';
 import { CUP_KINDS, cupName, roundName, totalRounds } from '../../core/career/cups.ts';
 import type { EuropeanState, EuropeanTier } from '../../core/career/europe.ts';
-import { europeanCompetition, europeanNameInProse } from '../../core/career/europe.ts';
+import {
+  EUROPEAN_KNOCKOUT_ROUNDS,
+  europeanCompetition,
+  europeanNameInProse,
+  europeanWinner,
+} from '../../core/career/europe.ts';
+import {
+  groupIndexOf as europeanGroupIndex,
+  groupPositionOf as europeanGroupPosition,
+  reachedKnockout as reachedEuropeanKnockout,
+} from '../../core/career/groupStage.ts';
 import type { InternationalState } from '../../core/career/international.ts';
 import { KNOCKOUT_ROUNDS, tournamentName } from '../../core/career/international.ts';
 import { countryOfNation, nationId } from '../../core/career/nations.ts';
 import type { RetirementProspect } from '../../core/career/legacy.ts';
 import { getTeam } from '../../data/gameData.ts';
+import type { SuperCupTie } from '../../core/career/superCup.ts';
+import { playsInSuperCup, superCupName, superCupOpponent } from '../../core/career/superCup.ts';
 
 /** End-of-season summary, shown once the final fixture has been played. */
 export class SeasonReviewScreen {
@@ -57,6 +69,8 @@ export class SeasonReviewScreen {
       fellBackOnClub: boolean;
       /** Both knockouts as they finished. */
       cups: Record<CupKind, CupState>;
+      /** The super cup that opened the season, if there was one. */
+      superCup?: SuperCupTie | null;
       /** The European competition played this season, as it finished. */
       europe: EuropeanState | null;
       /** The competition the club has qualified for NEXT season, if any. */
@@ -155,6 +169,7 @@ export class SeasonReviewScreen {
         before: context.placesBefore,
         after: context.placesAfter,
       })}
+      ${renderSuperCup(context.superCup ?? null, record.clubId)}
       ${renderCupRuns(context.cups, record.clubId, context.countryId)}
       ${renderHonours(context.honours, context.capsGained)}
       ${renderProgress(context.progress)}
@@ -238,15 +253,21 @@ function renderEurope(
   }
 
   const competition = europeanCompetition(europe.kind);
-  const rounds = totalRounds(europe);
-  const won = europe.winnerId === clubId;
-  const out = europe.eliminatedInRound;
+  const winnerId = europeanWinner(europe);
+  const won = winnerId === clubId;
+  const out = europe.knockout?.eliminatedInRound ?? null;
+  // Three outcomes rather than two, because a group stage adds one: going out
+  // over three matches in the autumn is a different season to losing a tie.
   const line = won
     ? '<strong>Champions of Europe.</strong>'
     : out !== null
-      ? `Knocked out in the ${roundName(out, rounds).toLowerCase()}.`
-      : 'Did not take part.';
-  const winner = !won && europe.winnerId ? ` Won by ${getTeam(europe.winnerId).name}.` : '';
+      ? `Knocked out in the ${roundName(out, EUROPEAN_KNOCKOUT_ROUNDS).toLowerCase()}.`
+      : reachedEuropeanKnockout(europe, clubId)
+        ? 'Through the group, and still there when it finished.'
+        : europeanGroupIndex(europe, clubId) !== -1
+          ? `Out in the group stage, ${ordinal(europeanGroupPosition(europe, clubId))} of four.`
+          : 'Did not take part.';
+  const winner = !won && winnerId ? ` Won by ${getTeam(winnerId).name}.` : '';
 
   // Headed "Europe" with the competition named in the row, matching the cups
   // card — the card said its own name twice otherwise.
@@ -412,6 +433,33 @@ function renderHonours(honours: readonly Honour[], capsGained: number): string {
       <h2>Honours</h2>
       ${items ? `<ul class="honours-won">${items}</ul>` : ''}
       ${caps}
+    </div>`;
+}
+
+/**
+ * The one match that opened the season.
+ *
+ * Reported separately from the cup runs and above them, because it is not a
+ * run: there is nothing to describe but the result, and it happened before any
+ * of the football the rest of this screen is about. A club he was not in it for
+ * is not mentioned at all — a review is his season, not the country's.
+ */
+function renderSuperCup(tie: SuperCupTie | null, clubId: string): string {
+  if (!tie || !tie.winnerId || !playsInSuperCup(tie, clubId)) return '';
+  const won = tie.winnerId === clubId;
+  const opponent = getTeam(superCupOpponent(tie, clubId));
+  const isChampion = tie.championId === clubId;
+  const own = isChampion ? tie.homeGoals : tie.awayGoals;
+  const theirs = isChampion ? tie.awayGoals : tie.homeGoals;
+
+  return `
+    <div class="career-card">
+      <h2>${superCupName(tie.countryId)}</h2>
+      <p class="hint">
+        You opened the season ${isChampion ? 'as champions' : 'as cup winners'} against
+        ${opponent.name}, and ${won ? 'won' : 'lost'} it
+        <strong>${own}-${theirs}</strong>${tie.penalties ? ' on penalties' : ''}.
+      </p>
     </div>`;
 }
 

@@ -20,7 +20,11 @@ import {
   europeanPlaces,
   placesDescription,
 } from '../../core/career/europe.ts';
-import type { EuropeanTier } from '../../core/career/europe.ts';
+import type { EuropeanState, EuropeanTier } from '../../core/career/europe.ts';
+import {
+  QUALIFY_PER_GROUP,
+  groupTableOf as europeanGroupTable,
+} from '../../core/career/groupStage.ts';
 import {
   COEFFICIENT_WINDOW,
   countriesByStanding,
@@ -96,8 +100,8 @@ export interface WorldScreenDeps {
   club: (id: string) => Team;
   /** A country's cup as it stands today, or null if it has none. */
   cup: (countryId: string, kind: CupKind) => CupState<CupKind> | null;
-  /** One European competition as it stands today, or null before anyone has qualified. */
-  europe: (tier: EuropeanTier) => CupState<EuropeanTier> | null;
+  /** One European season as it stands today, or null before anyone has qualified. */
+  europe: (tier: EuropeanTier) => EuropeanState | null;
   onBack: () => void;
 }
 
@@ -267,14 +271,18 @@ export class WorldScreen {
   private renderEurope(): string {
     const cards = EUROPEAN_TIERS.map((tier) => {
       const competition = europeanCompetition(tier);
-      const cup = this.deps.europe(tier);
+      const season = this.deps.europe(tier);
       const mine = this.state.europe?.kind === tier;
+      const myClub = mine ? this.state.clubId : null;
       return `
         <div class="career-card${mine ? ' european-card' : ''}">
           <h2>${competition.name}${mine ? ' <em class="own-tag">your competition</em>' : ''}</h2>
           ${
-            cup
-              ? this.renderBracket(cup, (id) => this.deps.club(id).name)
+            season
+              ? this.renderEuropeanGroups(season, myClub) +
+                (season.knockout
+                  ? this.renderBracket(season.knockout, (id) => this.deps.club(id).name)
+                  : '<p class="hint">The bracket is drawn once every group has finished.</p>')
               : `<p class="hint">Not being played this season — nobody has qualified yet.</p>`
           }
         </div>`;
@@ -283,6 +291,46 @@ export class WorldScreen {
     return `
       <p class="hint world-note">${placesDescription(this.state.countryId, this.order)}</p>
       ${cards}`;
+  }
+
+  /**
+   * The four groups, as far as they have got.
+   *
+   * Shown above the bracket rather than instead of it, and kept visible after
+   * the groups have finished: the whole argument for a group stage is that
+   * going out of it is a month's football rather than one night, and a table
+   * that vanished the moment the knockout started would take that record with
+   * it.
+   */
+  private renderEuropeanGroups(season: EuropeanState, myClub: string | null): string {
+    if (season.groups.length === 0) return '';
+    const tables = season.groups
+      .map((_, index) => {
+        const rows = europeanGroupTable(season, index);
+        const body = rows
+          .map(
+            (row, place) => `<tr class="${row.teamId === myClub ? 'own' : ''}${
+              place < QUALIFY_PER_GROUP ? ' qualified' : ''
+            }">
+                <td class="tier-rank">${place + 1}</td>
+                <td>${this.deps.club(row.teamId).shortName}</td>
+                <td>${row.played}</td>
+                <td>${row.goalsFor}-${row.goalsAgainst}</td>
+                <td><strong>${row.points}</strong></td>
+              </tr>`,
+          )
+          .join('');
+        return `<div class="european-group">
+            <h3>Group ${String.fromCharCode(65 + index)}</h3>
+            <table class="league-table">
+              <thead><tr><th></th><th>Club</th><th>P</th><th>GF-GA</th><th>Pts</th></tr></thead>
+              <tbody>${body}</tbody>
+            </table>
+          </div>`;
+      })
+      .join('');
+
+    return `<div class="european-groups">${tables}</div>`;
   }
 
   // ------------------------------------------------------- international ---

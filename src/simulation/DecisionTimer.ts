@@ -22,14 +22,14 @@ import type { SituationTemplate } from '../data/situations.ts';
  *     - DIFFICULTY_WEIGHT     * situationDifficulty
  *     + temporary modifiers   (fatigue, form, morale)
  *
- *   clamped to [MIN_TIME, MAX_TIME]
+ *   multiplied by DECISION_SCALE, then clamped to [MIN_TIME, MAX_TIME]
  *
  * where norm(x) = (x - 50) / 50, so an attribute of 50 contributes nothing and
- * the weight is literally "seconds gained by a 99-rated attribute".
+ * the weight is literally "MODEL UNITS gained by a 99-rated attribute".
  *
  * CALIBRATION TARGETS (see tests/decisionTimer.test.ts):
- *   - Experienced, composed player, moderate pressure  -> ~2.8-3.2s
- *   - Young, low-attribute player, moderate pressure   -> ~1.3-1.7s
+ *   - Experienced, composed player, moderate pressure  -> ~9.5-10.5s
+ *   - Young, low-attribute player, moderate pressure   -> ~4.5-5.7s
  *   - Either player under intense pressure             -> substantially less
  *
  * All weights are exported so they can be tuned from one place.
@@ -48,17 +48,37 @@ export const TIMER_WEIGHTS = {
 } as const;
 
 /**
- * Absolute floor on the decision window.
+ * Model units to seconds.
  *
- * Raised from 0.8s after play-testing: a young, low-attribute player was
- * bottoming out on the floor for ~10% of his events, and a sub-second window is
- * not a hard decision, it is a coin flip. Note that the UI's "set" phase (see
- * ui/interaction/readingTime.ts) handles the separate problem of having enough
- * time to READ the options — this floor is only about having enough time to
- * DECIDE once you have.
+ * Everything above — the base times, the weights, the pressure penalties — is
+ * expressed in one internal unit, and this is what turns that unit into a
+ * window on a clock. Applied at the very end, so it stretches every window
+ * equally and the RELATIVE difference between a composed veteran and a
+ * panicking teenager survives it exactly.
+ *
+ * It exists because the whole scale was wrong rather than any part of it. A
+ * window of about three seconds was measured against how long a footballer has
+ * on the ball, which is honest football and a poor game: three seconds is not
+ * enough for a human to read six freshly generated labels AND decide between
+ * them, so the mechanic was testing reading speed rather than judgement. The
+ * options are the game; the clock should be pressure on a decision you have had
+ * time to understand.
+ *
+ * Ten seconds for the player the model is centred on. Everything else follows
+ * from that by the same multiplier — nothing was retuned, only rescaled.
  */
-export const MIN_DECISION_TIME = 1.0;
-export const MAX_DECISION_TIME = 4.5;
+export const DECISION_SCALE = 3.3;
+
+/**
+ * Absolute floor on the decision window, in real seconds.
+ *
+ * A window this short is not a hard decision, it is a coin flip. Note that the
+ * UI's "set" phase (see ui/interaction/readingTime.ts) handles the separate
+ * problem of having enough time to READ the options — this floor is only about
+ * having enough time to DECIDE once you have.
+ */
+export const MIN_DECISION_TIME = 3.3;
+export const MAX_DECISION_TIME = 14.9;
 
 /**
  * Global pace multiplier applied to the final window.
@@ -82,11 +102,21 @@ export const DECISION_PACE = {
 
 export type DecisionPace = keyof typeof DECISION_PACE;
 
+/**
+ * Named by the window rather than the multiplier.
+ *
+ * "Standard — 1x" said nothing: one times what? The seconds are the number a
+ * player is actually choosing between, and they only became sayable once the
+ * scale was one a person could hold in their head — see DECISION_SCALE. The
+ * figures are the window a composed, experienced player gets in open play, so
+ * they are a centre rather than a promise: a teenager under pressure gets far
+ * less, and a penalty rather more.
+ */
 export const DECISION_PACE_LABELS: Record<DecisionPace, string> = {
-  hardcore: 'Hardcore — 0.75x',
-  standard: 'Standard — 1x',
-  relaxed: 'Relaxed — 1.5x',
-  veryRelaxed: 'Very relaxed — 2.1x',
+  hardcore: 'Hardcore — about 7 seconds',
+  standard: 'Standard — about 10 seconds',
+  relaxed: 'Relaxed — about 15 seconds',
+  veryRelaxed: 'Very relaxed — about 20 seconds',
   untimed: 'No time limit — take as long as you like',
 };
 
@@ -160,14 +190,20 @@ export function calculateDecisionTime(
 
   const raw = modifiers.reduce((total, m) => total + m.seconds, template.baseTime);
 
-  // The pace multiplier scales the whole window, including the clamp bounds, so
-  // that a relaxed setting genuinely relaxes the floor rather than running into
-  // the same hard minimum.
-  const scaled = raw * paceScale;
+  // Model units become seconds here, and the pace multiplier scales the whole
+  // window INCLUDING the clamp bounds — so a relaxed setting genuinely relaxes
+  // the floor rather than running into the same hard minimum.
+  const factor = DECISION_SCALE * paceScale;
+  const scaled = raw * factor;
   const seconds = clamp(scaled, MIN_DECISION_TIME * paceScale, MAX_DECISION_TIME * paceScale);
 
-  if (paceScale !== 1) {
-    modifiers.push({ label: `Pace setting (x${paceScale})`, seconds: round(scaled - raw, 3) });
+  // Recorded as a modifier so the debug panel's audit still adds up to the
+  // window on screen: base plus every line equals the number the player sees.
+  if (factor !== 1) {
+    modifiers.push({
+      label: paceScale === 1 ? 'Scale' : `Scale · pace x${paceScale}`,
+      seconds: round(scaled - raw, 3),
+    });
   }
 
   return {

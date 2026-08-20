@@ -6,7 +6,22 @@ import { positionLabel } from '../../core/player/positions.ts';
 import type { CareerState } from '../../core/career/career.ts';
 import { matchesRemaining, nextMatch, seasonComplete } from '../../core/career/career.ts';
 import { CUP_KINDS, cupName, roundName, stillIn, totalRounds } from '../../core/career/cups.ts';
-import { competitionLabel, isEuropean, isInternational } from '../../core/career/calendar.ts';
+import {
+  competitionLabel,
+  isEuropean,
+  isInternational,
+  isSuperCup,
+} from '../../core/career/calendar.ts';
+import { superCupName } from '../../core/career/superCup.ts';
+import { EUROPEAN_GROUP_ROUNDS, EUROPEAN_KNOCKOUT_ROUNDS, europeanWinner } from '../../core/career/europe.ts';
+// Aliased: the international module has its own of the same names, for its own
+// state shape, and this screen renders both.
+import {
+  groupIndexOf as europeanGroupIndex,
+  groupPositionOf as europeanGroupPosition,
+  groupTableOf as europeanGroupTable,
+  reachedKnockout as reachedEuropeanKnockout,
+} from '../../core/career/groupStage.ts';
 import {
   europeanCompetition,
   europeanNameInProse,
@@ -417,6 +432,7 @@ export class CareerScreen {
   /** What a competition is called, wherever it is played. */
   private competitionName(competition: CompetitionKind): string {
     if (competition === 'league') return leagueName(this.state.countryId);
+    if (isSuperCup(competition)) return superCupName(this.state.countryId);
     if (isInternational(competition)) return getCountry(this.state.player.nationality).name;
     if (isEuropean(competition)) return europeanCompetition(competition).name;
     return cupName(competition, this.state.countryId);
@@ -563,8 +579,12 @@ export class CareerScreen {
     }
 
     const competition = europeanCompetition(europe.kind);
-    const rounds = totalRounds(europe);
-    const reached = europe.rounds.length;
+    const knockout = europe.knockout;
+    const rounds = EUROPEAN_KNOCKOUT_ROUNDS;
+    const reached = knockout?.rounds.length ?? 0;
+    const group = europeanGroupIndex(europe, this.state.clubId);
+    const table = group === -1 ? [] : europeanGroupTable(europe, group);
+    const winnerId = europeanWinner(europe);
 
     // The survivor count is shown for as long as the competition is running,
     // whether or not he is still in it. It used to be hidden the moment he went
@@ -575,14 +595,27 @@ export class CareerScreen {
     // better answer to "how did that end" than silence.
     let status: string;
     let tone = '';
-    if (europe.winnerId === this.state.clubId) {
+    if (winnerId === this.state.clubId) {
       status = 'Champions of Europe';
       tone = 'won';
-    } else if (europe.eliminatedInRound !== null) {
-      status = `Out in the ${roundName(europe.eliminatedInRound, rounds).toLowerCase()}`;
+    } else if (knockout?.eliminatedInRound != null) {
+      status = `Out in the ${roundName(knockout.eliminatedInRound, rounds).toLowerCase()}`;
+      tone = 'out';
+    } else if (europe.groupRoundsPlayed < EUROPEAN_GROUP_ROUNDS) {
+      // Still in the group, where the standing IS the story: going out here is
+      // finishing third over three matches rather than losing one night.
+      const place = europeanGroupPosition(europe, this.state.clubId);
+      status =
+        europe.groupRoundsPlayed === 0
+          ? 'Group stage to come'
+          : `${ordinal(place)} in the group, ${europe.groupRoundsPlayed} of ${EUROPEAN_GROUP_ROUNDS} played`;
+      tone = place > 0 && place <= 2 ? 'alive' : '';
+    } else if (!reachedEuropeanKnockout(europe, this.state.clubId)) {
+      status = 'Out in the group stage';
       tone = 'out';
     } else if (reached === 0) {
-      status = 'Not started';
+      status = 'Through to the knockout';
+      tone = 'alive';
     } else {
       status = `In the ${roundName(reached, rounds).toLowerCase()}`;
       tone = 'alive';
@@ -594,12 +627,35 @@ export class CareerScreen {
           <dl class="stat-list">
             <div class="cup-row ${tone}"><dt>Progress</dt><dd>${status}</dd></div>
             ${
-              europe.winnerId
-                ? `<div><dt>Won by</dt><dd>${getTeam(europe.winnerId).name}</dd></div>`
-                : `<div><dt>Clubs</dt><dd>${europe.survivors.length} still in</dd></div>`
+              winnerId
+                ? `<div><dt>Won by</dt><dd>${getTeam(winnerId).name}</dd></div>`
+                : knockout
+                  ? `<div><dt>Clubs</dt><dd>${knockout.survivors.length} still in</dd></div>`
+                  : ''
             }
           </dl>
-          <p class="hint">Sixteen clubs from eight countries. Seen by more people than your league.</p>
+          ${
+            table.length > 0 && !knockout
+              ? `<table class="league-table group-table">
+                   <thead><tr><th>Group</th><th>P</th><th>Pts</th></tr></thead>
+                   <tbody>
+                     ${table
+                       .map(
+                         (row) =>
+                           `<tr class="${row.teamId === this.state.clubId ? 'own' : ''}">
+                              <td>${getTeam(row.teamId).shortName}</td>
+                              <td>${row.played}</td>
+                              <td>${row.points}</td>
+                            </tr>`,
+                       )
+                       .join('')}
+                   </tbody>
+                 </table>
+                 <p class="hint">Top two go through.</p>`
+              : `<p class="hint">
+                   Sixteen clubs, four groups, then a bracket. Seen by more people than your league.
+                 </p>`
+          }
         </div>`;
   }
 
