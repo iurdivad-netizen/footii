@@ -3,7 +3,15 @@ import type { Player } from '../player/player.ts';
 import type { Team } from '../team/team.ts';
 import type { SeasonStats } from './seasonStats.ts';
 import type { ClubInterest, SquadRole } from './transfers.ts';
-import { clubInterest, contractYears, offeredWage, wageAcceptable, wageDemand } from './transfers.ts';
+import {
+  MAX_WAGE,
+  MIN_WAGE,
+  clubInterest,
+  contractYears,
+  offeredWage,
+  wageAcceptable,
+  wageDemand,
+} from './transfers.ts';
 
 /**
  * CONTRACTS
@@ -187,7 +195,7 @@ export function fallbackContract(
   prestige = 1,
 ): Contract {
   const role: SquadRole = 'starter';
-  const wage = round(clamp(offeredWage(player, team, role, prestige) * 0.7, 1, 500), 1);
+  const wage = round(clamp(offeredWage(player, team, role, prestige) * 0.7, MIN_WAGE, MAX_WAGE), 1);
   return {
     clubId: team.id,
     wage,

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createPlayer } from '../src/core/player/player.ts';
 import type { Player } from '../src/core/player/player.ts';
-import { createTeam } from '../src/core/team/team.ts';
+import { createTeam, teamStrength } from '../src/core/team/team.ts';
+import { TEAMS } from '../src/data/gameData.ts';
 import { createSeasonStats } from '../src/core/career/seasonStats.ts';
 import type { SeasonStats } from '../src/core/career/seasonStats.ts';
 import {
@@ -23,6 +24,10 @@ import {
   offeredWage,
   wageAcceptable,
   wageDemand,
+  MAX_WAGE,
+  MIN_WAGE,
+  WAGE_SCALE,
+  marketValue,
 } from '../src/core/career/transfers.ts';
 
 function striker(overrides: Partial<Player> = {}): Player {
@@ -213,5 +218,107 @@ describe('the safety net', () => {
     const fallback = fallbackContract(finished, smallClub, 12);
     expect(fallback.wage).toBeGreaterThanOrEqual(1);
     expect(fallback.clubId).toBe(smallClub.id);
+  });
+});
+
+
+/**
+ * WHAT THE MONEY LOOKS LIKE
+ *
+ * The wage curve was always the right SHAPE and the wrong scale: an ability-95
+ * player at the best club in the world was on £86k a week against a real figure
+ * three to five times that, while market values were about right — so fees and
+ * wages disagreed with each other by a factor of four.
+ *
+ * These pin the corrected scale, and pin the reason it was safe to correct: the
+ * gate compares an offer against a demand, and scaling both by the same number
+ * cannot change a single answer it gives.
+ */
+
+
+const BEST_CLUB = [...TEAMS].sort((a, b) => teamStrength(b) - teamStrength(a))[0]!;
+
+function atAbility(ability: number) {
+  return createPlayer({
+    name: 'Earner',
+    position: 'ST',
+    baseAttribute: ability,
+    reputation: ability,
+    attributes: {},
+  });
+}
+
+describe('the scale of the money', () => {
+  it('pays a top-club regular what a top-club regular earns', () => {
+    // Around £70k a week at ability 75 — a first-team player at a big club,
+    // not a youth-team wage.
+    const wage = offeredWage(atAbility(75), BEST_CLUB, 'starter');
+    expect(wage).toBeGreaterThan(50);
+    expect(wage).toBeLessThan(110);
+  });
+
+  it('pays the best player in the world like the best player in the world', () => {
+    const wage = offeredWage(atAbility(95), BEST_CLUB, 'star');
+    expect(wage).toBeGreaterThan(250);
+    expect(wage).toBeLessThan(MAX_WAGE);
+  });
+
+  it('keeps a young squad player on a young squad player wage', () => {
+    const wage = offeredWage(atAbility(55), BEST_CLUB, 'squad');
+    expect(wage).toBeGreaterThan(5);
+    expect(wage).toBeLessThan(30);
+  });
+
+  it('never pays less than a professional earns, or more than the ceiling', () => {
+    for (const ability of [20, 40, 60, 80, 99]) {
+      for (const club of [BEST_CLUB, TEAMS[TEAMS.length - 1]!]) {
+        const wage = offeredWage(atAbility(ability), club, 'squad', 0.2);
+        expect(wage).toBeGreaterThanOrEqual(MIN_WAGE);
+        expect(wage).toBeLessThanOrEqual(MAX_WAGE);
+      }
+    }
+  });
+
+  it('puts wages and transfer fees on speaking terms', () => {
+    // A season of wages should be a fraction of what the club paid for him,
+    // not a rounding error against it. Both are now in the same universe.
+    const player = atAbility(85);
+    const seasonWages = (offeredWage(player, BEST_CLUB, 'starter') * 52) / 1000;
+    const fee = marketValue(player);
+    expect(seasonWages).toBeGreaterThan(fee * 0.05);
+    expect(seasonWages).toBeLessThan(fee * 0.5);
+  });
+});
+
+describe('rescaling could not move the wage gate', () => {
+  it('scales what a club offers and what a player wants by the same number', () => {
+    // The property the whole change rests on. If these ever diverge, every
+    // signing in the game changes and nothing says so.
+    const player = atAbility(78);
+    for (const prestige of [0.3, 0.6, 1]) {
+      const offered = offeredWage(player, BEST_CLUB, 'starter', prestige);
+      const demanded = wageDemand(player, prestige);
+      // Neither is clamped at this ability, so the ratio is the raw one.
+      expect(offered).toBeLessThan(MAX_WAGE);
+      expect(demanded).toBeLessThan(MAX_WAGE);
+      // Same ratio it had before the scale existed: divide both by it.
+      const ratio = offered / demanded;
+      const unscaledRatio = (offered / WAGE_SCALE) / (demanded / WAGE_SCALE);
+      expect(ratio).toBeCloseTo(unscaledRatio, 10);
+    }
+  });
+
+  it('still refuses a club that cannot afford a well-known player', () => {
+    const famous = createPlayer({
+      name: 'Famous',
+      position: 'ST',
+      baseAttribute: 70,
+      reputation: 95,
+      attributes: {},
+    });
+    const small = [...TEAMS].sort((a, b) => teamStrength(a) - teamStrength(b))[0]!;
+    expect(wageAcceptable(offeredWage(famous, small, 'star', 0.3), wageDemand(famous, 0.3))).toBe(
+      false,
+    );
   });
 });

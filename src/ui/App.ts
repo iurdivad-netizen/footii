@@ -71,6 +71,9 @@ import { ShootoutEngine } from '../simulation/ShootoutEngine.ts';
 import { ShootoutScreen } from './screens/ShootoutScreen.ts';
 import { PreferencesScreen } from './screens/PreferencesScreen.ts';
 import { defaultPreferences } from '../core/career/preferences.ts';
+import { clubStanding, reachOf, trialPassed, trialRequirement } from '../core/career/trial.ts';
+import { TrialResultScreen } from './screens/TrialResultScreen.ts';
+import { squadLevel } from '../core/career/transfers.ts';
 import type { ShootoutSide } from '../core/career/shootout.ts';
 import { simulateShootout } from '../core/career/shootout.ts';
 import { CareerEndScreen } from './screens/CareerEndScreen.ts';
@@ -381,6 +384,7 @@ export class App {
       customLabel: this.customPlayer
         ? `${this.customPlayer.name} — ${this.customPlayer.position}, ${this.customPlayer.age} (yours)`
         : undefined,
+      customPlayer: this.customPlayer ?? undefined,
     });
     this.mount(screen.element);
 
@@ -547,7 +551,98 @@ export class App {
    * in the markup is a guard somebody can route around; this is the point where
    * the overwrite would actually happen.
    */
+  /**
+   * Start a career, or earn the right to.
+   *
+   * A club above his level does not simply sign an unknown — it gives him a
+   * look. So a trial club routes through one match first, and the career only
+   * begins if he was good enough in it. See core/career/trial.ts.
+   */
   private beginCareer(selection: SetupSelection): void {
+    const player = this.resolvePlayer(selection.presetId);
+    const club = getTeam(selection.teamId);
+    if (clubStanding(player, club) === 'trial') {
+      this.showTrial(selection, player, club);
+      return;
+    }
+    this.startCareerAt(selection);
+  }
+
+  /**
+   * One match to decide whether they sign you.
+   *
+   * Played against a real opponent from the club's own league rather than a
+   * neutral one, because the level of the football is the thing being measured:
+   * a trial in front of nobody, against nobody, would prove nothing.
+   *
+   * The match itself is an ordinary `MatchEngine` — same decisions, same clock —
+   * and NOTHING is recorded from it. It is not in a career, because there is no
+   * career yet; that is the whole point of it.
+   */
+  private showTrial(selection: SetupSelection, player: Player, club: Team): void {
+    const required = trialRequirement(reachOf(player, club));
+    const opponent = this.trialOpponent(club, selection.seed);
+
+    this.runMatch(
+      new MatchEngine(
+        {
+          player,
+          playerTeam: club,
+          opponent,
+          opponentGoalkeeper: getGoalkeeperForTeam(opponent.id),
+          ownGoalkeeper: getGoalkeeperForTeam(club.id),
+          length: selection.length,
+          playerTeamIsHome: true,
+          paceScale: this.paceScale,
+        },
+        `${selection.seed}:trial`,
+      ),
+      `${selection.seed}:trial`,
+      (engine) => {
+        const rating = engine.rating();
+        const passed = trialPassed(rating, required);
+        this.mount(
+          new TrialResultScreen(
+            {
+              club,
+              player,
+              rating,
+              required,
+              passed,
+              // Where he goes instead: the best club that would simply take him.
+              fallback: passed ? null : this.bestOpenClub(player),
+            },
+            {
+              onAccept: (clubId: string) => this.startCareerAt({ ...selection, teamId: clubId }),
+              onBack: () => this.showSetup('career'),
+            },
+          ).element,
+        );
+      },
+    );
+  }
+
+  /**
+   * Who a trial is played against.
+   *
+   * Somebody from the club's own league, so the standard of the match is the
+   * standard he is being judged at. Picked by seed rather than at random, so a
+   * trial is as reproducible as everything else.
+   */
+  private trialOpponent(club: Team, seed: string): Team {
+    const rivals = TEAMS.filter((t) => t.country === club.country && t.id !== club.id);
+    const pool = rivals.length > 0 ? rivals : TEAMS.filter((t) => t.id !== club.id);
+    return pool[new Rng(`${seed}:trial:opponent`).int(0, pool.length - 1)] ?? pool[0]!;
+  }
+
+  /** The strongest club that would take him without a trial. */
+  private bestOpenClub(player: Player): Team | null {
+    const open = TEAMS.filter((team) => clubStanding(player, team) === 'open');
+    if (open.length === 0) return null;
+    return open.reduce((best, team) => (squadLevel(team) > squadLevel(best) ? team : best));
+  }
+
+  private startCareerAt(selection: SetupSelection): void {
     if (activeCareer(this.save)) {
       const empty = firstEmptySlot(this.save);
       if (empty === null) {
