@@ -40,8 +40,11 @@ import { averageRating } from '../core/career/seasonStats.ts';
 import type { SaveData } from '../persistence/storage.ts';
 import {
   clearCareer,
+  clearHallOfFame,
+  enshrineCareer,
   loadSave,
   recordMatch,
+  removeFromHallOfFame,
   saveCareer,
   saveSettings,
   writeSave,
@@ -52,6 +55,8 @@ import { DebugPanel } from './components/DebugPanel.ts';
 import { EventOverlay } from './components/EventOverlay.ts';
 import { InputController } from './interaction/InputController.ts';
 import { CareerScreen } from './screens/CareerScreen.ts';
+import { CareerEndScreen } from './screens/CareerEndScreen.ts';
+import { HallOfFameScreen } from './screens/HallOfFameScreen.ts';
 import type { TotalsView } from './screens/FullTimeScreen.ts';
 import { FullTimeScreen } from './screens/FullTimeScreen.ts';
 import { HomeScreen } from './screens/HomeScreen.ts';
@@ -63,6 +68,8 @@ import { TrainingScreen } from './screens/TrainingScreen.ts';
 import { WorldScreen } from './screens/WorldScreen.ts';
 import { TransferScreen } from './screens/TransferScreen.ts';
 import { applyTraining } from '../core/career/training.ts';
+import type { CareerEnding } from '../core/career/legacy.ts';
+import { isWorthRemembering, retirementProspect, summariseCareer } from '../core/career/legacy.ts';
 import type { SetupSelection } from './screens/SetupScreen.ts';
 import { SetupScreen } from './screens/SetupScreen.ts';
 
@@ -116,13 +123,10 @@ export class App {
         onNewCareer: () => this.showSetup('career'),
         onQuickMatch: () => this.showSetup('quick'),
         onContinueCareer: career ? () => this.showCareerHub() : undefined,
-        onAbandonCareer: career
-          ? () => {
-              this.save = clearCareer(this.save);
-              this.showHome();
-            }
-          : undefined,
+        onEndCareer: career ? () => this.showCareerEnd(career, 'abandoned', false) : undefined,
         career: this.careerSummary(),
+        hallOfFame: this.save.hallOfFame,
+        onHallOfFame: () => this.showHallOfFame(),
         settings: this.save.settings,
         onSettingsChange: (settings) => this.updateSettings(settings),
       }).element,
@@ -155,6 +159,103 @@ export class App {
       this.save = clearCareer(this.save);
       return undefined;
     }
+  }
+
+  // -------------------------------------------------------- career end ---
+
+  /**
+   * The last screen a career gets.
+   *
+   * Reached three ways, and deliberately the SAME screen for all of them: from
+   * the home card, when you have decided you are done with him; from the season
+   * review, when he is old enough to choose; and from the season review again
+   * when he is old enough that there is no choice. What ends a career changes
+   * what the buttons say, not what you are shown — the summary is the point,
+   * and it is identical whether he walked away at 39 or you gave up on him at 22.
+   *
+   * Nothing is written until the button is pressed. Opening this screen and
+   * going back leaves the save exactly as it was.
+   */
+  private showCareerEnd(
+    career: CareerState,
+    ending: CareerEnding,
+    forced: boolean,
+    reason?: string,
+    /**
+     * Where "no, not yet" goes.
+     *
+     * Supplied by the season review, because deciding against retiring has to
+     * put the player back into the SUMMER he was in the middle of — the
+     * transfer window and the training points he has not spent — and not on the
+     * hub with both of them skipped. Defaults to the hub for an ending reached
+     * from the home screen, where there is no summer in progress.
+     */
+    onCancel?: () => void,
+  ): void {
+    this.matchScreen?.stop();
+    this.matchScreen = null;
+
+    let legacy;
+    try {
+      legacy = summariseCareer(career, getTeam, ending);
+    } catch (error) {
+      // Summarising reads the whole career, so a damaged one could throw here —
+      // and being unable to describe a career must not mean being unable to end
+      // it. Fall back to simply clearing it, which is what the old Abandon did.
+      console.error('Career could not be summarised; ending it without a record', error);
+      this.save = clearCareer(this.save);
+      this.showHome();
+      return;
+    }
+
+    this.mount(
+      new CareerEndScreen(
+        { state: career, legacy, ending, forced, reason },
+        {
+          onConfirm: () => {
+            // A career with no appearances leaves no record — see
+            // `isWorthRemembering`. It is still ended, just not enshrined.
+            this.save = isWorthRemembering(legacy)
+              ? enshrineCareer(this.save, legacy)
+              : clearCareer(this.save);
+            if (isWorthRemembering(legacy)) this.showHallOfFame(legacy.id);
+            else this.showHome();
+          },
+          onCancel: forced
+            ? undefined
+            : (onCancel ?? (ending === 'retired' ? () => this.showCareerHub() : () => this.showHome())),
+        },
+      ).element,
+    );
+  }
+
+  /**
+   * The wall of fame, with the career just added picked out of it.
+   *
+   * Clearing and removing write straight through and re-render, so the list on
+   * screen is always the list in the save — there is no in-memory copy that
+   * could disagree with it.
+   */
+  private showHallOfFame(highlightId?: string): void {
+    this.mount(
+      new HallOfFameScreen(
+        this.save.hallOfFame,
+        {
+          onBack: () => this.showHome(),
+          onClear: () => {
+            this.save = clearHallOfFame(this.save);
+            this.showHallOfFame();
+          },
+          onRemove: (id: string) => {
+            this.save = removeFromHallOfFame(this.save, id);
+            // The highlight is dropped on any removal: it points at a position
+            // in a list that has just changed underneath it.
+            this.showHallOfFame();
+          },
+        },
+        highlightId,
+      ).element,
+    );
   }
 
   // ------------------------------------------------------------- setup ---
@@ -355,6 +456,18 @@ export class App {
     }
     this.matchScreen?.stop();
     this.matchScreen = null;
+
+    // A forced retirement has to survive a reload.
+    //
+    // It is offered at the season review, and the review is a screen you can
+    // simply close. Without this check, a player who shut the tab on being told
+    // his career was over would reopen the game to a hub that let him play on —
+    // and would then be told again next June, forever.
+    const forced = retirementProspect(career);
+    if (forced?.forced) {
+      this.showCareerEnd(career, 'retired', true, forced.reason);
+      return;
+    }
 
     // An open transfer window is resumed rather than lost. Closing the tab on
     // the offer screen used to leave the offers sitting in the save with no
@@ -579,6 +692,11 @@ export class App {
     const { record, champion } = outcome;
     this.save = saveCareer(this.save, career);
 
+    // Asked AFTER the season has been closed, so the age it reads is the age he
+    // starts next season at. "You are 34, there is another season in you" has to
+    // mean the season he would actually be playing.
+    const retirement = retirementProspect(career);
+
     const drift = career.player.potentialAbility - potentialBefore;
     const potentialHint =
       drift > 1
@@ -621,8 +739,15 @@ export class App {
           placesAfter: outcome.placesAfter,
           nationality: career.player.nationality,
           contractDecision: career.offers.length === 0 && this.summerNeedsADecision(career),
+          retirement,
         },
         () => this.afterReview(career, outcome.trainingAwarded, outcome.trainingNotes),
+        retirement
+          ? () =>
+              this.showCareerEnd(career, 'retired', retirement.forced, retirement.reason, () =>
+                this.afterReview(career, outcome.trainingAwarded, outcome.trainingNotes),
+              )
+          : undefined,
       ).element,
     );
   }

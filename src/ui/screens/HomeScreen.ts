@@ -2,6 +2,8 @@ import { DECISION_PACE_LABELS } from '../../simulation/DecisionTimer.ts';
 import type { DecisionPace } from '../../simulation/DecisionTimer.ts';
 import type { GameSettings } from '../../persistence/storage.ts';
 import { MATCH_SPEEDS } from '../screens/matchSpeeds.ts';
+import type { CareerLegacy } from '../../core/career/legacy.ts';
+import { rankLegacies } from '../../core/career/legacy.ts';
 
 /**
  * HOME SCREEN
@@ -29,8 +31,18 @@ export interface HomeHandlers {
   onNewCareer: () => void;
   onQuickMatch: () => void;
   onContinueCareer?: () => void;
-  onAbandonCareer?: () => void;
+  /**
+   * Open the end screen for the saved career.
+   *
+   * Named for what it now does. This used to be `onAbandonCareer` and used to
+   * mean it — a `confirm()` here, and the career was gone. Ending one is a
+   * screen of its own now, so the home screen only opens it.
+   */
+  onEndCareer?: () => void;
   career?: CareerSummary;
+  /** Finished careers, for the wall. */
+  hallOfFame?: readonly CareerLegacy[];
+  onHallOfFame?: () => void;
   settings: GameSettings;
   onSettingsChange: (settings: Partial<GameSettings>) => void;
 }
@@ -54,6 +66,7 @@ export class HomeScreen {
       </header>
 
       ${career ? this.renderCareerCard(career) : ''}
+      ${this.renderHallOfFame(handlers.hallOfFame ?? [])}
 
       <div class="home-modes">
         <button class="home-mode" id="new-career">
@@ -129,13 +142,14 @@ export class HomeScreen {
     this.element
       .querySelector<HTMLButtonElement>('#continue-career')
       ?.addEventListener('click', () => handlers.onContinueCareer?.());
+    // No browser dialog: the end screen shows what is about to be lost, which
+    // is a better question than "are you sure?" ever was.
     this.element
-      .querySelector<HTMLButtonElement>('#abandon-career')
-      ?.addEventListener('click', () => {
-        if (confirm('Abandon this career? Your season and development will be lost.')) {
-          handlers.onAbandonCareer?.();
-        }
-      });
+      .querySelector<HTMLButtonElement>('#end-career')
+      ?.addEventListener('click', () => handlers.onEndCareer?.());
+    this.element
+      .querySelector<HTMLButtonElement>('#open-hall')
+      ?.addEventListener('click', () => handlers.onHallOfFame?.());
 
     const paceSelect = this.element.querySelector<HTMLSelectElement>('#home-pace')!;
     const paceNote = this.element.querySelector<HTMLElement>('#pace-note')!;
@@ -155,6 +169,46 @@ export class HomeScreen {
     speedSelect.addEventListener('change', () => {
       handlers.onSettingsChange({ matchSpeed: Number(speedSelect.value) });
     });
+  }
+
+  /**
+   * The wall, in miniature.
+   *
+   * Three entries and a way in. The home screen's job is to say that finished
+   * careers are kept and that this one will be too — the full list is a screen
+   * of its own, and putting it here would bury the button that starts a game.
+   *
+   * Nothing is rendered until a career has actually finished. An empty wall
+   * with an explanation would be a panel about a feature rather than a feature,
+   * and the front door already has enough to read.
+   */
+  private renderHallOfFame(entries: readonly CareerLegacy[]): string {
+    if (entries.length === 0) return '';
+    const top = rankLegacies(entries).slice(0, 3);
+    const rows = top
+      .map(
+        (entry, index) =>
+          `<li>
+            <span class="hall-mini-rank">${index + 1}</span>
+            <span class="hall-mini-name">${entry.name}</span>
+            <span class="hall-mini-note">
+              ${entry.goals} goals · ${entry.seasons} ${entry.seasons === 1 ? 'season' : 'seasons'}
+            </span>
+            <span class="hall-mini-score">${entry.score}</span>
+          </li>`,
+      )
+      .join('');
+
+    return `
+      <div class="home-card hall-mini">
+        <div class="hall-mini-head">
+          <h2>Wall of fame</h2>
+          <button class="ghost small" id="open-hall">
+            ${entries.length} finished ${entries.length === 1 ? 'career' : 'careers'} →
+          </button>
+        </div>
+        <ol class="hall-mini-list">${rows}</ol>
+      </div>`;
   }
 
   private renderCareerCard(career: CareerSummary): string {
@@ -182,7 +236,7 @@ export class HomeScreen {
 
         <div class="career-card-actions">
           <button class="primary" id="continue-career">Continue</button>
-          <button class="ghost" id="abandon-career">Abandon</button>
+          <button class="ghost" id="end-career">End career</button>
         </div>
       </div>`;
   }

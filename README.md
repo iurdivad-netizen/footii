@@ -1200,6 +1200,76 @@ Individual awards require having played at least 60% of the season. Nobody is pl
 on nine appearances. Team honours carry no such condition — a cup belongs to the club, not to your
 form, and you do not have to have been good to have won it.
 
+### Ending a career, and what survives it
+
+A career used to have exactly one ending: **Abandon** on the home screen, a browser dialog, and
+eighteen seasons of honours, records and history deleted between one click and the next. The most
+consequential action in the game was the only one with no screen of its own, and nothing carried
+over — which meant there was no reason to have played the first career before starting the second.
+
+There are now two ways for a career to stop, and both go through the same end screen.
+
+**Retirement** is offered at the season review. From **34** you are asked, and can say no as many
+times as you like; from **39** the decision has been made for you. The question is deliberately a
+summer one — a footballer does not walk away in the middle of a season, and asking after a bad
+match in November would turn a dip in form into a life decision. When the last two seasons show a
+real fall in average rating, the offer says so, and names both numbers.
+
+A forced retirement survives a reload. The review is a screen you can simply close, and without
+that check a player who shut the tab on being told his career was over would reopen the game to a
+hub that let him play on — and be told again next June, forever.
+
+**Ending it yourself** is the old Abandon, routed through the same place. There is no browser
+dialog any more: the end screen *is* the confirmation. You are shown what you are about to stop —
+every season, the honours, the record book, the whole route from first club to last — with the
+button to go back underneath it. A career that survives being read in full is one you meant to end.
+Nothing is written until you press the button.
+
+#### The wall of fame
+
+Ending a career writes a **legacy**: a small, flat summary that outlives the career it came from.
+Every finished career is kept, ranked against every other one this browser has played.
+
+A legacy is a summary, **not a snapshot**. Keeping the whole `CareerState` would be easy and wrong —
+it would multiply the save's size by every career you have ever finished, and every future migration
+would have to migrate careers nobody is playing. A finished career is finished, so it stores
+conclusions rather than the material they were drawn from.
+
+It also stores **names as well as ids**. Everywhere else the save refers to clubs by id and resolves
+them at render time, which is right for a live career: the club drifts, gets promoted, and must be
+read fresh. A finished career is the opposite case — it is a historical record, and a wall that
+throws because a club was renamed is worse than one that shows the name the career played under.
+
+Totals come from the **record book**, not from `history`. History holds completed seasons, so a
+career abandoned in March would otherwise lose the season it was abandoned in — the very season that
+made somebody abandon it. The record book is written per match, so it already contains today.
+
+The ranking is `careerScore`, and it is blunt on purpose: it exists to put the best career at the
+top, not to settle an argument. Three things are balanced — what he won, what he produced, and how
+long he did it for. Longevity is weighted lightest, so a twenty-season journeyman sits below a
+ten-season winner, but it is not zero, because turning out four hundred times is itself an
+achievement. The rating term is centred on 6.5 rather than 0, so an average career scores nothing
+for it either way; without that, appearances would be paid twice. Honour weights are deliberately
+*not* the reputation weights: reputation asks how good he is now and decays, this asks what he will
+be remembered for and cannot. A European Cup outscores the league title that qualified him for it,
+an international tournament outscores everything, and a relegation costs something.
+
+A career that never played a match is not kept. The threshold is the lowest one possible — a single
+appearance — because anything higher would start judging which real careers were worth remembering,
+and that is what the ranking is for.
+
+**Clearing is deliberate, and separate.** Wiping the wall never touches the career being played, and
+ending a career never touches the wall: they are two different kinds of loss, and running them
+together would make one of them a surprise. The wall can be cleared whole or one career at a time,
+behind a two-step press rather than a browser dialog — an action this final deserves a button that
+says what it is about to do. The wall is capped at twenty, because localStorage is not: a browser
+used for a year would otherwise accumulate entries nobody scrolls to, and the quota it eventually
+hit would take the live career down with it. The entries dropped are always the lowest-ranked.
+
+Enshrining and clearing the career are **one write**, never two. Two writes have a moment between
+them, and a browser that dies in that moment leaves you either with a career you have already said
+goodbye to, or with a wall entry for a career still being played.
+
 ### Balancing notes worth knowing
 
 Two calibration bugs were found by measurement rather than by eye, and both are documented at
@@ -1401,7 +1471,9 @@ with club valuation, scouting interest and summer offers, clubs that strengthen 
 to season, contracts with wages, terms, expiry and free transfers, an honours list covering titles, cups,
 European trophies, domestic and continental trebles, top scorer, player of the season,
 international caps and tournament wins, **a career record book of braces, hat-tricks, four- and five-goal games, perfect
-ratings, scoring and unbeaten runs and per-competition totals**, promotion and relegation machinery
+ratings, scoring and unbeaten runs and per-competition totals**, **an ending — retirement offered
+from 34 and forced at 39, an end screen that shows a career in full before you stop it, and a wall
+of fame that ranks every career this browser has finished**, promotion and relegation machinery
 (dormant on a one-tier world), debug mode, and a versioned localStorage save with migration.
 
 Deliberately **not** built yet: multiplayer, accounts, a backend, 3D, physics, large player
@@ -1410,18 +1482,41 @@ databases.
 ## Roadmap
 
 The four agreed stages — a world of countries, domestic cups, European competitions and
-international football — are all done. What remains, unchanged from before:
+international football — are all done, and so is the end of the loop: a career can now finish, and
+finishing one leaves something behind.
 
-- **A second division per country** — the machinery is written, tested and dormant; it needs clubs
-  and a fixture list.
-- **Squad context** — named teammates, so an assist has a recipient and a club has a shape. Still
-  the biggest structural gap: the reputation settlement weights playing time and awards require 60%
-  of a season, but you start every fixture forever, so neither can bite.
-- **Injuries and squad rotation** — the fitness model has enough bite to support them, and they are
-  what would make the playing-time half of reputation real.
-- **Playable goalkeeper** — `GK` exists as a position but has no playable match loop, so it needs
-  its own situations and involvement model. It also needs its own department in the transfer model:
-  `positionalNeed` currently reads a keeper against the outfield defence rating, and every
-  tactical-style weighting is an outfield profile.
-- **Richer location model** — the tactical zone model is designed to be swapped for 2D coordinates
-  behind the same `Zone` interface.
+What remains, **ordered by what it unblocks rather than by size**. The first item is the one every
+other item on this list is waiting for.
+
+1. **Squad context** — named teammates, so an assist has a recipient and a club has a shape.
+   The biggest structural gap by a distance, and the blocker for most of what follows: the
+   reputation settlement weights playing time and awards require 60% of a season, but you start
+   every fixture forever, so neither can bite. `Team` is currently a set of ratings and nothing
+   else.
+
+2. **Injuries and squad rotation** — the fitness model has enough bite to support them
+   (`FITNESS_RECOVERY`, and a match that costs 30-40 points), and they are what would make the
+   playing-time half of reputation real. **Depends on squad context**: without teammates, an injury
+   only means a match is skipped, with nobody taking your place and nothing to win back.
+
+3. **A second division per country** — the machinery is written, tested and dormant; it needs clubs
+   and a fixture list. `teams.json` is 192 clubs, sixteen per country across twelve countries, every
+   one of them tier 1. It is genuinely a data change rather than a re-implementation, but it is not
+   *only* one: a second tier reaches into the country coefficient, European entry (a relegated club
+   loses its place) and `positionalNeed` in the transfer model. It adds no matches to the calendar,
+   which is already full, so it is cheaper than it looks.
+
+4. **Playable goalkeeper** — `GK` exists as a position but has no playable match loop, so it needs
+   its own situations and involvement model. It also needs its own department in the transfer model:
+   `positionalNeed` currently reads a keeper against the outfield defence rating, and every
+   tactical-style weighting is an outfield profile. Independent of the three above, and the largest
+   single piece of new simulation left.
+
+5. **Richer location model** — the tactical zone model is designed to be swapped for 2D coordinates
+   behind the same `Zone` interface. Deliberately last: nothing else is waiting on it, and it is
+   worth more once there are teammates to have positions.
+
+Deliberately not on the list, and worth saying why: **multiple career slots**. The save holds
+exactly one career, which is why ending one used to be destructive. The wall of fame softens that —
+what a career did survives it — but it does not remove it, and slots would. It is the obvious next
+quality-of-life change if ending a career still feels too expensive.

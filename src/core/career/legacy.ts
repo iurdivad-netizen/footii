@@ -1,0 +1,387 @@
+import type { CareerState } from './career.ts';
+import type { Team } from '../team/team.ts';
+import type { Position } from '../player/positions.ts';
+import type { Honour, HonourKind } from './awards.ts';
+import { summariseHonours } from './awards.ts';
+import type { Milestone } from './records.ts';
+import { averageOf, lifetimeTotals, milestones } from './records.ts';
+import { currentAbility } from '../player/player.ts';
+import { getCountry } from './countries.ts';
+import { INTERNATIONAL } from './international.ts';
+import { round } from '../util/math.ts';
+
+/**
+ * THE END OF A CAREER, AND WHAT SURVIVES IT
+ *
+ * A career used to have exactly one ending: you pressed Abandon on the home
+ * screen, a browser dialog asked whether you were sure, and eighteen seasons of
+ * honours, records and history were deleted without ever being shown to you.
+ * Nothing carried over, so there was no reason to have played the first career
+ * before starting the second.
+ *
+ * This module is the other half of that. It turns a living `CareerState` — a
+ * large, versioned, deeply-nested thing — into a `CareerLegacy`: a small, flat
+ * summary that outlives the career it came from and can be ranked against
+ * every other career the same browser has played.
+ *
+ * Two decisions are worth explaining.
+ *
+ * A legacy is a SUMMARY, not a snapshot. Keeping the whole `CareerState` would
+ * be easy and wrong: it would multiply the save's size by however many careers
+ * you have finished, and every future migration would have to migrate careers
+ * nobody is playing any more. A legacy is finished — nothing will ever be added
+ * to it — so it stores conclusions rather than the material they were drawn
+ * from.
+ *
+ * A legacy stores NAMES as well as ids. Everything else in the save refers to
+ * clubs by id and resolves them at render time, which is correct while the
+ * career is live: the club drifts, gets promoted, and must be read fresh. A
+ * finished career is the opposite case. It is a historical record, the club it
+ * refers to may not exist in a later version of the data file, and a wall of
+ * fame that throws because a club was renamed is worse than one that shows the
+ * name the career actually played under.
+ */
+
+/** How a career came to an end. */
+export type CareerEnding = 'retired' | 'abandoned';
+
+/**
+ * One finished career, as the wall of fame remembers it.
+ *
+ * Plain data, like everything else that reaches the save: no classes, no
+ * functions, nothing that needs reconstructing on load.
+ */
+export interface CareerLegacy {
+  /** Stable id, so an entry can be removed without depending on its position. */
+  id: string;
+  name: string;
+  position: Position;
+  nationality: string;
+  ending: CareerEnding;
+  /** When it ended, for ordering two careers that scored the same. */
+  endedAt: number;
+  /** Seasons completed. A career abandoned in March completed the ones before it. */
+  seasons: number;
+  /** The season he was in when it ended, completed or not. */
+  finalSeasonNumber: number;
+  ageAtEnd: number;
+  /** Ability as he finished, which for a long career is well below his peak. */
+  abilityAtEnd: number;
+  finalClubId: string;
+  /** Resolved at the end, so a later data change cannot make this unreadable. */
+  finalClubName: string;
+  finalCountryId: string;
+  finalCountryShort: string;
+  /** Distinct clubs played for, and distinct countries played in. */
+  clubs: number;
+  countries: number;
+  /** Every competition added together, the season in progress included. */
+  appearances: number;
+  goals: number;
+  assists: number;
+  averageRating: number;
+  /** International appearances, which are the ones a country remembers. */
+  caps: number;
+  /** Wages banked across the career, in millions. */
+  earnings: number;
+  /** Everything won, grouped — "Champions ×3" rather than three entries. */
+  honours: { label: string; count: number }[];
+  /** League titles alone, because that is the number people compare. */
+  titles: number;
+  /** The peaks worth listing on a card, longest first. */
+  highlights: Milestone[];
+  /** The ranking number. See `careerScore`. */
+  score: number;
+  /** One line on what kind of footballer this was. */
+  verdict: string;
+}
+
+/**
+ * What each honour is worth to a career's standing.
+ *
+ * These are deliberately NOT the same as the reputation weights. Reputation
+ * asks "how good is he right now", and decays; this asks "what will he be
+ * remembered for", and cannot. So a European Cup is worth more here than the
+ * league title that qualified him for it, an international tournament is worth
+ * the most of all, and a relegation costs something — a career that went down
+ * twice is a different career, and a scoreboard that only ever adds would say
+ * it was the same one.
+ */
+const HONOUR_POINTS: Record<HonourKind, number> = {
+  internationalTitle: 110,
+  europeanTitle: 90,
+  continentalTreble: 80,
+  domesticTreble: 55,
+  internationalFinal: 50,
+  playerOfTheSeason: 50,
+  title: 45,
+  europeanFinal: 40,
+  topScorer: 35,
+  domesticDouble: 30,
+  youngPlayerOfTheSeason: 25,
+  nationalCup: 20,
+  leagueCup: 12,
+  capMilestone: 8,
+  promotion: 10,
+  internationalDebut: 6,
+  relegation: -12,
+};
+
+/** Milestones shown on a legacy card. More than this is a record book, not a card. */
+const HIGHLIGHT_LIMIT = 4;
+
+/**
+ * How good a career was, as one number.
+ *
+ * Used only for ORDERING the wall of fame, which is why it can be this blunt.
+ * Three things are balanced against each other: what he won, what he produced,
+ * and how long he did it for. Longevity is weighted lightest on purpose — a
+ * twenty-season journeyman should sit below a ten-season winner — but it is not
+ * zero, because turning out four hundred times is itself an achievement.
+ *
+ * The rating term is centred on 6.5 rather than 0 so that an average career
+ * scores nothing for it either way. Without that, appearances would be paid
+ * twice: once for happening, and again for having been merely adequate.
+ */
+export function careerScore(legacy: {
+  goals: number;
+  assists: number;
+  appearances: number;
+  averageRating: number;
+  caps: number;
+  seasons: number;
+  honours: readonly { label: string; count: number }[];
+  honourPoints: number;
+}): number {
+  const production = legacy.goals * 3 + legacy.assists * 1.6;
+  const longevity = legacy.appearances * 0.35 + legacy.seasons * 6;
+  const quality = legacy.appearances > 0 ? (legacy.averageRating - 6.5) * legacy.appearances * 0.9 : 0;
+  const country = legacy.caps * 1.5;
+  return Math.max(0, Math.round(production + longevity + quality + country + legacy.honourPoints));
+}
+
+/** What a set of honours is worth, in the currency `careerScore` spends. */
+export function honourPoints(honours: readonly Honour[]): number {
+  return honours.reduce((total, honour) => total + (HONOUR_POINTS[honour.kind] ?? 0), 0);
+}
+
+/**
+ * Should this career be kept at all?
+ *
+ * A career started and abandoned before a ball was kicked is not a career, and
+ * a wall of fame full of players who never played would bury the ones who did.
+ * The threshold is deliberately the lowest one possible — a single appearance —
+ * because anything higher would start making judgements about which real
+ * careers were worth remembering, and that is what the ranking is for.
+ */
+export function isWorthRemembering(legacy: { appearances: number }): boolean {
+  return legacy.appearances > 0;
+}
+
+/**
+ * One line on what kind of footballer this was.
+ *
+ * Reads the SHAPE of the career rather than its size, so two players with the
+ * same totals can be described differently — the one who never left, and the
+ * one who won the same things in four countries, are not the same story. Ordered
+ * most specific first: the first thing that is true is the thing worth saying.
+ */
+export function careerVerdict(legacy: {
+  ending: CareerEnding;
+  seasons: number;
+  clubs: number;
+  countries: number;
+  goals: number;
+  assists: number;
+  appearances: number;
+  averageRating: number;
+  titles: number;
+  caps: number;
+  honours: readonly { label: string; count: number }[];
+}): string {
+  const trophies = legacy.honours.reduce((total, entry) => total + entry.count, 0);
+  const goalsPerMatch = legacy.appearances > 0 ? legacy.goals / legacy.appearances : 0;
+
+  if (legacy.ending === 'abandoned' && legacy.seasons <= 1) {
+    return 'A career that was put down before it had said anything.';
+  }
+  if (legacy.titles >= 5) {
+    return `A serial winner: ${legacy.titles} league titles in ${legacy.seasons} seasons.`;
+  }
+  if (legacy.clubs === 1 && legacy.seasons >= 8) {
+    return `A one-club man — ${legacy.seasons} seasons, and never a reason to leave.`;
+  }
+  if (legacy.countries >= 4) {
+    return `A footballing life spent moving: ${legacy.countries} countries, ${legacy.clubs} clubs.`;
+  }
+  if (goalsPerMatch >= 0.7) {
+    return `A goalscorer above all else — ${goalsPerMatch.toFixed(2)} a game across a career.`;
+  }
+  if (legacy.caps >= 40) {
+    return `His country's for a decade: ${legacy.caps} caps and ${trophies} honours.`;
+  }
+  if (trophies === 0 && legacy.seasons >= 10) {
+    return `${legacy.seasons} seasons, ${legacy.appearances} appearances, and nothing in the cabinet.`;
+  }
+  if (legacy.averageRating >= 7.4) {
+    return `Reliably excellent: ${legacy.averageRating.toFixed(2)} across ${legacy.appearances} matches.`;
+  }
+  if (trophies > 0) {
+    return `${trophies} ${trophies === 1 ? 'honour' : 'honours'} in ${legacy.seasons} seasons.`;
+  }
+  return `${legacy.appearances} appearances, ${legacy.goals} goals, ${legacy.assists} assists.`;
+}
+
+/**
+ * Turn a living career into the record that outlives it.
+ *
+ * `lookup` is passed in rather than imported, for the same reason every other
+ * career function takes it: nothing under `core/` reaches into `data/`, so the
+ * caller supplies the clubs — drifted, as this career knew them.
+ *
+ * Totals come from the RECORD BOOK rather than from `history`, and the
+ * difference matters. History holds completed seasons, so a career abandoned in
+ * March would lose the season it was abandoned in — the very season that made
+ * somebody abandon it. The record book is written per match, so it already
+ * contains today.
+ */
+export function summariseCareer(
+  state: CareerState,
+  lookup: (id: string) => Team,
+  ending: CareerEnding,
+  now: number = Date.now(),
+): CareerLegacy {
+  const totals = lifetimeTotals(state.records);
+  const honours = state.honours ?? [];
+  const grouped = summariseHonours(honours);
+
+  // A club he only ever played one match for still counts as a club he played
+  // for, so this walks history and transfers rather than counting moves.
+  const clubIds = new Set<string>([state.clubId]);
+  const countryIds = new Set<string>([state.countryId]);
+  for (const season of state.history) {
+    clubIds.add(season.clubId);
+    if (season.countryId) countryIds.add(season.countryId);
+  }
+  for (const move of state.transfers ?? []) {
+    clubIds.add(move.fromClubId);
+    clubIds.add(move.toClubId);
+    countryIds.add(move.fromCountryId);
+    countryIds.add(move.toCountryId);
+  }
+
+  const legacy = {
+    id: `${state.seed}:${state.seasonNumber}:${now}`,
+    name: state.player.name,
+    position: state.player.position,
+    nationality: state.player.nationality,
+    ending,
+    endedAt: now,
+    seasons: state.history.length,
+    finalSeasonNumber: state.seasonNumber,
+    ageAtEnd: state.player.age,
+    abilityAtEnd: currentAbility(state.player),
+    finalClubId: state.clubId,
+    finalClubName: safeClubName(state.clubId, lookup),
+    finalCountryId: state.countryId,
+    // `getCountry` answers with a placeholder rather than throwing, so an
+    // unknown country degrades to a readable dash instead of losing the entry.
+    finalCountryShort: getCountry(state.countryId).short,
+    clubs: clubIds.size,
+    countries: countryIds.size,
+    appearances: totals.matches,
+    goals: totals.goals,
+    assists: totals.assists,
+    averageRating: averageOf(totals),
+    caps: state.records.byCompetition[INTERNATIONAL]?.matches ?? 0,
+    earnings: round(state.careerEarnings ?? 0, 1),
+    honours: grouped,
+    titles: honours.filter((honour) => honour.kind === 'title').length,
+    highlights: milestones(state.records).slice(0, HIGHLIGHT_LIMIT),
+  };
+
+  const verdict = careerVerdict(legacy);
+  const score = careerScore({ ...legacy, honourPoints: honourPoints(honours) });
+
+  return { ...legacy, verdict, score };
+}
+
+/**
+ * Sort a wall of fame: best first, most recent breaking a tie.
+ * Returns a new array — the caller's list is never reordered underneath it.
+ */
+export function rankLegacies(entries: readonly CareerLegacy[]): CareerLegacy[] {
+  return [...entries].sort((a, b) => b.score - a.score || b.endedAt - a.endedAt);
+}
+
+// ------------------------------------------------------------ retirement ---
+
+/**
+ * The age at which retiring becomes an option he is offered.
+ * Ability starts falling at 31 (see `ageFactor`), so by here the decline is
+ * something he has felt for three seasons rather than a number on a screen.
+ */
+export const RETIREMENT_OFFER_AGE = 34;
+
+/** The age at which he is not offered the choice. Everybody stops eventually. */
+export const RETIREMENT_FORCED_AGE = 39;
+
+/** Whether a career can go on, and what to say about it. */
+export interface RetirementProspect {
+  /** True when the decision has been taken for him. */
+  forced: boolean;
+  /** One line of context for the review screen. */
+  reason: string;
+}
+
+/**
+ * Is it time?
+ *
+ * Returns null for a career with football left in it — most careers, most
+ * seasons — which is the case the caller should find easiest to handle.
+ *
+ * Deliberately asked at the SEASON REVIEW rather than mid-season. A footballer
+ * decides this in the summer, and asking it after a bad match in November would
+ * turn a form dip into a life decision.
+ */
+export function retirementProspect(state: CareerState): RetirementProspect | null {
+  const age = state.player.age;
+  if (age >= RETIREMENT_FORCED_AGE) {
+    return {
+      forced: true,
+      reason: `At ${age} there is no more football in the legs. This is where it ends.`,
+    };
+  }
+  if (age < RETIREMENT_OFFER_AGE) return null;
+
+  const last = state.history[state.history.length - 1];
+  const before = state.history[state.history.length - 2];
+  const ratingOf = (season?: { stats: { matches: number; ratingTotal: number } }) =>
+    season && season.stats.matches > 0 ? season.stats.ratingTotal / season.stats.matches : 0;
+
+  const now = ratingOf(last);
+  const then = ratingOf(before);
+
+  if (now > 0 && then > 0 && now < then - 0.35) {
+    return {
+      forced: false,
+      reason: `You are ${age}, and last season was your worst in a while — ${now.toFixed(2)} against
+        ${then.toFixed(2)} the year before. You could go one more, or stop while the record still
+        reads well.`,
+    };
+  }
+  return {
+    forced: false,
+    reason: `You are ${age}. There is another season in you if you want it, and nobody would
+      question you for calling it a career instead.`,
+  };
+}
+
+/** A club name that cannot throw, for a record that has to outlive the data file. */
+function safeClubName(id: string, lookup: (clubId: string) => Team): string {
+  try {
+    return lookup(id).name;
+  } catch {
+    return id;
+  }
+}

@@ -13,6 +13,7 @@ import { europeanCompetition, europeanNameInProse } from '../../core/career/euro
 import type { InternationalState } from '../../core/career/international.ts';
 import { KNOCKOUT_ROUNDS, tournamentName } from '../../core/career/international.ts';
 import { countryOfNation, nationId } from '../../core/career/nations.ts';
+import type { RetirementProspect } from '../../core/career/legacy.ts';
 import { getTeam } from '../../data/gameData.ts';
 
 /** End-of-season summary, shown once the final fixture has been played. */
@@ -82,8 +83,20 @@ export class SeasonReviewScreen {
        * promises the next season and then shows the transfer window.
        */
       contractDecision: boolean;
+      /**
+       * Whether this is where the career stops, and what to say about it.
+       *
+       * Null for a career with football left in it, which is nearly all of
+       * them. Asked here rather than anywhere else because retiring is a
+       * summer decision: a footballer does not walk away in the middle of a
+       * season, and asking after a bad match in November would turn a dip in
+       * form into a life choice.
+       */
+      retirement?: RetirementProspect | null;
     },
     onContinue: () => void,
+    /** Take the career to its end screen. Required once `retirement` is set. */
+    onRetire?: () => void,
   ) {
     const stats = record.stats;
     const club = getTeam(record.clubId);
@@ -148,14 +161,27 @@ export class SeasonReviewScreen {
       ${renderReputation(context.reputation)}
       ${renderContractNews(context)}
       ${renderComparison(record, context.previous)}
+      ${renderRetirement(context.retirement ?? null)}
 
-      <button class="primary" id="continue-career">
-        ${continueLabel(context, record.seasonNumber)}
-      </button>`;
+      ${
+        context.retirement?.forced
+          ? `<button class="primary" id="retire-career">Hang up your boots</button>`
+          : `<button class="primary" id="continue-career">
+               ${continueLabel(context, record.seasonNumber)}
+             </button>
+             ${
+               context.retirement
+                 ? `<button class="ghost" id="retire-career">Retire instead</button>`
+                 : ''
+             }`
+      }`;
 
     this.element
-      .querySelector<HTMLButtonElement>('#continue-career')!
-      .addEventListener('click', onContinue);
+      .querySelector<HTMLButtonElement>('#continue-career')
+      ?.addEventListener('click', onContinue);
+    this.element
+      .querySelector<HTMLButtonElement>('#retire-career')
+      ?.addEventListener('click', () => onRetire?.());
   }
 }
 
@@ -426,6 +452,28 @@ function renderContractNews(context: {
         <div><dt>Earned this season</dt><dd>£${context.earnings}m</dd></div>
       </dl>
       ${lines.map((line) => `<p class="hint">${line}</p>`).join('')}
+    </div>`;
+}
+
+/**
+ * The end of the road, when it is in sight.
+ *
+ * Given a panel of its own rather than a line in the progress report, because
+ * it is the only thing on this screen that is a QUESTION. Everything else is
+ * telling the player what happened; this is asking him what happens next.
+ */
+function renderRetirement(retirement: RetirementProspect | null): string {
+  if (!retirement) return '';
+  return `
+    <div class="career-card retirement-panel${retirement.forced ? ' forced' : ''}">
+      <h2>${retirement.forced ? 'The end' : 'One more season?'}</h2>
+      <p class="hint">${retirement.reason}</p>
+      ${
+        retirement.forced
+          ? ''
+          : `<p class="hint">Retiring takes you to the end of the career, where you can look at all
+               of it before deciding for certain. Nothing is lost by going to look.</p>`
+      }
     </div>`;
 }
 
