@@ -38,6 +38,9 @@ import {
   renewalOffer,
 } from '../core/career/contracts.ts';
 import type { Contract, ContractOffer } from '../core/career/contracts.ts';
+import { negotiate } from '../core/career/negotiation.ts';
+import { defaultPreferences } from '../core/career/preferences.ts';
+import type { NegotiationAsk, NegotiationResult } from '../core/career/negotiation.ts';
 import { movementFor, resolveDivisions, simulateDivisionThrough } from '../core/career/divisions.ts';
 import {
   CUP_KINDS,
@@ -403,6 +406,7 @@ export function startCareer(options: StartCareerOptions): CareerState {
     seasonStartAbility: currentAbility(options.player),
     seasonStartExperience: options.player.experience,
     trainingPoints: 0,
+    preferences: defaultPreferences(),
     offers: [],
     transfers: [],
     countryId,
@@ -630,6 +634,15 @@ export interface PlayedMatchInput {
   fitnessAtEnd: number;
   /** True when the match was resolved automatically rather than played. */
   skipped?: boolean;
+  /**
+   * The shootout, when the player took one himself.
+   *
+   * Only ever set for a knockout tie that finished level and was PLAYED. A tie
+   * he skipped carries nothing here and is settled by the roll that has always
+   * settled it — see `applyPlayerResult`. The score comes along with the winner
+   * so the hub can say what happened rather than only who went through.
+   */
+  shootout?: { winnerId: string; scored: number; conceded: number };
 }
 
 /**
@@ -684,6 +697,19 @@ export function recordPlayerMatch(
     assists: input.stats.assists,
     rating: input.rating,
     skipped: !!input.skipped,
+    ...(input.shootout
+      ? {
+          shootout: {
+            // He plays a knockout international for his COUNTRY, so the side
+            // that won is not his club.
+            won:
+              input.shootout.winnerId ===
+              (scheduled.competition === INTERNATIONAL ? playerNation(state) : state.clubId),
+            scored: input.shootout.scored,
+            conceded: input.shootout.conceded,
+          },
+        }
+      : {}),
   };
 
   const club = clubIn(state, lookup, state.clubId);
@@ -754,6 +780,7 @@ function settleInternational(
     goalsFor: input.playerTeamScore,
     goalsAgainst: input.opponentScore,
     lookup: (id) => teamIn(state, lookup, id),
+    shootoutWinnerId: input.shootout?.winnerId,
   });
   closeRound(knockout, nation);
 }
@@ -779,6 +806,7 @@ function settlePlayerTie(
     goalsFor: input.playerTeamScore,
     goalsAgainst: input.opponentScore,
     lookup: (id) => clubIn(state, lookup, id),
+    shootoutWinnerId: input.shootout?.winnerId,
   });
   closeRound(cup, state.clubId);
 }
@@ -1304,6 +1332,7 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     prestigeOf: (id) => prestigeOfClub(state, id),
     countryOf: (id) => countryOfClub(state, id),
     outOfContract,
+    preferences: state.preferences,
   });
 
   // His own club only puts terms up when the old deal has actually run out.
@@ -1481,6 +1510,50 @@ export function acceptOffer(
  * UI is expected to check `canStay` first, and a silent no-op here would leave
  * a career playing a season it has no contract for.
  */
+/**
+ * Push one deal on one thing.
+ *
+ * Lives here rather than in the screen because the answer has to be WRITTEN —
+ * an improved offer is the offer he then accepts, and a withdrawn one has to be
+ * gone if he closes the tab and comes back. A negotiation held only in the UI
+ * would evaporate on a reload, which for a withdrawal would quietly hand the
+ * offer back.
+ *
+ * `offerId` is null for his own club's renewal, of which there is only ever one.
+ *
+ * Returns null when the ask cannot be made. One case matters: a player whose
+ * contract has run out and who has NO other offers cannot haggle over his
+ * club's renewal, because a withdrawal there would leave him with nothing to
+ * sign and a summer with no way out of it. That is also true football — a man
+ * out of contract that nobody else wants has no leverage — which is why it is a
+ * rule rather than a safety net bolted on afterwards.
+ */
+export function negotiateDeal(
+  state: CareerState,
+  offerId: string | null,
+  ask: NegotiationAsk,
+): NegotiationResult<TransferOffer> | NegotiationResult<ContractOffer> | null {
+  // Seeded from what is being asked, so the same question always gets the same
+  // answer — reloading and asking again cannot reroll a refusal.
+  const rng = new Rng(
+    `${state.seed}:s${state.seasonNumber}:negotiate:${offerId ?? 'renewal'}:${ask}`,
+  );
+
+  if (offerId === null) {
+    if (!state.renewal) return null;
+    if (state.offers.length === 0 && isExpired(state.contract)) return null;
+    const result = negotiate(rng, state.renewal, ask);
+    state.renewal = result.deal.withdrawn ? null : result.deal;
+    return result;
+  }
+
+  const index = state.offers.findIndex((offer) => offer.id === offerId);
+  if (index === -1) return null;
+  const result = negotiate(rng, state.offers[index]!, ask);
+  state.offers[index] = result.deal;
+  return result;
+}
+
 export function stayAtClub(state: CareerState): Contract {
   if (!canStay(state)) {
     throw new Error('stayAtClub called with an expired contract and no renewal offered');

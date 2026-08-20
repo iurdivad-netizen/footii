@@ -1313,6 +1313,79 @@ refer to a world the other half does not have. Import means "make this browser b
 the copy in front of it says so. The file is parsed and migrated *before* anything is written, so a
 bad import costs nothing: the worst case is a message and the save you already had.
 
+### Penalty shootouts
+
+A knockout tie that finishes level has always gone to penalties. `applyPlayerResult` has always
+sent it to the spot and picked a winner. The problem was that it happened INVISIBLY: you played
+ninety minutes, it finished 1-1, the full-time screen said **Draw**, and the next time you looked
+at the bracket you were out of the cup. Nothing told you there had been a shootout, and the one
+moment in a cup run that most deserves to be a decision was the only part of the match you were not
+allowed to play.
+
+So a shootout is now something that takes place. Five kicks each, alternating, sudden death after
+that, and the standard rule that it stops the moment the remaining kicks cannot change the outcome.
+
+**You take your own kicks.** They are built from the same penalty situation the match engine uses —
+same template, same six options, same keeper who commits partway through your window. That reuse is
+the design: a shootout penalty should be exactly the penalty you already know how to take, because
+what makes it different is what is riding on it, not the mechanics. Where you come in the order is
+decided by your finishing and composure, better takers first, and the order repeats in sudden death
+— so a shootout that runs long brings you back round, which is most of the reason a long one is
+worth watching.
+
+**A shootout is not part of the match.** Shootout goals are not goals: no career total, no record
+book, no movement in your match rating. That is how football counts them, and it is why the engine
+lives outside the match rather than as an extra phase inside it — the separation makes it true by
+construction rather than by remembering to skip it.
+
+**A tie you skipped still goes to a real shootout**, simulated in full, with a score. It used to be
+a single weighted roll that produced a winner and nothing else, so there was no way for the hub to
+distinguish going out on penalties from losing 1-0. Both now read as what they were.
+
+On the conversion rate, one measured correction to an earlier note in this file: the weighting by
+club strength was never severe. Across the whole world the extremes are about 72/28, and a typical
+mismatch about 60/40 — which is what the code's own comment claimed and what the numbers bear out.
+The bug was the silence, not the odds. `conversionChance` keeps that shape deliberately: the spread
+between the best and worst side is worth about ten percentage points, where in open play it decides
+matches.
+
+### Having a position: contracts and where you will go
+
+Two things used to be done TO the player rather than by him.
+
+**A contract was take-it-or-leave-it.** A club made an offer; you accepted it or you did not. Wages,
+length and squad role simply happened to you. You can now **push once, on one of the three**, on any
+offer and on your own club's renewal. Once, deliberately: a deal you can renegotiate repeatedly is a
+slot machine rather than a decision, and the ask would cost nothing.
+
+And it can cost something. A club that only half wants you can **take the offer off the table**
+rather than be haggled with. How likely that is comes from its interest and nothing else — the side
+desperate for you will take being pushed, the side half looking elsewhere will not — and walking
+away is deliberately kept rarer than simply refusing, because a summer in which asking about money
+regularly lost you the move would teach players never to ask, which is the state this replaced.
+A promise about playing time is the hardest of the three to get: money is a number, and a role is a
+plan for the season.
+
+One rule stops a dead end: **you cannot haggle over the only deal you have.** A player whose
+contract has run out and who has no other bids has no leverage — which is true football, and also
+what stops him talking himself into a summer with nothing left to sign.
+
+**The market never asked what he wanted.** Offers came from club interest alone, so there was no way
+to be a footballer who would not leave his country, or who had spent five seasons wanting to play in
+Spain. Preferences are now stated *before* the window opens, which is the only point at which they
+can matter — applied afterwards they would be a filter on a list already decided.
+
+Three things, all blunt:
+
+- **Settled** — he is not listening this summer, and nobody bids.
+- **Refused** — countries he will not move to. Those clubs do not bid at all.
+- **Favoured** — countries he would like. Those clubs are keener than they were.
+
+The asymmetry is the point: a refusal is absolute and a preference is only a nudge, because a player
+can genuinely rule a league out and cannot make a club in one want him. Refusing the country you
+already play in means "I will not move abroad" and never blocks you from staying or signing at home
+— reading it the other way would strand an out-of-contract player with nowhere at all to go.
+
 ### Balancing notes worth knowing
 
 Two calibration bugs were found by measurement rather than by eye, and both are documented at
@@ -1517,7 +1590,8 @@ international caps and tournament wins, **a career record book of braces, hat-tr
 ratings, scoring and unbeaten runs and per-competition totals**, **an ending — retirement offered
 from 34 and forced at 39, an end screen that shows a career in full before you stop it, and a wall
 of fame that ranks every career this browser has finished**, **three independent career slots**,
-**export and import of the whole save**, promotion and relegation machinery
+**export and import of the whole save**, **penalty shootouts you take the kicks in**,
+**contracts you can push back on and stated preferences about where you will play**, promotion and relegation machinery
 (dormant on a one-tier world), debug mode, and a versioned localStorage save with migration.
 
 Deliberately **not** built yet: multiplayer, accounts, a backend, 3D, physics, large player
@@ -1564,3 +1638,97 @@ Done since this list was last written, and worth recording because both were lis
 obvious next steps: **three career slots**, so ending a career is no longer the price of starting
 another, and **export/import of the save**, so a browser clearing its storage is no longer the end
 of everything the game has recorded. Both are documented under *Career mode*.
+
+### Reported bugs and improvements
+
+Raised from playing the game. Each is annotated with what the code actually does today, because
+several turned out to be a different problem from the one they looked like.
+
+**1. The European competitions should be a group stage, then a knockout.**
+Confirmed. `europe.ts` says so in its own header: *"Sixteen clubs, an open draw, four rounds —
+mechanically the same knockout as a domestic cup, and deliberately so."* That sharing was the right
+call when the priority was getting Europe to exist at all — every fix to the draw or the shootout
+applies to all five competitions at once — but it means the Champions League is a cup, not a
+league-then-cup. The international tournament already has the shape wanted here (groups, then a
+seeded knockout, in `international.ts`), so this is largely a matter of giving `EuropeanState` the
+same two-phase structure and finding the extra matchdays in an already crowded calendar.
+
+**2. You should be able to choose where to start, or play a trial.**
+Half of this already works and the other half is the real problem. The setup screen's club list is
+**every one of the 192 clubs, unrestricted** — so you can already start anywhere, including starting
+an 18-year-old with 54 ability at the best side in the world, which no club would do. What is
+missing is not the choice but the *gate*: a trial match, or a reputation and ability check that
+decides which clubs would actually take you, with the rest greyed out or reachable only by earning
+them.
+
+**3. You should be able to respond to a contract offer.** ✅ **Done.**
+You can push once, on wages, length or squad role, on any offer and on your own club's renewal —
+and a club that only half wants you can withdraw rather than be haggled with. See *Having a
+position* above.
+
+**4. You should be able to refuse a move upfront, and name preferred leagues.** ✅ **Done.**
+Stated before the window opens and read by `generateOffers`, so a refused country's clubs do not
+bid at all rather than bidding and being hidden. See *Having a position* above.
+
+**5. A cup tie that ends level eliminates the player's club.** ✅ **Done** — and it was a different
+bug from the one it looked like. A level tie never did eliminate you automatically:
+`applyPlayerResult` has always sent it to penalties. Two separate claims were worth checking, and
+only one survived:
+
+  - **The shootout was invisible.** True, and the whole of the bug. No extra time, no shootout to
+    play, nothing in the full-time screen or the hub — the only place in the entire UI that rendered
+    a `pens` tag was the world browser. You now play your own kicks; see *Penalty shootouts* above.
+  - **The odds were badly weighted.** *Not true, and the earlier note here was wrong.* Measured
+    across the whole world, the extreme case is about 72/28 and a typical mismatch about 60/40 —
+    mild, and what the code's own comment claimed. The weighting was left alone.
+
+**6. Every country should have a super cup.**
+Confirmed missing: `CupKind` is `'nationalCup' | 'leagueCup'` and nothing else. The cup machinery is
+already generic over its id, so a one-match competition between the league champion and the national
+cup winner is mostly a calendar slot and an honour, not new machinery.
+
+**7. Salaries should look more like real ones.**
+Confirmed, with numbers. `offeredWage` is `2 ** ((ability - 40) / 9)` scaled by club and division,
+which puts an ability-70 first-division starter on roughly **£12k a week** and an ability-85 one on
+about **£38k**. The £500k ceiling needs an ability around 110, so it is unreachable and the curve
+never gets near it. Real top-flight money is several times that through the middle of the range,
+which also means `careerEarnings` — and the "£Xm earned" figure on the end screen — currently reads
+low for a whole career.
+
+**8. The career history table should show every trophy, season by season.** ✅ **Done.**
+It was a rendering gap, not a data one — the honours list already held a season's trophies, awards
+and promotions together. Both history tables now badge them by kind, so the eye separates what the
+club won from what the player won, and both from a relegation.
+
+**9. The decision window should be about 10 seconds at 1x.**
+Currently the situation base times are 1.7–2.1s, clamped to `MIN_DECISION_TIME` 1.0 and
+`MAX_DECISION_TIME` 4.5. Ten seconds is roughly a five-fold change and touches more than one
+constant: the goalkeeper commits partway through the window, so his commit point moves with it, and
+the *Balancing notes* below were all measured against the current scale. Worth doing as a deliberate
+re-calibration rather than a constant edit.
+
+**10. The default should be no time limit.** ✅ **Done.**
+`defaultSettings()` now returns `pace: 'untimed'`. A two-second window on six options you have never
+read before is a reflex test rather than a decision, and somebody whose first three chances expire
+never finds out what the game is. The keeper still commits on schedule at this setting, so the read
+is unchanged.
+
+**11. The career score should be penalised for skipped matches and for a generous pace.**
+Right in principle: a career built on skipped matches at no time limit is not the same career as one
+played out at Hardcore, and `careerScore` currently cannot tell them apart. One catch worth knowing
+before starting — **skipped matches are not counted anywhere**. `skipped` exists per match and only
+the most recent one survives, in `lastResult`. This needs a counter on `CareerState`, which means it
+can only count matches skipped *after* the change; existing careers would start from zero rather
+than being retro-scored.
+
+#### What is left, and where it would go next
+
+(3), (4), (5), (8) and (10) are done. Of the rest:
+
+(7) is the most contained — a re-calibration with a clear target, and one that also fixes the "£Xm
+earned" figure on the end screen. (1) and (6) both want room in an already full calendar, so they
+are worth planning together rather than one at a time. (9) is a deliberate rebalance rather than a
+constant edit, since the keeper's commit point moves with the window and every balancing note below
+was measured against the current scale. (2) needs a gate rather than a choice, and is the one that
+most changes how a career begins. (11) should wait for the counter it needs, and can only ever count
+forward from the change.

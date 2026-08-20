@@ -381,6 +381,68 @@ export function evaluateHonours(input: HonoursInput): HonoursResult {
   return { honours, capsGained };
 }
 
+/**
+ * What an honour IS, for a screen that has to show it in a table cell.
+ *
+ * Three kinds, because they answer different questions. A trophy is something
+ * the club won; an award is something the player won; and a movement is
+ * promotion or relegation — not an honour at all in the case of relegation, but
+ * the most important thing that happened to that season and impossible to leave
+ * out of a history that claims to list what a season contained.
+ */
+export type HonourTone = 'trophy' | 'award' | 'movement' | 'setback';
+
+const HONOUR_TONES: Record<HonourKind, HonourTone> = {
+  title: 'trophy',
+  nationalCup: 'trophy',
+  leagueCup: 'trophy',
+  europeanTitle: 'trophy',
+  continentalTreble: 'trophy',
+  domesticDouble: 'trophy',
+  domesticTreble: 'trophy',
+  internationalTitle: 'trophy',
+  europeanFinal: 'award',
+  internationalFinal: 'award',
+  topScorer: 'award',
+  playerOfTheSeason: 'award',
+  youngPlayerOfTheSeason: 'award',
+  internationalDebut: 'award',
+  capMilestone: 'award',
+  promotion: 'movement',
+  relegation: 'setback',
+};
+
+export function honourTone(kind: HonourKind): HonourTone {
+  return HONOUR_TONES[kind] ?? 'award';
+}
+
+/**
+ * Everything one season put on the list.
+ *
+ * The career history table used to print a 🏆 for the national cup and a 🥈 for
+ * the league cup, and nothing else — so a season that won the league, the
+ * double and the Champions League showed the same single icon as one that won a
+ * minor cup, and a golden boot showed nothing at all. Everything needed was
+ * already recorded; only the reading of it was missing.
+ *
+ * The honours list is the right source rather than `SeasonRecord`, because it
+ * is the one place a season's trophies, its individual awards and its
+ * promotions all sit together, already labelled and already in the country's
+ * own words.
+ */
+export function honoursInSeason(
+  honours: readonly Honour[],
+  season: number,
+): { label: string; tone: HonourTone; detail: string }[] {
+  return honours
+    .filter((honour) => honour.season === season)
+    .map((honour) => ({
+      label: honour.label,
+      tone: honourTone(honour.kind),
+      detail: honour.detail,
+    }));
+}
+
 /** Group an honours list by kind, for a hub that shows "3× champions". */
 export function summariseHonours(honours: readonly Honour[]): { label: string; count: number }[] {
   const counts = new Map<string, number>();

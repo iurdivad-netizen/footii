@@ -267,13 +267,26 @@ export function openRound(input: CupProgressInput): CupRound {
  * Record the result of the player's own tie and move the cup on.
  *
  * Called after the tie has been played or skipped. A knockout cannot end level,
- * so a drawn ninety minutes is settled from the spot here exactly as it is for
- * every other tie.
+ * so a drawn ninety minutes is settled from the spot.
+ *
+ * `shootoutWinnerId` is how a shootout the player actually TOOK gets in. When
+ * it is absent the shootout is rolled here, as it always was — that is a tie he
+ * skipped, and skipping a match is a choice to let the season resolve itself.
+ * When it is present the kicks have already been taken, and this must not
+ * second-guess them: a screen that let you score the winning penalty and then
+ * quietly re-rolled the result would be worse than not showing the shootout at
+ * all.
  */
 export function applyPlayerResult(
   rng: Rng,
   cup: CupState<KnockoutId>,
-  input: { clubId: string; goalsFor: number; goalsAgainst: number; lookup: (id: string) => Team },
+  input: {
+    clubId: string;
+    goalsFor: number;
+    goalsAgainst: number;
+    lookup: (id: string) => Team;
+    shootoutWinnerId?: string;
+  },
 ): CupTie {
   const round = cup.rounds[cup.rounds.length - 1];
   if (!round) throw new Error('applyPlayerResult: no round has been drawn');
@@ -292,6 +305,9 @@ export function applyPlayerResult(
   let penalties = false;
   if (homeGoals !== awayGoals) {
     winnerId = homeGoals > awayGoals ? tie.homeId : tie.awayId;
+  } else if (input.shootoutWinnerId) {
+    penalties = true;
+    winnerId = input.shootoutWinnerId;
   } else {
     penalties = true;
     const edge = clamp01(

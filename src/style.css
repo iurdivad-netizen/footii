@@ -2779,3 +2779,433 @@ button.ghost.danger {
 .save-data .save-actions .ghost {
   margin-top: 0;
 }
+
+/* ------------------------------------------- a season's honours --------- */
+
+/*
+ * What a season won, in a table cell.
+ *
+ * The history's last column used to be a single emoji, so a treble read exactly
+ * like a minor cup. Badges rather than icons, because the names are the point —
+ * "Spanish champions" says something an icon cannot — and toned by kind so the
+ * eye can separate what the club won from what the player did, and both from a
+ * relegation.
+ */
+.season-honours {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.season-honour {
+  font-style: normal;
+  font-size: 0.66rem;
+  line-height: 1.3;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.season-honour.trophy {
+  border-color: var(--goal);
+  background: rgba(250, 204, 21, 0.12);
+  color: var(--goal);
+}
+
+.season-honour.award {
+  border-color: var(--accent);
+  background: rgba(74, 222, 128, 0.1);
+  color: var(--accent);
+}
+
+.season-honour.movement {
+  border-color: rgba(255, 255, 255, 0.25);
+  color: var(--text);
+}
+
+.season-honour.setback {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+}
+
+.season-honours-none {
+  color: var(--text-dim);
+}
+
+/* --------------------------------------------------------- shootout ----- */
+
+/*
+ * Penalties.
+ *
+ * Deliberately sparse. A shootout is a sequence of single moments with nothing
+ * else happening, and a screen with anything else on it would be arguing with
+ * that. The board is the only thing that persists; everything else arrives one
+ * line at a time.
+ */
+.shootout-head {
+  text-align: center;
+  padding: clamp(12px, 3vw, 24px) 0 16px;
+}
+
+.shootout-kicker {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.shootout-head h1 {
+  margin: 6px 0 8px;
+  font-size: clamp(1.6rem, 5vw, 2.2rem);
+}
+
+.shootout-score {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.shootout-team {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.shootout-name {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+}
+
+.shootout-value {
+  font-family: var(--mono);
+  font-size: clamp(2rem, 8vw, 3rem);
+  line-height: 1;
+  color: var(--accent);
+}
+
+.shootout-dash {
+  color: var(--text-dim);
+}
+
+.shootout-board {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 560px;
+  margin: 0 auto 18px;
+}
+
+.shootout-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.shootout-row-name {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  min-width: 5ch;
+}
+
+.shootout-kicks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.kick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.kick.pending {
+  border-style: dashed;
+  opacity: 0.5;
+}
+
+.kick.scored {
+  border-color: var(--accent);
+  background: rgba(74, 222, 128, 0.15);
+  color: var(--accent);
+}
+
+.kick.missed {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--danger);
+}
+
+/* The ones he took himself, so a board can be read back afterwards. */
+.kick.own {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px currentColor;
+}
+
+.shootout-status {
+  text-align: center;
+  font-size: 1rem;
+  min-height: 1.5em;
+  margin: 0 0 16px;
+  color: var(--text-dim);
+}
+
+.shootout-status.yours {
+  color: var(--goal);
+  font-weight: 700;
+}
+
+.shootout-status.won {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.shootout-status.lost {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.shootout-commentary {
+  list-style: none;
+  margin: 0 auto;
+  padding: 0;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.shootout-commentary li {
+  font-size: 0.86rem;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border-left: 3px solid var(--line);
+  background: var(--bg-raised);
+}
+
+.shootout-commentary li.scored {
+  border-left-color: var(--accent);
+}
+
+.shootout-commentary li.missed {
+  border-left-color: var(--danger);
+}
+
+.shootout-commentary li.own {
+  background: var(--bg-panel);
+}
+
+.shootout-taker {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--text-dim);
+  margin-right: 6px;
+}
+
+#shootout-continue {
+  display: block;
+  margin: 20px auto 0;
+  width: auto;
+}
+
+/* Full time, when the tie went to the spot. */
+.ft-shootout {
+  text-align: center;
+  font-size: 1.05rem;
+  margin: -6px 0 14px;
+}
+
+.ft-shootout.won {
+  color: var(--accent);
+}
+
+.ft-shootout.lost {
+  color: var(--danger);
+}
+
+.last-result-tag.pens {
+  border-color: var(--goal);
+  color: var(--goal);
+}
+
+/* ------------------------------------------------------ negotiation ----- */
+
+/*
+ * Pushing back on a deal.
+ *
+ * Deliberately below the terms and above the accept button, in the order the
+ * decision is actually made: read what they are offering, decide whether to ask
+ * for more, then sign. The asks are quiet — they are the secondary action on a
+ * card whose primary action is taking the deal.
+ */
+.negotiation {
+  margin: 10px 0;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
+.negotiation .hint {
+  margin: 0 0 8px;
+}
+
+.negotiation-asks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.negotiation-asks .ghost {
+  margin-top: 0;
+}
+
+.negotiation-answer {
+  margin: 10px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border-left: 3px solid var(--line);
+  background: var(--bg-panel);
+  font-size: 0.88rem;
+}
+
+.negotiation-answer.improved {
+  border-left-color: var(--accent);
+  color: var(--accent);
+}
+
+.negotiation-answer.refused {
+  border-left-color: var(--warn);
+}
+
+.negotiation-answer.withdrawn {
+  border-left-color: var(--danger);
+  color: var(--danger);
+}
+
+.negotiation-gone {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: var(--danger);
+}
+
+.offer-card.withdrawn {
+  opacity: 0.6;
+}
+
+/* --------------------------------------------- transfer preferences ----- */
+
+.settled-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.settled-row input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.career-card.muted {
+  opacity: 0.55;
+}
+
+/*
+ * One control per country, cycling through three states.
+ *
+ * Twelve countries with three switches each would be a settings page; this is a
+ * row of opinions. The colour carries the state and the sub-label says it in
+ * words, because a green border and a red one are the same thing to a lot of
+ * people.
+ */
+.country-stances {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.stance {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+}
+
+.stance-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.stance-note {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.stance.favoured {
+  border-color: var(--accent);
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.stance.favoured .stance-note {
+  color: var(--accent);
+}
+
+.stance.refused {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.stance.refused .stance-note {
+  color: var(--danger);
+}
+
+.stance.home {
+  border-style: dashed;
+}
+
+.stance-key {
+  font-style: normal;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+}
+
+.stance-key.favoured {
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+.stance-key.refused {
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+.preferences-summary {
+  margin: 16px 0;
+  font-size: 0.95rem;
+  color: var(--accent);
+}

@@ -22,6 +22,14 @@ export interface FullTimeOptions {
   /** Attribute changes earned in this match, shown in career mode. */
   development?: AttributeChange[];
   totals?: TotalsView;
+  /**
+   * The shootout, when the tie went to one.
+   *
+   * Given its own line above everything else, because in a cup it is the
+   * result: "Draw" is not an outcome a knockout can have, and for a long time
+   * that is exactly what this screen said before knocking you out in silence.
+   */
+  shootout?: { won: boolean; scored: number; conceded: number };
 }
 
 /** Full-time summary for both quick matches and career fixtures. */
@@ -39,7 +47,19 @@ export class FullTimeScreen {
     this.element.className = 'screen fulltime-screen';
     this.element.innerHTML = `
       <h1>Full time</h1>
-      <p class="ft-score">${engine.scoreline()} <span class="verdict ${verdict.toLowerCase()}">${verdict}</span></p>
+      <p class="ft-score">${engine.scoreline()} ${
+        options.shootout
+          ? ''
+          : `<span class="verdict ${verdict.toLowerCase()}">${verdict}</span>`
+      }</p>
+      ${
+        options.shootout
+          ? `<p class="ft-shootout ${options.shootout.won ? 'won' : 'lost'}">
+               ${options.shootout.won ? 'Through on penalties' : 'Out on penalties'},
+               <strong>${options.shootout.scored}-${options.shootout.conceded}</strong>.
+             </p>`
+          : ''
+      }
 
       <div class="ft-rating">
         <span class="ft-rating-value">${rating.toFixed(1)}</span>

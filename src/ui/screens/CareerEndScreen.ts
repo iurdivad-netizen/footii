@@ -4,6 +4,7 @@ import { isWorthRemembering } from '../../core/career/legacy.ts';
 import { milestones } from '../../core/career/records.ts';
 import { averageRating } from '../../core/career/seasonStats.ts';
 import { getCountry, leagueName } from '../../core/career/countries.ts';
+import { renderSeasonHonours } from './CareerScreen.ts';
 import { positionLabel } from '../../core/player/positions.ts';
 import { getTeam } from '../../data/gameData.ts';
 
@@ -197,6 +198,7 @@ function renderHistory(state: CareerState): string {
           <td>${season.stats.goals}</td>
           <td>${season.stats.assists}</td>
           <td>${averageRating(season.stats).toFixed(2)}</td>
+          <td>${renderSeasonHonours(state.honours ?? [], season.seasonNumber)}</td>
         </tr>`,
     )
     .join('');
@@ -205,7 +207,7 @@ function renderHistory(state: CareerState): string {
       <table class="league-table">
         <thead>
           <tr><th>S</th><th>Club</th><th>Country</th><th>Age</th><th>Pos</th><th>Apps</th>
-              <th>G</th><th>A</th><th>Rating</th></tr>
+              <th>G</th><th>A</th><th>Rating</th><th>Won</th></tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>

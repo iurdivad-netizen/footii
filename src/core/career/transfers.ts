@@ -8,6 +8,8 @@ import type { TacticalStyle, Team } from '../team/team.ts';
 import type { SeasonStats } from './seasonStats.ts';
 import { clubStature } from './reputation.ts';
 import { getCountry } from './countries.ts';
+import type { CareerPreferences } from './preferences.ts';
+import { defaultPreferences, interestMultiplier, willConsider } from './preferences.ts';
 
 /**
  * TRANSFERS
@@ -445,6 +447,10 @@ export interface TransferOffer {
   /** True when he is leaving on a free rather than for a fee. */
   free: boolean;
   notes: string[];
+  /** Set once he has pushed the club on something. See core/career/negotiation.ts. */
+  negotiated?: boolean;
+  /** Set when the club pulled the offer rather than be haggled with. */
+  withdrawn?: boolean;
 }
 
 /**
@@ -554,6 +560,15 @@ export interface OfferGenerationInput {
   countryOf?: (clubId: string) => string;
   /** True when his contract has run out, so he leaves for nothing. */
   outOfContract?: boolean;
+  /**
+   * What he has said he wants from a move.
+   *
+   * Applied HERE rather than as a filter on the finished list, because a
+   * preference that only hid offers would be cosmetic: the clubs would still
+   * have bid, the market would still have moved, and telling the game you will
+   * not leave England would change nothing except what you were shown.
+   */
+  preferences?: CareerPreferences;
 }
 
 /**
@@ -575,9 +590,14 @@ export function generateOffers(rng: Rng, input: OfferGenerationInput): TransferO
   const currentPrestige = current ? prestigeOf(current.id) : 1;
   const currentCountry = current ? countryOf(current.id) : '';
 
+  const preferences = input.preferences ?? defaultPreferences();
+
   const interested = input.clubs
     .filter((team) => team.id !== input.currentClubId)
     .filter((team) => !input.excludeClubIds?.includes(team.id))
+    // A country he has ruled out does not bid at all, and a player who says he
+    // is settled hears from nobody.
+    .filter((team) => willConsider(preferences, countryOf(team.id), currentCountry))
     .map((team) =>
       clubInterest({
         player: input.player,
@@ -591,6 +611,12 @@ export function generateOffers(rng: Rng, input: OfferGenerationInput): TransferO
         outOfContract: input.outOfContract,
       }),
     )
+    // A country he wants makes its clubs keener, which can be the difference
+    // between watching him and bidding for him.
+    .map((interest) => ({
+      ...interest,
+      score: clamp01(interest.score * interestMultiplier(preferences, countryOf(interest.clubId))),
+    }))
     .filter((interest) => interest.score >= OFFER_THRESHOLD)
     .sort((a, b) => b.score - a.score);
 

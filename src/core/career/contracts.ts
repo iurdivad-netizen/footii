@@ -54,6 +54,10 @@ export interface ContractOffer {
   /** The club's interest that produced it, 0-1. */
   interest: number;
   notes: string[];
+  /** Set once he has pushed his club on something. See core/career/negotiation.ts. */
+  negotiated?: boolean;
+  /** Set when the club withdrew the terms rather than improve them. */
+  withdrawn?: boolean;
 }
 
 /**
