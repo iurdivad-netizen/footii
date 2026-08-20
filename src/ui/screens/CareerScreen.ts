@@ -7,7 +7,13 @@ import type { CareerState } from '../../core/career/career.ts';
 import { matchesRemaining, nextMatch, seasonComplete } from '../../core/career/career.ts';
 import { CUP_KINDS, cupName, roundName, stillIn, totalRounds } from '../../core/career/cups.ts';
 import { competitionLabel, isEuropean, isInternational } from '../../core/career/calendar.ts';
-import { europeanCompetition, placesDescription, tierForPosition } from '../../core/career/europe.ts';
+import {
+  europeanCompetition,
+  europeanNameInProse,
+  europeanTierOf,
+  placesDescription,
+  tierForPosition,
+} from '../../core/career/europe.ts';
 import { milestones } from '../../core/career/records.ts';
 import {
   KNOCKOUT_ROUNDS,
@@ -358,17 +364,21 @@ export class CareerScreen {
       return `<p class="hint">Nobody is watching you yet. Reputation is built on goals, assists and ratings.</p>`;
     }
     const items = watching
-      .map(
-        (interest) =>
-          `<li>
+      .map((interest) => {
+        // Which competition the club is in THIS season. A club watching you
+        // from the Champions League is a different proposition to one watching
+        // from mid-table, and the difference was invisible until it was said.
+        const tier = europeanTierOf(this.state.europeanEntries ?? {}, interest.clubId);
+        return `<li>
             <span>${getTeam(interest.clubId).name}
               <em class="watch-division">${getCountry(
                 this.countryOf(interest.clubId),
               ).short}</em>
+              ${tier ? `<em class="watch-europe">${europeanCompetition(tier).short}</em>` : ''}
             </span>
             <span class="watch-level">${describeInterest(interest.score)}</span>
-          </li>`,
-      )
+          </li>`;
+      })
       .join('');
     return `<h3 class="watch-heading">Scouts watching</h3><ul class="watch-list">${items}</ul>`;
   }
@@ -471,7 +481,7 @@ export class CareerScreen {
         played === 0
           ? placesDescription(this.state.countryId)
           : target
-            ? `On current form you would qualify for ${europeanCompetition(target).name} next season.`
+            ? `On current form you would qualify for ${europeanNameInProse(target)} next season.`
             : `Finish higher, or win a cup, and you are in Europe next season.`;
       return `
         <div class="career-card">
@@ -484,10 +494,13 @@ export class CareerScreen {
     const rounds = totalRounds(europe);
     const reached = europe.rounds.length;
 
-    // The survivor count is only shown while the club is still in it. Once the
-    // player is out, the rest of the competition is not played until the season
-    // is resolved, so the count would sit frozen at whatever it was on the night
-    // he went out — a stale number reading as if nothing had happened since.
+    // The survivor count is shown for as long as the competition is running,
+    // whether or not he is still in it. It used to be hidden the moment he went
+    // out, because back then the rest of it was not played until the season was
+    // resolved and the number would sit frozen at whatever it was on the night
+    // he lost. The competition now plays on round by round, so the count is live
+    // again — and watching it come down to the club that knocked you out is a
+    // better answer to "how did that end" than silence.
     let status: string;
     let tone = '';
     if (europe.winnerId === this.state.clubId) {
@@ -509,9 +522,9 @@ export class CareerScreen {
           <dl class="stat-list">
             <div class="cup-row ${tone}"><dt>Progress</dt><dd>${status}</dd></div>
             ${
-              tone === 'alive'
-                ? `<div><dt>Clubs</dt><dd>${europe.survivors.length} still in</dd></div>`
-                : ''
+              europe.winnerId
+                ? `<div><dt>Won by</dt><dd>${getTeam(europe.winnerId).name}</dd></div>`
+                : `<div><dt>Clubs</dt><dd>${europe.survivors.length} still in</dd></div>`
             }
           </dl>
           <p class="hint">Sixteen clubs from eight countries. Seen by more people than your league.</p>
@@ -542,7 +555,11 @@ export class CareerScreen {
         status = 'Won it';
         tone = 'won';
       } else if (cup.eliminatedInRound !== null) {
-        status = `Out in the ${roundName(cup.eliminatedInRound, rounds).toLowerCase()}`;
+        // The cup carries on without him on its own dates, so by the end of the
+        // season it has a winner — and who beat you to it is the other half of
+        // "we went out in the quarter-final".
+        const lifted = cup.winnerId ? ` · won by ${getTeam(cup.winnerId).name}` : '';
+        status = `Out in the ${roundName(cup.eliminatedInRound, rounds).toLowerCase()}${lifted}`;
         tone = 'out';
       } else if (!stillIn(cup, this.state.clubId)) {
         status = 'Not involved';

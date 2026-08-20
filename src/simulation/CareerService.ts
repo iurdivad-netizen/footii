@@ -41,7 +41,9 @@ import type { Contract, ContractOffer } from '../core/career/contracts.ts';
 import { movementFor, resolveDivisions, simulateDivisionThrough } from '../core/career/divisions.ts';
 import {
   CUP_KINDS,
+  advanceCupTo,
   applyPlayerResult,
+  backgroundCup,
   backgroundCupWinner,
   closeRound,
   createCup,
@@ -84,6 +86,7 @@ import { applyStrength, driftSeason, initialStrengths } from '../core/career/clu
 import { evaluateHonours, leagueBenchmark } from '../core/career/awards.ts';
 import type { Honour, LeagueBenchmark } from '../core/career/awards.ts';
 import type { CompetitionKind } from '../core/career/calendar.ts';
+import { knockoutRoundsPlayed } from '../core/career/calendar.ts';
 import type { Fixture, FixtureResult, TableRow } from '../core/career/league.ts';
 import {
   applyResult,
@@ -254,6 +257,77 @@ export function cupWinner(
 export function stillInCup(state: CareerState, kind: CupKind): boolean {
   const cup = state.cups?.[kind];
   return !!cup && stillIn(cup, state.clubId);
+}
+
+/**
+ * How far a knockout has got by now, in rounds.
+ *
+ * The season's own answer, taken from the calendar, so every competition in the
+ * world is shown at the same point in the year as the player's own. Without it
+ * a browsable cup would either be empty or already won, and neither is where
+ * the season actually is.
+ */
+export function roundsReached(state: CareerState, competition: CompetitionKind): number {
+  return knockoutRoundsPlayed(
+    competition,
+    fixturesFor(state, state.clubId).length,
+    roundsPlayed(state),
+  );
+}
+
+/**
+ * A country's cup as it stands today, wherever it is played.
+ *
+ * The player's own country returns the real bracket he is in; every other is
+ * recomputed from the seed, exactly as its league table is, and run only as far
+ * as the season has got. Nothing is stored for the other seven countries, so
+ * this can never disagree with itself between one screen and the next.
+ */
+export function worldCup(
+  state: CareerState,
+  countryId: string,
+  kind: CupKind,
+  lookup: TeamLookup,
+): CupState<CupKind> | null {
+  if (countryId === state.countryId) return state.cups?.[kind] ?? null;
+  const members = leagueMembers(state.leagues, countryId, 1);
+  if (members.length === 0) return null;
+  return backgroundCup(
+    state.seed,
+    state.seasonNumber,
+    kind,
+    countryId,
+    members,
+    (id) => clubIn(state, lookup, id),
+    roundsReached(state, kind),
+  );
+}
+
+/**
+ * One European competition as it stands today.
+ *
+ * The player's own is the real thing; the other two are derived from the same
+ * entry list — which IS stored, because it was decided last May — and played
+ * out to the round the calendar has reached. Only one of the three can ever be
+ * the player's, so the other two would otherwise be invisible all season
+ * despite being the competitions his club is trying to reach.
+ */
+export function europeanState(
+  state: CareerState,
+  tier: EuropeanTier,
+  lookup: TeamLookup,
+): EuropeanState | null {
+  if (state.europe?.kind === tier) return state.europe;
+  const field = fieldFor(state.europeanEntries ?? {}, tier);
+  if (field.length < 2) return null;
+  const cup = createCup(tier, tier, field);
+  advanceCupTo(
+    new Rng(`${state.seed}:s${state.seasonNumber}:europe:${tier}`),
+    cup,
+    (id) => clubIn(state, lookup, id),
+    roundsReached(state, tier),
+  );
+  return cup;
 }
 
 /** Every country that has a league this career knows about. */
@@ -612,6 +686,7 @@ function settlePlayerTie(
 export function prepareNextMatch(state: CareerState, lookup: TeamLookup): void {
   const scheduled = nextMatch(state);
   catchUpInternational(state, scheduled?.slotIndex ?? Number.POSITIVE_INFINITY, lookup);
+  catchUpKnockouts(state, lookup);
   if (!scheduled || scheduled.competition === 'league') return;
 
   if (scheduled.competition === INTERNATIONAL) {
@@ -639,6 +714,66 @@ export function prepareNextMatch(state: CareerState, lookup: TeamLookup): void {
     lookup: (id) => clubIn(state, lookup, id),
     playerClubId: state.clubId,
   });
+}
+
+/**
+ * Play on the knockouts the player is no longer in.
+ *
+ * A cup does not stop because he went out of it in the second round — and until
+ * this existed, his own country's cup did exactly that: the bracket sat frozen
+ * at the round he lost in, all season, and only lurched to a winner at the
+ * final whistle in May. Every other country's cup was live; his own, the one he
+ * had actually played in, was the one that stood still.
+ *
+ * Rounds are opened with the SAME per-round seed a round he was still in would
+ * have used, so whether he went out in the first round or the semi-final makes
+ * no difference to who lifts the trophy. `finishCup` at the end of the season
+ * then finds nothing left to do, and remains as the safety net for a season
+ * that somehow ends early.
+ *
+ * Idempotent, and called from `prepareNextMatch` alongside the international
+ * catch-up for the same reason: both the UI and the match recorder get it
+ * without either having to know the other did.
+ */
+export function catchUpKnockouts(state: CareerState, lookup: TeamLookup): void {
+  const clubs = (id: string) => clubIn(state, lookup, id);
+
+  for (const kind of CUP_KINDS) {
+    const cup = state.cups?.[kind];
+    // Still in it: his own tie is his to play, and drawing the round here would
+    // resolve it around him and hand the result to somebody else.
+    if (cup && !stillIn(cup, state.clubId)) {
+      playOnWithout(state, cup, roundsReached(state, kind), clubs, kind);
+    }
+  }
+
+  const europe = state.europe;
+  if (europe && !stillIn(europe, state.clubId)) {
+    playOnWithout(state, europe, roundsReached(state, europe.kind), clubs, europe.kind);
+  }
+}
+
+/** Open and settle rounds of a knockout the player is not in, up to `rounds`. */
+function playOnWithout(
+  state: CareerState,
+  cup: CupState<CompetitionKind>,
+  rounds: number,
+  lookup: TeamLookup,
+  kind: CompetitionKind,
+): void {
+  while (cup.winnerId === null && cup.rounds.length < rounds) {
+    const last = cup.rounds[cup.rounds.length - 1];
+    // A tie of his own still waiting to be played. Cannot happen while he is
+    // out of the competition, but running past one would silently overwrite a
+    // match the season is still expecting him to turn up for.
+    if (last && last.ties.some((tie) => !tie.winnerId)) return;
+    openRound({
+      rng: new Rng(`${state.seed}:s${state.seasonNumber}:${kind}:r${cup.rounds.length + 1}`),
+      cup,
+      lookup,
+    });
+    closeRound(cup, state.clubId);
+  }
 }
 
 /**
@@ -908,19 +1043,17 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   const earnings = advanceContract(state.contract);
   state.careerEarnings = round(state.careerEarnings + earnings, 2);
 
-  // Clubs are only as good as their last season — everywhere, not just where
-  // the player happens to be, or seven of the eight leagues would be frozen in
-  // the shape the data file shipped with. Drift anchors to the BASE ratings, so
-  // this takes the raw lookup rather than the drifted one.
-  state.clubStrengths = driftSeason(new Rng(`${state.seed}:s${state.seasonNumber}:drift`), {
-    strengths: state.clubStrengths,
-    tables: settled,
-    lookup,
-  });
-
   // Who plays in Europe next season, decided by the season that has just
   // finished everywhere. This is the loop Europe exists to close: where your
   // club finished in May is worth something concrete in September.
+  //
+  // BEFORE the drift below, and that ordering is load-bearing. The background
+  // countries' league tables were settled above with the strengths the season
+  // was actually played on; their cup winners are recomputed on demand from
+  // whatever the strengths are WHEN THEY ARE ASKED FOR. Drifting first meant a
+  // country's European places were awarded off a table from this season and a
+  // cup won by next season's squads — so a club that had just collapsed could
+  // lift a trophy on the strength of a side it no longer had.
   const finalTables: Record<string, TableRow[]> = {};
   const nationalCupWinners: Record<string, string | null> = {};
   const leagueCupWinners: Record<string, string | null> = {};
@@ -938,6 +1071,16 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     tables: finalTables,
     nationalCupWinners,
     leagueCupWinners,
+  });
+
+  // Clubs are only as good as their last season — everywhere, not just where
+  // the player happens to be, or seven of the eight leagues would be frozen in
+  // the shape the data file shipped with. Drift anchors to the BASE ratings, so
+  // this takes the raw lookup rather than the drifted one.
+  state.clubStrengths = driftSeason(new Rng(`${state.seed}:s${state.seasonNumber}:drift`), {
+    strengths: state.clubStrengths,
+    tables: settled,
+    lookup,
   });
 
   state.leagues = { ...state.leagues, [countryId]: outcome.divisions };

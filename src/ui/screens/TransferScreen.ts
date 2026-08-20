@@ -14,6 +14,8 @@ import {
 import type { ContractOffer } from '../../core/career/contracts.ts';
 import { reputationTier } from '../../core/career/reputation.ts';
 import { getCountry } from '../../core/career/countries.ts';
+import { europeanNameInProse } from '../../core/career/europe.ts';
+import type { EuropeanTier } from '../../core/career/europe.ts';
 
 /**
  * THE TRANSFER WINDOW
@@ -53,6 +55,15 @@ export interface TransferScreenContext {
   canStay: boolean;
   /** Resolve a club id to the club as the career currently knows it. */
   club: (id: string) => Team;
+  /**
+   * The European competition a club has qualified for NEXT season, if any.
+   *
+   * A European place belongs to the club, not to the player: signing for a
+   * club that qualified is one of the strongest reasons to move, and turning
+   * one down to join a bigger club that finished eighth is a real decision.
+   * Neither was possible to make while the card said nothing about it.
+   */
+  europeanTierOf: (clubId: string) => EuropeanTier | null;
 }
 
 export class TransferScreen {
@@ -131,6 +142,7 @@ function headline(count: number, context: TransferScreenContext): string {
  * which case there is nothing to stay on and the button is gone.
  */
 function stayCard(club: Team, context: TransferScreenContext): string {
+  const europe = europeanLine(context.europeanTierOf(club.id));
   if (!context.canStay) {
     return `
       <div class="career-card stay-card unavailable">
@@ -151,6 +163,7 @@ function stayCard(club: Team, context: TransferScreenContext): string {
           Turn everything down and see out your contract. Offers are made on the season you just
           had, so another one like it brings the clubs back — a better one brings better clubs.
         </p>
+        ${europe}
         <button class="primary" id="stay-put">Stay at ${club.name}</button>
       </div>`;
   }
@@ -162,6 +175,7 @@ function stayCard(club: Team, context: TransferScreenContext): string {
         Your contract has run out and ${club.name} want to keep you. Signing this is the same
         club, the same league and a new deal.
       </p>
+      ${europe}
       <dl class="stat-list">
         <div><dt>Wages</dt><dd>£${renewal.wage}k / week</dd></div>
         <div><dt>Length</dt><dd>${describeYears(renewal.years)}</dd></div>
@@ -221,6 +235,7 @@ function offerCard(
         ${country.league} · ${TACTICAL_STYLE_LABELS[club.style]} · squad level ${level} ·
         expects ${withArticle(reputationTier(reputationRequired(club, prestige)).label.toLowerCase())} player
       </p>
+      ${europeanLine(context.europeanTierOf(offer.clubId))}
 
       <dl class="stat-list">
         <div><dt>Fee</dt><dd>${offer.free ? 'Free transfer' : `£${offer.fee}m`}</dd></div>
@@ -235,6 +250,18 @@ function offerCard(
 
       <button class="primary" data-offer="${offer.id}">Join ${club.shortName}</button>
     </div>`;
+}
+
+/**
+ * The European football a move comes with, said plainly.
+ *
+ * Its own line rather than another clause in the hint, because it is the one
+ * thing on the card that is not a property of the club's size: an eighth-placed
+ * club that won the cup is in Europe and a second-placed one may not be.
+ */
+function europeanLine(tier: EuropeanTier | null): string {
+  if (!tier) return '';
+  return `<p class="offer-europe">In ${europeanNameInProse(tier)} next season</p>`;
 }
 
 function describeYears(years: number): string {

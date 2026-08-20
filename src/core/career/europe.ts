@@ -68,6 +68,18 @@ export function europeanCompetition(tier: EuropeanTier): EuropeanCompetition {
   return EUROPEAN_COMPETITIONS.find((c) => c.id === tier) ?? EUROPEAN_COMPETITIONS[2]!;
 }
 
+/**
+ * The competition's name as it reads MID-SENTENCE: "the Champions League".
+ *
+ * The names carry their article because a heading wants one — "The Champions
+ * League" is what the competition is called. Dropped into prose that already
+ * has a preposition, the same string reads "in The Champions League", which is
+ * a database field rather than a sentence.
+ */
+export function europeanNameInProse(tier: EuropeanTier): string {
+  return europeanCompetition(tier).name.replace(/^The /, 'the ');
+}
+
 export function isEuropeanTier(value: string): value is EuropeanTier {
   return EUROPEAN_TIERS.includes(value as EuropeanTier);
 }

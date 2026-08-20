@@ -6,6 +6,8 @@ import {
   CUP_KINDS,
   CUP_ROUNDS,
   applyPlayerResult,
+  advanceCupTo,
+  backgroundCup,
   backgroundCupWinner,
   closeRound,
   createCup,
@@ -27,6 +29,7 @@ import {
   calendarLength,
   competitionLabel,
   isCup,
+  knockoutRoundsPlayed,
   maximumMatches,
   seasonCalendar,
 } from '../src/core/career/calendar.ts';
@@ -316,6 +319,91 @@ describe('a cup nobody was watching', () => {
 
   it('returns nothing for a country with no clubs rather than throwing', () => {
     expect(backgroundCupWinner('s', 1, 'nationalCup', 'atlantis', [], lookup)).toBeNull();
+  });
+});
+
+describe('a cup shown as far as it has got', () => {
+  const spain = teamsInCountry('spain').map((t) => t.id);
+
+  it('stops after the rounds asked for', () => {
+    const cup = createCup('nationalCup', 'spain', spain);
+    advanceCupTo(new Rng('partial'), cup, lookup, 2);
+    expect(cup.rounds).toHaveLength(2);
+    expect(cup.winnerId).toBeNull();
+    expect(cup.survivors).toHaveLength(4);
+  });
+
+  it('is a prefix of the same cup run all the way out', () => {
+    // The property the whole background model rests on: a cup recomputed on
+    // demand in October has to agree with the one recomputed in May, or the
+    // world would rewrite its own history every time somebody looked at it.
+    const partial = createCup('nationalCup', 'spain', spain);
+    advanceCupTo(new Rng('same'), partial, lookup, 2);
+
+    const full = createCup('nationalCup', 'spain', spain);
+    finishCup(new Rng('same'), full, lookup);
+
+    expect(full.rounds.slice(0, 2)).toEqual(partial.rounds);
+  });
+
+  it('runs a background cup only to the round the season has reached', () => {
+    const early = backgroundCup('seed', 4, 'nationalCup', 'spain', spain, lookup, 1);
+    expect(early.rounds).toHaveLength(1);
+    expect(early.winnerId).toBeNull();
+
+    const done = backgroundCup('seed', 4, 'nationalCup', 'spain', spain, lookup);
+    expect(done.winnerId).toBeTruthy();
+    expect(done.rounds.slice(0, 1)).toEqual(early.rounds);
+  });
+
+  it('agrees with the winner the qualification model is given', () => {
+    const bracket = backgroundCup('seed', 2, 'leagueCup', 'italy', teamsInCountry('italy').map((t) => t.id), lookup);
+    const winner = backgroundCupWinner('seed', 2, 'leagueCup', 'italy', teamsInCountry('italy').map((t) => t.id), lookup);
+    expect(bracket.winnerId).toBe(winner);
+  });
+
+  it('hands back an empty bracket for a country with no clubs', () => {
+    const cup = backgroundCup('s', 1, 'nationalCup', 'atlantis', [], lookup);
+    expect(cup.rounds).toHaveLength(0);
+    expect(cup.winnerId).toBeNull();
+  });
+});
+
+describe('how far into a knockout the season is', () => {
+  it('counts a cup round as played once the league round it follows is', () => {
+    // The national cup's first round is played after league round 5.
+    const first = NATIONAL_CUP_SCHEDULE[0]!;
+    expect(knockoutRoundsPlayed('nationalCup', 30, first - 1)).toBe(0);
+    expect(knockoutRoundsPlayed('nationalCup', 30, first)).toBe(1);
+  });
+
+  it('reaches every round by the end of the season', () => {
+    for (const kind of CUP_KINDS) {
+      expect(knockoutRoundsPlayed(kind, 30, 30)).toBe(CUP_ROUNDS);
+    }
+    for (const tier of EUROPEAN_TIERS) {
+      expect(knockoutRoundsPlayed(tier, 30, 30)).toBe(CUP_ROUNDS);
+    }
+  });
+
+  it('never goes backwards as the season runs on', () => {
+    let previous = 0;
+    for (let round = 0; round <= 30; round++) {
+      const played = knockoutRoundsPlayed('leagueCup', 30, round);
+      expect(played).toBeGreaterThanOrEqual(previous);
+      previous = played;
+    }
+    expect(previous).toBe(CUP_ROUNDS);
+  });
+
+  it('treats a finished season as having reached everything', () => {
+    expect(knockoutRoundsPlayed('nationalCup', 30, Number.POSITIVE_INFINITY)).toBe(CUP_ROUNDS);
+  });
+
+  it('still reaches every round in a league too short for the schedule', () => {
+    // The schedules are clamped into a short league rather than dropping off
+    // the end of it, and reading the calendar is what keeps this honest.
+    expect(knockoutRoundsPlayed('nationalCup', 6, 6)).toBe(CUP_ROUNDS);
   });
 });
 

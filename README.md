@@ -714,8 +714,11 @@ Moving club is one field — `clubId` — but almost everything downstream chang
 - its standing sets your **coaching quality**, which drives development
 - where it finishes drives your **reputation settlement**, which decides who watches you next
 
-Which is why the transfer screen shows the squad level, the style, the need in your position and
-where you would sit in the side, rather than a fee and a badge. **Staying is a first-class choice**:
+Which is why the transfer screen shows the squad level, the style, the need in your position, where
+you would sit in the side and **which European competition the club has qualified for**, rather than
+a fee and a badge. That last one belongs to the club rather than to you: leave and it stays behind,
+sign for a club that qualified and you inherit theirs, so turning down the Champions League for a
+bigger badge should at least be a decision you made on purpose. **Staying is a first-class choice**:
 the club that wants you most is usually the one you would be best at, and that is not always the
 club worth joining.
 
@@ -757,9 +760,24 @@ genuine prefix of the final one that same seed will settle. That is what makes i
 recompute a league on demand and never have a stored table disagree with the season that produced
 it.
 
-**You can look at all of it.** Any league is reachable from the hub, whether or not you have
-anything to do with it — see the note on the invisible second division under "Balancing notes",
-which is the mistake that screen exists to prevent from happening eight times over.
+**You can look at all of it.** Every competition in the world is reachable from the hub, whether or
+not you have anything to do with it — see the note on the invisible second division under
+"Balancing notes", which is the mistake that screen exists to prevent from happening eight times
+over. The world browser has four views:
+
+| View | Shows | Where it comes from |
+| ---- | ----- | ------------------- |
+| Leagues | Any country's table, live | Recomputed from the seed |
+| Cups | Both knockouts in any country, drawn as far as the season has got | Yours is the real bracket; the rest recomputed |
+| Europe | All three competitions, including the two you did not qualify for | Yours is the real bracket; the rest recomputed |
+| International | Both groups and the knockout | The real tournament, which is stored |
+
+Everything recomputed is run only as far as **the round the calendar has actually reached**, which
+is the same rule the league tables follow. A background cup run all the way out would tell you in
+October who lifted a trophy that has not been played for; run to the round the season is on, it
+says exactly as much as your own cup does. A partial bracket is always a genuine prefix of the
+final one, because the draw for round three is derived from the round number rather than from how
+many rounds happen to have been played when somebody looks.
 
 ### Divisions within a country
 
@@ -794,8 +812,11 @@ quietly awarded them to the favourite would remove the reason knockouts are wort
 
 A round is drawn only when it is REACHED — a draw made in July for a tie played in October is a
 promise the cup has no reason to make — and the rest of the round is settled around you, leaving
-only your own tie to play. Go out and the competition carries on without you and still produces a
-winner, because "who won the one you lost" is part of knowing where you stand.
+only your own tie to play. Go out and the competition **carries on without you on its own dates**,
+round by round, exactly as it would have done had you still been in it: the seed a round is drawn
+from is the round's, not the player's, so who lifts the trophy does not depend on when you went
+out. "Who won the one you lost" is part of knowing where you stand, and it is worth knowing in
+March rather than only in May.
 
 ### European competitions
 
@@ -836,9 +857,10 @@ competition's — so a Scottish club in the Champions League is genuinely more s
 league alone would make it. This is the mechanism by which a career escapes a small country by
 playing well in it, rather than only by signing away from it.
 
-While you are still in it the hub shows how far the competition has got; once you are out it stops
-showing a survivor count, because the rest of it is not played until the season is resolved and a
-frozen number would read as if nothing had happened since.
+The hub shows how far the competition has got whether or not you are still in it. A European
+competition you go out of plays on round by round on its own dates, exactly as a domestic cup does,
+so the survivor count keeps coming down and the card eventually names whoever lifted it — which is
+a better answer to "how did that end" than a number frozen on the night you lost.
 
 ### Career records
 
@@ -1110,12 +1132,36 @@ their constants:
   cannot know which one your club is in. Asserting the calendar's length against the most matches a
   season can contain therefore fails, and the fix was not to shorten it but to admit they are two
   different questions: `calendarLength` counts slots, `maximumMatches` counts football.
-- **A frozen number reads as a claim.** Once you are knocked out of Europe the rest of the
-  competition is not played until the season is resolved, so the hub kept showing "8 still in" for
-  months next to "out in the first round" — technically everything the model knew, and read as if
-  the competition had stopped existing when you left it. The survivor count is now shown only while
-  you are still in. Same family as the invisible division above: state the player can see is a
-  statement, and a stale one is a wrong one.
+- **A frozen number reads as a claim.** Once you were knocked out of a knockout, the rest of it was
+  not played until the season was resolved, so the hub showed "8 still in" for months next to "out
+  in the first round" — technically everything the model knew, and read as if the competition had
+  stopped existing when you left it. Hiding the count was the first fix and the wrong one: it
+  treated a stale number as a display problem when the competition really had stopped. Knockouts
+  you are out of now play on round by round on their own dates, so the count is live, the card
+  eventually names whoever lifted it, and nothing has to be hidden. Same family as the invisible
+  division above: state the player can see is a statement, and a stale one is a wrong one.
+- **The same mistake, four competitions later.** The world screen was written to stop a system
+  being invisible, and then two domestic cups, three European competitions and an international
+  tournament were added to a screen that rendered league tables and nothing else. Of five
+  competitions in the world, one was browsable. The bracket a cup is actually about — who else is
+  in it, who you might meet, which of the big clubs went out on a Tuesday night — was state the
+  game held, updated and never once drew. Being able to say "a system the player cannot look at may
+  as well not exist" turns out not to stop you doing it again; the only thing that does is asking,
+  of every new competition, which screen shows it.
+- **Two halves of one qualification, decided by two different worlds.** European places are awarded
+  on each country's final table and on who won its cups. The tables are settled with the strengths
+  the season was played on; the cup winners for the seven countries you are not in are recomputed
+  on demand, from whatever the strengths are when they are asked for. Because the clubs drifted
+  first, the cup half was answered by NEXT season's squads — so a club that had just collapsed
+  could lift a trophy on the strength of a side it no longer had, and take a European place with
+  it. It moved about one winner in twenty-five, which is exactly the size of bug that survives a
+  test suite: nothing crashes, nothing is non-deterministic, and the answer is quietly from the
+  wrong year.
+- **A European place was invisible at the moment you chose.** Europe follows the club, so signing
+  for a club that qualified is one of the strongest reasons to move — and the transfer card listed
+  country, prestige step, squad level, tactical style and wages, and said nothing about it. You
+  could turn down the Champions League for a bigger badge without ever being told. Each offer now
+  names the competition it comes with, and so does staying.
 - **Twelve independent maxima compound.** A national side was first built by taking the best of
   each rating across its country's top five clubs, which sounds like what a selection is. It put all
   eight nations between 0.82 and 0.97 strength: a country with one good defence and another club's
@@ -1160,7 +1206,9 @@ league cup in every country**, **a Champions League, a Europa League and a Confe
 by league position and by winning a cup**, **a yearly international tournament of eight national sides, with groups, a
 seeded knockout and a squad you have to be good enough to be picked for**, **a season calendar
 interleaving all of them**, season fixtures,
-a browsable table for every league, **the option to skip any match and have the player decide for
+a world browser covering **every competition there is — any country's league, both of its cups, all
+three European competitions and the international tournament**, each shown as far as the season has
+actually got, **the option to skip any match and have the player decide for
 himself**, per-match player development, ageing and multi-season career history, end-of-season
 progress reports, pre-season training, a reputation model, a transfer market spanning countries
 with club valuation, scouting interest and summer offers, clubs that strengthen and decline season

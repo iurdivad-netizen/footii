@@ -146,6 +146,38 @@ export function calendarLength(leagueRounds: number): number {
   return leagueRounds + CUP_ROUNDS * (2 + EUROPEAN_TIERS.length) + INTERNATIONAL_MATCHES;
 }
 
+/**
+ * How many rounds of a knockout have been played once the league has played
+ * `leagueRoundsPlayed` of its own.
+ *
+ * Read off the calendar rather than off the schedule constants, because the
+ * schedules are CLAMPED into a short league — asking the calendar is the only
+ * answer that stays right for a league of any length. This is what lets a
+ * competition nobody is watching be shown as far as it has actually got: a
+ * background cup run to a winner in September would tell a player in October
+ * who lifted a trophy that has not been played for.
+ *
+ * `Infinity` for the rounds played means the season is over, and every round
+ * has therefore been reached.
+ */
+export function knockoutRoundsPlayed(
+  competition: CompetitionKind,
+  leagueRounds: number,
+  leagueRoundsPlayed: number,
+): number {
+  let played = 0;
+  for (const slot of seasonCalendar(leagueRounds)) {
+    // A knockout slot placed "after league round N" sits behind that league
+    // round in the calendar, so it counts as played the moment N does.
+    if (slot.competition === 'league') {
+      if (slot.round > leagueRoundsPlayed) break;
+      continue;
+    }
+    if (slot.competition === competition) played = slot.round;
+  }
+  return played;
+}
+
 /** Human label for a competition, without needing a country. */
 export function competitionLabel(competition: CompetitionKind): string {
   if (competition === 'league') return 'League';
