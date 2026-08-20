@@ -4,6 +4,8 @@ import type { EuropeanTier } from './europe.ts';
 import { EUROPEAN_TIERS, europeanCompetition, isEuropeanTier } from './europe.ts';
 import type { InternationalKind } from './international.ts';
 import { GROUP_ROUNDS, INTERNATIONAL, MAX_INTERNATIONAL_MATCHES } from './international.ts';
+import type { SuperCupKind } from './superCup.ts';
+import { SUPER_CUP } from './superCup.ts';
 
 /**
  * THE SEASON CALENDAR
@@ -31,7 +33,12 @@ import { GROUP_ROUNDS, INTERNATIONAL, MAX_INTERNATIONAL_MATCHES } from './intern
  * near the end — and it means a career can be compared season to season.
  */
 
-export type CompetitionKind = 'league' | CupKind | EuropeanTier | InternationalKind;
+export type CompetitionKind =
+  | 'league'
+  | CupKind
+  | EuropeanTier
+  | InternationalKind
+  | SuperCupKind;
 
 export interface CalendarSlot {
   competition: CompetitionKind;
@@ -53,11 +60,16 @@ export const LEAGUE_CUP_SCHEDULE: readonly number[] = [8, 14, 22, 28];
 /**
  * European nights, on their own dates.
  *
+ * SIX of them now rather than four: three group matches and three knockout
+ * rounds. The first three sit early, because a group stage is autumn football
+ * and because a club that goes out of its group should know by midwinter rather
+ * than in April.
+ *
  * Interleaved with both domestic cups so nothing collides, and the last of them
  * sits before the final league round: a season should not end on a European
  * final the player may not even be in.
  */
-export const EUROPEAN_SCHEDULE: readonly number[] = [4, 12, 18, 24];
+export const EUROPEAN_SCHEDULE: readonly number[] = [3, 6, 10, 15, 20, 25];
 
 /**
  * International breaks, and the tournament that ends the year.
@@ -73,6 +85,16 @@ export const EUROPEAN_SCHEDULE: readonly number[] = [4, 12, 18, 24];
  * thing that happens all year is a semi-final for your country.
  */
 export const INTERNATIONAL_SCHEDULE: readonly number[] = [7, 16, 21];
+
+/**
+ * The super cup opens the season, before a league match has been played.
+ *
+ * Its own placement rather than a schedule, because there is only one of it and
+ * it is the only thing in the calendar that comes BEFORE league round one. That
+ * is the whole point of the fixture: it is last season's football, played as the
+ * first thing that happens in this one.
+ */
+export const SUPER_CUP_ROUND = 0;
 
 export function cupSchedule(kind: CupKind): readonly number[] {
   return kind === 'nationalCup' ? NATIONAL_CUP_SCHEDULE : LEAGUE_CUP_SCHEDULE;
@@ -94,9 +116,12 @@ export function seasonCalendar(
   // Where each cup round falls, clamped so a short league cannot lose a round.
   const placed = new Map<number, CalendarSlot[]>();
   const place = (kind: CompetitionKind, schedule: readonly number[]) => {
-    for (let i = 0; i < CUP_ROUNDS; i++) {
+    // The schedule's own length says how many rounds this competition has: four
+    // for a domestic cup, six for a European season with a group stage.
+    const rounds = schedule.length;
+    for (let i = 0; i < rounds; i++) {
       const preferred = schedule[i] ?? leagueRounds;
-      const after = Math.min(preferred, Math.max(1, leagueRounds - (CUP_ROUNDS - 1 - i)));
+      const after = Math.min(preferred, Math.max(1, leagueRounds - (rounds - 1 - i)));
       const list = placed.get(after) ?? [];
       list.push({ competition: kind, round: i + 1 });
       placed.set(after, list);
@@ -116,6 +141,9 @@ export function seasonCalendar(
     list.push({ competition: INTERNATIONAL, round: i + 1 });
     placed.set(after, list);
   }
+
+  // Before anything else: one match, decided by last season.
+  slots.push({ competition: SUPER_CUP, round: 1 });
 
   for (let round = 1; round <= leagueRounds; round++) {
     slots.push({ competition: 'league', round });
@@ -141,12 +169,20 @@ export function seasonCalendar(
  * be — in the same way it carries cup rounds for a cup you may go out of.
  */
 export function maximumMatches(leagueRounds: number): number {
-  return leagueRounds + CUP_ROUNDS * 3 + MAX_INTERNATIONAL_MATCHES;
+  return (
+    leagueRounds + CUP_ROUNDS * 2 + EUROPEAN_SCHEDULE.length + MAX_INTERNATIONAL_MATCHES + 1
+  );
 }
 
 /** How many slots the calendar holds, playable or not. */
 export function calendarLength(leagueRounds: number): number {
-  return leagueRounds + CUP_ROUNDS * (2 + EUROPEAN_TIERS.length) + MAX_INTERNATIONAL_MATCHES;
+  return (
+    leagueRounds +
+    CUP_ROUNDS * 2 +
+    EUROPEAN_SCHEDULE.length * EUROPEAN_TIERS.length +
+    MAX_INTERNATIONAL_MATCHES +
+    1
+  );
 }
 
 /**
@@ -186,6 +222,7 @@ export function competitionLabel(competition: CompetitionKind): string {
   if (competition === 'league') return 'League';
   if (competition === 'nationalCup') return 'Cup';
   if (competition === 'leagueCup') return 'League Cup';
+  if (competition === SUPER_CUP) return 'Super Cup';
   if (competition === INTERNATIONAL) return 'International';
   return europeanCompetition(competition).short;
 }
@@ -203,6 +240,11 @@ export function isCup(competition: CompetitionKind): competition is CupKind {
   return competition === 'nationalCup' || competition === 'leagueCup';
 }
 
+/** The one-match trophy, which is a fixture rather than a bracket. */
+export function isSuperCup(competition: CompetitionKind): competition is SuperCupKind {
+  return competition === SUPER_CUP;
+}
+
 export function isEuropean(competition: CompetitionKind): competition is EuropeanTier {
-  return competition !== INTERNATIONAL && isEuropeanTier(competition);
+  return competition !== INTERNATIONAL && competition !== SUPER_CUP && isEuropeanTier(competition);
 }

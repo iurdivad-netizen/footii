@@ -3209,3 +3209,51 @@ button.ghost.danger {
   font-size: 0.95rem;
   color: var(--accent);
 }
+
+/* ------------------------------------------- European group stage ------- */
+
+/*
+ * Four groups, side by side where there is room.
+ *
+ * Kept visible after the bracket is drawn rather than replaced by it: the
+ * argument for a group stage is that going out of one is a month of football
+ * rather than a bad night, and a table that vanished the moment the knockout
+ * started would take that record with it.
+ */
+.european-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.european-group h3 {
+  margin: 0 0 6px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.european-group .league-table {
+  margin: 0;
+}
+
+/* The two that go through, marked while it is still being decided. */
+.european-group tr.qualified td {
+  border-left-color: var(--accent);
+}
+
+.european-group tr.qualified .tier-rank {
+  color: var(--accent);
+}
+
+/* The player's own group, in the hub — a short table beside the progress line. */
+.group-table {
+  margin-top: 10px;
+}
+
+.group-table tr.own td {
+  color: var(--accent);
+}

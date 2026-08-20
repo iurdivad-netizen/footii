@@ -39,6 +39,7 @@ export type HonourKind =
   | 'title'
   | 'nationalCup'
   | 'leagueCup'
+  | 'superCup'
   | 'europeanTitle'
   | 'europeanFinal'
   | 'continentalTreble'
@@ -147,6 +148,14 @@ export interface HonoursInput {
   movement: DivisionMovement | null;
   /** Which of the two domestic knockouts the club won. */
   cupsWon: readonly CupKind[];
+  /**
+   * True when the club won the super cup played at the START of this season.
+   *
+   * Belongs to the season it was played in rather than the one that earned the
+   * place in it — you win a trophy on the day, not on the strength of the
+   * summer before.
+   */
+  wonSuperCup?: boolean;
   /** The European competition played this season, if any. */
   europeanTier: EuropeanTier | null;
   /** True when the club won it. */
@@ -223,6 +232,16 @@ export function evaluateHonours(input: HonoursInput): HonoursResult {
   if (wonLeagueCup) {
     honours.push(
       at('leagueCup', `${info.adjective} League Cup`, `You won the ${info.adjective} League Cup.`),
+    );
+  }
+  // One match, played before the season started, and a trophy all the same.
+  if (input.wonSuperCup) {
+    honours.push(
+      at(
+        'superCup',
+        `${info.adjective} Super Cup`,
+        `You won the ${info.adjective} Super Cup to open the season.`,
+      ),
     );
   }
 
@@ -396,6 +415,7 @@ const HONOUR_TONES: Record<HonourKind, HonourTone> = {
   title: 'trophy',
   nationalCup: 'trophy',
   leagueCup: 'trophy',
+  superCup: 'trophy',
   europeanTitle: 'trophy',
   continentalTreble: 'trophy',
   domesticDouble: 'trophy',

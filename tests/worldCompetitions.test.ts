@@ -183,7 +183,9 @@ describe('browsing Europe', () => {
     for (const tier of EUROPEAN_TIERS) {
       const competition = europeanState(state, tier, lookup)!;
       expect(competition.kind).toBe(tier);
-      expect(competition.survivors.length).toBeGreaterThan(1);
+      // Four groups of four, drawn the moment the field is known.
+      expect(competition.groups).toHaveLength(4);
+      expect(competition.groups.flat().length).toBe(16);
     }
   });
 

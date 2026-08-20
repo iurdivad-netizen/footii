@@ -1,7 +1,30 @@
 import type { TableRow } from './league.ts';
 import { sortTable } from './league.ts';
 import { countriesByPrestige, countryPrestige, getCountry } from './countries.ts';
-import type { CupKind, CupState } from './cups.ts';
+import type { CupKind } from './cups.ts';
+import type { Rng } from '../rng.ts';
+import type { Team } from '../team/team.ts';
+import { advanceCupTo } from './cups.ts';
+import type { GroupStage } from './groupStage.ts';
+import {
+  GROUP_MATCHES,
+  closeGroupRound,
+  createGroupStage,
+  playGroupRound,
+  startKnockout,
+  winnerOf,
+} from './groupStage.ts';
+
+/**
+ * A fresh European season for a field of sixteen.
+ *
+ * The field arrives in the order `fieldFor` builds it, which is the European
+ * order of countries — so it is already a seeding, and `drawGroups` snakes it
+ * rather than slicing it.
+ */
+export function createEuropeanSeason(tier: EuropeanTier, field: readonly string[], rng: Rng) {
+  return createGroupStage(tier, field, rng, GROUP_MATCHES);
+}
 
 /**
  * EUROPEAN COMPETITIONS
@@ -29,11 +52,23 @@ import type { CupKind, CupState } from './cups.ts';
  * is a route into Europe for a club that finished nowhere, which is exactly what
  * a cup is for.
  *
- * WHAT THEY ARE. Sixteen clubs, an open draw, four rounds — mechanically the
- * same knockout as a domestic cup, and deliberately so: it is the same object
- * with a different field, so every fix to the draw or the shootout applies to
- * all five competitions at once. What differs is who is in it, how much of the
- * world is watching, and what winning it is worth.
+ * WHAT THEY ARE. Sixteen clubs, four groups of four, then a bracket seeded off
+ * the groups: quarter-final, semi-final, final. Six matches for a club that
+ * goes all the way, three guaranteed for one that goes out in the group.
+ *
+ * They used to be a straight sixteen-club knockout, mechanically identical to a
+ * domestic cup. That was wrong in a way worth stating, because it is the
+ * difference between the two competitions. A cup tie is one afternoon, and that
+ * is what a cup is FOR — a small club gets ninety minutes in which the gap might
+ * not matter. Europe is the opposite question: which of these sixteen clubs is
+ * actually the best. Deciding that by single ties meant a good side drawn badly
+ * was gone in September having played once, and it meant qualifying for Europe
+ * was worth exactly one European night to most clubs that managed it. A group
+ * gives everybody three, makes the last one matter, and makes going out mean
+ * being worse over a month rather than worse for an afternoon.
+ *
+ * See core/career/groupStage.ts for the machinery, which is shared with nothing
+ * — and for why.
  */
 
 export type EuropeanTier = 'championsLeague' | 'europaLeague' | 'conferenceLeague';
@@ -273,7 +308,98 @@ export function europeanTierOf(entries: EuropeanEntries, clubId: string): Europe
 }
 
 /** The state of one European competition, reusing the knockout model wholesale. */
-export type EuropeanState = CupState<EuropeanTier>;
+/**
+ * A European season: the groups, and the bracket that comes out of them.
+ *
+ * `CupState<EuropeanTier>` until the groups were added, which is why so much of
+ * the game asks it cup-shaped questions. The knockout half is still exactly a
+ * cup, and is reachable as `.knockout`.
+ */
+export type EuropeanState = GroupStage<EuropeanTier>;
+
+/** Group matches every club in Europe plays. */
+export const EUROPEAN_GROUP_ROUNDS = GROUP_MATCHES;
+
+/** Quarter-final, semi-final, final — the bracket eight clubs run to. */
+export const EUROPEAN_KNOCKOUT_ROUNDS = 3;
+
+/** The most European matches one club can play in a season. */
+export const EUROPEAN_MATCHES = EUROPEAN_GROUP_ROUNDS + EUROPEAN_KNOCKOUT_ROUNDS;
+
+/**
+ * How far through a European season a given calendar round is.
+ *
+ * The calendar carries one list of European dates and the competition uses the
+ * first three for groups and the rest for the bracket, so a slot's round number
+ * has two different meanings depending on where it falls. This is the one place
+ * that knows which.
+ */
+export function isGroupRound(round: number): boolean {
+  return round <= EUROPEAN_GROUP_ROUNDS;
+}
+
+/** A European slot's round number, as a knockout round. */
+export function knockoutRoundOf(round: number): number {
+  return round - EUROPEAN_GROUP_ROUNDS;
+}
+
+/**
+ * Play a European season forward to wherever the calendar has reached.
+ *
+ * ONE function for both halves, because "how far has this competition got" is
+ * one question and the answer crosses the group/knockout boundary — a caller
+ * that had to know which half it was in would have to duplicate this arithmetic
+ * everywhere it asked.
+ *
+ * `skipId` is the player's club, whose group fixture and cup tie are left for
+ * him to play. Everything else is settled around him.
+ */
+export function advanceEuropeanSeason(
+  rng: Rng,
+  state: EuropeanState,
+  roundsReached: number,
+  lookup: (id: string) => Team,
+  skipId?: string,
+): void {
+  for (let round = 1; round <= Math.min(roundsReached, EUROPEAN_GROUP_ROUNDS); round += 1) {
+    if (state.groupRoundsPlayed >= round) continue;
+    playGroupRound(rng.fork(`group:${round}`), state, round, lookup, skipId);
+    closeGroupRound(state, round);
+  }
+
+  if (roundsReached <= EUROPEAN_GROUP_ROUNDS) return;
+
+  // The bracket cannot be built until every group is finished, which is not the
+  // same as the calendar having passed the group dates: the player's own last
+  // group match may still be his to play.
+  const knockout = startKnockout(state);
+  if (!knockout) return;
+  advanceCupTo(
+    rng.fork('knockout'),
+    knockout,
+    lookup,
+    Math.min(knockoutRoundOf(roundsReached), EUROPEAN_KNOCKOUT_ROUNDS),
+    skipId,
+  );
+}
+
+/** Did this club win it? */
+export function europeanWinner(state: EuropeanState | null): string | null {
+  return winnerOf(state);
+}
+
+/**
+ * Did the club reach the final and lose it?
+ *
+ * Read off the knockout rather than the season, because a club knocked out in
+ * the group stage has no bracket record at all and must not be mistaken for a
+ * beaten finalist.
+ */
+export function lostEuropeanFinal(state: EuropeanState | null, clubId: string): boolean {
+  const knockout = state?.knockout;
+  if (!knockout || knockout.winnerId === clubId) return false;
+  return knockout.eliminatedInRound === (knockout.rounds.length || 0) && knockout.rounds.length > 0;
+}
 
 /**
  * How well a club would have to be doing to reach a given competition.

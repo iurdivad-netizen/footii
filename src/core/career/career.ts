@@ -16,18 +16,27 @@ import type { WorldLeagues } from './countries.ts';
 import type { CupKind, CupState } from './cups.ts';
 import { CUP_KINDS, opponentIn, roundName, stillIn, tieFor } from './cups.ts';
 import type { EuropeanEntries, EuropeanState, EuropeanTier } from './europe.ts';
+import {
+  EUROPEAN_KNOCKOUT_ROUNDS,
+  europeanWinner,
+  isGroupRound,
+  knockoutRoundOf,
+} from './europe.ts';
+import { groupFixtureFor } from './groupStage.ts';
 import type { CareerRecords } from './records.ts';
 import type { Coefficients } from './coefficients.ts';
 import type { NationStrengths } from './nationDrift.ts';
 import { breakStreaks, recordMatch as recordMatchInBook } from './records.ts';
 import type { CalendarSlot, CompetitionKind } from './calendar.ts';
-import { isEuropean, isInternational, seasonCalendar } from './calendar.ts';
+import { isEuropean, isInternational, isSuperCup, seasonCalendar } from './calendar.ts';
 import type { InternationalState } from './international.ts';
 import { GROUP_ROUNDS, INTERNATIONAL, KNOCKOUT_ROUNDS, groupFixture } from './international.ts';
 import { isSelected, nationId } from './nations.ts';
 import type { ClubStrengths } from './clubDrift.ts';
 import type { Honour } from './awards.ts';
 import type { CareerPreferences } from './preferences.ts';
+import type { SuperCupTie } from './superCup.ts';
+import { playsInSuperCup, superCupOpponent } from './superCup.ts';
 
 /**
  * CAREER STATE
@@ -140,6 +149,14 @@ export interface CareerState {
    * so the transfer window can present staying as a deal rather than a refusal.
    */
   renewal: ContractOffer | null;
+  /**
+   * Next season's super cup, decided by the season just finished.
+   *
+   * Null when there is none to play — the first season of a career has no
+   * previous one to earn it, and a country whose cup produced no winner has
+   * nobody to send. See core/career/superCup.ts.
+   */
+  superCup: SuperCupTie | null;
   /** Everything won, oldest first. The only part of a career that only grows. */
   honours: Honour[];
   /**
@@ -272,9 +289,15 @@ export function knockoutFor(
   competition: CompetitionKind,
 ): CupState<CompetitionKind> | null {
   if (competition === 'league') return null;
+  // The super cup is one fixture rather than a bracket, so it has no rounds to
+  // walk and nothing to hand back here. See core/career/superCup.ts.
+  if (isSuperCup(competition)) return null;
   if (isInternational(competition)) return state.international?.knockout ?? null;
   if (isEuropean(competition)) {
-    return state.europe && state.europe.kind === competition ? state.europe : null;
+    // Europe is a group stage with a bracket hanging off it, so the knockout is
+    // a field on it rather than the thing itself — and it does not exist at all
+    // until the groups have finished.
+    return state.europe && state.europe.kind === competition ? state.europe.knockout : null;
   }
   return state.cups?.[competition] ?? null;
 }
@@ -373,6 +396,57 @@ export interface ScheduledMatch {
 }
 
 /**
+ * The player's European fixture in one calendar slot, or nothing.
+ *
+ * Two competitions in one, and the round number says which: the first three
+ * dates are group matches from a fixture list drawn in July, the rest are ties
+ * in a bracket that does not exist until the groups have finished. A club that
+ * did not get out of its group has nothing on the later dates, which is the
+ * whole point of a group stage.
+ */
+function europeanMatch(
+  state: CareerState,
+  slotIndex: number,
+  round: number,
+  tier: EuropeanTier,
+): ScheduledMatch | null {
+  const europe = state.europe;
+  if (!europe || europe.kind !== tier) return null;
+
+  if (isGroupRound(round)) {
+    const fixture = groupFixtureFor(europe, state.clubId, round);
+    if (!fixture) return null;
+    // Already played: the group table has it, so there is nothing to offer.
+    const played = europe.results.some(
+      (r) => r.round === round && r.homeId === fixture.homeId && r.awayId === fixture.awayId,
+    );
+    if (played) return null;
+    return {
+      competition: tier,
+      slotIndex,
+      round,
+      opponentId: fixture.homeId === state.clubId ? fixture.awayId : fixture.homeId,
+      home: fixture.homeId === state.clubId,
+      roundLabel: `Group match ${round}`,
+    };
+  }
+
+  const knockout = europe.knockout;
+  if (!knockout || !stillIn(knockout, state.clubId)) return null;
+  const koRound = knockoutRoundOf(round);
+  const drawn = knockout.rounds[koRound - 1];
+  const tie = drawn ? tieFor(drawn, state.clubId) : null;
+  return {
+    competition: tier,
+    slotIndex,
+    round,
+    opponentId: tie ? opponentIn(tie, state.clubId) : '',
+    home: tie ? tie.homeId === state.clubId : true,
+    roundLabel: roundName(koRound, EUROPEAN_KNOCKOUT_ROUNDS),
+  };
+}
+
+/**
  * What the player actually plays next, across all three competitions.
  *
  * Cup slots for a cup he is out of are SKIPPED rather than played, which is why
@@ -399,10 +473,32 @@ export function nextMatch(state: CareerState): ScheduledMatch | null {
       };
     }
 
+    if (isSuperCup(slot.competition)) {
+      // One match, and only for the two clubs that earned it. Everybody else
+      // simply does not have a fixture that week.
+      const tie = state.superCup;
+      if (!tie || tie.winnerId || !playsInSuperCup(tie, state.clubId)) continue;
+      return {
+        competition: slot.competition,
+        slotIndex: i,
+        round: 1,
+        opponentId: superCupOpponent(tie, state.clubId),
+        // The champions are at home; the challenger travels.
+        home: tie.championId === state.clubId,
+        roundLabel: 'Final',
+      };
+    }
+
     if (isInternational(slot.competition)) {
       const international = internationalMatch(state, i, slot.round);
       if (!international) continue;
       return international;
+    }
+
+    if (isEuropean(slot.competition)) {
+      const european = europeanMatch(state, i, slot.round, slot.competition);
+      if (!european) continue;
+      return european;
     }
 
     const cup = knockoutFor(state, slot.competition);
@@ -634,7 +730,7 @@ export function advanceSeason(
     countryId: state.countryId,
     cupsWon: CUP_KINDS.filter((kind) => state.cups?.[kind]?.winnerId === state.clubId),
     europeanTier: state.europe?.kind ?? null,
-    wonEurope: state.europe?.winnerId === state.clubId,
+    wonEurope: europeanWinner(state.europe) === state.clubId,
   };
   state.history.push(record);
 

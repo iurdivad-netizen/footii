@@ -137,18 +137,37 @@ function clubLedger(scores: Record<string, number>, times = COEFFICIENT_WINDOW):
   return record;
 }
 
-/** A finished European competition: `winners` went through in each round. */
+/**
+ * A finished European competition: `winners` went through in each round.
+ *
+ * Built with EMPTY groups on purpose. The coefficient now counts group results
+ * as well as knockout rounds, and these tests are about the knockout half — a
+ * group stage bolted on here would move every expectation without testing
+ * anything the group tests do not already cover.
+ */
 function competition(tier: EuropeanState['kind'], rounds: string[][], winnerId?: string): EuropeanState {
   return {
     kind: tier,
-    countryId: tier,
-    rounds: rounds.map((through, index) => ({
-      round: index + 1,
-      ties: through.map((clubId) => ({ homeId: clubId, awayId: `beaten-${clubId}-${index}`, winnerId: clubId })),
-    })),
-    survivors: winnerId ? [winnerId] : [],
-    winnerId: winnerId ?? null,
-    eliminatedInRound: null,
+    groups: [],
+    fixtures: [],
+    results: [],
+    table: [],
+    groupRoundsPlayed: 0,
+    knockout: {
+      kind: tier,
+      countryId: tier,
+      rounds: rounds.map((through, index) => ({
+        round: index + 1,
+        ties: through.map((clubId) => ({
+          homeId: clubId,
+          awayId: `beaten-${clubId}-${index}`,
+          winnerId: clubId,
+        })),
+      })),
+      survivors: winnerId ? [winnerId] : [],
+      winnerId: winnerId ?? null,
+      eliminatedInRound: null,
+    },
   };
 }
 

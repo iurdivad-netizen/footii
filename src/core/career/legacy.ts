@@ -121,6 +121,9 @@ const HONOUR_POINTS: Record<HonourKind, number> = {
   youngPlayerOfTheSeason: 25,
   nationalCup: 20,
   leagueCup: 12,
+  // The cheapest trophy in the game to reach, and priced as one: a single match,
+  // entered on something you already have a trophy for.
+  superCup: 8,
   capMilestone: 8,
   promotion: 10,
   internationalDebut: 6,

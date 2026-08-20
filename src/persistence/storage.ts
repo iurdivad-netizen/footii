@@ -32,7 +32,7 @@ import { rankLegacies } from '../core/career/legacy.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 16;
+export const SAVE_VERSION = 17;
 
 export interface CareerRecord {
   matches: number;
@@ -616,6 +616,21 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
     if (save.careerState) save.careerState.preferences ??= defaultPreferences();
   }
 
+  if (save.version === 16) {
+    // v16 -> v17: every country plays a super cup, and Europe plays groups.
+    //
+    // A career mid-season gets NEITHER retrofitted, deliberately. Its super cup
+    // was never earned — the season that decides one has not finished — and its
+    // European bracket was drawn as a straight knockout, so replacing it with
+    // groups would contradict results already played. Both arrive naturally at
+    // the end of the season in progress, which is where they come from anyway.
+    save = { ...save, version: 17 };
+    for (const career of save.careers ?? []) {
+      if (career) career.superCup ??= null;
+    }
+    if (save.careerState) save.careerState.superCup ??= null;
+  }
+
   // The flat field is a migration detail and must not survive into the save.
   // Leaving it would give the game two answers to "which career is this", and
   // the stale one would win on any code path that had not been updated.
@@ -646,6 +661,8 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
     }
     if (!Array.isArray(career.preferences.refused)) career.preferences.refused = [];
     if (!Array.isArray(career.preferences.favoured)) career.preferences.favoured = [];
+    // A career from before the super cup existed simply has none to play.
+    if (career.superCup === undefined) career.superCup = null;
     return career;
   });
   // The wall is additive in exactly the way settings are: a save written before

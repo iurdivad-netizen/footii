@@ -40,11 +40,18 @@ import {
 import type { Contract, ContractOffer } from '../core/career/contracts.ts';
 import { negotiate } from '../core/career/negotiation.ts';
 import { defaultPreferences } from '../core/career/preferences.ts';
+import type { SuperCupTie } from '../core/career/superCup.ts';
+import {
+  SUPER_CUP,
+  applySuperCupResult,
+  nextSuperCup,
+  playsInSuperCup,
+  resolveSuperCup,
+} from '../core/career/superCup.ts';
 import type { NegotiationAsk, NegotiationResult } from '../core/career/negotiation.ts';
 import { movementFor, resolveDivisions, simulateDivisionThrough } from '../core/career/divisions.ts';
 import {
   CUP_KINDS,
-  advanceCupTo,
   applyPlayerResult,
   backgroundCup,
   backgroundCupWinner,
@@ -56,13 +63,32 @@ import {
 } from '../core/career/cups.ts';
 import type { CupKind, CupState } from '../core/career/cups.ts';
 import {
+  EUROPEAN_MATCHES,
   EUROPEAN_TIERS,
+  advanceEuropeanSeason,
   championsLeaguePlaces,
+  createEuropeanSeason,
   europeanTierOf,
+  europeanWinner,
   fieldFor,
+  isGroupRound,
+  knockoutRoundOf,
+  lostEuropeanFinal,
   qualifyForEurope,
   visibilityOf,
 } from '../core/career/europe.ts';
+// Aliased: `international.ts` has its own functions of the same names for its
+// own state shape, and both are used in this file. See groupStage.ts for why
+// the two are not one module.
+import {
+  GROUP_SIZE,
+  playGroupRound as playEuropeanGroupRound,
+  closeGroupRound as closeEuropeanGroupRound,
+  groupFixtureFor as europeanGroupFixture,
+  recordGroupResult as recordEuropeanGroupResult,
+  startKnockout as startEuropeanKnockout,
+  stillInCompetition,
+} from '../core/career/groupStage.ts';
 import type { EuropeanEntries, EuropeanState, EuropeanTier } from '../core/career/europe.ts';
 import { createCareerRecords, recordSeason } from '../core/career/records.ts';
 import type { Coefficients } from '../core/career/coefficients.ts';
@@ -114,7 +140,7 @@ import {
 import { evaluateHonours, leagueBenchmark } from '../core/career/awards.ts';
 import type { Honour, LeagueBenchmark } from '../core/career/awards.ts';
 import type { CompetitionKind } from '../core/career/calendar.ts';
-import { knockoutRoundsPlayed } from '../core/career/calendar.ts';
+import { isEuropean, knockoutRoundsPlayed } from '../core/career/calendar.ts';
 import type { Fixture, FixtureResult, TableRow } from '../core/career/league.ts';
 import {
   applyResult,
@@ -350,15 +376,22 @@ export function europeanState(
 ): EuropeanState | null {
   if (state.europe?.kind === tier) return state.europe;
   const field = fieldFor(state.europeanEntries ?? {}, tier);
-  if (field.length < 2) return null;
-  const cup = createCup(tier, tier, field);
-  advanceCupTo(
-    new Rng(`${state.seed}:s${state.seasonNumber}:europe:${tier}`),
-    cup,
-    (id) => clubIn(state, lookup, id),
-    roundsReached(state, tier),
+  if (field.length < GROUP_SIZE) return null;
+  // Recomputed on demand rather than stored, exactly as a background league
+  // table is: a pure function of the seed, so browsing one can never disagree
+  // with the season that produced it.
+  const season = createEuropeanSeason(
+    tier,
+    field,
+    new Rng(`${state.seed}:s${state.seasonNumber}:europe:${tier}:draw`),
   );
-  return cup;
+  advanceEuropeanSeason(
+    new Rng(`${state.seed}:s${state.seasonNumber}:europe:${tier}`),
+    season,
+    roundsReached(state, tier),
+    (id) => clubIn(state, lookup, id),
+  );
+  return season;
 }
 
 /** Every country that has a league this career knows about. */
@@ -407,6 +440,8 @@ export function startCareer(options: StartCareerOptions): CareerState {
     seasonStartExperience: options.player.experience,
     trainingPoints: 0,
     preferences: defaultPreferences(),
+    // No previous season to have earned one.
+    superCup: null,
     offers: [],
     transfers: [],
     countryId,
@@ -563,14 +598,20 @@ function settleGroupRound(state: CareerState, round: number, lookup: TeamLookup)
  * the draw is the one part of the game where a Scottish club and a Spanish one
  * are in the same hat.
  */
-function newEurope(entries: EuropeanEntries, clubId: string): EuropeanState | null {
+function newEurope(
+  entries: EuropeanEntries,
+  clubId: string,
+  seed: string,
+  season: number,
+): EuropeanState | null {
   const tier = europeanTierOf(entries, clubId);
   if (!tier) return null;
   const field = fieldFor(entries, tier);
-  // A field of one cannot be drawn against anybody. Never happens with a full
-  // world, but a partial one must degrade to "no Europe" rather than to a crash.
-  if (field.length < 2) return null;
-  return createCup(tier, tier, field);
+  // A field too small to make a group cannot be drawn at all. Never happens
+  // with a full world, but a partial one must degrade to "no Europe" rather
+  // than to a crash.
+  if (field.length < GROUP_SIZE) return null;
+  return createEuropeanSeason(tier, field, new Rng(`${seed}:s${season}:europe:${tier}:draw`));
 }
 
 /**
@@ -732,8 +773,19 @@ export function recordPlayerMatch(
 
   if (leagueFixture) {
     simulateRound(state, leagueFixture.round, lookup);
+  } else if (scheduled.competition === SUPER_CUP) {
+    if (state.superCup) {
+      state.superCup = applySuperCupResult(state.superCup, {
+        clubId: state.clubId,
+        goalsFor: input.playerTeamScore,
+        goalsAgainst: input.opponentScore,
+        shootoutWinnerId: input.shootout?.winnerId,
+      });
+    }
   } else if (scheduled.competition === INTERNATIONAL) {
     settleInternational(state, scheduled.round, input, isHome, lookup);
+  } else if (isEuropean(scheduled.competition)) {
+    settleEuropean(state, scheduled.round, input, isHome, lookup);
   } else {
     settlePlayerTie(state, scheduled.competition, input, lookup);
   }
@@ -786,6 +838,61 @@ function settleInternational(
 }
 
 /**
+ * Fold the player's European result in, then settle the rest of the round.
+ *
+ * A group match feeds the table; a knockout tie feeds the bracket. Which of
+ * the two it is comes from the round number and nothing else — see
+ * `isGroupRound`.
+ */
+function settleEuropean(
+  state: CareerState,
+  round: number,
+  input: PlayedMatchInput,
+  isHome: boolean,
+  lookup: TeamLookup,
+): void {
+  const europe = state.europe;
+  if (!europe) return;
+  const clubs = (id: string) => clubIn(state, lookup, id);
+
+  if (isGroupRound(round)) {
+    const fixture = europeanGroupFixture(europe, state.clubId, round);
+    if (fixture) {
+      recordEuropeanGroupResult(europe, {
+        ...fixture,
+        homeGoals: isHome ? input.playerTeamScore : input.opponentScore,
+        awayGoals: isHome ? input.opponentScore : input.playerTeamScore,
+      });
+    }
+    // Everybody else in the round, now that his own result is in.
+    playEuropeanGroupRound(
+      new Rng(`${state.seed}:s${state.seasonNumber}:europe:group:${round}`),
+      europe,
+      round,
+      clubs,
+      state.clubId,
+    );
+    closeEuropeanGroupRound(europe, round);
+    return;
+  }
+
+  const knockout = europe.knockout;
+  if (!knockout) return;
+  applyPlayerResult(
+    new Rng(`${state.seed}:s${state.seasonNumber}:${europe.kind}:r${knockout.rounds.length}:result`),
+    knockout,
+    {
+      clubId: state.clubId,
+      goalsFor: input.playerTeamScore,
+      goalsAgainst: input.opponentScore,
+      lookup: clubs,
+      shootoutWinnerId: input.shootout?.winnerId,
+    },
+  );
+  closeRound(knockout, state.clubId);
+}
+
+/**
  * Fold the player's cup result into the bracket and move the round on.
  *
  * Called after the tie has been played or skipped. Losing here is what ends a
@@ -822,9 +929,17 @@ function settlePlayerTie(
  * without either having to know the other did.
  */
 export function prepareNextMatch(state: CareerState, lookup: TeamLookup): void {
-  const scheduled = nextMatch(state);
-  catchUpInternational(state, scheduled?.slotIndex ?? Number.POSITIVE_INFINITY, lookup);
+  const upcoming = nextMatch(state);
+  catchUpInternational(state, upcoming?.slotIndex ?? Number.POSITIVE_INFINITY, lookup);
+  catchUpEurope(state, upcoming?.slotIndex ?? Number.POSITIVE_INFINITY, lookup);
   catchUpKnockouts(state, lookup);
+
+  // Asked AGAIN, because a catch-up can bring a competition into existence.
+  // Europe's bracket is built the moment its last group round is settled, and
+  // until it exists there is no knockout tie for the walk to find — so a
+  // `nextMatch` read from before the catch-up would skip the quarter-final it
+  // has just made possible, and skip it again on every future call.
+  const scheduled = nextMatch(state);
   if (!scheduled || scheduled.competition === 'league') return;
 
   if (scheduled.competition === INTERNATIONAL) {
@@ -842,6 +957,25 @@ export function prepareNextMatch(state: CareerState, lookup: TeamLookup): void {
     return;
   }
 
+  if (isEuropean(scheduled.competition)) {
+    // A group match needs no draw: the fixture list was made when the season
+    // was. Only the bracket half has rounds to open, and it does not exist
+    // until every group has finished.
+    if (isGroupRound(scheduled.round)) return;
+    const knockout = startEuropeanKnockout(state.europe!);
+    const koRound = knockoutRoundOf(scheduled.round);
+    if (!knockout || knockout.rounds.length >= koRound) return;
+    openRound({
+      rng: new Rng(
+        `${state.seed}:s${state.seasonNumber}:${scheduled.competition}:r${scheduled.round}`,
+      ),
+      cup: knockout,
+      lookup: (id) => clubIn(state, lookup, id),
+      playerClubId: state.clubId,
+    });
+    return;
+  }
+
   const cup = knockoutFor(state, scheduled.competition);
   if (!cup || cup.rounds.length >= scheduled.round) return;
 
@@ -852,6 +986,36 @@ export function prepareNextMatch(state: CareerState, lookup: TeamLookup): void {
     lookup: (id) => clubIn(state, lookup, id),
     playerClubId: state.clubId,
   });
+}
+
+/**
+ * Settle European group rounds the calendar has passed.
+ *
+ * The same job `catchUpInternational` does, for the same reason: a group round
+ * he was not involved in still has to be played, or the table he is reading in
+ * November would be missing three of its four fixtures.
+ */
+export function catchUpEurope(state: CareerState, beforeSlot: number, lookup: TeamLookup): void {
+  const europe = state.europe;
+  if (!europe) return;
+  const calendar = calendarFor(state);
+  for (let i = 0; i < Math.min(beforeSlot, calendar.length); i++) {
+    const slot = calendar[i]!;
+    if (slot.competition !== europe.kind || !isGroupRound(slot.round)) continue;
+    if (europe.groupRoundsPlayed >= slot.round) continue;
+    playEuropeanGroupRound(
+      new Rng(`${state.seed}:s${state.seasonNumber}:europe:group:${slot.round}`),
+      europe,
+      slot.round,
+      (id) => clubIn(state, lookup, id),
+      state.clubId,
+    );
+    closeEuropeanGroupRound(europe, slot.round);
+  }
+
+  // Once every group is finished the bracket can be built, and must be: it is
+  // what the rest of the season's European dates are for.
+  startEuropeanKnockout(europe);
 }
 
 /**
@@ -885,9 +1049,31 @@ export function catchUpKnockouts(state: CareerState, lookup: TeamLookup): void {
     }
   }
 
+  // Europe plays on without him too — and unlike a cup it has two halves, so
+  // "how far has it got" has to be answered across both. A club that went out
+  // in the group has a whole knockout still to be played around it.
   const europe = state.europe;
-  if (europe && !stillIn(europe, state.clubId)) {
-    playOnWithout(state, europe, roundsReached(state, europe.kind), clubs, europe.kind);
+  if (europe && !stillInCompetition(europe, state.clubId)) {
+    advanceEuropeanSeason(
+      new Rng(`${state.seed}:s${state.seasonNumber}:europe:${europe.kind}`),
+      europe,
+      roundsReached(state, europe.kind),
+      clubs,
+    );
+  }
+
+  // The super cup is one fixture rather than a bracket, so it has no rounds to
+  // catch up — it is either his to play or somebody else's, and somebody
+  // else's is settled here so the honours list and the season review can say
+  // who opened the year with a trophy.
+  const superCup = state.superCup;
+  if (superCup && !superCup.winnerId && !playsInSuperCup(superCup, state.clubId)) {
+    state.superCup = resolveSuperCup(
+      new Rng(`${state.seed}:s${state.seasonNumber}:superCup`),
+      superCup,
+      clubs(superCup.championId),
+      clubs(superCup.challengerId),
+    );
   }
 }
 
@@ -985,6 +1171,8 @@ export interface SeasonEnd {
   outOfContract: boolean;
   /** Both knockouts as they finished, for the review to report the runs. */
   cups: Record<CupKind, CupState>;
+  /** The super cup that opened this season, if there was one to open it. */
+  superCup: SuperCupTie | null;
   /** Which of them the player's club won. */
   cupsWon: CupKind[];
   /** The European competition played this season, as it finished. */
@@ -1063,17 +1251,27 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   // Read before the summer resets it for next year's tournament.
   const capsThisSeason = state.seasonCaps;
 
-  // The European competition finishes too, whether or not he was still in it.
+  // The European season finishes too, whether or not he was still in it — both
+  // halves of it, since a club knocked out in its group leaves a whole bracket
+  // still to be played.
   if (state.europe) {
-    finishCup(
-      new Rng(`${state.seed}:s${state.seasonNumber}:europe:finish`),
+    advanceEuropeanSeason(
+      new Rng(`${state.seed}:s${state.seasonNumber}:europe:${state.europe.kind}`),
       state.europe,
+      EUROPEAN_MATCHES,
       (id) => clubIn(state, lookup, id),
-      state.clubId,
     );
+    if (state.europe.knockout) {
+      finishCup(
+        new Rng(`${state.seed}:s${state.seasonNumber}:europe:finish`),
+        state.europe.knockout,
+        (id) => clubIn(state, lookup, id),
+        state.clubId,
+      );
+    }
   }
   const europeanTier = state.europe?.kind ?? null;
-  const wonEurope = !!state.europe && state.europe.winnerId === state.clubId;
+  const wonEurope = europeanWinner(state.europe) === state.clubId;
 
   // BOTH halves of the season now go on every country's record, and the European
   // order is re-read off them — BEFORE places are awarded below, so a country
@@ -1102,7 +1300,10 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   const placesAfter = championsLeaguePlaces(state.countryId, europeanOrder);
 
   const position = tablePosition(state.table, state.clubId);
-  const champion = sortTable(state.table)[0]?.teamId ?? state.clubId;
+  // Captured before `advanceSeason` empties the table: next season's super cup
+  // is read off this one, and by then there is nothing left to read.
+  const finalStandings = sortTable(state.table).map((row) => row.teamId);
+  const champion = finalStandings[0] ?? state.clubId;
 
   // Captured BEFORE advanceSeason re-baselines the snapshot and ages the player.
   const progress: SeasonProgress = {
@@ -1198,6 +1399,10 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     position,
     movement,
     cupsWon,
+    // The super cup was played in the FIRST week of the season being closed, so
+    // the tie sitting on the career now is the one this season played. It is
+    // replaced below with the one next season will play.
+    wonSuperCup: state.superCup?.winnerId === state.clubId,
     europeanTier,
     wonEurope,
     internationalRounds: state.seasonCaps,
@@ -1207,7 +1412,7 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
       !wonInternational &&
       knockout.eliminatedInRound === (knockout.rounds.length || 0),
     reachedEuropeanFinal:
-      !!state.europe && state.europe.eliminatedInRound === (state.europe.rounds.length || 0),
+      lostEuropeanFinal(state.europe, state.clubId),
     benchmark,
     seasonLength: fixturesFor(state, state.clubId).length,
   });
@@ -1292,6 +1497,22 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   const finishedCups = state.cups;
   const finishedEurope = state.europe;
   const finishedInternational = state.international;
+  // Handed back on the season end, because the live one is about to be replaced
+  // by next season's and the review still has to be able to report it.
+  const finishedSuperCup = state.superCup;
+
+  // Next season's opening fixture, earned by the one that just finished.
+  //
+  // Built from THIS country's table and cup, not next season's: the super cup
+  // is played by the champions and cup winners of the league it belongs to, so
+  // a player who moves abroad in the summer simply is not in it — which is both
+  // correct and the reason it is checked by club id rather than assumed.
+  state.superCup = nextSuperCup({
+    countryId,
+    standings: finalStandings,
+    cupWinnerId: finishedCups?.nationalCup?.winnerId ?? null,
+  });
+
   state.cups = newCups(nextCountry, nextLeague);
   // A new tournament, drawn afresh. `advanceSeason` has already moved the
   // season number on, so this is next year's draw and not a repeat of the one
@@ -1305,7 +1526,7 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   );
   state.seasonCaps = 0;
   state.europeanEntries = nextEuropeanEntries;
-  state.europe = newEurope(nextEuropeanEntries, state.clubId);
+  state.europe = newEurope(nextEuropeanEntries, state.clubId, state.seed, state.seasonNumber);
 
   recordSeason(state.records, leagueStats);
 
@@ -1383,6 +1604,7 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     outOfContract,
     fellBackOnClub,
     cups: finishedCups,
+    superCup: finishedSuperCup,
     cupsWon,
     europe: finishedEurope,
     europeanTier,
@@ -1488,7 +1710,12 @@ export function acceptOffer(
   // Europe follows the CLUB, not the player: he inherits whatever European
   // place his new club earned last season, and loses whatever his old one had.
   // Signing for a club that qualified is one of the strongest reasons to move.
-  state.europe = newEurope(state.europeanEntries, offer.clubId);
+  state.europe = newEurope(
+    state.europeanEntries,
+    offer.clubId,
+    state.seed,
+    state.seasonNumber,
+  );
 
   state.contract = {
     clubId: offer.clubId,

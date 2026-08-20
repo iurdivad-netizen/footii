@@ -11,7 +11,7 @@ import { context, goalkeeperState, keeper, prospect, veteran } from './helpers.t
 const oneOnOne = getSituationTemplate('oneOnOne');
 
 describe('decision timer', () => {
-  it('gives an experienced, composed player roughly 2.8-3.2s under light pressure', () => {
+  it('gives an experienced, composed player roughly ten seconds under light pressure', () => {
     const result = calculateDecisionTime(
       context({
         player: veteran(),
@@ -20,11 +20,13 @@ describe('decision timer', () => {
       }),
       oneOnOne,
     );
-    expect(result.seconds).toBeGreaterThanOrEqual(2.8);
-    expect(result.seconds).toBeLessThanOrEqual(3.2);
+    // The number the whole scale is centred on: ten seconds for the player the
+    // model is built around. See DECISION_SCALE.
+    expect(result.seconds).toBeGreaterThanOrEqual(9);
+    expect(result.seconds).toBeLessThanOrEqual(10.5);
   });
 
-  it('gives a young, inexperienced player roughly 1.3-1.7s in the same situation', () => {
+  it('gives a young, inexperienced player about half of that in the same situation', () => {
     const result = calculateDecisionTime(
       context({
         player: prospect(),
@@ -33,8 +35,8 @@ describe('decision timer', () => {
       }),
       oneOnOne,
     );
-    expect(result.seconds).toBeGreaterThanOrEqual(1.3);
-    expect(result.seconds).toBeLessThanOrEqual(1.7);
+    expect(result.seconds).toBeGreaterThanOrEqual(4.2);
+    expect(result.seconds).toBeLessThanOrEqual(5.2);
   });
 
   it('takes substantially more time away under intense pressure', () => {
@@ -58,7 +60,7 @@ describe('decision timer', () => {
       }),
       oneOnOne,
     );
-    expect(intense.seconds).toBeLessThan(light.seconds - 0.6);
+    expect(intense.seconds).toBeLessThan(light.seconds - 2);
   });
 
   it('an aggressive goalkeeper rushing out shortens the window', () => {
@@ -142,8 +144,8 @@ describe('decision timer', () => {
       }),
       getSituationTemplate('crossArrival'),
     );
-    // A sub-second window is a coin flip, not a decision.
-    expect(worst.seconds).toBeGreaterThanOrEqual(1.0);
+    // A window too short to read six options in is a coin flip, not a decision.
+    expect(worst.seconds).toBeGreaterThanOrEqual(MIN_DECISION_TIME);
   });
 
   it('the pace setting stretches every window but preserves the attribute gap', () => {

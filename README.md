@@ -867,10 +867,28 @@ qualified higher on merit it keeps the better place and the one it would have ta
 the league table** rather than going unused — which is why winning a cup is a genuine route into
 Europe for a club that finished nowhere, and exactly what a cup is for.
 
-**It is the same knockout object as a domestic cup**, deliberately: the same open draw, the same
-"a round is drawn only when it is reached", the same shootout. Every fix to the draw or the
-penalties applies to all five competitions at once. What differs is who is in it, how much of the
-world is watching, and what winning it is worth.
+**Groups first, then a bracket.** Four groups of four, three matches each, and the top two of every
+group go through to a quarter-final, semi-final and final. Six matches for a club that goes all the
+way; three guaranteed for one that does not.
+
+It used to be a straight sixteen-club knockout, mechanically identical to a domestic cup, and that
+was wrong in a way worth stating — because it is the difference between the two competitions. A cup
+tie is one afternoon, and that is what a cup is *for*: a small club gets ninety minutes in which the
+gap might not matter. Europe asks the opposite question, which is which of these sixteen clubs is
+actually the best. Deciding that by single ties meant a good side drawn badly was gone in September
+having played once, and it meant qualifying for Europe was worth exactly **one European night** to
+most clubs that managed it. A group gives everybody three, makes the last one matter, and makes
+going out mean being worse over a month rather than worse for an afternoon.
+
+The knockout is **seeded, not drawn**: each group's winner is paired with the next group's
+runner-up, so two group winners cannot meet in the first round. That is the entire payoff for
+topping a group, and an open draw there would delete it. The bracket half is still exactly the cup
+object — the same "a round is drawn only when it is reached", the same shootout — so every fix to
+the draw or the penalties still applies to all five competitions at once.
+
+The coefficient counts group results as well as knockout rounds, at about a third of the weight: a
+club that wins all three group matches has still not knocked anybody out, and pricing them equally
+would make a country's standing mostly a record of the half where nobody is eliminated.
 
 **A European run makes you more visible than your league does.** Reputation is settled against how
 closely your season was watched, and that is now the better of your league's standing and the
@@ -878,10 +896,13 @@ competition's — so a Scottish club in the Champions League is genuinely more s
 league alone would make it. This is the mechanism by which a career escapes a small country by
 playing well in it, rather than only by signing away from it.
 
-The hub shows how far the competition has got whether or not you are still in it. A European
-competition you go out of plays on round by round on its own dates, exactly as a domestic cup does,
-so the survivor count keeps coming down and the card eventually names whoever lifted it — which is
-a better answer to "how did that end" than a number frozen on the night you lost.
+The hub shows how far the competition has got whether or not you are still in it — your group table
+while the group is being played, then the bracket. A European competition you go out of plays on
+round by round on its own dates, exactly as a domestic cup does, so the survivor count keeps coming
+down and the card eventually names whoever lifted it, which is a better answer to "how did that end"
+than a number frozen on the night you lost. The group tables stay visible after the bracket is
+drawn: the argument for a group stage is that going out of one is a month of football rather than a
+bad night, and a table that vanished would take that record with it.
 
 ### Career records
 
@@ -1386,6 +1407,50 @@ can genuinely rule a league out and cannot make a club in one want him. Refusing
 already play in means "I will not move abroad" and never blocks you from staying or signing at home
 — reading it the other way would strand an out-of-contract player with nowhere at all to go.
 
+### The super cup
+
+One match, before the season starts: last year's champions against last year's cup winners.
+
+Everything else a season wins is settled in June and then sits on the honours list. The super cup is
+the only thing that pays a previous season out in **football** rather than in a line of text — the
+first fixture of the new year exists because of what you did in the old one, and a player who joins
+the champions in the summer walks into a final in his first week. It is also the cheapest trophy in
+the game to reach and the least valuable to win, which is exactly right: one match, no run, and a
+place in it earned by something you already have a trophy for.
+
+A club that won the league **and** the cup meets the league runner-up instead, which is what football
+does and what stops the fixture being a club playing itself. A country whose cup produced no winner
+plays none at all, and the calendar simply skips the slot.
+
+It is not a knockout with rounds, so it does not use `CupState`: a bracket of one tie would be a
+bracket in name only, and every screen that walks rounds would have to special-case it. And it
+stores the country it belongs to, because a player who moves abroad in the summer carries the tie
+with him in the save and is simply not in it — without that the fixture would name itself after
+whichever league he happened to sign in.
+
+### The decision window, rescaled
+
+The single most important number in the game was wrong by a factor of three, and wrong in a way that
+took measuring to see.
+
+A window of about three seconds was calibrated against how long a footballer actually has on the
+ball. That is honest football and a poor game: three seconds is not enough for a human to **read six
+freshly generated labels** and then decide between them, so the mechanic was testing reading speed
+rather than judgement. The options are the game; the clock is meant to be pressure on a decision you
+have had time to understand.
+
+So there is now one constant, `DECISION_SCALE`, applied at the very end — after every weight,
+pressure penalty and modifier, in the same place the pace multiplier is applied. Every window
+stretched by the same factor, so the **relative** difference between a composed veteran and a
+panicking teenager survives exactly. Nothing was retuned; it was rescaled.
+
+Ten seconds is for the player the model is centred on. A composed, experienced professional under
+light pressure gets about that in open play; a young, low-attribute player in the same situation
+gets a little under five; a penalty, which is deliberately the longest window in the game, runs
+longer still. The pace settings are now named by the window they give rather than by a multiplier,
+because "Standard — 1x" said nothing and only became sayable once the scale was one a person could
+hold in their head.
+
 ### Balancing notes worth knowing
 
 Two calibration bugs were found by measurement rather than by eye, and both are documented at
@@ -1644,14 +1709,10 @@ of everything the game has recorded. Both are documented under *Career mode*.
 Raised from playing the game. Each is annotated with what the code actually does today, because
 several turned out to be a different problem from the one they looked like.
 
-**1. The European competitions should be a group stage, then a knockout.**
-Confirmed. `europe.ts` says so in its own header: *"Sixteen clubs, an open draw, four rounds —
-mechanically the same knockout as a domestic cup, and deliberately so."* That sharing was the right
-call when the priority was getting Europe to exist at all — every fix to the draw or the shootout
-applies to all five competitions at once — but it means the Champions League is a cup, not a
-league-then-cup. The international tournament already has the shape wanted here (groups, then a
-seeded knockout, in `international.ts`), so this is largely a matter of giving `EuropeanState` the
-same two-phase structure and finding the extra matchdays in an already crowded calendar.
+**1. The European competitions should be a group stage, then a knockout.** ✅ **Done.**
+Four groups of four, then quarter-final, semi-final and final. Six matches for a club that goes all
+the way and three guaranteed for one that does not, where a straight knockout gave most qualifiers
+exactly one European night a year. See *European competitions* above.
 
 **2. You should be able to choose where to start, or play a trial.**
 Half of this already works and the other half is the real problem. The setup screen's club list is
@@ -1682,10 +1743,9 @@ only one survived:
     across the whole world, the extreme case is about 72/28 and a typical mismatch about 60/40 —
     mild, and what the code's own comment claimed. The weighting was left alone.
 
-**6. Every country should have a super cup.**
-Confirmed missing: `CupKind` is `'nationalCup' | 'leagueCup'` and nothing else. The cup machinery is
-already generic over its id, so a one-match competition between the league champion and the national
-cup winner is mostly a calendar slot and an honour, not new machinery.
+**6. Every country should have a super cup.** ✅ **Done.**
+One match, before the first league round: last season's champions against last season's cup winners,
+or the league runner-up when one club did both. See *The super cup* above.
 
 **7. Salaries should look more like real ones.**
 Confirmed, with numbers. `offeredWage` is `2 ** ((ability - 40) / 9)` scaled by club and division,
@@ -1700,12 +1760,9 @@ It was a rendering gap, not a data one — the honours list already held a seaso
 and promotions together. Both history tables now badge them by kind, so the eye separates what the
 club won from what the player won, and both from a relegation.
 
-**9. The decision window should be about 10 seconds at 1x.**
-Currently the situation base times are 1.7–2.1s, clamped to `MIN_DECISION_TIME` 1.0 and
-`MAX_DECISION_TIME` 4.5. Ten seconds is roughly a five-fold change and touches more than one
-constant: the goalkeeper commits partway through the window, so his commit point moves with it, and
-the *Balancing notes* below were all measured against the current scale. Worth doing as a deliberate
-re-calibration rather than a constant edit.
+**9. The decision window should be about 10 seconds at 1x.** ✅ **Done.**
+One constant, `DECISION_SCALE`, applied at the very end — so every window stretched by the same
+factor and nothing was retuned. See *The decision window, rescaled* above.
 
 **10. The default should be no time limit.** ✅ **Done.**
 `defaultSettings()` now returns `pace: 'untimed'`. A two-second window on six options you have never

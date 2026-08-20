@@ -366,3 +366,116 @@ describe('locating a club in Europe', () => {
     expect(europeanTierOf(entries, 'another-club')).toBeNull();
   });
 });
+
+
+/**
+ * A EUROPEAN SEASON, END TO END
+ *
+ * Two competitions in one object, and the seam between them is where the risk
+ * is. A club that finishes third in its group must get nothing after Christmas;
+ * one that finishes second must get a quarter-final. Both used to be the same
+ * thing — a first-round tie — and neither can be checked by looking at one half.
+ */
+
+import { startCareer, endSeason, prepareNextMatch, recordPlayerMatch } from '../src/simulation/CareerService.ts';
+import { nextMatch, seasonComplete } from '../src/core/career/career.ts';
+import type { CareerState } from '../src/core/career/career.ts';
+import { createPlayer } from '../src/core/player/player.ts';
+import { createMatchStats } from '../src/core/match/matchStats.ts';
+import { TEAMS, getTeam } from '../src/data/gameData.ts';
+import { EUROPEAN_GROUP_ROUNDS, EUROPEAN_KNOCKOUT_ROUNDS, europeanWinner } from '../src/core/career/europe.ts';
+import { groupIndexOf, reachedKnockout } from '../src/core/career/groupStage.ts';
+
+const clubs = (id: string) => getTeam(id);
+
+/** A player good enough that his club keeps qualifying. */
+function europeanCareer(): CareerState {
+  return startCareer({
+    player: createPlayer({
+      name: 'Continental',
+      position: 'ST',
+      age: 22,
+      baseAttribute: 80,
+      reputation: 80,
+      attributes: {},
+    }),
+    clubId: 'northport-city',
+    teams: TEAMS,
+    seed: 'euro-season',
+  });
+}
+
+/** Play one whole season, collecting every European fixture he was offered. */
+function playSeason(state: CareerState) {
+  const european: { round: number; label?: string }[] = [];
+  let guard = 0;
+  while (!seasonComplete(state) && guard++ < 250) {
+    prepareNextMatch(state, clubs);
+    const scheduled = nextMatch(state);
+    if (!scheduled) break;
+    if (state.europe && scheduled.competition === state.europe.kind) {
+      european.push({ round: scheduled.round, label: scheduled.roundLabel });
+    }
+    recordPlayerMatch(
+      state,
+      { stats: createMatchStats(), rating: 7, playerTeamScore: 2, opponentScore: 1, fitnessAtEnd: 70 },
+      clubs,
+    );
+  }
+  return { european, outcome: endSeason(state, clubs) };
+}
+
+describe('playing a European season', () => {
+  it('gives every entrant three group matches before anything is decided', () => {
+    const state = europeanCareer();
+    playSeason(state);
+
+    // Season two is the first he can be in Europe: the first has no previous
+    // season to have qualified from.
+    let seasons = 0;
+    while (seasons < 4) {
+      const inEurope = !!state.europe;
+      const { european } = playSeason(state);
+      seasons += 1;
+      if (!inEurope) continue;
+
+      const groupMatches = european.filter((match) => match.round <= EUROPEAN_GROUP_ROUNDS);
+      expect(groupMatches).toHaveLength(EUROPEAN_GROUP_ROUNDS);
+      for (const match of groupMatches) expect(match.label).toMatch(/^Group match/);
+      return;
+    }
+  });
+
+  it('finishes every competition: four groups, three knockout rounds, one winner', () => {
+    const state = europeanCareer();
+    for (let season = 0; season < 4; season += 1) {
+      const { outcome } = playSeason(state);
+      if (!outcome.europe) continue;
+
+      expect(outcome.europe.groups).toHaveLength(4);
+      expect(outcome.europe.groupRoundsPlayed).toBe(EUROPEAN_GROUP_ROUNDS);
+      expect(outcome.europe.knockout).not.toBeNull();
+      expect(outcome.europe.knockout!.rounds).toHaveLength(EUROPEAN_KNOCKOUT_ROUNDS);
+      expect(europeanWinner(outcome.europe)).toBeTruthy();
+    }
+  });
+
+  it('offers knockout ties only to a club that got out of its group', () => {
+    const state = europeanCareer();
+    for (let season = 0; season < 5; season += 1) {
+      const inEurope = !!state.europe;
+      const { european, outcome } = playSeason(state);
+      if (!inEurope || !outcome.europe) continue;
+
+      const knockoutMatches = european.filter((match) => match.round > EUROPEAN_GROUP_ROUNDS);
+      const through = reachedKnockout(outcome.europe, outcome.record.clubId);
+
+      // The whole point of a group stage: going out of it ends the season in
+      // Europe, and there is nothing after Christmas.
+      if (!through) expect(knockoutMatches).toHaveLength(0);
+      else expect(knockoutMatches.length).toBeGreaterThan(0);
+      // And he was in a group either way.
+      expect(groupIndexOf(outcome.europe, outcome.record.clubId)).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
