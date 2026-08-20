@@ -5,7 +5,9 @@ import {
   acceptOffer,
   canStay,
   careerTeams,
+  europeanState,
   prepareNextMatch,
+  worldCup,
   worldTable,
   endSeason,
   recordPlayerMatch,
@@ -14,6 +16,7 @@ import {
 } from '../simulation/CareerService.ts';
 import { allClubIds, countryPrestige, getCountry, locateClub } from '../core/career/countries.ts';
 import { nextMatch, seasonComplete } from '../core/career/career.ts';
+import { europeanTierOf } from '../core/career/europe.ts';
 import type { CareerState } from '../core/career/career.ts';
 import { Rng } from '../core/rng.ts';
 import { clonePlayer, currentAbility } from '../core/player/player.ts';
@@ -401,6 +404,8 @@ export class App {
       new WorldScreen(career, {
         table: (countryId) => worldTable(career, countryId, getTeam),
         club: clubs,
+        cup: (countryId, kind) => worldCup(career, countryId, kind, getTeam),
+        europe: (tier) => europeanState(career, tier, getTeam),
         onBack: () => this.showCareerHub(),
       }).element,
     );
@@ -669,6 +674,9 @@ export class App {
             locateClub(career.leagues, id)?.countryId ?? career.countryId,
           prestigeOf: (id: string) =>
             countryPrestige(locateClub(career.leagues, id)?.countryId ?? career.countryId),
+          // The window opens AFTER qualification has been settled, so these are
+          // next season's places — the ones a move would actually get him.
+          europeanTierOf: (id: string) => europeanTierOf(career.europeanEntries ?? {}, id),
           renewal: career.renewal,
           outOfContract: career.contract.yearsRemaining <= 0,
           canStay: canStay(career),

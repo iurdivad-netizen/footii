@@ -1761,7 +1761,8 @@ button.ghost {
 
 /* ------------------------------------------- divisions and honours ----- */
 
-.watch-division {
+.watch-division,
+.watch-europe {
   font-family: var(--mono);
   font-size: 0.62rem;
   font-style: normal;
@@ -1772,6 +1773,25 @@ button.ghost {
   border-radius: 3px;
   padding: 1px 4px;
   margin-left: 6px;
+}
+
+/* A club watching from Europe, which is a different proposition entirely. */
+.watch-europe {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+/*
+ * The European place a move comes with, on the transfer card.
+ *
+ * Its own line with air around it rather than another clause in the grey hint
+ * above: it is frequently the biggest difference between two otherwise similar
+ * offers, and it has to be read rather than scanned past.
+ */
+.offer-europe {
+  font-size: 0.82rem;
+  color: var(--accent);
+  margin: 8px 0 12px;
 }
 
 /*
@@ -2076,4 +2096,140 @@ button.ghost {
 .record-note {
   font-size: 0.72rem;
   color: var(--text-dim);
+}
+
+/* ------------------------------------------ the world: competitions ----- */
+
+/*
+ * The competition switcher sits ABOVE the country tabs and is deliberately
+ * heavier than them: which competition you are looking at changes what the
+ * country tabs even mean (they steer the leagues and the cups, and nothing
+ * else), so the two rows must not read as one row of equal choices.
+ */
+.view-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.view-tab {
+  font-size: 0.86rem;
+  padding: 7px 14px;
+}
+
+.view-tab.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.world-note {
+  margin: 0 0 14px;
+}
+
+.own-tag {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-style: normal;
+  margin-left: 8px;
+}
+
+/*
+ * A bracket is read round by round, so the rounds are columns that scroll
+ * sideways rather than wrapping: a wrapped bracket puts the semi-final under
+ * the first round and stops being a bracket at all.
+ */
+.bracket {
+  display: flex;
+  gap: 18px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.bracket-round {
+  min-width: 210px;
+  flex: 1 1 210px;
+}
+
+.bracket-round h3 {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: 0 0 8px;
+}
+
+.bracket-ties {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bracket-ties li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.82rem;
+  padding: 7px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+}
+
+/* The player's own tie, wherever it lands in the draw. */
+.bracket-ties li.own {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.tie-score {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  flex: 0 0 auto;
+}
+
+.bracket-ties li.own .tie-score {
+  color: var(--text);
+}
+
+/* Who went through and who did not, without needing to read the score. */
+.tie-through {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.tie-out {
+  flex: 1 1 0;
+  min-width: 0;
+  color: var(--text-dim);
+  text-decoration: line-through;
+  text-decoration-color: var(--line);
+}
+
+.tie-pens {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--warn);
+  font-style: normal;
+  flex: 0 0 auto;
+}
+
+.bracket-winner {
+  margin: 12px 0 0;
+  font-size: 0.9rem;
+}
+
+.bracket-winner strong {
+  color: var(--accent);
 }

@@ -333,23 +333,32 @@ export function stillIn(cup: CupState<KnockoutId>, clubId: string): boolean {
 }
 
 /**
- * Play out whatever is left of a cup with nobody watching.
+ * Play a knockout forward, with nobody watching, to at most `rounds` rounds.
  *
- * Used when the player is knocked out — the competition carries on without him
- * and still produces a winner, because "who won the cup you went out of" is
- * part of knowing where you stand.
+ * The rounds limit is what lets a competition the player is not in be shown
+ * LIVE rather than finished. A background cup run to completion in September
+ * would tell a player in October who lifted a trophy that has not been played
+ * for yet; run to the rounds the calendar has actually reached, it says exactly
+ * as much as his own cup does.
+ *
+ * A partial run is always a PREFIX of the full one. `openRound` forks its
+ * generator by round number and never advances the parent's stream, so the
+ * draw for round three is the same draw whether it is reached in one call or
+ * three — which is what allows a background cup to be recomputed on demand
+ * instead of stored.
  */
-export function finishCup<K extends KnockoutId>(
+export function advanceCupTo<K extends KnockoutId>(
   rng: Rng,
   cup: CupState<K>,
   lookup: (id: string) => Team,
+  rounds: number,
   playerClubId?: string,
 ): CupState<K> {
   let guard = 0;
-  while (cup.winnerId === null && guard++ < 16) {
+  while (cup.winnerId === null && cup.rounds.length < rounds && guard++ < 16) {
     const last = cup.rounds[cup.rounds.length - 1];
     if (last && last.ties.some((tie) => !tie.winnerId)) {
-      throw new Error('finishCup: cannot run on past an unresolved tie');
+      throw new Error('advanceCupTo: cannot run on past an unresolved tie');
     }
     openRound({ rng, cup, lookup });
     // Passed through so a club that goes out here still has the round recorded.
@@ -362,11 +371,51 @@ export function finishCup<K extends KnockoutId>(
 }
 
 /**
- * The winner of a cup nobody was watching, for a country the player is not in.
+ * Play out whatever is left of a cup with nobody watching.
+ *
+ * Used when the player is knocked out — the competition carries on without him
+ * and still produces a winner, because "who won the cup you went out of" is
+ * part of knowing where you stand.
+ */
+export function finishCup<K extends KnockoutId>(
+  rng: Rng,
+  cup: CupState<K>,
+  lookup: (id: string) => Team,
+  playerClubId?: string,
+): CupState<K> {
+  return advanceCupTo(rng, cup, lookup, Number.POSITIVE_INFINITY, playerClubId);
+}
+
+/**
+ * A cup in a country the player has nothing to do with, as it stands today.
  *
  * A pure function of the seed, in the same spirit as the background league
  * tables: no cup state is stored for the other seven countries, so this can
- * never disagree with itself between one screen and the next.
+ * never disagree with itself between one screen and the next. `rounds` is how
+ * far the season has got, so browsing another country in October shows a cup
+ * that has reached October.
+ */
+export function backgroundCup(
+  seed: string,
+  season: number,
+  kind: CupKind,
+  countryId: string,
+  clubIds: readonly string[],
+  lookup: (id: string) => Team,
+  rounds = Number.POSITIVE_INFINITY,
+): CupState<CupKind> {
+  const cup = createCup(kind, countryId, clubIds);
+  if (clubIds.length === 0) return cup;
+  advanceCupTo(new SeededRng(`${seed}:s${season}:cup:${countryId}:${kind}`), cup, lookup, rounds);
+  return cup;
+}
+
+/**
+ * The winner of a cup nobody was watching, for a country the player is not in.
+ *
+ * The same background cup as above, run all the way out. Kept as its own name
+ * because the callers that award European places want a winner and have no
+ * interest in the bracket that produced one.
  */
 export function backgroundCupWinner(
   seed: string,
@@ -377,9 +426,7 @@ export function backgroundCupWinner(
   lookup: (id: string) => Team,
 ): string | null {
   if (clubIds.length === 0) return null;
-  const cup = createCup(kind, countryId, clubIds);
-  finishCup(new SeededRng(`${seed}:s${season}:cup:${countryId}:${kind}`), cup, lookup);
-  return cup.winnerId;
+  return backgroundCup(seed, season, kind, countryId, clubIds, lookup).winnerId;
 }
 
 /**

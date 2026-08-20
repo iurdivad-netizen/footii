@@ -9,7 +9,7 @@ import { getCountry } from '../../core/career/countries.ts';
 import type { CupKind, CupState } from '../../core/career/cups.ts';
 import { CUP_KINDS, cupName, roundName, totalRounds } from '../../core/career/cups.ts';
 import type { EuropeanState, EuropeanTier } from '../../core/career/europe.ts';
-import { europeanCompetition } from '../../core/career/europe.ts';
+import { europeanCompetition, europeanNameInProse } from '../../core/career/europe.ts';
 import type { InternationalState } from '../../core/career/international.ts';
 import { KNOCKOUT_ROUNDS } from '../../core/career/international.ts';
 import { countryOfNation, nationId } from '../../core/career/nations.ts';
@@ -179,9 +179,15 @@ function renderEurope(
   clubId: string,
   nextTier: EuropeanTier | null,
 ): string {
+  // Named as the CLUB's achievement, because that is whose it is. A European
+  // place belongs to the club that earned it: leave in the window that opens
+  // on the next screen and it stays behind, and sign for a club that qualified
+  // and you inherit theirs. "You are in the Champions League next season" was a
+  // promise the very next screen could quietly take away.
   const qualified = nextTier
     ? `<p class="division-move up">
-         <strong>Qualified.</strong> You are in ${europeanCompetition(nextTier).name} next season.
+         <strong>Qualified.</strong> ${getTeam(clubId).name} are in
+         ${europeanNameInProse(nextTier)} next season — stay, and so are you.
        </p>`
     : '';
 

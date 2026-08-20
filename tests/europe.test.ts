@@ -9,6 +9,7 @@ import {
   championsLeaguePlaces,
   cupRouteInto,
   europeanCompetition,
+  europeanNameInProse,
   europeanPlaces,
   europeanTierOf,
   fieldFor,
@@ -67,6 +68,22 @@ describe('the three competitions', () => {
     expect(cupRouteInto('europaLeague')).toBe('nationalCup');
     expect(cupRouteInto('conferenceLeague')).toBe('leagueCup');
     expect(cupRouteInto('championsLeague')).toBeNull();
+  });
+});
+
+describe('naming a competition in prose', () => {
+  it('drops the capital article so it reads as a sentence', () => {
+    expect(europeanNameInProse('championsLeague')).toBe('the Champions League');
+    expect(europeanNameInProse('europaLeague')).toBe('the Europa League');
+    expect(europeanNameInProse('conferenceLeague')).toBe('the Conference League');
+  });
+
+  it('still names every competition it is asked about', () => {
+    for (const tier of EUROPEAN_TIERS) {
+      expect(europeanNameInProse(tier).toLowerCase()).toBe(
+        europeanCompetition(tier).name.toLowerCase(),
+      );
+    }
   });
 });
 
