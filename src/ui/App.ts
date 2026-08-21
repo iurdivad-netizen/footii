@@ -11,6 +11,7 @@ import {
   worldCup,
   worldTable,
   endSeason,
+  missMatch,
   recordPlayerMatch,
   startCareer,
   stayAtClub,
@@ -773,6 +774,7 @@ export class App {
       new CareerScreen(career, {
         onPlay: () => this.playCareerMatch(),
         onSkip: () => this.skipCareerMatch(),
+        onMiss: () => this.missCareerMatch(),
         onWorld: () => this.showWorld(),
         onEndSeason: () => this.reviewSeason(),
         onQuit: () => this.showHome(),
@@ -906,6 +908,23 @@ export class App {
    * thirty matches, and somebody skipping them does not want thirty reports. The
    * hub reports the result instead.
    */
+  /**
+   * Let a fixture go by while he is injured.
+   *
+   * No match engine is built at all, which is the point: he is not in this one.
+   * The club's result is simulated by the career service exactly as every other
+   * club's is, and the hub reports it as something that happened rather than as
+   * something he did.
+   */
+  private missCareerMatch(): void {
+    const career = activeCareer(this.save);
+    if (!career || !career.injury) return;
+
+    missMatch(career, getTeam);
+    this.save = saveCareer(this.save, career);
+    this.showCareerHub();
+  }
+
   private skipCareerMatch(): void {
     const career = activeCareer(this.save);
     if (!career) return;

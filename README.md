@@ -1182,6 +1182,75 @@ Wednesday is four days against seven, and recovery is not linear in days — but
 number to tighten when squad rotation finally gives you somewhere to sit; congestion is the pressure
 that makes rotation and injuries worth having at all, and it did not exist before.
 
+### Injuries, and the matches that happen without you
+
+Two levers in this game were written, tested and unreachable for a long time, and they had the same
+cause: **you start every fixture there is**. Reputation weights how much of the season you played,
+and individual awards need 60% of a league campaign — but with a full season every season, both
+ratios were 1 in every season anybody had ever played.
+
+The roadmap listed injuries as blocked on squad context, and for a long time that was right: an
+injury with no teammates meant a match was skipped and nothing else. **It stopped being right once
+playing time was measured properly.** Missing matches now moves both levers on its own, because
+both are measured against the league's own fixture list, and a player in the treatment room is not
+in the side. No teammate has to exist for that to be true — which is why this landed before squad
+context rather than after it.
+
+#### What causes one
+
+Fatigue, mostly, and that is the point. The risk is **quadratic** in how empty you were at the final
+whistle, so the danger concentrates exactly where football puts it: the end of a hard match, in a
+week that already had one. A linear term would have spread risk evenly across every level of
+tiredness and made a hard season feel like a slightly unluckier version of an easy one.
+
+That makes **fixture congestion the engine**, rather than a dice roll that fires sometimes. Minutes
+played, age past the late twenties, and stamina adjust it from there — a substitute risks less than
+a man who played ninety, a thirty-five-year-old more than a twenty-two-year-old, and a durable
+player less than a fragile one. Nothing happens to a player who did not play at all.
+
+It is diagnosed **at full time, never mid-match**. A player pulling up in the 62nd minute is the
+better simulation and the worse game: it ends the one thing you came to do, halfway through, on a
+roll you cannot see or influence.
+
+#### How long
+
+| Severity | Share of injuries | Out for |
+| --- | --- | --- |
+| A knock | 55% | 1 week |
+| A strain | 28% | 2–3 weeks |
+| A torn muscle | 13% | 4–7 weeks |
+| A rupture | 4% | 9–16 weeks |
+
+Measured across careers, this comes out at **one to three spells a season and typically nought to
+ten weeks out** — leaving league participation between about 70% and 100%, usually in the nineties.
+That range is the whole point: it is the first time those numbers have been able to be anything
+other than exactly 100%.
+
+Weeks are what an injury is counted in, which is only expressible because the season is now measured
+in them. A midweek fixture is a gap of **zero** weeks, so missing it does not shorten the injury that
+caused it to be missed — both matches in a congested week are lost to the same week of recovery.
+
+#### The match still happens
+
+A missed fixture is played by your club without you. The result counts, the table moves, the bracket
+moves, the calendar advances — the season has to move on identically whether you played or watched.
+The only difference is that **none of it is yours**: no appearance, no rating, no goals, no
+development, no record book, no reputation from the match itself. That absence *is* the mechanism.
+
+The result is simulated the way every other club's fixture is simulated, because that is exactly
+what your club's match is when you are not in it: a background fixture. A cup tie you miss that
+finishes level still goes to penalties and is still rolled on the two clubs' strength — including
+the super cup, which previously would have fallen to the champions by default.
+
+The hub reports it as **Missed** rather than **Skipped**, and the distinction is deliberate: a
+skipped match is one you played without watching, a missed one is a match that happened without you.
+Reporting the second as the first would credit you with an appearance you never made.
+
+**A summer heals everything.** Carrying a rupture into pre-season is the better simulation and it is
+not worth what it costs: the break is months long, so almost every injury genuinely would have
+healed, and modelling the one that would not means greeting somebody with an unplayable August. The
+cost is that an injury picked up in May is served cheaply, and that is the honest trade.
+
 ### Skipping a match
 
 A season is up to forty-seven matches across five competitions. Playing every one of them is a
@@ -1849,7 +1918,8 @@ from 34 and forced at 39, an end screen that shows a career in full before you s
 of fame that ranks every career this browser has finished**, **three independent career slots**,
 **export and import of the whole save**, **penalty shootouts you take the kicks in**,
 **contracts you can push back on and stated preferences about where you will play**,
-**a trial to earn a start at a club above your level**, promotion and relegation machinery
+**a trial to earn a start at a club above your level**, **injuries driven by fixture congestion,
+and matches your club plays without you**, promotion and relegation machinery
 (dormant on a one-tier world), debug mode, and a versioned localStorage save with migration that
 says so when the browser will not keep it.
 
@@ -1866,25 +1936,27 @@ What remains, **ordered by what it unblocks rather than by size**. The first ite
 other item on this list is waiting for.
 
 1. **Squad context** — named teammates, so an assist has a recipient and a club has a shape.
-   The biggest structural gap by a distance, and the blocker for most of what follows: the
-   reputation settlement weights playing time and awards require 60% of a season, but you start
-   every fixture forever, so neither can bite. `Team` is currently a set of ratings and nothing
-   else.
+   The biggest structural gap by a distance, and the blocker for most of what follows. `Team` is
+   currently a set of ratings and nothing else.
 
-   Both levers are now at least *correct* while they wait. The awards gate always was — it measures
-   league matches against league fixtures. The reputation one was not: it divided every
-   competition's matches by the league's fixture list, so it could not have fallen below 1 even
-   with rotation in place. That is fixed, and deliberately fixed first — a lever that is wrong while
-   dormant is wrong on the day it wakes, and far harder to spot then, because by that point it looks
-   like a balance problem rather than a bug. See *Reputation and transfers*.
+   It is no longer the blocker for playing time, though, and that is worth being precise about.
+   Both levers that waited on it — the reputation settlement, and the 60% gate on individual
+   awards — are now **live**, because injuries took matches off you and neither lever needed a
+   teammate to notice. League participation runs between about 70% and 100% across a career instead
+   of being pinned at exactly 100%. What squad context still unblocks is *rotation* — being left out
+   while fit — along with assists having a recipient, loans, and a manager whose confidence in you
+   could finally give morale something to do.
 
-2. **Injuries and squad rotation** — the fitness model has enough bite to support them
-   (`FITNESS_RECOVERY`, and a match that costs 30-40 points), and they are what would make the
-   playing-time half of reputation real. **Fixture congestion now supplies the pressure**: a season
-   in every competition runs at an average of 67 fitness against 95 for a quiet one, so there is
-   finally a reason a manager would rest somebody — and no way yet to do it. See *A season is
-   measured in weeks*. **Depends on squad context**: without teammates, an injury
-   only means a match is skipped, with nobody taking your place and nothing to win back.
+2. **Squad rotation** — ✅ **injuries are done**; rotation is what is left of this item.
+   Injuries turned out *not* to depend on squad context, which is why they went first: missing
+   matches moves reputation and the awards gate on its own, and fixture congestion supplies the
+   cause (a season in every competition averages 67 fitness against 95 for a quiet one). See
+   *Injuries, and the matches that happen without you*.
+
+   Rotation genuinely does depend on squad context, and for the original reason: being left out
+   while fit needs somebody to be left out *for*. It is also the half that gives the player a
+   decision — an injury is something that happens to you, where fighting your way back into a side
+   is something you do.
 
 3. **A second division per country** — the machinery is written, tested and dormant; it needs clubs
    and a fixture list. `teams.json` is 192 clubs, sixteen per country across twelve countries, every

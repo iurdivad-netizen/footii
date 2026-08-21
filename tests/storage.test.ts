@@ -1134,6 +1134,49 @@ describe('counting how a career was actually played', () => {
     expect(activeCareer(migrated)!.howPlayed.paces.hardcore).toBe(20);
   });
 
+  it('brings a career forward from before injuries existed, fit', () => {
+    // Inventing an injury for a career already under way would take matches off
+    // somebody for something that never happened to them.
+    const state = career();
+    const older = { ...state } as Record<string, unknown>;
+    delete older.injury;
+
+    const migrated = migrate({
+      version: 18,
+      career: emptyCareer(),
+      settings: defaultSettings(),
+      careers: [older, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(migrated).not.toBeNull();
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(activeCareer(migrated)!.injury).toBeNull();
+  });
+
+  it('keeps an injury a career already had', () => {
+    const state = career();
+    state.injury = {
+      severity: 'strain',
+      label: 'A strain',
+      weeks: 3,
+      weeksRemaining: 2,
+      season: 4,
+    };
+
+    const migrated = migrate({
+      version: 18,
+      career: emptyCareer(),
+      settings: defaultSettings(),
+      careers: [state, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(activeCareer(migrated)!.injury!.weeksRemaining).toBe(2);
+  });
+
   it('survives a round trip through export and import', () => {
     const state = career();
     state.howPlayed = { skipped: 2, played: 9, paces: { untimed: 9 } };

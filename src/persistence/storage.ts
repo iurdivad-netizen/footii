@@ -33,7 +33,7 @@ import { rankLegacies } from '../core/career/legacy.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 18;
+export const SAVE_VERSION = 19;
 
 export interface CareerRecord {
   matches: number;
@@ -653,6 +653,20 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
       if (career) career.howPlayed ??= createHowItWasPlayed();
     }
     if (save.careerState) save.careerState.howPlayed ??= createHowItWasPlayed();
+  }
+
+  if (save.version === 18) {
+    // v18 -> v19: a career can be injured.
+    //
+    // Everybody comes forward fit, which is the only defensible reading of a
+    // save written by a version where being unfit was not a state that existed.
+    // Inventing an injury for a career already under way would take matches off
+    // somebody for something that never happened to them.
+    save = { ...save, version: 19 };
+    for (const career of save.careers ?? []) {
+      if (career) career.injury ??= null;
+    }
+    if (save.careerState) save.careerState.injury ??= null;
   }
 
   // The flat field is a migration detail and must not survive into the save.
