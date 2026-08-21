@@ -3423,3 +3423,33 @@ button.ghost.danger {
 .career-card .hint .congested {
   color: var(--warn);
 }
+
+/*
+ * Injury, on the career hub.
+ *
+ * Amber rather than red: being injured is a setback the career recovers from,
+ * not a failure state, and the red in this palette is reserved for things that
+ * have gone wrong rather than for things that have merely happened.
+ */
+.injury-out {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--warn);
+  background: rgba(245, 158, 11, 0.1);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.injury-out strong {
+  color: var(--warn);
+}
+
+.stat-list .stat-injury dd {
+  color: var(--warn);
+}
+
+.last-result-tag.missed {
+  color: var(--warn);
+  border-color: var(--warn);
+}

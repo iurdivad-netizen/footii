@@ -27,6 +27,8 @@ import type { CareerRecords } from './records.ts';
 import type { Coefficients } from './coefficients.ts';
 import type { NationStrengths } from './nationDrift.ts';
 import { breakStreaks, recordMatch as recordMatchInBook } from './records.ts';
+import { advanceInjury, rollInjury } from './injury.ts';
+import type { Injury } from './injury.ts';
 import type { CalendarSlot, CompetitionKind } from './calendar.ts';
 import { isEuropean, isInternational, isSuperCup, seasonCalendar } from './calendar.ts';
 import type { InternationalState } from './international.ts';
@@ -242,6 +244,13 @@ export interface CareerState {
   lastResult: MatchResultSummary | null;
   /** How this career was actually played. See `HowItWasPlayed`. */
   howPlayed: HowItWasPlayed;
+  /**
+   * The injury keeping him out, or null when he is fit.
+   *
+   * Null rather than an injury with zero weeks left, so "fit" has exactly one
+   * representation and no caller has to remember to check both.
+   */
+  injury: Injury | null;
 }
 
 /**
@@ -296,6 +305,15 @@ export interface MatchResultSummary {
   rating: number;
   /** True when it was resolved automatically rather than played. */
   skipped: boolean;
+  /**
+   * True when he was not fit to play it at all.
+   *
+   * Distinct from `skipped`, and the distinction matters on the hub: a skipped
+   * match is one he played without watching, and a missed one is a match that
+   * happened without him. Reporting the second as the first would credit him
+   * with an appearance he never made.
+   */
+  missed?: boolean;
   /**
    * The shootout, when the tie went to one.
    *
@@ -817,27 +835,56 @@ export function applyMatchToCareer(
   // Past the slot that was PLAYED, not one past where the walk started.
   state.calendarIndex = input.slotIndex + 1;
 
-  // Fitness: what was left at the whistle, plus recovery before the next game.
+  restUntilNextMatch(state, input.slotIndex, input.fitnessAtEnd);
+
+  // Then, and only then, the roll for a new one. AFTER the rest above rather
+  // than before it, so a fresh diagnosis keeps its full length: an injury found
+  // at this whistle starts serving from here, and must not have the week that
+  // led up to it deducted from it.
   //
-  // Asked AFTER the indexes move, because "the next game" is a question only
-  // the advanced career can answer. `nextMatch` walks past every slot that is
-  // not his — a cup he is out of, a European tier he is not in, an
-  // international he was not picked for — so a midweek he has no fixture in
-  // correctly reads as rest rather than as congestion. That accuracy is the
-  // reason this is computed here rather than handed in by the caller.
-  const playedWeek = calendarFor(state)[input.slotIndex]?.week ?? 1;
-  const next = nextMatch(state);
-  // Nothing left means the season is over, and the summer resets fitness to
-  // 100 regardless — a full week is the honest neutral answer either way.
-  state.fitness = clamp(
-    input.fitnessAtEnd + fitnessRecovery(next ? next.week - playedWeek : 1),
-    0,
-    100,
+  // He can only be here if he was fit, so there is never an old injury to
+  // collide with.
+  state.injury = rollInjury(
+    rng,
+    {
+      fitnessAtEnd: input.fitnessAtEnd,
+      minutes: stats.minutes,
+      age: state.player.age,
+      stamina: state.player.attributes.stamina,
+    },
+    state.seasonNumber,
   );
-  state.player.fitness = state.fitness;
 
   state.lastDevelopment = development.changes;
   return development.changes;
+}
+
+/**
+ * Rest between this match and the next: fitness back, and an injury one week
+ * closer to over.
+ *
+ * Shared by the two ways a fixture can pass — played, and missed through
+ * injury — because they are the same question. Asked AFTER the indexes move,
+ * because "the next game" is a question only the advanced career can answer.
+ * `nextMatch` walks past every slot that is not his — a cup he is out of, a
+ * European tier he is not in, an international he was not picked for — so a
+ * midweek he has no fixture in correctly reads as rest rather than as
+ * congestion. That accuracy is why this is computed here rather than handed in.
+ */
+export function restUntilNextMatch(
+  state: CareerState,
+  playedSlotIndex: number,
+  fitnessAtEnd: number,
+): void {
+  const playedWeek = calendarFor(state)[playedSlotIndex]?.week ?? 1;
+  const next = nextMatch(state);
+  // Nothing left means the season is over, and the summer resets fitness to
+  // 100 regardless — a full week is the honest neutral answer either way.
+  const weeks = next ? next.week - playedWeek : 1;
+
+  state.fitness = clamp(fitnessAtEnd + fitnessRecovery(weeks), 0, 100);
+  state.player.fitness = state.fitness;
+  state.injury = advanceInjury(state.injury, weeks);
 }
 
 /**
@@ -898,6 +945,14 @@ export function advanceSeason(
   state.lastResult = null;
   state.fitness = 100;
   state.player.fitness = 100;
+  // A summer heals everything. Carrying a rupture into pre-season would be the
+  // better simulation and it is not worth what it costs: the break between
+  // seasons is months long, so almost every injury genuinely would have healed,
+  // and the one that would not is a rare enough case that modelling it means
+  // greeting somebody with an unplayable August for the sake of realism nobody
+  // asked for. The cost is that an injury picked up in May is served cheaply,
+  // and that is the honest trade.
+  state.injury = null;
 
   // Re-baseline for the new season. Note this happens AFTER ageing and
   // potential drift, so next season's review measures the new season only.

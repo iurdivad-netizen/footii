@@ -90,6 +90,8 @@ export class CareerScreen {
     handlers: {
       onPlay: () => void;
       onSkip: () => void;
+      /** Let the fixture pass: he is injured and the club plays without him. */
+      onMiss: () => void;
       onWorld: () => void;
       onEndSeason: () => void;
       onQuit: () => void;
@@ -107,6 +109,9 @@ export class CareerScreen {
     this.element
       .querySelector<HTMLButtonElement>('#skip-match')
       ?.addEventListener('click', handlers.onSkip);
+    this.element
+      .querySelector<HTMLButtonElement>('#miss-match')
+      ?.addEventListener('click', handlers.onMiss);
     this.element
       .querySelector<HTMLButtonElement>('#browse-world')
       ?.addEventListener('click', handlers.onWorld);
@@ -188,6 +193,7 @@ export class CareerScreen {
     const country = getCountry(this.state.countryId);
     const scheduled = nextMatch(this.state);
     const done = seasonComplete(this.state);
+    const injury = this.state.injury;
     const stats = this.state.seasonStats;
     const venue = scheduled ? (scheduled.home ? 'Home' : 'Away') : '';
 
@@ -239,8 +245,17 @@ export class CareerScreen {
                        : ''
                    }
                  </p>
-                 <button class="primary" id="play-match">Play match</button>
-                 <button class="ghost skip-match" id="skip-match">Skip — let him play it</button>`
+                 ${
+                   injury
+                     ? `<p class="injury-out">
+                          <strong>${injury.label}</strong> — ${injury.weeksRemaining}
+                          ${injury.weeksRemaining === 1 ? 'week' : 'weeks'} out.
+                          The club plays this one without you.
+                        </p>
+                        <button class="primary" id="miss-match">Watch from the stand</button>`
+                     : `<button class="primary" id="play-match">Play match</button>
+                        <button class="ghost skip-match" id="skip-match">Skip — let him play it</button>`
+                 }`
           }
         </div>
 
@@ -248,6 +263,14 @@ export class CareerScreen {
           <h2>Condition</h2>
           <dl class="stat-list">
             <div><dt>Fitness</dt><dd>${Math.round(this.state.fitness)}</dd></div>
+            ${
+              injury
+                ? `<div class="stat-injury">
+                     <dt>Injured</dt>
+                     <dd>${injury.label} · ${injury.weeksRemaining}w</dd>
+                   </div>`
+                : ''
+            }
             <div><dt>Form</dt><dd>${Math.round(player.form)}</dd></div>
             <div><dt>Morale</dt><dd>${Math.round(player.morale)}</dd></div>
             <div><dt>Experience</dt><dd>${Math.round(player.experience)}</dd></div>
@@ -337,8 +360,14 @@ export class CareerScreen {
         </span>
         <span class="last-result-detail">
           ${competitionLabel(last.competition ?? 'league')} ·
-          ${last.home ? 'v' : 'away to'} ${this.side(last.opponentId).name} ·
-          rated ${last.rating.toFixed(1)}${contributions.length ? ` · ${contributions.join(', ')}` : ''}
+          ${last.home ? 'v' : 'away to'} ${this.side(last.opponentId).name}${
+            // A match he was not in has no rating and no contributions to
+            // report. Printing "rated 0.0" would read as a performance rather
+            // than as an absence.
+            last.missed
+              ? ' · you were injured'
+              : ` · rated ${last.rating.toFixed(1)}${contributions.length ? ` · ${contributions.join(', ')}` : ''}`
+          }
         </span>
         ${
           last.shootout
@@ -349,6 +378,7 @@ export class CareerScreen {
             : ''
         }
         ${last.skipped ? '<span class="last-result-tag">Skipped</span>' : ''}
+        ${last.missed ? '<span class="last-result-tag missed">Missed</span>' : ''}
       </div>`;
   }
 

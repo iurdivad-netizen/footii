@@ -18,8 +18,14 @@ import {
   nextFixture,
   playerNation,
   nextMatch,
+  restUntilNextMatch,
   seasonComplete,
 } from '../core/career/career.ts';
+import type { ScheduledMatch } from '../core/career/career.ts';
+import type { Injury } from '../core/career/injury.ts';
+import { createMatchStats } from '../core/match/matchStats.ts';
+import { teamStrength } from '../core/team/team.ts';
+import { clamp01 } from '../core/util/math.ts';
 import { createDevelopmentState } from '../core/career/development.ts';
 import { clubStature, settleReputation } from '../core/career/reputation.ts';
 import type { ReputationSettlement } from '../core/career/reputation.ts';
@@ -141,7 +147,7 @@ import {
 import { evaluateHonours, leagueBenchmark } from '../core/career/awards.ts';
 import type { Honour, LeagueBenchmark } from '../core/career/awards.ts';
 import type { CompetitionKind } from '../core/career/calendar.ts';
-import { isEuropean, knockoutRoundsPlayed } from '../core/career/calendar.ts';
+import { isEuropean, isInternational, knockoutRoundsPlayed } from '../core/career/calendar.ts';
 import type { Fixture, FixtureResult, TableRow } from '../core/career/league.ts';
 import {
   applyResult,
@@ -462,6 +468,7 @@ export function startCareer(options: StartCareerOptions): CareerState {
     careerEarnings: 0,
     lastResult: null,
     howPlayed: createHowItWasPlayed(),
+    injury: null,
     cups: newCups(countryId, leagueTeamIds),
     // Nobody is in Europe in season one: qualification is decided by a season
     // that has not been played. The first European night of a career is earned.
@@ -803,6 +810,154 @@ export function recordPlayerMatch(
   }
 
   return changes;
+}
+
+/** What happened in a fixture the player was not fit to play. */
+export interface MissedMatch {
+  competition: CompetitionKind;
+  opponentId: string;
+  home: boolean;
+  goalsFor: number;
+  goalsAgainst: number;
+  /** The injury as it stands after the match went by, or null if he is fit now. */
+  injury: Injury | null;
+}
+
+/**
+ * Let the next fixture pass without him.
+ *
+ * The counterpart to `recordPlayerMatch`, and deliberately the same shape: the
+ * season has to move on identically whether he played or watched. The club
+ * still plays, the result still counts, the table and the bracket still move,
+ * and the calendar still advances. The only difference is that none of it is
+ * HIS — no statistics, no rating, no development, no record book, no
+ * reputation. That absence is the whole mechanism: a season with matches
+ * missing from it is what makes playing time a number that can fall below one.
+ *
+ * The result is simulated the way every other club's fixture is simulated —
+ * `simulateFixture`, seeded off the calendar slot — because that is exactly
+ * what his club's match is when he is not in it: a background fixture.
+ */
+export function missMatch(state: CareerState, lookup: TeamLookup): MissedMatch {
+  prepareNextMatch(state, lookup);
+
+  const scheduled = nextMatch(state);
+  if (!scheduled) throw new Error('missMatch called with no match remaining');
+
+  const isHome = scheduled.home;
+  // His country plays the international, not his club.
+  const ownId = isInternational(scheduled.competition) ? playerNation(state) : state.clubId;
+  const own = teamIn(state, lookup, ownId);
+  const opponent = teamIn(state, lookup, scheduled.opponentId);
+
+  const rng = new Rng(
+    `${state.seed}:s${state.seasonNumber}:c${scheduled.slotIndex}:absent`,
+  );
+  const { homeGoals, awayGoals } = simulateFixture(
+    rng,
+    isHome ? own : opponent,
+    isHome ? opponent : own,
+  );
+  const goalsFor = isHome ? homeGoals : awayGoals;
+  const goalsAgainst = isHome ? awayGoals : homeGoals;
+
+  // A league fixture is a row in the table like any other. Captured before the
+  // indexes move, for the same reason `recordPlayerMatch` captures it there.
+  const leagueFixture = scheduled.competition === 'league' ? nextFixture(state) : null;
+  if (leagueFixture) {
+    const result: FixtureResult = {
+      ...leagueFixture,
+      homeGoals: leagueFixture.homeId === state.clubId ? goalsFor : goalsAgainst,
+      awayGoals: leagueFixture.homeId === state.clubId ? goalsAgainst : goalsFor,
+    };
+    state.results.push(result);
+    applyResult(state.table, result);
+  }
+
+  state.lastResult = {
+    opponentId: scheduled.opponentId,
+    competition: scheduled.competition,
+    home: isHome,
+    goalsFor,
+    goalsAgainst,
+    // Nothing of his, because none of it happened. The hub reads `missed` and
+    // says so rather than reporting a 0.0 rating he never earned.
+    goals: 0,
+    assists: 0,
+    rating: 0,
+    skipped: false,
+    missed: true,
+  };
+
+  // Everything downstream takes the same shape it takes for a played match, so
+  // the settlement below is the settlement that has always run.
+  const asPlayed: PlayedMatchInput = {
+    stats: createMatchStats(),
+    rating: 0,
+    playerTeamScore: goalsFor,
+    opponentScore: goalsAgainst,
+    fitnessAtEnd: state.fitness,
+  };
+
+  if (leagueFixture) state.nextFixtureIndex += 1;
+  state.calendarIndex = scheduled.slotIndex + 1;
+
+  if (leagueFixture) {
+    simulateRound(state, leagueFixture.round, lookup);
+  } else if (scheduled.competition === SUPER_CUP) {
+    if (state.superCup) {
+      state.superCup = applySuperCupResult(state.superCup, {
+        clubId: state.clubId,
+        goalsFor,
+        goalsAgainst,
+        // Level, and he was not there to take a kick. Rolled on the two clubs'
+        // strength, the same weighting a cup tie uses — without this the tie
+        // would fall to the champions by default, which is a trophy awarded on
+        // a technicality.
+        shootoutWinnerId:
+          goalsFor === goalsAgainst ? missedShootoutWinner(state, rng, scheduled, lookup) : undefined,
+      });
+    }
+  } else if (scheduled.competition === INTERNATIONAL) {
+    settleInternational(state, scheduled.round, asPlayed, isHome, lookup);
+  } else if (isEuropean(scheduled.competition)) {
+    settleEuropean(state, scheduled.round, asPlayed, isHome, lookup);
+  } else {
+    settlePlayerTie(state, scheduled.competition, asPlayed, lookup);
+  }
+
+  // A week in the treatment room is still a week: fitness comes back, and the
+  // injury moves one step closer to over. This is the only thing that ever
+  // heals one, so it must run on the missed path as well as the played one.
+  restUntilNextMatch(state, scheduled.slotIndex, state.fitness);
+
+  return {
+    competition: scheduled.competition,
+    opponentId: scheduled.opponentId,
+    home: isHome,
+    goalsFor,
+    goalsAgainst,
+    injury: state.injury,
+  };
+}
+
+/**
+ * Who wins a super cup shootout nobody took.
+ *
+ * The same strength weighting `applyPlayerResult` uses for a cup tie, rather
+ * than a coin: a shootout is close to even and not quite even, and the two
+ * places that settle one should not disagree about by how much.
+ */
+function missedShootoutWinner(
+  state: CareerState,
+  rng: Rng,
+  scheduled: ScheduledMatch,
+  lookup: TeamLookup,
+): string {
+  const own = teamIn(state, lookup, state.clubId);
+  const opponent = teamIn(state, lookup, scheduled.opponentId);
+  const edge = clamp01(0.5 + (teamStrength(own) - teamStrength(opponent)) * 0.35);
+  return rng.chance(edge) ? state.clubId : scheduled.opponentId;
 }
 
 /**
