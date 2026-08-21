@@ -5,7 +5,7 @@ import type { Position } from '../core/player/positions.ts';
 import { POSITION_PROFILES } from '../core/player/positions.ts';
 import { tendencyFactor } from '../core/player/tendencies.ts';
 import type { Goalkeeper, GoalkeeperAction, GoalkeeperState } from '../core/goalkeeper/goalkeeper.ts';
-import type { Team } from '../core/team/team.ts';
+import type { Team, Teammate } from '../core/team/team.ts';
 import type { SituationContext, SituationType } from '../core/events/types.ts';
 import { SITUATION_TEMPLATES, getSituationTemplate } from '../data/situations.ts';
 
@@ -25,6 +25,8 @@ import { SITUATION_TEMPLATES, getSituationTemplate } from '../data/situations.ts
 
 export interface SituationRequest {
   player: Player;
+  /** Named teammates who could receive a pass. Omitted when nobody is named. */
+  teammates?: readonly Teammate[];
   attackingTeam: Team;
   defendingTeam: Team;
   goalkeeper: Goalkeeper;
@@ -278,6 +280,7 @@ export function generateSituation(rng: Rng, request: SituationRequest): Generate
     goalkeeper,
     attackingTeam: request.attackingTeam,
     defendingTeam: request.defendingTeam,
+    teammates: request.teammates ?? [],
     nearbyDefenders: clampedDefenders,
     defensivePressure,
     situationQuality,

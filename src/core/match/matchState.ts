@@ -1,6 +1,6 @@
 import type { Goalkeeper } from '../goalkeeper/goalkeeper.ts';
 import type { Player } from '../player/player.ts';
-import type { Team } from '../team/team.ts';
+import type { Team, Teammate } from '../team/team.ts';
 import type { MatchStats } from './matchStats.ts';
 import { createMatchStats } from './matchStats.ts';
 
@@ -27,10 +27,26 @@ export interface MatchSetup {
    * Defaults to 1 when omitted so existing callers and tests are unaffected.
    */
   paceScale?: number;
+  /**
+   * The teammates who might get on the end of a pass.
+   *
+   * Optional, and empty for a quick match or an older save: the engine narrates
+   * "a teammate" when it has nobody to name, which is what it always did.
+   */
+  teammates?: readonly Teammate[];
 }
 
 export interface MatchState {
   minute: number;
+  /**
+   * Who finished the passes he laid on, in order.
+   *
+   * One name per assist, so the full-time report can say who scored them
+   * rather than only how many there were. Empty in a quick match and in any
+   * career from before teammates had names — the report then shows the count
+   * on its own, exactly as it always did.
+   */
+  assisted: string[];
   playerTeamScore: number;
   opponentScore: number;
   finished: boolean;
@@ -43,6 +59,7 @@ export interface MatchState {
 export function createMatchState(): MatchState {
   return {
     minute: 0,
+    assisted: [],
     playerTeamScore: 0,
     opponentScore: 0,
     finished: false,

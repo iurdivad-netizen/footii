@@ -4,7 +4,7 @@ import { createPlayer } from '../src/core/player/player.ts';
 import type { Player } from '../src/core/player/player.ts';
 import type { Position } from '../src/core/player/positions.ts';
 import { createTeam } from '../src/core/team/team.ts';
-import type { Team } from '../src/core/team/team.ts';
+import type { Team, Teammate } from '../src/core/team/team.ts';
 import type { SituationContext, SituationType } from '../src/core/events/types.ts';
 import type { Zone } from '../src/core/events/zones.ts';
 
@@ -88,6 +88,7 @@ export interface ContextOverrides {
   transition?: boolean;
   attackingTeam?: Team;
   defendingTeam?: Team;
+  teammates?: readonly Teammate[];
 }
 
 export function context(overrides: ContextOverrides = {}): SituationContext {
@@ -103,6 +104,7 @@ export function context(overrides: ContextOverrides = {}): SituationContext {
     goalkeeper: overrides.goalkeeper ?? goalkeeperState(),
     attackingTeam: overrides.attackingTeam ?? team(),
     defendingTeam: overrides.defendingTeam ?? team(),
+    teammates: overrides.teammates ?? [],
     nearbyDefenders: overrides.nearbyDefenders ?? 1,
     defensivePressure: overrides.defensivePressure ?? 0.3,
     situationQuality: overrides.situationQuality ?? 0.7,

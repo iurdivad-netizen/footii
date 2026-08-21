@@ -12,6 +12,7 @@ import {
 } from '../../core/career/career.ts';
 import type { ScheduledMatch } from '../../core/career/career.ts';
 import type { TeamSheet } from '../../core/career/squad.ts';
+import { loanReport } from '../../core/career/loan.ts';
 import { CUP_KINDS, cupName, roundName, stillIn, totalRounds } from '../../core/career/cups.ts';
 import {
   competitionLabel,
@@ -224,6 +225,7 @@ export class CareerScreen {
         </div>
       </header>
 
+      ${this.renderLoan()}
       ${this.renderLastResult()}
       ${this.renderDevelopment()}
 
@@ -404,6 +406,21 @@ export class CareerScreen {
         }
         ${last.skipped ? '<span class="last-result-tag">Skipped</span>' : ''}
         ${last.missed ? '<span class="last-result-tag missed">Missed</span>' : ''}
+      </div>`;
+  }
+
+  /**
+   * The loan he is away on, if he is.
+   *
+   * Above everything else on the screen, because it changes what every other
+   * card on it means: the club in the header is not the club that owns him, and
+   * the season he is playing belongs to somebody else's league.
+   */
+  private renderLoan(): string {
+    const loan = this.state.loan;
+    if (!loan) return '';
+    return `<div class="loan-banner">
+        <strong>On loan</strong> — ${loanReport(loan)} Back in the summer.
       </div>`;
   }
 

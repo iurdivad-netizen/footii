@@ -1,4 +1,5 @@
 import { unit } from '../util/math.ts';
+import type { Position } from '../player/positions.ts';
 
 /**
  * Tactical style. Styles bias the EVENT GENERATOR, not the resolution maths:
@@ -39,6 +40,22 @@ export interface TeamRatings {
   counterattack: number;
   creativity: number;
   defensiveIntensity: number;
+}
+
+/**
+ * A named footballer at a club, as everything outside his own career needs him.
+ *
+ * The smallest thing that can be passed to. He exists so an assist has a
+ * recipient and a goal has somebody who set it up — which is all the match
+ * engine ever asks of a teammate, because only the player himself is simulated.
+ * Anything more would be a squad model, and this game deliberately does not
+ * carry one (see core/career/squad.ts).
+ */
+export interface Teammate {
+  name: string;
+  position: Position;
+  /** 1-99, on the same scale as a player's current ability. */
+  ability: number;
 }
 
 export interface Team {

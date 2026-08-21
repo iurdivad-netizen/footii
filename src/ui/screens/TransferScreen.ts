@@ -14,6 +14,7 @@ import {
 import type { ContractOffer } from '../../core/career/contracts.ts';
 import { reputationTier } from '../../core/career/reputation.ts';
 import { getCountry, leagueName } from '../../core/career/countries.ts';
+import type { LoanOffer } from '../../core/career/loan.ts';
 import { europeanNameInProse } from '../../core/career/europe.ts';
 import type { EuropeanTier } from '../../core/career/europe.ts';
 import { NEGOTIATION_LABELS, canAsk } from '../../core/career/negotiation.ts';
@@ -56,6 +57,14 @@ export interface TransferScreenContext {
   /** Whether staying is possible at all. */
   canStay: boolean;
   /**
+   * A club willing to take him for the season, or null.
+   *
+   * Shown BELOW staying and below every offer, because it is the thing you do
+   * when the rest of the summer has not solved the problem — not a rival to a
+   * transfer but an answer to not getting one.
+   */
+  loanOffer?: LoanOffer | null;
+  /**
    * Whether his club's renewal can be pushed.
    *
    * False when it is the only thing on the table — a player out of contract
@@ -92,6 +101,8 @@ export class TransferScreen {
        * renewal, which has no id because there is only ever one of them.
        */
       onNegotiate?: (offerId: string | null, ask: NegotiationAsk) => void;
+      /** Take the season somewhere else to get games, if one is on the table. */
+      onLoan?: () => void;
     },
     /** What the last ask produced, so the screen can report it. */
     negotiation?: { offerId: string | null; outcome: string; message: string },
@@ -128,11 +139,15 @@ export class TransferScreen {
           .join('')}
       </div>
 
-      ${stayCard(currentClub, context, negotiation)}`;
+      ${stayCard(currentClub, context, negotiation)}
+      ${loanCard(context)}`;
 
     this.element
       .querySelector<HTMLButtonElement>('#stay-put')
       ?.addEventListener('click', handlers.onStay);
+    this.element
+      .querySelector<HTMLButtonElement>('#go-on-loan')
+      ?.addEventListener('click', () => handlers.onLoan?.());
     for (const button of this.element.querySelectorAll<HTMLButtonElement>('button[data-offer]')) {
       button.addEventListener('click', () => handlers.onAccept(button.dataset.offer!));
     }
@@ -171,6 +186,33 @@ function headline(count: number, context: TransferScreenContext): string {
  * want to renew it on stated terms; or your deal ran out and they do not, in
  * which case there is nothing to stay on and the button is gone.
  */
+/**
+ * The loan on the table, if the summer produced one.
+ *
+ * Worded as what it is rather than as a transfer: he is not leaving, he is
+ * going to play. The parent club is not named here because the card sits under
+ * that club's own "stay" card — the context is already on the screen.
+ */
+function loanCard(context: TransferScreenContext): string {
+  const loan = context.loanOffer;
+  if (!loan) return '';
+  const country = getCountry(loan.countryId);
+  return `
+    <div class="offer-card loan-card">
+      <h3>Go out on loan</h3>
+      <p class="loan-club">
+        <strong>${loan.clubName}</strong>
+        <span class="loan-where">${country.short} · ${SQUAD_ROLE_LABELS[loan.role]}</span>
+      </p>
+      <p class="hint">${loan.pitch}</p>
+      <p class="hint">
+        A season, not a transfer: your contract stays where it is, and they take
+        you back next summer.
+      </p>
+      <button class="primary" id="go-on-loan">Go on loan for the season</button>
+    </div>`;
+}
+
 function stayCard(
   club: Team,
   context: TransferScreenContext,

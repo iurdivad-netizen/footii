@@ -1198,6 +1198,32 @@ describe('counting how a career was actually played', () => {
     expect(activeCareer(migrated)!.rival).toBeNull();
   });
 
+  it('brings a career forward from before teammates and loans existed', () => {
+    const state = career();
+    const older = { ...state } as Record<string, unknown>;
+    delete older.teammates;
+    delete older.loan;
+    delete older.loanOffer;
+
+    const migrated = migrate({
+      version: 20,
+      career: emptyCareer(),
+      settings: defaultSettings(),
+      careers: [older, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(migrated).not.toBeNull();
+    expect(migrated.version).toBe(SAVE_VERSION);
+    const brought = activeCareer(migrated)!;
+    // Empty and null rather than invented: both are built from the club as the
+    // career knows it, and nobody was mid-loan in a version that had none.
+    expect(brought.teammates).toEqual([]);
+    expect(brought.loan).toBeNull();
+    expect(brought.loanOffer).toBeNull();
+  });
+
   it('survives a round trip through export and import', () => {
     const state = career();
     state.howPlayed = { skipped: 2, played: 9, paces: { untimed: 9 } };

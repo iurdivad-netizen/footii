@@ -1,6 +1,7 @@
 import type { Rng } from '../rng.ts';
 import type { Player } from '../player/player.ts';
-import type { Team } from '../team/team.ts';
+import type { Team, Teammate } from '../team/team.ts';
+import type { Position } from '../player/positions.ts';
 import type { SquadRole } from './transfers.ts';
 import { effectiveAbility, squadLevel } from './transfers.ts';
 import { clamp, clamp01, remap, round } from '../util/math.ts';
@@ -190,6 +191,98 @@ export function matchImportance(competition: CompetitionKind, round: number): nu
   // cup is the one every manager in football treats as a reserve fixture.
   const base = competition === 'nationalCup' ? 0.4 : 0.26;
   return clamp01(base + (round - 1) * 0.13);
+}
+
+/**
+ * The positions a footballer actually passes to, by where he plays.
+ *
+ * Not a formation and not a full XI — the handful of people who would be at the
+ * end of a ball from him. A winger crosses to strikers and arriving midfielders;
+ * a defender's forward pass goes to midfield. Keeping it to the plausible
+ * receivers is what stops a named squad being needed: an assist has a recipient
+ * because the recipient is drawn from the two or three shirts it could have
+ * gone to, not from a list of eighteen.
+ */
+const PASSES_TO: Record<Position, readonly Position[]> = {
+  GK: ['CB', 'LB', 'RB', 'DM'],
+  CB: ['DM', 'CM', 'LB', 'RB'],
+  LB: ['LW', 'CM', 'AM', 'ST'],
+  RB: ['RW', 'CM', 'AM', 'ST'],
+  DM: ['CM', 'AM', 'LW', 'RW'],
+  CM: ['AM', 'ST', 'LW', 'RW'],
+  AM: ['ST', 'LW', 'RW', 'CM'],
+  LW: ['ST', 'AM', 'RW'],
+  RW: ['ST', 'AM', 'LW'],
+  ST: ['AM', 'LW', 'RW', 'CM'],
+};
+
+/** How many named teammates a career carries. */
+export const SQUAD_SIZE = 5;
+
+/**
+ * The teammates worth naming, for the player's own position.
+ *
+ * Five, and specifically the five he would pass to. The whole reason a squad is
+ * not modelled is that nothing needs one; what the match engine needs is a name
+ * for whoever got on the end of the ball, and only the players in front of him
+ * can be that. So this generates the receivers rather than a team.
+ *
+ * Their ability comes off the club's squad level with a spread, which is what
+ * makes playing for a better club feel different: the same pass finds a better
+ * finisher, and the engine already reads the club's attack rating when deciding
+ * whether a chance is taken.
+ */
+export function createSquad(
+  rng: Rng,
+  team: Team,
+  playerPosition: Position,
+  name: (rng: Rng) => string,
+): Teammate[] {
+  const level = squadLevel(team);
+  const receivers = PASSES_TO[playerPosition];
+  // Surnames are drawn from a pool of sixteen per country, so five draws
+  // collide often — and two men called Hallam in the same five reads as a bug
+  // rather than as a coincidence, even though real squads have brothers in
+  // them. Redrawing on a repeated surname is cheap and removes the question.
+  const used = new Set<string>();
+  const distinct = (): string => {
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const candidate = name(rng);
+      const surname = candidate.slice(candidate.lastIndexOf(' ') + 1);
+      if (used.has(surname)) continue;
+      used.add(surname);
+      return candidate;
+    }
+    return name(rng);
+  };
+
+  return Array.from({ length: SQUAD_SIZE }, (_, index) => ({
+    name: distinct(),
+    // Cycled rather than drawn at random, so the five always cover the
+    // available shirts instead of landing four strikers and nobody wide.
+    position: receivers[index % receivers.length]!,
+    ability: clamp(Math.round(level + rng.range(-9, 7)), 30, 95),
+  }));
+}
+
+/**
+ * Who got on the end of it.
+ *
+ * Weighted toward the better players, because a ball into the box finds the
+ * centre-forward more often than it finds the full-back who happened to arrive.
+ * Returns null for a career with nobody named — every save from before
+ * teammates existed — so callers fall back to the wording they always used.
+ */
+export function receiverOf(rng: Rng, squad: readonly Teammate[]): Teammate | null {
+  if (squad.length === 0) return null;
+  const weights = squad.map((mate) => Math.max(1, mate.ability - 30) ** 1.5);
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  let roll = rng.next() * total;
+  for (let i = 0; i < squad.length; i++) {
+    roll -= weights[i]!;
+    if (roll <= 0) return squad[i]!;
+  }
+  return squad[squad.length - 1]!;
 }
 
 export interface SelectionInput {

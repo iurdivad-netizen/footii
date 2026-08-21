@@ -3485,3 +3485,47 @@ button.ghost.danger {
 .stat-list .rival {
   font-size: 0.85rem;
 }
+
+/*
+ * Loans.
+ *
+ * The banner is green rather than amber: going out to play is not a setback,
+ * it is the answer to one, and colouring it like an injury would read as
+ * something having gone wrong.
+ */
+.loan-banner {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent);
+  background: rgba(74, 222, 128, 0.08);
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.loan-banner strong {
+  color: var(--accent);
+}
+
+.offer-card.loan-card {
+  border-color: var(--accent-dim);
+}
+
+.loan-club {
+  margin: 0 0 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.loan-where {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+/* Who finished the passes he laid on, beside the count at full time. */
+.stat-list .assisted {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}

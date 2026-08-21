@@ -11,6 +11,7 @@ import type {
   SituationContext,
 } from '../core/events/types.ts';
 import { getAction } from '../data/actionCatalogue.ts';
+import { receiverOf } from '../core/career/squad.ts';
 
 /**
  * ACTION RESOLVER
@@ -221,6 +222,9 @@ function outcome(
     goalScored: options.goalScored ?? false,
     ratingDelta: options.ratingDelta ?? 0,
     stats: options.stats ?? {},
+    // Spread rather than defaulted: absent means "nobody was named", and an
+    // explicit `undefined` key would serialise into the save as a null.
+    ...(options.assistedBy ? { assistedBy: options.assistedBy } : {}),
   };
 }
 
@@ -466,19 +470,35 @@ function resolvePassOrCross(
   const teammateFinishing = clamp01(
     unit(context.attackingTeam.ratings.attack) * 0.55 + (value - 0.5) * 0.6 + 0.05,
   );
+  // Who the ball found. Drawn ONCE, before the finish is rolled, so the same
+  // man is named whether he scores or misses — a chance created and a chance
+  // taken are the same pass to two different endings, and naming two different
+  // players for them would read as two different passes.
+  const receiver = receiverOf(rng, context.teammates);
+  const receiverName = receiver ? receiver.name : 'a teammate';
+
   if (rng.chance(teammateFinishing * 0.45)) {
-    return outcome('goal', `${player}'s ${label} is finished off first time! GOAL — and an assist!`, {
-      goalScored: true,
-      ratingDelta: 1.0,
-      stats: { passes: 1, passesCompleted: 1, keyPasses: 1, assists: 1 },
-    });
+    return outcome(
+      'goal',
+      `${player}'s ${label} is finished off first time by ${receiverName}! GOAL — and an assist!`,
+      {
+        goalScored: true,
+        ratingDelta: 1.0,
+        stats: { passes: 1, passesCompleted: 1, keyPasses: 1, assists: 1 },
+        assistedBy: receiver?.name,
+      },
+    );
   }
 
-  return outcome('chanceCreated', `${player}'s ${label} creates a chance, but it's not taken.`, {
-    retainedPossession: false,
-    ratingDelta: 0.3,
-    stats: { passes: 1, passesCompleted: 1, keyPasses: 1 },
-  });
+  return outcome(
+    'chanceCreated',
+    `${player}'s ${label} puts ${receiverName} in, but the chance goes begging.`,
+    {
+      retainedPossession: false,
+      ratingDelta: 0.3,
+      stats: { passes: 1, passesCompleted: 1, keyPasses: 1 },
+    },
+  );
 }
 
 function resolveDefensive(

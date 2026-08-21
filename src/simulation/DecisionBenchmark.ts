@@ -42,6 +42,7 @@ export function benchmarkDecisionWindow(player: Player, paceScale = 1): number {
     player,
     goalkeeper: BENCHMARK_GOALKEEPER_STATE,
     attackingTeam: BENCHMARK_TEAM,
+    teammates: [],
     defendingTeam: BENCHMARK_TEAM,
     nearbyDefenders: 1,
     defensivePressure: 0.3,

@@ -191,6 +191,9 @@ export class MatchEngine {
 
     const { type, context } = generateSituation(this.rng, {
       player: this.matchPlayer,
+      // Only when his own side has the ball. Defending against the opposition,
+      // the people around him are not his to name.
+      teammates: defending ? [] : this.setup.teammates,
       attackingTeam,
       defendingTeam,
       goalkeeper: defending ? this.setup.ownGoalkeeper : this.setup.opponentGoalkeeper,
@@ -270,6 +273,9 @@ export class MatchEngine {
     const { outcome } = result;
     applyOutcomeStats(this.state.stats, outcome.stats);
     this.state.eventRatingDelta += outcome.ratingDelta;
+    // Kept alongside the count rather than instead of it: two assists is the
+    // number, and who scored them is the story.
+    if (outcome.assistedBy) this.state.assisted.push(outcome.assistedBy);
 
     if (outcome.goalScored) {
       this.state.playerTeamScore += 1;
