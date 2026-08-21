@@ -20,6 +20,7 @@ import {
   isUsableCareer,
   isUsableLegacy,
   migrate,
+  probeStorage,
   removeFromHallOfFame,
   storageFailure,
   writeSave,
@@ -1028,6 +1029,53 @@ describe('when the browser will not save', () => {
     withLocalStorage({ setItem: () => {}, getItem: () => null }, () => {
       writeSave(save());
       expect(storageFailure()).toBeNull();
+    });
+  });
+
+  it('finds out at boot that a full browser will not keep anything', () => {
+    const full = {
+      getItem: () => null,
+      removeItem: () => {},
+      setItem: () => {
+        throw new DOMException('exceeded', 'QuotaExceededError');
+      },
+    };
+    withLocalStorage(full, () => {
+      expect(probeStorage()).toBe('quota');
+      expect(storageFailure()).toBe('quota');
+    });
+  });
+
+  it('finds out at boot that there is no storage at all', () => {
+    withLocalStorage(undefined, () => {
+      expect(probeStorage()).toBe('unavailable');
+    });
+  });
+
+  it('reports nothing, and leaves nothing behind, when storage works', () => {
+    const written = new Map<string, string>();
+    const working = {
+      getItem: (k: string) => written.get(k) ?? null,
+      setItem: (k: string, v: string) => void written.set(k, v),
+      removeItem: (k: string) => void written.delete(k),
+    };
+    withLocalStorage(working, () => {
+      expect(probeStorage()).toBeNull();
+      // The probe must not leave its scratch key sitting in the save's storage.
+      expect(written.size).toBe(0);
+    });
+  });
+
+  it('does not touch the real save while probing', () => {
+    const written = new Map<string, string>([['footii.save.v1', 'the real save']]);
+    const working = {
+      getItem: (k: string) => written.get(k) ?? null,
+      setItem: (k: string, v: string) => void written.set(k, v),
+      removeItem: (k: string) => void written.delete(k),
+    };
+    withLocalStorage(working, () => {
+      probeStorage();
+      expect(written.get('footii.save.v1')).toBe('the real save');
     });
   });
 

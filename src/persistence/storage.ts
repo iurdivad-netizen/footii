@@ -757,6 +757,34 @@ export function storageFailure(): StorageFailure | null {
   return lastWriteFailure;
 }
 
+/**
+ * Find out whether this browser will keep anything, before it matters.
+ *
+ * Without this the game only discovers it cannot save at the moment it first
+ * tries — which is after the player has already done something worth keeping.
+ * A private window would let somebody start a career, play a match and reach
+ * the hub before anything hinted that none of it was being stored, because a
+ * boot that only ever READS storage never finds out that writing is refused.
+ *
+ * Deliberately a scratch key rather than the save itself. Writing the real save
+ * on boot would work, but it would also mean every start of the game rewrites
+ * a file it has no new information for — and on a browser that is merely FULL,
+ * that write is the one most likely to fail and least likely to be recoverable.
+ * A few bytes under a key nobody reads answers the same question and cleans up
+ * after itself.
+ */
+export function probeStorage(): StorageFailure | null {
+  try {
+    const key = `${STORAGE_KEY}.probe`;
+    localStorage.setItem(key, '1');
+    localStorage.removeItem(key);
+    lastWriteFailure = null;
+  } catch (error) {
+    lastWriteFailure = classifyWriteError(error);
+  }
+  return lastWriteFailure;
+}
+
 function classifyWriteError(error: unknown): StorageFailure {
   // Browsers disagree on the name and agree on the code. Safari in private mode
   // historically threw QuotaExceededError for "there is no storage here at all",
