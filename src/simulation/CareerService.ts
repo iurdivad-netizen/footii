@@ -24,8 +24,12 @@ import {
 import type { ScheduledMatch } from '../core/career/career.ts';
 import type { Injury } from '../core/career/injury.ts';
 import type { Rival, TeamSheet } from '../core/career/squad.ts';
+import type { Teammate } from '../core/team/team.ts';
+import type { Loan, LoanOffer } from '../core/career/loan.ts';
+import { loanPitch, loanRole, needsLoan, rankLoanClubs } from '../core/career/loan.ts';
 import {
   createRival,
+  createSquad,
   driftRival,
   matchImportance,
   pickSide,
@@ -480,6 +484,9 @@ export function startCareer(options: StartCareerOptions): CareerState {
     howPlayed: createHowItWasPlayed(),
     injury: null,
     rival: null,
+    teammates: [],
+    loan: null,
+    loanOffer: null,
     cups: newCups(countryId, leagueTeamIds),
     // Nobody is in Europe in season one: qualification is decided by a season
     // that has not been played. The first European night of a career is earned.
@@ -504,7 +511,7 @@ export function startCareer(options: StartCareerOptions): CareerState {
   // After the state exists, because the rival is built from the club as this
   // career knows it — drifted ratings included — and that needs a career.
   const teams: TeamLookup = (id) => options.teams.find((team) => team.id === id) ?? club;
-  state.rival = newRival(state, teams, options.clubId);
+  joinClub(state, teams, options.clubId);
   return state;
 }
 
@@ -520,9 +527,136 @@ function newRival(state: CareerState, lookup: TeamLookup, clubId: string): Rival
   const rng = new Rng(`${state.seed}:rival:${clubId}:${state.player.position}`);
   const countryId = locateClub(state.leagues, clubId)?.countryId ?? state.countryId;
   return createRival(rng, team, playerName(rng, countryId), {
-    role: state.contract?.role ?? 'starter',
+    // Same reasoning as selection: the club he is at is the one whose word for
+    // him bounds the competition he finds there.
+    role: state.loan?.role ?? state.contract?.role ?? 'starter',
     playerAbility: effectiveAbility(state.player),
   });
+}
+
+/**
+ * The teammates he will be passing to at a club.
+ *
+ * Seeded off the career, the club and his position, so the same five are
+ * waiting whenever this career signs here — and a defender finds a different
+ * five from a striker, because they are the people in front of him.
+ */
+function newTeammates(state: CareerState, lookup: TeamLookup, clubId: string): Teammate[] {
+  const team = clubIn(state, lookup, clubId);
+  const rng = new Rng(`${state.seed}:squad:${clubId}:${state.player.position}`);
+  const countryId = locateClub(state.leagues, clubId)?.countryId ?? state.countryId;
+  return createSquad(rng, team, state.player.position, (r) => playerName(r, countryId));
+}
+
+/**
+ * Put the career into a different club's season.
+ *
+ * Shared by signing for somebody and going out on loan, because from the
+ * season's point of view those are the same event: a different league, a
+ * different fixture list, a different table and a different set of cups. The
+ * guard matters as much as the rebuild — moving WITHIN a league must not wipe
+ * the table and the fixtures of a season already under way.
+ */
+function moveToClub(state: CareerState, lookup: TeamLookup, clubId: string): void {
+  const located = locateClub(state.leagues, clubId);
+  const countryId = located?.countryId ?? state.countryId;
+  const division = located?.division ?? state.division;
+  if (
+    countryId !== state.countryId ||
+    division !== state.division ||
+    !state.leagueTeamIds.includes(clubId)
+  ) {
+    const league = leagueMembers(state.leagues, countryId, division);
+    const rng = new Rng(`${state.seed}:season:${state.seasonNumber}:${clubId}`);
+    state.countryId = countryId;
+    state.division = division;
+    // Belonged to the club he has just left, and to a season that no longer
+    // exists. Showing it on the new club's hub would be a lie.
+    state.lastResult = null;
+    state.leagueTeamIds = league.length > 0 ? league : state.leagueTeamIds;
+    state.fixtures = generateFixtures(state.leagueTeamIds, rng);
+    state.table = emptyTable(state.leagueTeamIds);
+    state.results = [];
+    state.nextFixtureIndex = 0;
+    state.calendarIndex = 0;
+    // A new country means new knockouts: the cups he was entered in belong to
+    // the league he has just left.
+    state.cups = newCups(countryId, state.leagueTeamIds);
+  }
+  joinClub(state, lookup, clubId);
+}
+
+/**
+ * A club willing to take him for a season, or null.
+ *
+ * Searched across the WHOLE world rather than his own country, because a loan
+ * abroad is a real thing and the transfer model already knows how to move a
+ * career between leagues. Ranked by `rankLoanClubs`, which puts the strongest
+ * club he would still be a starter at first — the hardest football he can be
+ * sure of playing is the loan worth having.
+ */
+function findLoan(
+  state: CareerState,
+  lookup: TeamLookup,
+  leagueMatches: number,
+  seasonLength: number,
+): LoanOffer | null {
+  const parent = clubIn(state, lookup, state.clubId);
+  if (!needsLoan(state.player, parent, { leagueMatches, seasonLength })) return null;
+
+  const candidates = allClubIds(state.leagues)
+    .filter((id) => id !== state.clubId)
+    .map((id) => clubIn(state, lookup, id));
+  const best = rankLoanClubs(state.player, candidates)[0];
+  if (!best) return null;
+
+  const placed = locateClub(state.leagues, best.id);
+  return {
+    clubId: best.id,
+    clubName: best.name,
+    countryId: placed?.countryId ?? state.countryId,
+    division: placed?.division ?? 1,
+    role: loanRole(state.player, best),
+    pitch: loanPitch(state.player, best),
+  };
+}
+
+/**
+ * Take the loan: go and play somewhere else for a season.
+ *
+ * Deliberately built on the same machinery as accepting a transfer, because
+ * from the season's point of view it is the same event — a different league, a
+ * different fixture list, a different table and a different set of cups. What
+ * makes it a loan rather than a move is the two things it does NOT touch: the
+ * contract, which stays with the parent club, and `state.loan`, which is what
+ * brings him back.
+ */
+export function acceptLoan(state: CareerState, offer: LoanOffer, lookup: TeamLookup): Loan {
+  const parent = clubIn(state, lookup, state.clubId);
+  const loan: Loan = {
+    parentClubId: state.clubId,
+    parentClubName: parent.name,
+    clubId: offer.clubId,
+    clubName: offer.clubName,
+    role: offer.role,
+    // The season he is about to play, which `endSeason` has already moved on to.
+    season: state.seasonNumber,
+  };
+
+  state.clubId = offer.clubId;
+  state.loan = loan;
+  moveToClub(state, lookup, offer.clubId);
+  // A loan closes the summer: he is spoken for, and a club that wanted to buy
+  // him cannot also have him on loan somewhere else.
+  state.offers = [];
+  state.loanOffer = null;
+  return loan;
+}
+
+/** Everyone at a club who matters to the player: the rival, and the receivers. */
+function joinClub(state: CareerState, lookup: TeamLookup, clubId: string): void {
+  state.rival = newRival(state, lookup, clubId);
+  state.teammates = newTeammates(state, lookup, clubId);
 }
 
 /**
@@ -873,7 +1007,9 @@ export function teamSheet(state: CareerState): TeamSheet {
   return pickSide(new Rng(`${state.seed}:s${state.seasonNumber}:c${scheduled.slotIndex}:sheet`), {
     player: state.player,
     rival: state.rival,
-    role: state.contract.role,
+    // The club he is actually playing for decides what he is. On loan that is
+    // the loan club, which took him to play him; at home it is his contract.
+    role: state.loan?.role ?? state.contract.role,
     fitness: state.fitness,
     importance: matchImportance(scheduled.competition, scheduled.round),
     congested,
@@ -1197,7 +1333,7 @@ export function prepareNextMatch(state: CareerState, lookup: TeamLookup): void {
   // club as this career knows it, drifted ratings and all, and a migration has
   // no business reconstructing that. Deterministic on club and career, so the
   // same footballer appears however many times this runs.
-  if (!state.rival) state.rival = newRival(state, lookup, state.clubId);
+  if (!state.rival || state.teammates.length === 0) joinClub(state, lookup, state.clubId);
 
   const upcoming = nextMatch(state);
   catchUpInternational(state, upcoming?.slotIndex ?? Number.POSITIVE_INFINITY, lookup);
@@ -1417,6 +1553,14 @@ export interface SeasonEnd {
   reputation: ReputationSettlement;
   /** Offers on the table this summer, best first. */
   offers: TransferOffer[];
+  /**
+   * A club willing to take him for a season to get him playing, if he needs one.
+   *
+   * Null for almost every season of almost every career: it needs a young
+   * player, short of games, at a club that sees him as cover. Those three
+   * together are exactly the situation a loan exists for.
+   */
+  loanOffer: LoanOffer | null;
   /** The division the season was played in. */
   division: number;
   /** The division the club will play in next season. */
@@ -1603,6 +1747,12 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   const club = clubIn(state, lookup, state.clubId);
   const division = state.division;
   const countryId = state.countryId;
+  // The fixture list of the season that has just been PLAYED, captured before
+  // anything replaces it. Read three times below — reputation, awards, and
+  // whether he needs a loan — and by the time the last of those runs both the
+  // fixtures and, for a loanee, the club have moved on.
+  const playedSeasonLength = fixturesFor(state, state.clubId).length;
+
   const reputation = settleReputation(state.player, {
     stats: state.seasonStats,
     leaguePosition: position,
@@ -1612,7 +1762,7 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     // matches-he-played over matches-there-were rather than every competition
     // over one of them. See `leagueMatches` in reputation.ts.
     leagueMatches: state.leagueStats.matches,
-    seasonLength: fixturesFor(state, state.clubId).length,
+    seasonLength: playedSeasonLength,
     // A European run is seen by more people than the league it came from, so a
     // player at a small club who reaches the Champions League is genuinely more
     // visible than his league alone would make him.
@@ -1688,7 +1838,7 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     reachedEuropeanFinal:
       lostEuropeanFinal(state.europe, state.clubId),
     benchmark,
-    seasonLength: fixturesFor(state, state.clubId).length,
+    seasonLength: playedSeasonLength,
   });
   state.honours.push(...honoursResult.honours);
   state.player.caps += honoursResult.capsGained;
@@ -1744,7 +1894,24 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   );
 
   state.leagues = { ...state.leagues, [countryId]: outcome.divisions };
-  const located = locateClub(state.leagues, state.clubId);
+
+  // THE SEAM. Everything above has settled the season he spent at the loan
+  // club — its table, its awards, his reputation, his honours — and everything
+  // below builds the season he will play at the club that owns him. Sending him
+  // back here rather than a line earlier or later is what makes both halves
+  // read the right club, because `locateClub` on the next line is what decides
+  // the country, the division and the fixture list of the season to come.
+  // A loan ends here, and it ends in two steps rather than one, because the two
+  // halves of "where does he belong" are needed at different moments. The
+  // SEASON AHEAD is his parent club's from this line on — its league, its
+  // fixtures, its cups. The SEASON JUST PLAYED is still the loan club's, and it
+  // has not been written to history yet: `advanceSeason` does that below, off
+  // `state.clubId`. So the club he is at moves only after the record is made,
+  // or a career would remember a year at a club it spent somewhere else.
+  const returning = state.loan;
+  const nextClubId = returning ? returning.parentClubId : state.clubId;
+
+  const located = locateClub(state.leagues, nextClubId);
   const nextCountry = located?.countryId ?? countryId;
   const nextDivision = located?.division ?? division;
   const nextLeague = leagueMembers(state.leagues, nextCountry, nextDivision);
@@ -1764,6 +1931,18 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     division: nextDivision,
     countryId: nextCountry,
   });
+
+  // The record is written, so the loan is over. Everything below builds next
+  // season for the club that owns him, and every one of those lines reads
+  // `state.clubId`.
+  if (returning) {
+    state.clubId = returning.parentClubId;
+    state.loan = null;
+    // He walks back into a dressing room he has been away from for a year. The
+    // rival he left is not the one he comes back to, and neither are the people
+    // he passes to — a season is long enough for a club to have moved on.
+    joinClub(state, lookup, state.clubId);
+  }
 
   // The rival had a summer too. He is a year older and better or worse for it,
   // so a shirt won last season is not one that stays won — and a rival who kept
@@ -1866,6 +2045,11 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     );
   }
 
+  // Whether anybody would take him for a year to get him playing. Judged on the
+  // season just finished — the LEAGUE half of it — which is only a question
+  // worth asking now that being out of the side is a thing that happens.
+  state.loanOffer = findLoan(state, lookup, leagueStats.matches, playedSeasonLength);
+
   return {
     record,
     position,
@@ -1875,6 +2059,7 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     trainingNotes: award.notes,
     reputation,
     offers: state.offers,
+    loanOffer: state.loanOffer,
     division,
     nextDivision,
     countryId,
@@ -1953,42 +2138,18 @@ export function acceptOffer(
 
   state.clubId = offer.clubId;
   state.transfers.push(record);
+  // Signed for somebody: the loan on the table is off it.
+  state.loanOffer = null;
 
-  // A new club is a new shirt to win. The man already in it belongs to the club
-  // rather than to the player, so signing somewhere replaces the competition
-  // outright rather than carrying the old one along.
-  state.rival = newRival(state, lookup, offer.clubId);
 
   // A move can cross a country as well as a tier, which changes the whole
   // season ahead: a new league, a new fixture list, a new table and a different
   // number of people watching. Rebuilding them here is what makes "signing for
   // a club in Spain" a real transfer rather than a change of badge.
-  const located = locateClub(state.leagues, offer.clubId);
-  const countryId = located?.countryId ?? state.countryId;
-  const division = located?.division ?? state.division;
-  if (
-    countryId !== state.countryId ||
-    division !== state.division ||
-    !state.leagueTeamIds.includes(offer.clubId)
-  ) {
-    const league = leagueMembers(state.leagues, countryId, division);
-    const rng = new Rng(`${state.seed}:season:${state.seasonNumber}:${offer.clubId}`);
-    state.countryId = countryId;
-    state.division = division;
-    // Belonged to the club he has just left, and to a season that no longer
-    // exists. Showing it on the new club's hub would be a lie.
-    state.lastResult = null;
-    state.leagueTeamIds = league.length > 0 ? league : state.leagueTeamIds;
-    state.fixtures = generateFixtures(state.leagueTeamIds, rng);
-    state.table = emptyTable(state.leagueTeamIds);
-    state.results = [];
-    state.nextFixtureIndex = 0;
-    state.calendarIndex = 0;
-    // A new country means new knockouts: the cups he was entered in belong to
-    // the league he has just left.
-    state.cups = newCups(countryId, state.leagueTeamIds);
-  }
+  moveToClub(state, lookup, offer.clubId);
 
+  // Read AFTER the move, because that is what settles which country he is in.
+  const countryId = state.countryId;
   const prestige = countryPrestige(countryId);
   applyTransferEffects(
     state.player,
@@ -2077,6 +2238,8 @@ export function stayAtClub(state: CareerState): Contract {
   if (state.renewal) state.contract = acceptRenewal(state.renewal);
   state.offers = [];
   state.renewal = null;
+  // Staying is a decision about the season ahead, and it closes the loan too.
+  state.loanOffer = null;
   return state.contract;
 }
 

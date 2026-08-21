@@ -1,7 +1,7 @@
 import type { AttributeWeights } from '../player/attributes.ts';
 import type { Player } from '../player/player.ts';
 import type { GoalkeeperAttributes, GoalkeeperState } from '../goalkeeper/goalkeeper.ts';
-import type { Team } from '../team/team.ts';
+import type { Team, Teammate } from '../team/team.ts';
 import type { Zone } from './zones.ts';
 
 /**
@@ -175,6 +175,8 @@ export interface SituationContext {
   goalkeeper: GoalkeeperState;
   attackingTeam: Team;
   defendingTeam: Team;
+  /** Named teammates who could receive a pass. Empty when nobody is named. */
+  teammates: readonly Teammate[];
   /** Number of defenders able to affect the action, 0-4. */
   nearbyDefenders: number;
   /** 0-1 aggregate defensive pressure (proximity + team intensity). */
@@ -255,4 +257,12 @@ export interface EventOutcome {
   /** Contribution to the match rating, positive or negative. */
   ratingDelta: number;
   stats: OutcomeStats;
+  /**
+   * The teammate who scored from the player's pass.
+   *
+   * Set only on a goal the player assisted, so the full-time report can say who
+   * finished it. Absent when nobody was named — a quick match, or a save from
+   * before teammates existed — and the commentary says "a teammate" instead.
+   */
+  assistedBy?: string;
 }

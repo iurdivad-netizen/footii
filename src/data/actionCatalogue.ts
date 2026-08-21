@@ -485,7 +485,10 @@ export const ACTION_CATALOGUE: Record<ActionKind, ActionDefinition> = Object.fro
   }),
 
   action('squarePass', {
-    label: 'Square ball to a teammate',
+    // "to a teammate" was fine while nobody in the squad had a name. Now that
+    // the outcome says who got on the end of it, the label doubled up: "square
+    // ball to a teammate is finished off first time by Grant Tunnicliffe".
+    label: 'Square ball across',
     family: 'pass',
     baseValue: 0.58,
     execution: { passing: 0.4, awareness: 0.35, composure: 0.25 },

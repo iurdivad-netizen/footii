@@ -2,6 +2,7 @@ import { MatchEngine } from '../simulation/MatchEngine.ts';
 import { runMatchAutomatically } from '../simulation/AutoPlay.ts';
 import { DECISION_PACE, UNTIMED_PACE } from '../simulation/DecisionTimer.ts';
 import {
+  acceptLoan,
   acceptOffer,
   canStay,
   negotiateDeal,
@@ -887,6 +888,9 @@ export class App {
           length: 90,
           playerTeamIsHome: isHome,
           paceScale: this.paceScale,
+          // Only in a CAREER: a quick match has no dressing room, so the engine
+          // narrates "a teammate" there exactly as it always did.
+          teammates: career.teammates,
         },
         seed,
       ),
@@ -1285,6 +1289,7 @@ export class App {
           renewal: career.renewal,
           outOfContract: career.contract.yearsRemaining <= 0,
           canStay: canStay(career),
+          loanOffer: career.loanOffer,
           // No offers and an expired deal means no leverage — see negotiateDeal.
           canNegotiateRenewal:
             career.offers.length > 0 || career.contract.yearsRemaining > 0,
@@ -1297,6 +1302,11 @@ export class App {
           },
           onStay: () => {
             stayAtClub(career);
+            close();
+          },
+          onLoan: () => {
+            if (!career.loanOffer) return;
+            acceptLoan(career, career.loanOffer, getTeam);
             close();
           },
           onNegotiate: (offerId, ask) => {

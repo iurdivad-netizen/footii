@@ -33,7 +33,7 @@ import { rankLegacies } from '../core/career/legacy.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 20;
+export const SAVE_VERSION = 22;
 
 export interface CareerRecord {
   matches: number;
@@ -684,6 +684,41 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
       if (career) career.rival ??= null;
     }
     if (save.careerState) save.careerState.rival ??= null;
+  }
+
+  if (save.version === 20) {
+    // v20 -> v21: the people he passes to have names.
+    //
+    // Empty rather than generated, for the same reason the rival is left null:
+    // a squad is built from the club as the career knows it, and a migration
+    // has no business reconstructing that. `prepareNextMatch` fills it at the
+    // next fixture. Until then the match engine reads an empty list as "nobody
+    // named" and narrates an assist exactly as every earlier version did.
+    save = { ...save, version: 21 };
+    for (const career of save.careers ?? []) {
+      if (career) career.teammates ??= [];
+    }
+    if (save.careerState) save.careerState.teammates ??= [];
+  }
+
+  if (save.version === 21) {
+    // v21 -> v22: a young player can go out on loan.
+    //
+    // Nobody comes forward mid-loan, because no earlier version could put him
+    // on one. Null is the only truthful reading, and it is also the safe one:
+    // a loan invented here would have a parent club to return to that he never
+    // actually left.
+    save = { ...save, version: 22 };
+    for (const career of save.careers ?? []) {
+      if (career) {
+        career.loan ??= null;
+        career.loanOffer ??= null;
+      }
+    }
+    if (save.careerState) {
+      save.careerState.loan ??= null;
+      save.careerState.loanOffer ??= null;
+    }
   }
 
   // The flat field is a migration detail and must not survive into the save.

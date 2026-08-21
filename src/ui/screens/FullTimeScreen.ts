@@ -73,7 +73,16 @@ export class FullTimeScreen {
           <h2>This match</h2>
           <dl class="stat-list">
             <div><dt>Goals</dt><dd>${s.goals}</dd></div>
-            <div><dt>Assists</dt><dd>${s.assists}</dd></div>
+            <div>
+              <dt>Assists</dt>
+              <dd>${s.assists}${
+                // Named when there is somebody to name. A quick match has no
+                // dressing room, so it shows the count on its own.
+                state.assisted.length > 0
+                  ? ` <span class="assisted">${state.assisted.join(', ')}</span>`
+                  : ''
+              }</dd>
+            </div>
             <div><dt>Shots (on target)</dt><dd>${s.shots} (${s.shotsOnTarget})</dd></div>
             <div><dt>Key passes</dt><dd>${s.keyPasses}</dd></div>
             <div><dt>Dribbles</dt><dd>${s.dribbles}/${s.dribblesAttempted}</dd></div>

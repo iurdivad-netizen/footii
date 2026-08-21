@@ -30,6 +30,8 @@ import { breakStreaks, recordMatch as recordMatchInBook } from './records.ts';
 import { advanceInjury, rollInjury } from './injury.ts';
 import type { Injury } from './injury.ts';
 import type { Rival } from './squad.ts';
+import type { Teammate } from '../team/team.ts';
+import type { Loan, LoanOffer } from './loan.ts';
 import type { CalendarSlot, CompetitionKind } from './calendar.ts';
 import { isEuropean, isInternational, isSuperCup, seasonCalendar } from './calendar.ts';
 import type { InternationalState } from './international.ts';
@@ -260,6 +262,30 @@ export interface CareerState {
    * has nothing to do with the one at the old one.
    */
   rival: Rival | null;
+  /**
+   * The teammates worth naming — the people he passes to.
+   *
+   * Belongs to the club, like the rival, and is replaced on signing elsewhere.
+   * Empty for a career saved before they existed, which the match engine reads
+   * as "nobody named" and narrates exactly as it always did.
+   */
+  teammates: Teammate[];
+  /**
+   * The loan he is away on, or null when he is at the club that owns him.
+   *
+   * While this is set, `clubId` is the LOAN club and `contract.clubId` is the
+   * parent — the one invariant a loan deliberately breaks, because it is the
+   * thing a loan is.
+   */
+  loan: Loan | null;
+  /**
+   * A club willing to take him for the season, if the summer produced one.
+   *
+   * Held beside `offers` and cleared the same way, because it is the same kind
+   * of thing: something on the table until the window closes. Null in almost
+   * every summer of almost every career.
+   */
+  loanOffer: LoanOffer | null;
 }
 
 /**
@@ -962,6 +988,10 @@ export function advanceSeason(
   // asked for. The cost is that an injury picked up in May is served cheaply,
   // and that is the honest trade.
   state.injury = null;
+  // A loan does not survive the summer that ends it. `endSeason` sends him back
+  // before this runs; anything still set here would be a loan whose season has
+  // already been archived.
+  state.loan = null;
 
   // Re-baseline for the new season. Note this happens AFTER ageing and
   // potential drift, so next season's review measures the new season only.

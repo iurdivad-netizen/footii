@@ -1324,6 +1324,89 @@ The decision is **seeded on the calendar slot**, so the hub gives one answer how
 is rendered. A selection that re-rolled on every redraw would be a slot machine, and a player would
 learn to reopen the screen until he was picked.
 
+### Somebody to pass to
+
+An assist used to go to nobody. The commentary said *"GOAL — and an assist!"* and the man who
+finished it did not exist, because a club was a set of ratings and the only footballer in the game
+was the one you were playing.
+
+Five named teammates now come with every club you sign for — **the five you would actually pass to**.
+That is the whole trick, and the reason a squad is still not modelled: what the match engine needs
+is a name for whoever got on the end of it, and only the people in front of you can be that. A
+striker lays it off to attacking midfielders, wingers and a central midfielder; a centre-back plays
+it into midfield and out to the full-backs. Generating the receivers rather than a team is five
+footballers instead of eighteen, at one club instead of 192.
+
+**The names cost nothing new.** Every club in the world already has a hand-authored goalkeeper —
+sixteen a country. Splitting those into forenames and surnames and recombining them gives 256 names
+per country in exactly the right register, because the authored names *are* the definition of what a
+name from that country sounds like. No generated name is one a goalkeeper already has, and no two
+men in the same five share a surname.
+
+Who receives is weighted by ability, because a ball into the box finds the centre-forward more often
+than the full-back who happened to arrive — and it is drawn **once**, before the finish is rolled,
+so the same man is named whether he scores or misses. A chance created and a chance taken are the
+same pass to two different endings.
+
+> *Playmaker's whip it into the six-yard box is finished off first time by Tomas Brandt! GOAL — and
+> an assist!*
+>
+> *Playmaker's play a one-two puts Wes Arbuthnot in, but the chance goes begging.*
+
+One action label changed with them: **Square ball to a teammate** is now **Square ball across**,
+because the outcome names the teammate and the old label doubled up.
+
+A quick match has no dressing room and neither does a save from before this existed, so both narrate
+"a teammate" exactly as they always did.
+
+### Going out on loan
+
+Rotation is what made loans necessary. Before there was competition for the shirt, a season at a club
+above your level was indistinguishable from a season at a club at it — you played every match either
+way — so a loan had nothing to solve. Now a nineteen-year-old can sign for the champions, be told
+honestly that he is cover, and spend a year watching.
+
+A loan is offered when **three things are true at once**: he is 23 or under, he played less than 45%
+of the league season, and his club sees him as a squad player. Young enough that a year of football
+beats a year of training; short of games; and at a club where that is unlikely to change.
+
+Where he goes is the **strongest club he would still walk into**, searched across the whole world
+rather than his own country. Both ends of that matter: a loan that repeats the problem is worse than
+none — another year of watching, a year older — and a league he is twenty points too good for
+teaches him nothing.
+
+**It is deliberately not a transfer.** The contract does not move, the wage does not change, and the
+parent club takes him back in a year. What moves is the only thing that was wrong: where he plays.
+That makes a loan the one thing in the game that separates `clubId` from `contract.clubId`, and the
+long-career invariant is written to say so rather than to forbid it.
+
+What he *is* at the loan club is carried on the loan itself, not read off the contract. The contract
+belongs to the parent and calls him cover — which is what sent him away. Selection reading that
+while he is somewhere else would leave him on the bench at a club that took him specifically to
+play him, which is the loan failing at the one job it has.
+
+A career it works on, measured:
+
+| Season | Age | Where | League matches | Ability |
+| --- | --- | --- | --- | --- |
+| 1 | 19 | Castleford Royals | 1 | 58 |
+| 2 | 20 | **on loan** at Club Espinela | 24 | 65 |
+| 3 | 21 | Castleford Royals | 5 | 69 |
+| 4 | 22 | **on loan** at SV Marburgen | 22 | 75 |
+| 5 | 23 | Castleford Royals | 0 | 75 |
+| 6 | 24 | **on loan** at Calcio Vestrella | 22 | 78 |
+| 7 | 25 | Castleford Royals | 13 | 80 |
+
+#### The seam
+
+The risky part of a loan is not the loan, it is the moment it ends. Everything settled before the
+return has to read the club he was **at**; everything built after it has to read the club that
+**owns** him. So the return happens in two steps at different points in the summer: the season ahead
+becomes the parent's before the fixture list is built, and he actually moves back only after
+`advanceSeason` has written the season just played into history. A single-step return credited a
+year at Club Espinela to Castleford Royals — which is exactly what the test that caught it now
+guards.
+
 ### Skipping a match
 
 A season is up to forty-seven matches across five competitions. Playing every one of them is a
@@ -1993,7 +2076,8 @@ of fame that ranks every career this browser has finished**, **three independent
 **contracts you can push back on and stated preferences about where you will play**,
 **a trial to earn a start at a club above your level**, **injuries driven by fixture congestion,
 and matches your club plays without you**, **a named rival for your shirt, and a manager who leaves
-you out of the ones that do not matter**, promotion and relegation machinery
+you out of the ones that do not matter**, **named teammates who get on the end of your passes**,
+**loans for a young player who cannot get a game**, promotion and relegation machinery
 (dormant on a one-tier world), debug mode, and a versioned localStorage save with migration that
 says so when the browser will not keep it.
 
@@ -2009,13 +2093,19 @@ finishing one leaves something behind.
 What remains, **ordered by what it unblocks rather than by size**. The first item is the one every
 other item on this list is waiting for.
 
-1. **Named teammates** — so an assist has a recipient and a club has a shape. `Team` is still a set
-   of ratings plus, now, exactly one other footballer.
+1. **Squad context** — ✅ **Done**, in the shape the game actually needed rather than the one the
+   list first imagined.
 
-   This is what is left of what the roadmap called *squad context*, and it is a smaller item than it
-   was. The selection half is done: there is a named rival for your shirt, and being left out is a
-   real thing that happens. What is still missing is the rest of the dressing room — somebody to
-   pass to, a loan to be sent on, a club that reads as eleven people rather than three ratings.
+   It was written as "named teammates, so an assist has a recipient and a club has a shape", with a
+   full squad implied. What it turned into is three smaller things, none of which needs a player
+   database: a named **rival** for your shirt (*The competition for your place*), five named
+   **receivers** to pass to (*Somebody to pass to*), and **loans** for when the first of those is
+   winning (*Going out on loan*). A club is now a set of ratings plus the six footballers you
+   actually interact with, which is every one the game can see.
+
+   What a full squad would still buy is flavour rather than mechanism: a full XI to read on a team
+   sheet, squad numbers, teammates with careers of their own. Worth doing one day; not blocking
+   anything.
 
    It is no longer the blocker for playing time, though, and that is worth being precise about.
    Both levers that waited on it — the reputation settlement, and the 60% gate on individual

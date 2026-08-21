@@ -134,7 +134,13 @@ describe('a whole career, played out', () => {
     for (const career of [star, journeyman]) {
       expect(career.state.contract).toBeTruthy();
       expect(isExpired(career.state.contract)).toBe(false);
-      expect(career.state.clubId).toBe(career.state.contract.clubId);
+      // A loan is the one thing that separates the two, and it does so on
+      // purpose: the contract stays with the club that owns him while he plays
+      // somewhere else. These careers never take one, but the invariant is
+      // written as it actually is rather than as it used to be.
+      expect(career.state.clubId).toBe(
+        career.state.loan ? career.state.loan.clubId : career.state.contract.clubId,
+      );
     }
   });
 
