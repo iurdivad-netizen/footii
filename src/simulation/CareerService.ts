@@ -23,6 +23,15 @@ import {
 } from '../core/career/career.ts';
 import type { ScheduledMatch } from '../core/career/career.ts';
 import type { Injury } from '../core/career/injury.ts';
+import type { Rival, TeamSheet } from '../core/career/squad.ts';
+import {
+  createRival,
+  driftRival,
+  matchImportance,
+  pickSide,
+  rivalAfterMatch,
+} from '../core/career/squad.ts';
+import { playerName } from '../data/gameData.ts';
 import { createMatchStats } from '../core/match/matchStats.ts';
 import { teamStrength } from '../core/team/team.ts';
 import { clamp01 } from '../core/util/math.ts';
@@ -31,6 +40,7 @@ import { clubStature, settleReputation } from '../core/career/reputation.ts';
 import type { ReputationSettlement } from '../core/career/reputation.ts';
 import {
   applyTransferEffects,
+  effectiveAbility,
   generateOffers,
   scoutingInterest,
   squadRole,
@@ -425,7 +435,7 @@ export function startCareer(options: StartCareerOptions): CareerState {
   const leagueTeamIds = leagueMembers(leagues, countryId, division);
   const prestige = countryPrestige(countryId);
 
-  return {
+  const state: CareerState = {
     player: options.player,
     clubId: options.clubId,
     leagueTeamIds,
@@ -469,6 +479,7 @@ export function startCareer(options: StartCareerOptions): CareerState {
     lastResult: null,
     howPlayed: createHowItWasPlayed(),
     injury: null,
+    rival: null,
     cups: newCups(countryId, leagueTeamIds),
     // Nobody is in Europe in season one: qualification is decided by a season
     // that has not been played. The first European night of a career is earned.
@@ -489,6 +500,29 @@ export function startCareer(options: StartCareerOptions): CareerState {
     nationStrengths: initialNationStrengths(),
     records: createCareerRecords(),
   };
+
+  // After the state exists, because the rival is built from the club as this
+  // career knows it — drifted ratings included — and that needs a career.
+  const teams: TeamLookup = (id) => options.teams.find((team) => team.id === id) ?? club;
+  state.rival = newRival(state, teams, options.clubId);
+  return state;
+}
+
+/**
+ * The player already in the shirt at a club.
+ *
+ * Seeded off the career and the club rather than off the calendar, so the same
+ * footballer is waiting whenever this career signs for this club — and a
+ * different one is waiting at the club next door.
+ */
+function newRival(state: CareerState, lookup: TeamLookup, clubId: string): Rival {
+  const team = clubIn(state, lookup, clubId);
+  const rng = new Rng(`${state.seed}:rival:${clubId}:${state.player.position}`);
+  const countryId = locateClub(state.leagues, clubId)?.countryId ?? state.countryId;
+  return createRival(rng, team, playerName(rng, countryId), {
+    role: state.contract?.role ?? 'starter',
+    playerAbility: effectiveAbility(state.player),
+  });
 }
 
 /**
@@ -790,6 +824,9 @@ export function recordPlayerMatch(
     pace: input.skipped ? null : (input.pace ?? null),
   });
 
+  // The player was in the side, so the man he beat to it was not.
+  advanceRival(state, scheduled.slotIndex, true);
+
   if (leagueFixture) {
     simulateRound(state, leagueFixture.round, lookup);
   } else if (scheduled.competition === SUPER_CUP) {
@@ -810,6 +847,56 @@ export function recordPlayerMatch(
   }
 
   return changes;
+}
+
+/**
+ * The manager's team sheet for the next fixture.
+ *
+ * A pure function of the career: the seed comes from the calendar slot, so the
+ * hub can ask as many times as it renders and get one answer. A selection that
+ * changed every time the screen redrew would be a slot machine rather than a
+ * decision, and the player would learn to re-open the screen until he was
+ * picked.
+ *
+ * Returns `selected` for anything it cannot rotate: an international, where his
+ * country picks him on reputation through its own rule, and any career without
+ * a rival — which is every career saved before this existed.
+ */
+export function teamSheet(state: CareerState): TeamSheet {
+  const scheduled = nextMatch(state);
+  if (!scheduled) return { selected: true, note: '' };
+  if (!state.rival || isInternational(scheduled.competition)) {
+    return { selected: true, note: '' };
+  }
+
+  const congested = sharesWeek(state, scheduled);
+  return pickSide(new Rng(`${state.seed}:s${state.seasonNumber}:c${scheduled.slotIndex}:sheet`), {
+    player: state.player,
+    rival: state.rival,
+    role: state.contract.role,
+    fitness: state.fitness,
+    importance: matchImportance(scheduled.competition, scheduled.round),
+    congested,
+  });
+}
+
+/** Is there another match for him in the same week as this one? */
+function sharesWeek(state: CareerState, scheduled: ScheduledMatch): boolean {
+  const after = { ...state, calendarIndex: scheduled.slotIndex + 1 };
+  const next = nextMatch(after);
+  return !!next && next.week === scheduled.week;
+}
+
+/**
+ * Move the competition on after a fixture has gone by.
+ *
+ * Called from both paths, because the rival's season happens whether or not the
+ * player was watching it: he plays exactly the matches the player does not.
+ */
+function advanceRival(state: CareerState, slotIndex: number, playerPlayed: boolean): void {
+  if (!state.rival) return;
+  const rng = new Rng(`${state.seed}:s${state.seasonNumber}:c${slotIndex}:rival`);
+  state.rival = rivalAfterMatch(rng, state.rival, !playerPlayed);
 }
 
 /** What happened in a fixture the player was not fit to play. */
@@ -930,6 +1017,15 @@ export function missMatch(state: CareerState, lookup: TeamLookup): MissedMatch {
   // injury moves one step closer to over. This is the only thing that ever
   // heals one, so it must run on the missed path as well as the played one.
   restUntilNextMatch(state, scheduled.slotIndex, state.fitness);
+  // He played, because somebody had to.
+  advanceRival(state, scheduled.slotIndex, false);
+
+  // Form drifts back toward neutral rather than staying frozen, and the
+  // difference is the whole difference between a hard spell and a trap. Form is
+  // only earned by playing, so a player dropped while out of form would keep
+  // that form for as long as he was out of the side — and need form to get back
+  // into it. The way out cannot be locked behind the thing being punished.
+  state.player.form = round(state.player.form * 0.88 + 50 * 0.12, 1);
 
   return {
     competition: scheduled.competition,
@@ -1096,6 +1192,13 @@ function settlePlayerTie(
  * without either having to know the other did.
  */
 export function prepareNextMatch(state: CareerState, lookup: TeamLookup): void {
+  // A career saved before rotation existed has nobody competing for its shirt.
+  // Built here rather than in the migration because the rival comes from the
+  // club as this career knows it, drifted ratings and all, and a migration has
+  // no business reconstructing that. Deterministic on club and career, so the
+  // same footballer appears however many times this runs.
+  if (!state.rival) state.rival = newRival(state, lookup, state.clubId);
+
   const upcoming = nextMatch(state);
   catchUpInternational(state, upcoming?.slotIndex ?? Number.POSITIVE_INFINITY, lookup);
   catchUpEurope(state, upcoming?.slotIndex ?? Number.POSITIVE_INFINITY, lookup);
@@ -1662,6 +1765,16 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     countryId: nextCountry,
   });
 
+  // The rival had a summer too. He is a year older and better or worse for it,
+  // so a shirt won last season is not one that stays won — and a rival who kept
+  // the player out at thirty-one is a problem that starts solving itself.
+  if (state.rival) {
+    state.rival = driftRival(
+      new Rng(`${state.seed}:s${state.seasonNumber}:rival:drift`),
+      state.rival,
+    );
+  }
+
   // A new season needs new knockouts, entered by whoever is in the league now.
   // The finished ones are handed back on the season end so the review can
   // report the runs that have just been erased from the live state.
@@ -1840,6 +1953,11 @@ export function acceptOffer(
 
   state.clubId = offer.clubId;
   state.transfers.push(record);
+
+  // A new club is a new shirt to win. The man already in it belongs to the club
+  // rather than to the player, so signing somewhere replaces the competition
+  // outright rather than carrying the old one along.
+  state.rival = newRival(state, lookup, offer.clubId);
 
   // A move can cross a country as well as a tier, which changes the whole
   // season ahead: a new league, a new fixture list, a new table and a different

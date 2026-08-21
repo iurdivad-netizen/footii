@@ -3453,3 +3453,35 @@ button.ghost.danger {
   color: var(--warn);
   border-color: var(--warn);
 }
+
+/*
+ * The team sheet, on the career hub.
+ *
+ * Being left out is amber like an injury, because it is the same kind of news:
+ * a setback with a way back from it. Being picked gets a quiet line rather than
+ * a box — it is the expected case, and a green banner every week saying "you
+ * are playing" would train the eye to skip the one week it says otherwise.
+ */
+.team-sheet {
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.benched {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--warn);
+  background: rgba(245, 158, 11, 0.1);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.benched strong {
+  color: var(--warn);
+}
+
+.stat-list .rival {
+  font-size: 0.85rem;
+}

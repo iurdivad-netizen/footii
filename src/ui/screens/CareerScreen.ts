@@ -11,6 +11,7 @@ import {
   seasonComplete,
 } from '../../core/career/career.ts';
 import type { ScheduledMatch } from '../../core/career/career.ts';
+import type { TeamSheet } from '../../core/career/squad.ts';
 import { CUP_KINDS, cupName, roundName, stillIn, totalRounds } from '../../core/career/cups.ts';
 import {
   competitionLabel,
@@ -87,6 +88,16 @@ export class CareerScreen {
 
   constructor(
     private readonly state: CareerState,
+    /**
+     * The manager's decision for the next fixture.
+     *
+     * Passed in rather than computed here, because this screen is a renderer:
+     * everything on it is read off the career, and selection is a question for
+     * the career service. Computing it here would also mean computing it on
+     * every redraw, which is exactly the thing the seeded decision exists to
+     * avoid.
+     */
+    private readonly teamSheet: TeamSheet,
     handlers: {
       onPlay: () => void;
       onSkip: () => void;
@@ -194,6 +205,7 @@ export class CareerScreen {
     const scheduled = nextMatch(this.state);
     const done = seasonComplete(this.state);
     const injury = this.state.injury;
+    const sheet = this.teamSheet;
     const stats = this.state.seasonStats;
     const venue = scheduled ? (scheduled.home ? 'Home' : 'Away') : '';
 
@@ -253,8 +265,14 @@ export class CareerScreen {
                           The club plays this one without you.
                         </p>
                         <button class="primary" id="miss-match">Watch from the stand</button>`
-                     : `<button class="primary" id="play-match">Play match</button>
-                        <button class="ghost skip-match" id="skip-match">Skip — let him play it</button>`
+                     : !sheet.selected
+                       ? `<p class="benched">
+                            <strong>Left out.</strong> ${sheet.note}
+                          </p>
+                          <button class="primary" id="miss-match">Watch from the bench</button>`
+                       : `${sheet.note ? `<p class="team-sheet">${sheet.note}</p>` : ''}
+                          <button class="primary" id="play-match">Play match</button>
+                          <button class="ghost skip-match" id="skip-match">Skip — let him play it</button>`
                  }`
           }
         </div>
@@ -268,6 +286,13 @@ export class CareerScreen {
                 ? `<div class="stat-injury">
                      <dt>Injured</dt>
                      <dd>${injury.label} · ${injury.weeksRemaining}w</dd>
+                   </div>`
+                : ''
+            }
+            ${
+              this.state.rival
+                ? `<div><dt>Competing with</dt>
+                     <dd class="rival">${this.state.rival.name} · ${this.state.rival.ability}</dd>
                    </div>`
                 : ''
             }

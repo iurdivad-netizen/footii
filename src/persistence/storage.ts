@@ -33,7 +33,7 @@ import { rankLegacies } from '../core/career/legacy.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 19;
+export const SAVE_VERSION = 20;
 
 export interface CareerRecord {
   matches: number;
@@ -667,6 +667,23 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
       if (career) career.injury ??= null;
     }
     if (save.careerState) save.careerState.injury ??= null;
+  }
+
+  if (save.version === 19) {
+    // v19 -> v20: somebody else wants the shirt.
+    //
+    // Left as null rather than generated here, and the difference matters: the
+    // rival is built from the club as the career knows it — drifted ratings and
+    // all — which a migration has no business reconstructing. `prepareNextMatch`
+    // builds one the first time the career sets up a fixture, so an existing
+    // career gains its competition at its very next match rather than having to
+    // wait for a transfer. Until then `teamSheet` picks the player every week,
+    // exactly as every version before this one did.
+    save = { ...save, version: 20 };
+    for (const career of save.careers ?? []) {
+      if (career) career.rival ??= null;
+    }
+    if (save.careerState) save.careerState.rival ??= null;
   }
 
   // The flat field is a migration detail and must not survive into the save.

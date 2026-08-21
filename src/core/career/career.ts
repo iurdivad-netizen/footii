@@ -29,6 +29,7 @@ import type { NationStrengths } from './nationDrift.ts';
 import { breakStreaks, recordMatch as recordMatchInBook } from './records.ts';
 import { advanceInjury, rollInjury } from './injury.ts';
 import type { Injury } from './injury.ts';
+import type { Rival } from './squad.ts';
 import type { CalendarSlot, CompetitionKind } from './calendar.ts';
 import { isEuropean, isInternational, isSuperCup, seasonCalendar } from './calendar.ts';
 import type { InternationalState } from './international.ts';
@@ -251,6 +252,14 @@ export interface CareerState {
    * representation and no caller has to remember to check both.
    */
   injury: Injury | null;
+  /**
+   * The player competing for the same shirt at his club, or null.
+   *
+   * Belongs to the CLUB rather than to the career: signing somewhere else
+   * replaces him outright, because the man already in the shirt at the new club
+   * has nothing to do with the one at the old one.
+   */
+  rival: Rival | null;
 }
 
 /**
