@@ -399,3 +399,59 @@ describe('retirement', () => {
     expect(retirementProspect(state)!.reason).toContain('another season in you');
   });
 });
+
+describe('where an honour was won', () => {
+  const inCountry = (kind: HonourKind, countryId: string): Honour => ({
+    ...honour(kind),
+    countryId,
+  });
+
+  it('pays a title in a stronger league more than the same title in a weaker one', () => {
+    expect(honourPoints([inCountry('title', 'england')])).toBeGreaterThan(
+      honourPoints([inCountry('title', 'austria')]),
+    );
+  });
+
+  it('pays a European Cup the same whoever qualified for it', () => {
+    // The point of the exception: a small league's club that wins Europe has
+    // done MORE than a big league's, so the last thing its trophy should get is
+    // a discount for the league it came out of.
+    expect(honourPoints([inCountry('europeanTitle', 'austria')])).toBe(
+      honourPoints([inCountry('europeanTitle', 'england')]),
+    );
+  });
+
+  it('pays an international tournament the same whoever won it', () => {
+    expect(honourPoints([inCountry('internationalTitle', 'scotland')])).toBe(
+      honourPoints([inCountry('internationalTitle', 'spain')]),
+    );
+  });
+
+  it('keeps the strongest league at its full listed value', () => {
+    // England is the top of the scale, so nothing about this change may quietly
+    // deflate the careers that were already being scored correctly.
+    expect(honourPoints([inCountry('title', 'england')])).toBe(45);
+  });
+
+  it('costs less to go down in a weaker league than in a stronger one', () => {
+    // Both are negative, so "costs less" means closer to zero.
+    expect(honourPoints([inCountry('relegation', 'austria')])).toBeGreaterThan(
+      honourPoints([inCountry('relegation', 'england')]),
+    );
+    expect(honourPoints([inCountry('relegation', 'austria')])).toBeLessThan(0);
+  });
+
+  it('does not let a weak league outscore a strong one on the same haul', () => {
+    const strong = [inCountry('title', 'england'), inCountry('nationalCup', 'england')];
+    const weak = [inCountry('title', 'austria'), inCountry('nationalCup', 'austria')];
+    expect(honourPoints(strong)).toBeGreaterThan(honourPoints(weak));
+  });
+
+  it('keeps the taper mild enough that a league title still beats a league cup', () => {
+    // The guard against over-tapering: no amount of country weighting may
+    // reorder what the trophies themselves are worth.
+    expect(honourPoints([inCountry('title', 'austria')])).toBeGreaterThan(
+      honourPoints([inCountry('leagueCup', 'england')]),
+    );
+  });
+});

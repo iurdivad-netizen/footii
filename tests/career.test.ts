@@ -4,13 +4,17 @@ import { applyExertion, createPlayer, currentAbility, fatigueLevel } from '../sr
 import type { Player } from '../src/core/player/player.ts';
 import { TEAMS, getTeam, teamsInDivision } from '../src/data/gameData.ts';
 import {
+  acceptOffer,
+  canStay,
   endSeason,
   playerFixtures,
   recordPlayerMatch,
   simulateRound,
   startCareer,
+  stayAtClub,
 } from '../src/simulation/CareerService.ts';
 import { FITNESS_RECOVERY, nextFixture, seasonComplete } from '../src/core/career/career.ts';
+import type { CareerState } from '../src/core/career/career.ts';
 import {
   ageFactor,
   createDevelopmentState,
@@ -518,5 +522,76 @@ describe('season statistics', () => {
     applyResult(table, { round: 1, homeId: 'a', awayId: 'b', homeGoals: 3, awayGoals: 0 });
     expect(tablePosition(table, 'a')).toBe(1);
     expect(tablePosition(table, 'b')).toBe(2);
+  });
+});
+
+describe('how much of a career was actually played', () => {
+  const newCareer = () =>
+    startCareer({ player: prospect(), clubId: 'northport-city', teams: TEAMS, seed: 'played' });
+
+  function play(state: CareerState, options: { skipped?: boolean; pace?: string } = {}) {
+    const stats = createMatchStats();
+    stats.minutes = 90;
+    recordPlayerMatch(
+      state,
+      {
+        stats,
+        rating: 6.8,
+        playerTeamScore: 1,
+        opponentScore: 1,
+        fitnessAtEnd: 50,
+        ...options,
+      },
+      lookup,
+    );
+  }
+
+  it('counts a played match against the pace it was played at', () => {
+    const state = newCareer();
+    play(state, { pace: 'hardcore' });
+    play(state, { pace: 'hardcore' });
+    play(state, { pace: 'untimed' });
+
+    expect(state.howPlayed.played).toBe(3);
+    expect(state.howPlayed.skipped).toBe(0);
+    expect(state.howPlayed.paces).toEqual({ hardcore: 2, untimed: 1 });
+  });
+
+  it('counts a skipped match separately, and against no pace at all', () => {
+    // The distinction the counter exists for: a skipped match was not played
+    // slowly, it was not played. Filing it under whatever the menu said would
+    // credit the career with football nobody sat through.
+    const state = newCareer();
+    play(state, { skipped: true, pace: 'untimed' });
+    play(state, { pace: 'untimed' });
+
+    expect(state.howPlayed.skipped).toBe(1);
+    expect(state.howPlayed.played).toBe(1);
+    expect(state.howPlayed.paces).toEqual({ untimed: 1 });
+  });
+
+  it('keeps counting across a season boundary, because a career is the unit', () => {
+    const state = newCareer();
+    while (!seasonComplete(state)) play(state, { pace: 'standard' });
+    const afterOne = state.howPlayed.played;
+    expect(afterOne).toBeGreaterThan(0);
+
+    endSeason(state, lookup);
+    if (canStay(state)) stayAtClub(state);
+    else acceptOffer(state, state.offers[0]!.id, lookup);
+    state.trainingPoints = 0;
+
+    play(state, { pace: 'standard' });
+    expect(state.howPlayed.played).toBe(afterOne + 1);
+  });
+
+  it('records nothing under a pace when a head-less caller does not supply one', () => {
+    // Every test in this suite that predates the counter calls without a pace.
+    // That must count as a played match with an unknown pace rather than
+    // inventing one, so the histogram never claims football it cannot source.
+    const state = newCareer();
+    play(state);
+    expect(state.howPlayed.played).toBe(1);
+    expect(state.howPlayed.paces).toEqual({});
   });
 });

@@ -240,6 +240,48 @@ export interface CareerState {
    * report for each one — so the hub has to be able to say what just happened.
    */
   lastResult: MatchResultSummary | null;
+  /** How this career was actually played. See `HowItWasPlayed`. */
+  howPlayed: HowItWasPlayed;
+}
+
+/**
+ * How a career was actually played, counted as it goes.
+ *
+ * Kept because it CANNOT be reconstructed. Everything else a career knows can
+ * be recomputed from its seed and its history; this cannot, because the two
+ * things it counts are choices the player made outside the simulation and left
+ * no trace of. `skipped` existed per match and only ever survived on
+ * `lastResult`, so the answer to "how much of this career did you actually
+ * play" was overwritten every match and gone by the end of the first season.
+ *
+ * It is recorded now, ahead of anything reading it, for the one reason that
+ * matters with a counter: it can only ever count FORWARD. A season played
+ * before the counter existed is a season whose answer is lost for good, so
+ * every week this waited on the scoring rule that will eventually read it was
+ * a week of data nobody can get back. The rule is a judgement call and can take
+ * its time; the counting is not, and could not.
+ */
+export interface HowItWasPlayed {
+  /** Matches resolved automatically rather than played. */
+  skipped: number;
+  /** Matches the player sat through himself. */
+  played: number;
+  /**
+   * Matches played at each decision pace, keyed by the pace's own id.
+   *
+   * A plain string key rather than the `DecisionPace` union, for two reasons.
+   * The union lives in `simulation/`, and `core` may not import from there —
+   * see the dependency rule. And a histogram keyed by a union is a migration
+   * waiting to happen: the pace settings have already been renamed and
+   * rescaled once, and a save holding counts under a name the code no longer
+   * has should keep them as an unreadable tally rather than fail to load. What
+   * reads this maps the ids it recognises and can treat the rest as unknown.
+   */
+  paces: Record<string, number>;
+}
+
+export function createHowItWasPlayed(): HowItWasPlayed {
+  return { skipped: 0, played: 0, paces: {} };
 }
 
 /** Enough of a finished match to describe it in one line. */
@@ -594,6 +636,16 @@ export interface MatchOutcomeInput {
   competition: CompetitionKind;
   /** The calendar slot it was played in, so the season advances past it. */
   slotIndex: number;
+  /** True when it was resolved automatically rather than played. */
+  skipped: boolean;
+  /**
+   * The decision pace it was played at, or null when it was skipped.
+   *
+   * Null rather than the setting in force, because a skipped match was not
+   * played at any pace: counting it under whatever the menu happened to say
+   * would credit a career with football it never sat through.
+   */
+  pace: string | null;
 }
 
 /** Fold one match into a running set of statistics. */
@@ -646,6 +698,19 @@ export function applyMatchToCareer(
   addMatchToStats(state.seasonStats, stats, rating, result);
   if (input.competition === 'league') {
     addMatchToStats(state.leagueStats, stats, rating, result);
+  }
+
+  // How the match was reached, as opposed to how it went. Counted here for the
+  // same reason the statistics are: this is the one place a completed match
+  // becomes part of the career, so the two can never drift apart.
+  state.howPlayed ??= createHowItWasPlayed();
+  if (input.skipped) {
+    state.howPlayed.skipped += 1;
+  } else {
+    state.howPlayed.played += 1;
+    if (input.pace) {
+      state.howPlayed.paces[input.pace] = (state.howPlayed.paces[input.pace] ?? 0) + 1;
+    }
   }
 
   // A cap is a match played in the shirt, counted here rather than inferred.

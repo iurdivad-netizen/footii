@@ -473,6 +473,7 @@ describe('reputation', () => {
       leaguePosition: 8,
       leagueSize: 8,
       clubStature: 0.5,
+      leagueMatches: 14,
       seasonLength: 14,
     });
     expect(settlement.target).toBeLessThan(settlement.before);
@@ -484,7 +485,7 @@ describe('reputation', () => {
 
   it('rates a title-winning, prolific season above a bottom-placed quiet one', () => {
     const player = striker();
-    const shared = { clubStature: 0.7, seasonLength: 14 };
+    const shared = { clubStature: 0.7, leagueMatches: 14, seasonLength: 14 };
     const great = reputationTarget(player, {
       ...shared,
       stats: season({ goals: 14, assists: 6 }),
@@ -500,6 +501,59 @@ describe('reputation', () => {
     expect(great).toBeGreaterThan(poor + 15);
   });
 
+  it('pays a player who was in the side all season more than one who was rotated', () => {
+    // The regression this exists for: playing time used to be measured as
+    // EVERY competition's matches over the LEAGUE's fixture count, so the ratio
+    // never fell below 1, the clamp pinned it, and these two seasons — the same
+    // football, half as much of it — settled to exactly the same number.
+    const shared = {
+      stats: season({ goals: 6, assists: 3 }),
+      leaguePosition: 5,
+      leagueSize: 8,
+      clubStature: 0.6,
+      seasonLength: 14,
+    };
+    const everPresent = reputationTarget(striker(), { ...shared, leagueMatches: 14 });
+    const rotated = reputationTarget(striker(), { ...shared, leagueMatches: 5 });
+    expect(rotated).toBeLessThan(everPresent);
+  });
+
+  it('does not let a cup run disguise a season spent out of the league side', () => {
+    // `stats` counts every competition, so a long run in both cups can carry
+    // more matches than the league has fixtures. That must not read as having
+    // played the league season: the denominator is league football on purpose.
+    const player = striker();
+    const target = reputationTarget(player, {
+      stats: season({ matches: 30, goals: 6, assists: 3 }),
+      leaguePosition: 5,
+      leagueSize: 8,
+      clubStature: 0.6,
+      leagueMatches: 4,
+      seasonLength: 14,
+    });
+    const everPresent = reputationTarget(player, {
+      stats: season({ matches: 30, goals: 6, assists: 3 }),
+      leaguePosition: 5,
+      leagueSize: 8,
+      clubStature: 0.6,
+      leagueMatches: 14,
+      seasonLength: 14,
+    });
+    expect(target).toBeLessThan(everPresent);
+  });
+
+  it('says so when a player was in the side for less than half the season', () => {
+    const settlement = settleReputation(striker({ reputation: 60 }), {
+      stats: season({ goals: 3 }),
+      leaguePosition: 5,
+      leagueSize: 8,
+      clubStature: 0.6,
+      leagueMatches: 4,
+      seasonLength: 14,
+    });
+    expect(settlement.notes.some((note) => /less than half/.test(note))).toBe(true);
+  });
+
   it('slides a player who did not play at all', () => {
     const player = striker({ reputation: 70 });
     const settlement = settleReputation(player, {
@@ -507,6 +561,7 @@ describe('reputation', () => {
       leaguePosition: 4,
       leagueSize: 8,
       clubStature: 0.6,
+      leagueMatches: 0,
       seasonLength: 14,
     });
     expect(settlement.delta).toBeLessThan(0);

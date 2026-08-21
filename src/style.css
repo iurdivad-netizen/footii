@@ -3364,3 +3364,41 @@ button.ghost.danger {
 #club-note.trial {
   color: var(--goal);
 }
+
+/*
+ * The storage warning.
+ *
+ * Lives above every screen rather than on one, because the thing it is warning
+ * about — that nothing is being saved — is true wherever the player happens to
+ * be. Deliberately loud: it is the only message in the game that says work is
+ * being lost, and a player who scrolls past it loses a career.
+ */
+.storage-warning {
+  max-width: 900px;
+  margin: 0 auto 18px;
+  padding: 14px 18px;
+  border: 1px solid var(--warn);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.12);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.storage-warning p {
+  flex: 1 1 340px;
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.storage-warning strong {
+  color: var(--warn);
+}
+
+.storage-warning button {
+  width: auto;
+  flex: 0 0 auto;
+}
