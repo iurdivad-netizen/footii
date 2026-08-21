@@ -116,7 +116,24 @@ export interface ReputationSettlementInput {
   leagueSize: number;
   /** Standing of the club he played for, 0-1. */
   clubStature: number;
-  /** Matches in a full season, so playing time can be judged. */
+  /**
+   * League matches he actually played.
+   *
+   * A separate number from `stats.matches` rather than a slice of it, and the
+   * separation is the whole fix. `stats` counts EVERY competition — both cups,
+   * a European run, an international tournament — so dividing it by a league
+   * fixture list compared a number that reaches 50 with one that is 30. The
+   * ratio never fell below 1 in any season anybody has played, the clamp below
+   * pinned it, and "you cannot be famous for football you did not play" was a
+   * sentence the code did not implement.
+   *
+   * The league is the right denominator because it is the only competition
+   * whose fixture count is known in advance. How long a cup run lasts is an
+   * OUTCOME, so ties you never had are not ties you missed; being left out of
+   * the league side is absence, and it is the thing this term is here to see.
+   */
+  leagueMatches: number;
+  /** League matches there were to play, so playing time can be judged. */
   seasonLength: number;
   /** How closely the division is watched, 0-1. */
   divisionPrestige?: number;
@@ -160,14 +177,23 @@ export function reputationTarget(player: Player, input: ReputationSettlementInpu
   const visibility = (0.75 + input.clubStature * 0.5) * (0.6 + prestige * 0.4);
 
   // You cannot be famous for football you did not play.
-  const playingTime = clamp(
-    input.seasonLength > 0 ? input.stats.matches / input.seasonLength : 0,
-    0,
-    1,
-  );
-  const exposure = 0.5 + playingTime * 0.5;
+  const exposure = 0.5 + playingTimeShare(input) * 0.5;
 
   return clamp((baseline + (finish + contribution) * visibility) * exposure, 0, 100);
+}
+
+/**
+ * How much of the league season he was actually in the side, 0-1.
+ *
+ * Its own function because two places need the same answer: the target, which
+ * scales by it, and the notes, which have to be able to say so. A season
+ * without a league to play — a career's first summer, or a competition-only
+ * edge case — reads as a full one rather than as an absence, because there was
+ * no side to be left out of.
+ */
+function playingTimeShare(input: ReputationSettlementInput): number {
+  if (input.seasonLength <= 0) return 1;
+  return clamp(input.leagueMatches / input.seasonLength, 0, 1);
 }
 
 /**
@@ -196,6 +222,13 @@ export function settleReputation(
     notes.push('The game has started to forget you.');
   } else {
     notes.push('Your standing in the game is broadly unchanged.');
+  }
+  // Added ALONGSIDE the direction note rather than instead of it, like every
+  // other note below. Playing time is now a real term, so a player who spent
+  // half the league season out of the side should be told that is what moved
+  // his standing — but he should still be told which way it moved.
+  if (input.stats.matches > 0 && playingTimeShare(input) < 0.5) {
+    notes.push('You were in the side for less than half the league season.');
   }
   if (input.leaguePosition === 1) notes.push('Winning the league puts every player in it on show.');
   if ((input.divisionPrestige ?? 1) < 1) {

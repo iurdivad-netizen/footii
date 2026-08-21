@@ -12,6 +12,7 @@ import {
   advanceSeason,
   applyMatchToCareer,
   calendarFor,
+  createHowItWasPlayed,
   fixturesFor,
   knockoutFor,
   nextFixture,
@@ -460,6 +461,7 @@ export function startCareer(options: StartCareerOptions): CareerState {
     honours: [],
     careerEarnings: 0,
     lastResult: null,
+    howPlayed: createHowItWasPlayed(),
     cups: newCups(countryId, leagueTeamIds),
     // Nobody is in Europe in season one: qualification is decided by a season
     // that has not been played. The first European night of a career is earned.
@@ -676,6 +678,14 @@ export interface PlayedMatchInput {
   /** True when the match was resolved automatically rather than played. */
   skipped?: boolean;
   /**
+   * The decision pace the match was played at, as the settings had it.
+   *
+   * Passed in rather than read from anywhere, because the pace is a UI setting
+   * and `simulation` cannot see one. Absent for a skipped match, and absent in
+   * head-less callers that are not playing at a pace at all.
+   */
+  pace?: string;
+  /**
    * The shootout, when the player took one himself.
    *
    * Only ever set for a knockout tie that finished level and was PLAYED. A tie
@@ -769,6 +779,8 @@ export function recordPlayerMatch(
     fitnessAtEnd: input.fitnessAtEnd,
     competition: scheduled.competition,
     slotIndex: scheduled.slotIndex,
+    skipped: !!input.skipped,
+    pace: input.skipped ? null : (input.pace ?? null),
   });
 
   if (leagueFixture) {
@@ -1338,6 +1350,10 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     leaguePosition: position,
     leagueSize: state.leagueTeamIds.length,
     clubStature: clubStature(club),
+    // Both halves of playing time come off the LEAGUE ledger, so the ratio is
+    // matches-he-played over matches-there-were rather than every competition
+    // over one of them. See `leagueMatches` in reputation.ts.
+    leagueMatches: state.leagueStats.matches,
     seasonLength: fixturesFor(state, state.clubId).length,
     // A European run is seen by more people than the league it came from, so a
     // player at a small club who reaches the Champions League is genuinely more

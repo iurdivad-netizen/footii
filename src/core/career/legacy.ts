@@ -6,7 +6,7 @@ import { summariseHonours } from './awards.ts';
 import type { Milestone } from './records.ts';
 import { averageOf, lifetimeTotals, milestones } from './records.ts';
 import { currentAbility } from '../player/player.ts';
-import { getCountry } from './countries.ts';
+import { countryPrestige, getCountry } from './countries.ts';
 import { INTERNATIONAL } from './international.ts';
 import { round } from '../util/math.ts';
 
@@ -130,6 +130,67 @@ const HONOUR_POINTS: Record<HonourKind, number> = {
   relegation: -12,
 };
 
+/**
+ * Which stage an honour was contested on.
+ *
+ * `domestic` honours are decided inside one country, so what one is worth
+ * depends on which country. Sixteen clubs in Austria and sixteen in England are
+ * not the same sixteen, and a scoreboard that pays 45 points for either title
+ * says the career that avoided the hard leagues was the better one. It also
+ * gives the transfer market a perverse instruction: the surest way to climb the
+ * wall of fame was to drop into the weakest league in the world and win it
+ * every year.
+ *
+ * `common` honours are contested on a stage every country enters on the same
+ * terms — the three European competitions, and the international tournament.
+ * A European Cup is the same trophy whoever qualified for it, and scaling one
+ * by the winner's league would dock points from exactly the clubs whose
+ * achievement was largest: the ones who came out of a small league and won it
+ * anyway. The continental treble sits here for the same reason, since a
+ * European trophy is the leg that makes it one.
+ */
+const HONOUR_STAGE: Record<HonourKind, 'domestic' | 'common'> = {
+  title: 'domestic',
+  nationalCup: 'domestic',
+  leagueCup: 'domestic',
+  superCup: 'domestic',
+  domesticDouble: 'domestic',
+  domesticTreble: 'domestic',
+  promotion: 'domestic',
+  relegation: 'domestic',
+  topScorer: 'domestic',
+  playerOfTheSeason: 'domestic',
+  youngPlayerOfTheSeason: 'domestic',
+  europeanTitle: 'common',
+  europeanFinal: 'common',
+  continentalTreble: 'common',
+  internationalTitle: 'common',
+  internationalFinal: 'common',
+  internationalDebut: 'common',
+  capMilestone: 'common',
+};
+
+/**
+ * How much the football of one country counts toward what a career is
+ * remembered for, as a multiplier on a domestic honour.
+ *
+ * A TAPER of prestige rather than prestige itself, and the difference is the
+ * whole design. Raw prestige runs from 1 down to 0.46 across the twelve
+ * countries with leagues, which would say an Austrian title is worth less than
+ * half an English one — a bigger claim than a ranking number has any business
+ * making, and one that would bury every career played outside the top four
+ * leagues no matter how good it was. Tapered, the spread is about 3:2: enough
+ * that the harder league settles a tie between two similar careers, not enough
+ * to decide one on its own.
+ *
+ * It applies to `relegation` too, which is negative, so going down in a weaker
+ * league costs less. That is the same statement read backwards and it is meant:
+ * the fall is smaller because the height was.
+ */
+function domesticWeight(countryId: string): number {
+  return 0.4 + 0.6 * countryPrestige(countryId);
+}
+
 /** Milestones shown on a legacy card. More than this is a record book, not a card. */
 const HIGHLIGHT_LIMIT = 4;
 
@@ -163,9 +224,21 @@ export function careerScore(legacy: {
   return Math.max(0, Math.round(production + longevity + quality + country + legacy.honourPoints));
 }
 
-/** What a set of honours is worth, in the currency `careerScore` spends. */
+/**
+ * What a set of honours is worth, in the currency `careerScore` spends.
+ *
+ * Every honour already carries the country it was won in, so weighting one by
+ * where it happened needs no new field and no migration — only the decision to
+ * read what was always being recorded.
+ */
 export function honourPoints(honours: readonly Honour[]): number {
-  return honours.reduce((total, honour) => total + (HONOUR_POINTS[honour.kind] ?? 0), 0);
+  return honours.reduce((total, honour) => {
+    const points = HONOUR_POINTS[honour.kind] ?? 0;
+    if (HONOUR_STAGE[honour.kind] === 'domestic') {
+      return total + points * domesticWeight(honour.countryId);
+    }
+    return total + points;
+  }, 0);
 }
 
 /**

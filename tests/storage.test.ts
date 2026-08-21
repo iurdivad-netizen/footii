@@ -21,6 +21,8 @@ import {
   isUsableLegacy,
   migrate,
   removeFromHallOfFame,
+  storageFailure,
+  writeSave,
 } from '../src/persistence/storage.ts';
 import type { CareerLegacy } from '../src/core/career/legacy.ts';
 import type { SaveData } from '../src/persistence/storage.ts';
@@ -953,5 +955,157 @@ describe('export and import', () => {
     // Indented on purpose: an exported save is a file somebody may well look
     // inside, and a single-line blob is not one.
     expect(exportSave(save())).toContain('\n');
+  });
+});
+
+describe('when the browser will not save', () => {
+  /**
+   * Stand in for `localStorage` for the length of one test.
+   *
+   * Restores whatever was there afterwards — including "nothing there at all",
+   * which is the state these tests run in by default, since the suite runs in
+   * node rather than a browser.
+   */
+  function withLocalStorage(stub: unknown, run: () => void): void {
+    const globals = globalThis as { localStorage?: unknown };
+    const had = 'localStorage' in globals;
+    const previous = globals.localStorage;
+    if (stub === undefined) delete globals.localStorage;
+    else globals.localStorage = stub;
+    try {
+      run();
+    } finally {
+      if (had) globals.localStorage = previous;
+      else delete globals.localStorage;
+    }
+  }
+
+  const save = (): SaveData => ({
+    version: SAVE_VERSION,
+    career: emptyCareer(),
+    settings: defaultSettings(),
+    careers: Array.from({ length: CAREER_SLOTS }, () => null),
+    activeSlot: 0,
+    hallOfFame: [],
+  });
+
+  it('reports a write that worked, and forgets any earlier failure', () => {
+    withLocalStorage({ setItem: () => {}, getItem: () => null }, () => {
+      expect(writeSave(save())).toBe(true);
+      expect(storageFailure()).toBeNull();
+    });
+  });
+
+  it('reports storage that is not there at all rather than pretending it saved', () => {
+    // The regression this whole change exists for: this used to return nothing
+    // and swallow the error, so a career could be played to its end in a
+    // browser that was keeping none of it.
+    withLocalStorage(undefined, () => {
+      expect(writeSave(save())).toBe(false);
+      expect(storageFailure()).toBe('unavailable');
+    });
+  });
+
+  it('tells a full browser apart from one that has no storage at all', () => {
+    const full = {
+      getItem: () => null,
+      setItem: () => {
+        const error = new DOMException('exceeded', 'QuotaExceededError');
+        throw error;
+      },
+    };
+    withLocalStorage(full, () => {
+      expect(writeSave(save())).toBe(false);
+      expect(storageFailure()).toBe('quota');
+    });
+  });
+
+  it('clears the failure once storage starts working again', () => {
+    withLocalStorage(undefined, () => {
+      writeSave(save());
+      expect(storageFailure()).toBe('unavailable');
+    });
+    withLocalStorage({ setItem: () => {}, getItem: () => null }, () => {
+      writeSave(save());
+      expect(storageFailure()).toBeNull();
+    });
+  });
+
+  it('still returns the updated save, so the game plays on unsaved', () => {
+    // Playing on is deliberate. Refusing to run because storage is unavailable
+    // would lose the session outright instead of merely failing to persist it.
+    withLocalStorage(undefined, () => {
+      const updated = saveCareer(save(), career());
+      expect(activeCareer(updated)).toBeTruthy();
+      expect(storageFailure()).toBe('unavailable');
+    });
+  });
+});
+
+describe('counting how a career was actually played', () => {
+  it('starts a new career at zero on both counts', () => {
+    const state = career();
+    expect(state.howPlayed.skipped).toBe(0);
+    expect(state.howPlayed.played).toBe(0);
+    expect(state.howPlayed.paces).toEqual({});
+  });
+
+  it('backfills an older career rather than refusing to load it', () => {
+    const state = career();
+    const older = { ...state } as Record<string, unknown>;
+    delete older.howPlayed;
+
+    const migrated = migrate({
+      version: 17,
+      career: emptyCareer(),
+      settings: defaultSettings(),
+      careers: [older, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(migrated).not.toBeNull();
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(activeCareer(migrated)!.howPlayed).toEqual({ skipped: 0, played: 0, paces: {} });
+  });
+
+  it('does not overwrite counts a migrated career already had', () => {
+    const state = career();
+    state.howPlayed = { skipped: 4, played: 20, paces: { hardcore: 20 } };
+
+    const migrated = migrate({
+      version: 17,
+      career: emptyCareer(),
+      settings: defaultSettings(),
+      careers: [state, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(activeCareer(migrated)!.howPlayed.skipped).toBe(4);
+    expect(activeCareer(migrated)!.howPlayed.paces.hardcore).toBe(20);
+  });
+
+  it('survives a round trip through export and import', () => {
+    const state = career();
+    state.howPlayed = { skipped: 2, played: 9, paces: { untimed: 9 } };
+    const save = saveCareer(
+      {
+        version: SAVE_VERSION,
+        career: emptyCareer(),
+        settings: defaultSettings(),
+        careers: Array.from({ length: CAREER_SLOTS }, () => null),
+        activeSlot: 0,
+        hallOfFame: [],
+      },
+      state,
+    );
+
+    const reimported = importSave(exportSave(save))!;
+    expect(activeCareer(reimported)!.howPlayed).toEqual({
+      skipped: 2,
+      played: 9,
+      paces: { untimed: 9 },
+    });
   });
 });

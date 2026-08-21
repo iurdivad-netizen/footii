@@ -59,6 +59,7 @@ import {
   saveCareer,
   saveSettings,
   selectSlot,
+  storageFailure,
   writeSave,
 } from '../persistence/storage.ts';
 import type { GameSettings } from '../persistence/storage.ts';
@@ -122,14 +123,64 @@ export class App {
    * pre-build without noticing.
    */
   private selectedPresetId: string | null = null;
+  /**
+   * The "this browser is not saving your game" bar.
+   *
+   * Built once and kept outside the screen it sits above, for the same reason
+   * the debug panel is: every navigation clears `root`, and a warning that a
+   * career is not being saved must not disappear because the player changed
+   * screen. It is empty and hidden until a write actually fails.
+   */
+  private readonly storageWarning = document.createElement('div');
 
   constructor(private readonly root: HTMLElement) {
     this.overlay = new EventOverlay(this.input);
     this.save = loadSave();
     this.applySettings();
     this.input.bindKey('d', () => this.debug.toggle());
+    this.storageWarning.className = 'storage-warning';
+    this.storageWarning.hidden = true;
+    this.root.appendChild(this.storageWarning);
     this.root.appendChild(this.debug.element);
     this.showHome();
+  }
+
+  /**
+   * Show or hide the storage warning, according to what the last write did.
+   *
+   * Called from `mount`, so it is re-evaluated on every navigation without any
+   * screen having to know it exists. Once storage starts working again the bar
+   * goes away on its own, which is the right behaviour for a quota that was
+   * freed or a permission that was granted mid-session.
+   */
+  private refreshStorageWarning(): void {
+    const failure = storageFailure();
+    if (!failure) {
+      this.storageWarning.hidden = true;
+      this.storageWarning.replaceChildren();
+      return;
+    }
+
+    const reason =
+      failure === 'quota'
+        ? 'This browser has run out of room to save your game.'
+        : 'This browser is not letting the game save.';
+
+    this.storageWarning.hidden = false;
+    this.storageWarning.replaceChildren();
+
+    const text = document.createElement('p');
+    text.innerHTML =
+      `<strong>${reason}</strong> Everything you play from here is being kept in memory only, ` +
+      'and closing this tab will lose it. Exporting writes the whole save to a file, which you ' +
+      'can import again on a browser that will keep it.';
+    this.storageWarning.appendChild(text);
+
+    const button = document.createElement('button');
+    button.className = 'ghost';
+    button.textContent = 'Export to a file';
+    button.addEventListener('click', () => this.exportSaveFile());
+    this.storageWarning.appendChild(button);
   }
 
   private mount(element: HTMLElement): void {
@@ -140,9 +191,13 @@ export class App {
     this.shootoutScreen = null;
 
     for (const child of Array.from(this.root.children)) {
-      if (child !== this.debug.element) child.remove();
+      if (child !== this.debug.element && child !== this.storageWarning) child.remove();
     }
     this.root.appendChild(element);
+    // After the screen is in place, so the bar is always the first thing above
+    // whatever the player just navigated to.
+    this.refreshStorageWarning();
+    this.root.insertBefore(this.storageWarning, this.root.firstChild);
     window.scrollTo(0, 0);
   }
 
@@ -919,6 +974,11 @@ export class App {
         opponentScore: engine.state.opponentScore,
         fitnessAtEnd: engine.matchPlayer.fitness,
         skipped,
+        // What the settings actually said while this match was played, read at
+        // the moment it finishes rather than at the end of the season: the pace
+        // is a menu the player can change between any two matches, so a season
+        // is not played at one pace and cannot be counted as though it were.
+        pace: this.save.settings.pace,
         shootout,
       },
       getTeam,

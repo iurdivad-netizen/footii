@@ -629,6 +629,24 @@ market, and it moves at **two speeds**:
 Without the settlement, reputation could only ever climb, and every career ended with a
 world-famous 34-year-old who had not started a match in a year.
 
+**How much you played is measured on league football, and only on league football.** Both halves of
+that ratio come off the league ledger: matches you were in the side for, over matches there were to
+be in the side for. It used to compare `seasonStats` — which counts *every* competition, both cups,
+a European run, an international tournament — against the league's fixture list alone, so the
+number on top could reach fifty while the number underneath stayed at thirty. The ratio never fell
+below 1 in any season anybody has played, the clamp pinned it at 1, and *"you cannot be famous for
+football you did not play"* was a sentence the code did not implement.
+
+The league is the right denominator because it is the only competition whose fixture count is known
+in advance. How far a cup run goes is an **outcome**, so ties you never had are not ties you missed;
+being left out of the league side is absence, and absence is the thing the term exists to see.
+
+Nothing about today's game changes, and that is the point of fixing it now: you start every league
+fixture, so the ratio is 1 either way and not one career is retuned. The term is simply *correct*
+ahead of the thing that will make it bite. Squad rotation is what makes playing time a real number,
+and it is next but one on the roadmap — a lever that is wrong while dormant is a lever that is wrong
+on the day it wakes up, and much harder to notice then.
+
 | Reputation | You are | What it means |
 | ---------- | ------- | ------------- |
 | 0–17 | Unknown | Nobody outside your own dressing room knows your name |
@@ -1275,6 +1293,34 @@ for it either way; without that, appearances would be paid twice. Honour weights
 be remembered for and cannot. A European Cup outscores the league title that qualified him for it,
 an international tournament outscores everything, and a relegation costs something.
 
+**A trophy is also worth what the league it came from is worth.** Honours split into two stages, and
+they are priced differently:
+
+- **Domestic** honours — the title, both cups, the super cup, the doubles and trebles, the
+  individual awards, promotion and relegation — are decided inside one country, so what one is worth
+  depends on which country. Sixteen clubs in Austria and sixteen in England are not the same sixteen.
+  Paying 45 points for either title said the career that avoided the hard leagues was the better one,
+  and it handed the transfer market a perverse instruction: the surest way up the wall of fame was to
+  drop into the weakest league in the world and win it every year.
+- **Common** honours — the three European competitions and the international tournament — are
+  contested on a stage every country enters on the same terms. A European Cup is the same trophy
+  whoever qualified for it, and discounting one for the league it came out of would dock points from
+  exactly the clubs whose achievement was largest: the ones who came out of a small league and won it
+  anyway. The continental treble sits here too, since a European trophy is the leg that makes it one.
+
+The domestic weight is a **taper** of country prestige rather than prestige itself, and that is the
+whole design. Raw prestige runs from 1 down to 0.46 across the twelve countries with leagues, which
+would say an Austrian title is worth less than half an English one — a bigger claim than a ranking
+number has any business making, and one that would bury every career played outside the top four
+leagues however good it was. Tapered, the spread is about 3:2: enough that the harder league settles
+a tie between two similar careers, not enough to decide one on its own. An English title is still
+worth its full listed 45, so no career that was already being scored correctly is quietly deflated.
+
+Relegation is weighted the same way, and it is negative, so going down in a weaker league costs
+less. That is the same statement read backwards and it is meant: the fall is smaller because the
+height was. None of this needed a migration — every honour has recorded the country it was won in
+since honours existed, and this is only the decision to read it.
+
 A career that never played a match is not kept. The threshold is the lowest one possible — a single
 appearance — because anything higher would start judging which real careers were worth remembering,
 and that is what the ranking is for.
@@ -1333,6 +1379,26 @@ careers from one machine and a wall from another, duplicate entries, and careers
 refer to a world the other half does not have. Import means "make this browser be that browser", and
 the copy in front of it says so. The file is parsed and migrated *before* anything is written, so a
 bad import costs nothing: the worst case is a message and the save you already had.
+
+#### When the browser will not save
+
+Writing to localStorage can simply fail. Private browsing on some browsers offers no storage at all;
+a profile near its limit refuses new data; an origin can have site data switched off. The game used
+to swallow every one of those with a comment saying *the game plays on* — true, and never the whole
+story. The game plays on and **keeps nothing**, so somebody in a private window could finish an
+eighteen-season career and lose all of it without the game ever having said a word.
+
+Playing on is still right: refusing to run because storage is unavailable would lose the session
+outright rather than merely failing to persist it. But it is now a thing you are **told**. A failed
+write raises a warning bar that sits above every screen — not on one screen, because the fact it
+reports is true wherever you happen to be — saying that nothing is being kept, and offering the
+export that is the whole reason telling you is useful. It clears itself as soon as a write succeeds,
+which is the right behaviour for a quota that was freed or a permission granted mid-session.
+
+Two failures are told apart, because they want different words: a browser that is **full**, and one
+that is **not letting the game save at all**. The advice is the same either way — export, and import
+somewhere that will keep it — but a player who is told their browser is full and knows it is not
+stops trusting the next thing the game says.
 
 ### Penalty shootouts
 
@@ -1722,7 +1788,8 @@ of fame that ranks every career this browser has finished**, **three independent
 **export and import of the whole save**, **penalty shootouts you take the kicks in**,
 **contracts you can push back on and stated preferences about where you will play**,
 **a trial to earn a start at a club above your level**, promotion and relegation machinery
-(dormant on a one-tier world), debug mode, and a versioned localStorage save with migration.
+(dormant on a one-tier world), debug mode, and a versioned localStorage save with migration that
+says so when the browser will not keep it.
 
 Deliberately **not** built yet: multiplayer, accounts, a backend, 3D, physics, large player
 databases.
@@ -1741,6 +1808,13 @@ other item on this list is waiting for.
    reputation settlement weights playing time and awards require 60% of a season, but you start
    every fixture forever, so neither can bite. `Team` is currently a set of ratings and nothing
    else.
+
+   Both levers are now at least *correct* while they wait. The awards gate always was — it measures
+   league matches against league fixtures. The reputation one was not: it divided every
+   competition's matches by the league's fixture list, so it could not have fallen below 1 even
+   with rotation in place. That is fixed, and deliberately fixed first — a lever that is wrong while
+   dormant is wrong on the day it wakes, and far harder to spot then, because by that point it looks
+   like a balance problem rather than a bug. See *Reputation and transfers*.
 
 2. **Injuries and squad rotation** — the fitness model has enough bite to support them
    (`FITNESS_RECOVERY`, and a match that costs 30-40 points), and they are what would make the
@@ -1831,19 +1905,69 @@ is unchanged.
 
 **11. The career score should be penalised for skipped matches and for a generous pace.**
 Right in principle: a career built on skipped matches at no time limit is not the same career as one
-played out at Hardcore, and `careerScore` currently cannot tell them apart. One catch worth knowing
-before starting — **skipped matches are not counted anywhere**. `skipped` exists per match and only
-the most recent one survives, in `lastResult`. This needs a counter on `CareerState`, which means it
-can only count matches skipped *after* the change; existing careers would start from zero rather
-than being retro-scored.
+played out at Hardcore, and `careerScore` still cannot tell them apart. **The counting half is now
+done; the scoring half is not.**
+
+The catch this item was always going to hit is that it can only count *forward*. `skipped` existed
+per match and only the most recent one survived, in `lastResult`, so the answer to "how much of this
+career did you actually play" was overwritten every match and gone by the end of the first season.
+No amount of care at scoring time can recover a season that was never recorded.
+
+That is an argument for starting the counter **early**, not for deferring it with everything else —
+every week spent waiting on the scoring rule was a week of data nobody can get back. So
+`CareerState.howPlayed` now records, per career: matches skipped, matches played, and a histogram of
+the decision pace each played match was played at. It is written in `applyMatchToCareer`, the one
+place a finished match becomes part of a career, so it cannot drift from the statistics beside it.
+
+Three details worth knowing:
+
+- **A skipped match is filed under no pace at all.** It was not played slowly; it was not played.
+  Counting it under whatever the settings happened to say would credit a career with football
+  nobody sat through.
+- **The histogram is keyed by a plain string**, not by the `DecisionPace` union. The union lives in
+  `simulation/` and `core` may not import from there; and the pace settings have already been
+  renamed and rescaled once (see *The decision window, rescaled*), so a save holding counts under a
+  name the code no longer has should keep them as an unreadable tally rather than fail to load.
+- **Existing careers start at zero, and that is a fact rather than a default.** A career already
+  under way will under-count itself for everything it has already played, and only a career started
+  after v18 has a total that means anything. That is unavoidable for any counter added to a running
+  game, and it gets less true every day the counting is happening.
+
+What is still open is the judgement call: how much a skipped match should cost, how much a generous
+pace should, and whether a career with too little recorded football should be scored on this at all.
+That part is genuinely better late, and it is now the only part left.
 
 #### What is left
 
-Ten of the eleven are done. One remains:
+Ten of the eleven are done, and the eleventh is now half done.
 
-**(11) — penalties on the end-of-career score for skipped matches and an easy decision pace.** It
-was always the item that should go last, because it can only ever count forward from the change: a
-career already played carries no record of how many of its matches were skipped or what pace they
-were played at, so the counter has to start at zero and mean nothing until it has a career's worth
-of data behind it. It is also a larger job now than when it was listed, since the pace settings it
-would read are no longer the ones it was written against — see *The decision window, rescaled*.
+**(11) — penalties on the end-of-career score for skipped matches and an easy decision pace.** The
+item split cleanly into a cheap half that had to happen early and an expensive half that is better
+late, and only the second is outstanding:
+
+- **Counting — done.** `CareerState.howPlayed` records skipped matches, played matches and the pace
+  each played match was played at, from v18 onward. This is the half that could not wait, because a
+  counter can only ever count forward.
+- **Scoring — open.** Nothing reads the counts yet. Deciding what a skipped match costs, and what a
+  generous pace costs, is a balance judgement that wants a few real careers' worth of data behind
+  it — which, now that the data is being collected, is a matter of playing rather than of writing
+  anything. It is also a larger job than when it was listed, since the pace settings it would read
+  are no longer the ones it was written against — see *The decision window, rescaled*.
+
+#### Found while reviewing, and fixed
+
+Three things that were not on either list, found by reading the code against what it claimed:
+
+- **Reputation's playing-time term could never fire.** It divided every competition's matches by the
+  league's fixture list — a number that reaches fifty over one that is thirty — so it was pinned at
+  its maximum in every season anybody has played. Fixed ahead of the squad rotation that will make
+  it bite, and with no effect on any career today. See *Reputation and transfers*.
+- **Every league's trophies were worth the same.** `careerScore` priced an Austrian title and an
+  English one identically, so the shortest route up the wall of fame was to find the weakest league
+  in the world and win it repeatedly. Domestic honours are now tapered by the standing of the
+  country they were won in; European and international ones deliberately are not. See *The wall of
+  fame*.
+- **A browser that could not save said nothing about it.** Every write failure was swallowed, so a
+  career could be played to its end in a browser keeping none of it. Failures now raise a warning
+  above every screen, and offer the export that makes them survivable. See *When the browser will
+  not save*.

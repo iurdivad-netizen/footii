@@ -1,5 +1,6 @@
 import type { MatchStats } from '../core/match/matchStats.ts';
 import type { CareerState } from '../core/career/career.ts';
+import { createHowItWasPlayed } from '../core/career/career.ts';
 import { currentAbility } from '../core/player/player.ts';
 import { TEAMS } from '../data/gameData.ts';
 import { initialLeagues, locateClub } from '../core/career/countries.ts';
@@ -32,7 +33,7 @@ import { rankLegacies } from '../core/career/legacy.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 17;
+export const SAVE_VERSION = 18;
 
 export interface CareerRecord {
   matches: number;
@@ -631,6 +632,29 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
     if (save.careerState) save.careerState.superCup ??= null;
   }
 
+  if (save.version === 17) {
+    // v17 -> v18: a career counts how much of itself was actually played.
+    //
+    // Existing careers start at zero, and that is a statement of fact rather
+    // than a default papering over a gap: nothing anywhere in an older save
+    // records how many of its matches were skipped or what pace they were
+    // played at. `skipped` was written per match onto `lastResult` and
+    // overwritten by the next one, so the information was never kept even for
+    // a single season.
+    //
+    // The consequence is worth being explicit about, because it is the reason
+    // this lands before anything reads it: a career already under way will
+    // under-count itself for the matches it has already played, and only a
+    // career started after this version has a total that means anything. That
+    // is unavoidable for any counter added to a running game, and it gets less
+    // true every day the counting is happening.
+    save = { ...save, version: 18 };
+    for (const career of save.careers ?? []) {
+      if (career) career.howPlayed ??= createHowItWasPlayed();
+    }
+    if (save.careerState) save.careerState.howPlayed ??= createHowItWasPlayed();
+  }
+
   // The flat field is a migration detail and must not survive into the save.
   // Leaving it would give the game two answers to "which career is this", and
   // the stale one would win on any code path that had not been updated.
@@ -705,11 +729,71 @@ export function loadSave(): SaveData {
   }
 }
 
-export function writeSave(save: SaveData): void {
+/**
+ * Why the last attempt to write failed.
+ *
+ * `quota` — the browser has storage and will not give this origin any more of
+ * it, usually because the save has grown or the profile is near its limit.
+ * `unavailable` — there is no storage to write to at all: private browsing on
+ * some browsers, a profile with site data switched off, an origin the user has
+ * blocked. The two want different words in front of a player, which is the only
+ * reason they are told apart.
+ */
+export type StorageFailure = 'quota' | 'unavailable';
+
+/**
+ * The outcome of the most recent write, or null while writes are working.
+ *
+ * Module state rather than a return value threaded through the ten functions
+ * that write, because every one of those returns the new `SaveData` and giving
+ * each a second channel would change ten signatures to answer one question.
+ * The question is also not per-call: a player does not need to know which save
+ * failed, they need to know that this browser is not keeping their game.
+ */
+let lastWriteFailure: StorageFailure | null = null;
+
+/** What went wrong the last time the game tried to save, if anything did. */
+export function storageFailure(): StorageFailure | null {
+  return lastWriteFailure;
+}
+
+function classifyWriteError(error: unknown): StorageFailure {
+  // Browsers disagree on the name and agree on the code. Safari in private mode
+  // historically threw QuotaExceededError for "there is no storage here at all",
+  // so a name match is evidence of quota rather than proof of it — but calling
+  // a storage-less browser "full" is the less misleading of the two mistakes,
+  // since the advice on both is the same: export the save somewhere else.
+  if (typeof DOMException !== 'undefined' && error instanceof DOMException) {
+    if (
+      error.name === 'QuotaExceededError' ||
+      error.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+      error.code === 22
+    ) {
+      return 'quota';
+    }
+  }
+  return 'unavailable';
+}
+
+/**
+ * Write the save, and say whether it worked.
+ *
+ * It used to swallow every failure with "the game plays on", which is true and
+ * was never the whole story: the game plays on and keeps nothing, so somebody
+ * in a private window can finish an eighteen-season career and lose all of it
+ * without the game ever having said a word. Playing on is still the right
+ * behaviour — refusing to run because storage is unavailable would be worse —
+ * but it is now a behaviour the player is told about, and the export they can
+ * still do is the thing telling them is for.
+ */
+export function writeSave(save: SaveData): boolean {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(save));
-  } catch {
-    // Storage can be unavailable (private mode, quota). The game plays on.
+    lastWriteFailure = null;
+    return true;
+  } catch (error) {
+    lastWriteFailure = classifyWriteError(error);
+    return false;
   }
 }
 
