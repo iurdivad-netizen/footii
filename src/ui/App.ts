@@ -57,6 +57,7 @@ import {
   removeFromHallOfFame,
   replaceSave,
   saveCareer,
+  probeStorage,
   saveSettings,
   selectSlot,
   storageFailure,
@@ -136,6 +137,10 @@ export class App {
   constructor(private readonly root: HTMLElement) {
     this.overlay = new EventOverlay(this.input);
     this.save = loadSave();
+    // Asked at boot rather than discovered at the first write, so somebody in a
+    // private window is told before they have played anything worth keeping
+    // rather than after.
+    probeStorage();
     this.applySettings();
     this.input.bindKey('d', () => this.debug.toggle());
     this.storageWarning.className = 'storage-warning';

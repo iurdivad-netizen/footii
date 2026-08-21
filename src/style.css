@@ -3387,6 +3387,16 @@ button.ghost.danger {
   gap: 12px;
 }
 
+/*
+ * The `hidden` property has to be re-stated, because `display: flex` above beats
+ * it. The browser hides `[hidden]` through a UA rule of `display: none`, and any
+ * class selector in this file outranks that — so setting `hidden` on a flex
+ * element hides nothing, and the bar sat empty above every screen.
+ */
+.storage-warning[hidden] {
+  display: none;
+}
+
 .storage-warning p {
   flex: 1 1 340px;
   margin: 0;
