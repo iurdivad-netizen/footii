@@ -307,8 +307,49 @@ export interface MatchResultSummary {
   shootout?: { won: boolean; scored: number; conceded: number };
 }
 
-/** How much fitness a player recovers between fixtures. */
+/**
+ * How much fitness a player recovers across one clear week between fixtures.
+ *
+ * The value is unchanged, and deliberately so: one match a week is what the
+ * overwhelming majority of a season looks like, so the ordinary case recovers
+ * exactly what it always did and no existing career is retuned. What weeks add
+ * is the two tails either side of it — see `fitnessRecovery`.
+ */
 export const FITNESS_RECOVERY = 34;
+
+/**
+ * What a player recovers when his next match is in the SAME week.
+ *
+ * Saturday to Wednesday is not a week's rest and never was; the calendar simply
+ * had no way to say so, because a slot was the only unit of time it had and
+ * every slot was worth the same recovery. A congested week is now the thing
+ * that makes a fixture pile-up cost something — and it is the mechanic squad
+ * rotation and injuries will eventually hang off, since a manager has no reason
+ * to rest anybody in a season where nobody ever tires.
+ *
+ * Saturday to Wednesday is four days against a week's seven, and recovery is
+ * not linear in days — the first ones do least — so a little over half of
+ * `FITNESS_RECOVERY` is about right. It sits at the FORGIVING end of what could
+ * be argued for, deliberately: there is currently no way to be rested, because
+ * the player starts every fixture there is, so a congested season is one he has
+ * to play all of. This is the number to tighten once squad rotation gives him
+ * somewhere to sit.
+ */
+export const CONGESTED_RECOVERY = 18;
+
+/**
+ * Fitness recovered before the next match, given how far away it is in weeks.
+ *
+ * Linear in the gap and then clamped by the 0-100 ceiling on fitness itself, so
+ * a fortnight off is functionally a full recharge without needing a special
+ * case to say so. A gap of zero — a midweek fixture — is the one case that is
+ * not on the line, because rest between two matches in the same week is not a
+ * fraction of a week's rest, it is a different thing: three days.
+ */
+export function fitnessRecovery(weeksUntilNext: number): number {
+  if (weeksUntilNext <= 0) return CONGESTED_RECOVERY;
+  return FITNESS_RECOVERY * weeksUntilNext;
+}
 
 export function fixturesFor(state: CareerState, teamId: string): Fixture[] {
   return state.fixtures.filter((f) => f.homeId === teamId || f.awayId === teamId);
@@ -361,7 +402,9 @@ export function internationalMatch(
   state: CareerState,
   slotIndex: number,
   round: number,
-): ScheduledMatch | null {
+  // The week is attached by `nextMatch`, which is the only place that holds the
+  // slot this was built from. Returning a match without one keeps that single.
+): Omit<ScheduledMatch, 'week'> | null {
   // Not picked, no international season. This is the whole point of the
   // competition: it is the one thing in a career he can be left out of.
   if (!isSelected(state.player)) return null;
@@ -429,6 +472,15 @@ export interface ScheduledMatch {
    * replay hands the trophy to the opponent.
    */
   slotIndex: number;
+  /**
+   * The week of the season this is played in.
+   *
+   * Attached by `nextMatch` from the slot rather than by each of the helpers
+   * that build a match, so there is one place that can get it wrong instead of
+   * five. Read by the hub, to say where in the season you are, and by fitness:
+   * two matches in one week is the whole reason weeks exist.
+   */
+  week: number;
   /** League round, or cup round. */
   round: number;
   opponentId: string;
@@ -451,7 +503,7 @@ function europeanMatch(
   slotIndex: number,
   round: number,
   tier: EuropeanTier,
-): ScheduledMatch | null {
+): Omit<ScheduledMatch, 'week'> | null {
   const europe = state.europe;
   if (!europe || europe.kind !== tier) return null;
 
@@ -509,6 +561,7 @@ export function nextMatch(state: CareerState): ScheduledMatch | null {
       return {
         competition: 'league',
         slotIndex: i,
+        week: slot.week,
         round: slot.round,
         opponentId: fixture.homeId === state.clubId ? fixture.awayId : fixture.homeId,
         home: fixture.homeId === state.clubId,
@@ -523,6 +576,7 @@ export function nextMatch(state: CareerState): ScheduledMatch | null {
       return {
         competition: slot.competition,
         slotIndex: i,
+        week: slot.week,
         round: 1,
         opponentId: superCupOpponent(tie, state.clubId),
         // The champions are at home; the challenger travels.
@@ -534,13 +588,13 @@ export function nextMatch(state: CareerState): ScheduledMatch | null {
     if (isInternational(slot.competition)) {
       const international = internationalMatch(state, i, slot.round);
       if (!international) continue;
-      return international;
+      return { ...international, week: slot.week };
     }
 
     if (isEuropean(slot.competition)) {
       const european = europeanMatch(state, i, slot.round, slot.competition);
       if (!european) continue;
-      return european;
+      return { ...european, week: slot.week };
     }
 
     const cup = knockoutFor(state, slot.competition);
@@ -555,6 +609,7 @@ export function nextMatch(state: CareerState): ScheduledMatch | null {
     return {
       competition: slot.competition,
       slotIndex: i,
+      week: slot.week,
       round: slot.round,
       opponentId: tie ? opponentIn(tie, state.clubId) : '',
       home: tie ? tie.homeId === state.clubId : true,
@@ -758,13 +813,29 @@ export function applyMatchToCareer(
   });
   state.player.reputation = clamp(state.player.reputation + reputationGain, 0, 100);
 
-  // Fitness: what was left at the whistle, plus recovery before the next game.
-  state.fitness = clamp(input.fitnessAtEnd + FITNESS_RECOVERY, 0, 100);
-  state.player.fitness = state.fitness;
-
   if (input.competition === 'league') state.nextFixtureIndex += 1;
   // Past the slot that was PLAYED, not one past where the walk started.
   state.calendarIndex = input.slotIndex + 1;
+
+  // Fitness: what was left at the whistle, plus recovery before the next game.
+  //
+  // Asked AFTER the indexes move, because "the next game" is a question only
+  // the advanced career can answer. `nextMatch` walks past every slot that is
+  // not his — a cup he is out of, a European tier he is not in, an
+  // international he was not picked for — so a midweek he has no fixture in
+  // correctly reads as rest rather than as congestion. That accuracy is the
+  // reason this is computed here rather than handed in by the caller.
+  const playedWeek = calendarFor(state)[input.slotIndex]?.week ?? 1;
+  const next = nextMatch(state);
+  // Nothing left means the season is over, and the summer resets fitness to
+  // 100 regardless — a full week is the honest neutral answer either way.
+  state.fitness = clamp(
+    input.fitnessAtEnd + fitnessRecovery(next ? next.week - playedWeek : 1),
+    0,
+    100,
+  );
+  state.player.fitness = state.fitness;
+
   state.lastDevelopment = development.changes;
   return development.changes;
 }

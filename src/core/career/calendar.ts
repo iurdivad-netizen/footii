@@ -44,7 +44,35 @@ export interface CalendarSlot {
   competition: CompetitionKind;
   /** League round, or cup round, counting from 1. */
   round: number;
+  /**
+   * Which week of the season this is played in, counting from 1.
+   *
+   * The calendar used to have no notion of time at all: a slot's POSITION in
+   * the list was the only clock there was, so every match was equally spaced by
+   * definition and adding a competition could only ever make the season longer.
+   * That is what made "the calendar is already full" a real constraint on
+   * everything the roadmap wanted to add.
+   *
+   * A week is not the same thing as a slot, and that is the entire point.
+   * Several slots can share one — the Saturday league match and the Wednesday
+   * cup tie are the same week of a footballer's life — so competitions are
+   * added by filling midweeks rather than by extending the year. A season is
+   * capped at `SEASON_WEEK_CAP` weeks however many matches it ends up holding.
+   */
+  week: number;
 }
+
+/**
+ * The longest a season may run, in weeks.
+ *
+ * A CAP rather than a fixed length: a small league that finishes its programme
+ * early has a shorter season, and no season may run past this however many
+ * competitions its clubs are in. Roughly a real August-to-May campaign, which
+ * makes it a number a player can hold in their head — and one that forces the
+ * congestion a club in every competition should feel, since forty weeks cannot
+ * hold fifty matches without doubling up.
+ */
+export const SEASON_WEEK_CAP = 40;
 
 /**
  * After which league round each cup round is played.
@@ -114,7 +142,9 @@ export function seasonCalendar(
   const slots: CalendarSlot[] = [];
 
   // Where each cup round falls, clamped so a short league cannot lose a round.
-  const placed = new Map<number, CalendarSlot[]>();
+  // Held WITHOUT a week: a midweek fixture takes the week of the league round
+  // it was scheduled after, so its week is not known until that round is placed.
+  const placed = new Map<number, Omit<CalendarSlot, 'week'>[]>();
   const place = (kind: CompetitionKind, schedule: readonly number[]) => {
     // The schedule's own length says how many rounds this competition has: four
     // for a domestic cup, six for a European season with a group stage.
@@ -142,20 +172,81 @@ export function seasonCalendar(
     placed.set(after, list);
   }
 
-  // Before anything else: one match, decided by last season.
-  slots.push({ competition: SUPER_CUP, round: 1 });
+  const weekOfRound = leagueWeeks(leagueRounds, internationalMatches);
+
+  // Before anything else: one match, decided by last season. It has week one to
+  // itself — a super cup is played before the season proper starts, so nothing
+  // else shares its week.
+  slots.push({ competition: SUPER_CUP, round: 1, week: 1 });
 
   for (let round = 1; round <= leagueRounds; round++) {
-    slots.push({ competition: 'league', round });
-    for (const slot of placed.get(round) ?? []) slots.push(slot);
+    // Everything scheduled after this league round shares its week: that is
+    // what makes a cup tie or a European night a MIDWEEK match rather than an
+    // extra week of season.
+    const week = weekOfRound(round);
+    slots.push({ competition: 'league', round, week });
+    for (const slot of placed.get(round) ?? []) slots.push({ ...slot, week });
   }
 
-  // The tournament closes the year, after every club competition is settled.
+  // The tournament closes the year, after every club competition is settled —
+  // and it gets a week each, because an international knockout is not something
+  // played midweek alongside a league fixture.
+  let week = weekOfRound(leagueRounds);
   for (let i = GROUP_ROUNDS; i < internationalMatches; i++) {
-    slots.push({ competition: INTERNATIONAL, round: i + 1 });
+    week += 1;
+    slots.push({ competition: INTERNATIONAL, round: i + 1, week });
   }
 
   return slots;
+}
+
+/**
+ * Which week each league round is played in.
+ *
+ * League football is the season's metronome, so it is placed first and
+ * everything else hangs off it. Two rules decide the spacing:
+ *
+ * - Rounds are spread across the weeks available rather than packed into the
+ *   front of the season, so a league short enough to leave room gets REST
+ *   weeks rather than finishing in March and leaving the player idle.
+ * - No two rounds are ever more than a fortnight apart. Without that, an
+ *   eight-club league would put three weeks between matches and a footballer
+ *   would spend his career fully rested, which would quietly switch off the
+ *   fitness model.
+ *
+ * Returns a function rather than an array because callers ask about one round
+ * at a time, and because the closure keeps the arithmetic in one place.
+ */
+function leagueWeeks(
+  leagueRounds: number,
+  internationalMatches: number,
+): (round: number) => number {
+  // Week one is the super cup; the tournament takes a week per knockout round
+  // at the end. What is left is the club season.
+  const tournamentWeeks = Math.max(0, internationalMatches - GROUP_ROUNDS);
+  const available = Math.max(1, SEASON_WEEK_CAP - 1 - tournamentWeeks);
+  // At most a fortnight between rounds, and never more weeks than there are.
+  const span = Math.min(available, Math.max(1, leagueRounds * 2 - 1));
+  return (round: number) => {
+    if (leagueRounds <= 1) return 2;
+    const offset = Math.round(((round - 1) * (span - 1)) / (leagueRounds - 1));
+    return 2 + offset;
+  };
+}
+
+/**
+ * How many weeks a season actually runs to.
+ *
+ * The last week used, not the cap: a league small enough to finish inside the
+ * cap has a genuinely shorter season, and saying "week 12 of 40" to somebody
+ * whose season ends in week 30 would be a lie about how much football is left.
+ */
+export function seasonWeeks(
+  leagueRounds: number,
+  internationalMatches = MAX_INTERNATIONAL_MATCHES,
+): number {
+  const calendar = seasonCalendar(leagueRounds, internationalMatches);
+  return calendar.reduce((last, slot) => Math.max(last, slot.week), 1);
 }
 
 /**
