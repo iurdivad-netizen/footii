@@ -4,7 +4,13 @@ import type { CompetitionKind } from '../../core/career/calendar.ts';
 import { currentAbility } from '../../core/player/player.ts';
 import { positionLabel } from '../../core/player/positions.ts';
 import type { CareerState } from '../../core/career/career.ts';
-import { matchesRemaining, nextMatch, seasonComplete } from '../../core/career/career.ts';
+import {
+  calendarFor,
+  matchesRemaining,
+  nextMatch,
+  seasonComplete,
+} from '../../core/career/career.ts';
+import type { ScheduledMatch } from '../../core/career/career.ts';
 import { CUP_KINDS, cupName, roundName, stillIn, totalRounds } from '../../core/career/cups.ts';
 import {
   competitionLabel,
@@ -133,6 +139,30 @@ export class CareerScreen {
    * so an international fixture rendered through it throws and takes the hub
    * down with it.
    */
+  /**
+   * How many weeks this season runs to.
+   *
+   * Read off the player's OWN calendar rather than from the cap, because a
+   * small league finishes inside it — telling somebody it is week 12 of 40 when
+   * their season ends in week 30 would misdescribe how much football is left.
+   */
+  private seasonWeeks(): number {
+    return calendarFor(this.state).reduce((last, slot) => Math.max(last, slot.week), 1);
+  }
+
+  /**
+   * Is there another match for this player in the same week as this one?
+   *
+   * Worth saying out loud on the card, because it is the only warning he gets
+   * that he will go into the next match short of rest — and, unlike everything
+   * else on this screen, it is a consequence of a fixture he has not played yet.
+   */
+  private sharesItsWeek(scheduled: ScheduledMatch): boolean {
+    const after = { ...this.state, calendarIndex: scheduled.slotIndex + 1 };
+    const next = nextMatch(after);
+    return !!next && next.week === scheduled.week;
+  }
+
   private side(id: string): Team {
     const country = countryOfNation(id);
     if (!country) return this.club(id);
@@ -201,7 +231,14 @@ export class CareerScreen {
                    }</strong>
                    <span class="venue">${venue}</span>
                  </p>
-                 <p class="hint">${matchesRemaining(this.state)} matches left this season</p>
+                 <p class="hint">
+                   Week ${scheduled!.week} of ${this.seasonWeeks()} ·
+                   ${matchesRemaining(this.state)} matches left this season${
+                     this.sharesItsWeek(scheduled!)
+                       ? ' · <strong class="congested">a second match this week</strong>'
+                       : ''
+                   }
+                 </p>
                  <button class="primary" id="play-match">Play match</button>
                  <button class="ghost skip-match" id="skip-match">Skip — let him play it</button>`
           }

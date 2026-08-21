@@ -1099,7 +1099,7 @@ competition, so the calendar knows about all of them:
 | International breaks | rounds after league rounds 7, 16, 21 |
 | League cup | rounds after league rounds 8, 14, 22, 28 |
 | The tournament | after the final league round |
-| **A season** | **30 to 47 matches**, depending how far the knockout runs go |
+| **A season** | **30 to 47 matches**, depending how far the knockout runs go, in **at most 40 weeks** |
 
 The international knockout sits **after** the last league round, because that is when a tournament is
 played and because it gives a career a shape a club season cannot: the league is decided, the cups
@@ -1119,6 +1119,68 @@ the previous round has been played. Knocked out, and the slot is simply skipped.
 **Cup goals do not count toward league awards.** Statistics are kept twice: everything you did, and
 league matches only. The golden boot is inferred from the league table, so it has to be judged on
 league football — otherwise a good cup run could win an award the league never saw.
+
+#### A season is measured in weeks, not in matches
+
+For a long time a slot was the only unit of time the calendar had. A season *was* its list of slots,
+so two things were true that should never have been the same thing: every match was equally spaced
+by definition, and **a new competition could only make the season longer**. That is why the roadmap
+kept saying "the calendar is already full" — because it was, and there was nowhere to put anything.
+
+Every slot now carries the **week** it is played in, and several slots can share one. A Saturday
+league match and a Wednesday cup tie are the same week of a footballer's life, so a competition is
+added by filling midweeks rather than by extending the year. A season is capped at
+`SEASON_WEEK_CAP` — **forty weeks**, roughly a real August-to-May campaign — however many matches it
+ends up holding. Forty weeks cannot hold fifty matches without doubling up, which is the point.
+
+The rules that place them:
+
+- **Week one is the super cup, alone.** It is played before the season proper starts, so nothing
+  shares it.
+- **League football is the metronome.** Rounds are placed first and everything else hangs off them.
+  They are spread across the weeks available rather than packed into the front of the season — so a
+  league short enough to leave room gets genuine **rest weeks** — but never more than a fortnight
+  apart, because a league spread thinner than that would leave a player permanently fresh and
+  quietly switch the fitness model off.
+- **Anything scheduled "after league round N" shares that round's week.** That is what makes it a
+  midweek fixture rather than an extra week of season.
+- **The international knockout gets a week each, at the end.** A tournament semi-final is not
+  something played midweek alongside a league fixture.
+
+The cap is a **cap**, not a fixed length: a small league that finishes its programme early has a
+genuinely shorter season, and `seasonWeeks` reports the last week actually used. Telling somebody it
+is week 12 of 40 when their season ends in week 30 would misdescribe how much football is left.
+
+#### What a week is worth: congestion
+
+Weeks would be decoration if nothing read them. What reads them is fitness.
+
+Recovery used to be a flat `FITNESS_RECOVERY` between any two matches, because the calendar had no
+way to say that two of them were three days apart. It is now a function of the **gap**:
+
+| Gap to the next match | Recovered |
+| --- | --- |
+| Same week — a midweek fixture | `CONGESTED_RECOVERY`, 18 |
+| One clear week | `FITNESS_RECOVERY`, 34 |
+| A rest week or more | 34 per week, and the 0-100 ceiling does the rest |
+
+The one-week case is **deliberately unchanged**. One match a week is what most of a season looks
+like, so the ordinary case recovers exactly what it always did and not one existing career is
+retuned; what weeks add is the two tails either side of it. The effect is a shape football already
+has — a club in every competition is tired and a club in none is fresh. Measured across a career at
+a strong club: a 34-match season averages **95** fitness at kick-off, a 51-match European season
+averages **67**, with nineteen of those matches started below 60.
+
+The gap is asked **after** the season's indexes advance, by asking the career what its next match
+actually is. That matters: `nextMatch` walks past every slot that is not yours — a cup you are out
+of, a European tier you are not in, an international you were not picked for — so a midweek you have
+no fixture in correctly reads as rest rather than as congestion.
+
+`CONGESTED_RECOVERY` sits at the forgiving end of what could be argued for, on purpose. Saturday to
+Wednesday is four days against seven, and recovery is not linear in days — but more to the point,
+**there is currently no way to be rested**, because you start every fixture there is. It is the
+number to tighten when squad rotation finally gives you somewhere to sit; congestion is the pressure
+that makes rotation and injuries worth having at all, and it did not exist before.
 
 ### Skipping a match
 
@@ -1818,15 +1880,20 @@ other item on this list is waiting for.
 
 2. **Injuries and squad rotation** — the fitness model has enough bite to support them
    (`FITNESS_RECOVERY`, and a match that costs 30-40 points), and they are what would make the
-   playing-time half of reputation real. **Depends on squad context**: without teammates, an injury
+   playing-time half of reputation real. **Fixture congestion now supplies the pressure**: a season
+   in every competition runs at an average of 67 fitness against 95 for a quiet one, so there is
+   finally a reason a manager would rest somebody — and no way yet to do it. See *A season is
+   measured in weeks*. **Depends on squad context**: without teammates, an injury
    only means a match is skipped, with nobody taking your place and nothing to win back.
 
 3. **A second division per country** — the machinery is written, tested and dormant; it needs clubs
    and a fixture list. `teams.json` is 192 clubs, sixteen per country across twelve countries, every
    one of them tier 1. It is genuinely a data change rather than a re-implementation, but it is not
    *only* one: a second tier reaches into the country coefficient, European entry (a relegated club
-   loses its place) and `positionalNeed` in the transfer model. It adds no matches to the calendar,
-   which is already full, so it is cheaper than it looks.
+   loses its place) and `positionalNeed` in the transfer model. It adds no matches to the calendar, so
+   it is cheaper than it looks — and the calendar is no longer the constraint it was anyway: it is
+   measured in weeks now, so a competition that *does* add matches fills midweeks rather than
+   lengthening the season. See *A season is measured in weeks*.
 
 4. **Playable goalkeeper** — `GK` exists as a position but has no playable match loop, so it needs
    its own situations and involvement model. It also needs its own department in the transfer model:

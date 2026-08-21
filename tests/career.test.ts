@@ -13,7 +13,13 @@ import {
   startCareer,
   stayAtClub,
 } from '../src/simulation/CareerService.ts';
-import { FITNESS_RECOVERY, nextFixture, seasonComplete } from '../src/core/career/career.ts';
+import {
+  CONGESTED_RECOVERY,
+  FITNESS_RECOVERY,
+  nextFixture,
+  nextMatch,
+  seasonComplete,
+} from '../src/core/career/career.ts';
 import type { CareerState } from '../src/core/career/career.ts';
 import {
   ageFactor,
@@ -593,5 +599,79 @@ describe('how much of a career was actually played', () => {
     play(state);
     expect(state.howPlayed.played).toBe(1);
     expect(state.howPlayed.paces).toEqual({});
+  });
+});
+
+describe('fitness across a congested week', () => {
+  function playThrough(state: CareerState, upTo: number) {
+    const seen: { week: number; before: number; after: number }[] = [];
+    for (let i = 0; i < upTo && !seasonComplete(state); i++) {
+      const match = nextMatch(state)!;
+      const before = state.fitness;
+      const stats = createMatchStats();
+      stats.minutes = 90;
+      recordPlayerMatch(
+        state,
+        {
+          stats,
+          rating: 7,
+          playerTeamScore: 1,
+          opponentScore: 1,
+          // A fixed drain, so the only thing that varies between two matches is
+          // how much rest there was before the next one.
+          fitnessAtEnd: Math.max(0, before - 30),
+        },
+        lookup,
+      );
+      seen.push({ week: match.week, before, after: state.fitness });
+    }
+    return seen;
+  }
+
+  it('recovers less after a match with another one in the same week', () => {
+    const state = startCareer({
+      player: prospect(),
+      clubId: 'northport-city',
+      teams: TEAMS,
+      seed: 'congestion',
+    });
+    const played = playThrough(state, 25);
+
+    // A match whose successor is the same week, against one whose successor is
+    // a week or more later. Both drained by the same amount, so any difference
+    // in what they recovered is the gap and nothing else.
+    // The final match is dropped: this walk stops mid-season, so the test has
+    // no successor for it and cannot say whether its week was congested. The
+    // code can — it asked the career — which is exactly the disagreement that
+    // would otherwise look like a bug in the recovery.
+    const gains = played.slice(0, -1).map((match, i) => ({
+      congested: i + 1 < played.length && played[i + 1]!.week === match.week,
+      gained: match.after - (match.before - 30),
+      // Fitness is capped at 100, so a well-rested player recovers less than a
+      // full week's worth simply because there was less to recover. Those are
+      // excluded rather than asserted on: the ceiling is not the gap.
+      capped: match.after >= 100,
+    }));
+    const congested = gains.filter((g) => g.congested);
+    const clear = gains.filter((g) => !g.congested && !g.capped);
+
+    expect(congested.length).toBeGreaterThan(0);
+    expect(clear.length).toBeGreaterThan(0);
+    for (const one of congested) expect(one.gained).toBe(CONGESTED_RECOVERY);
+    for (const one of clear) expect(one.gained).toBeGreaterThanOrEqual(FITNESS_RECOVERY);
+  });
+
+  it('walks the season forward in weeks that never go backward', () => {
+    const state = startCareer({
+      player: prospect(),
+      clubId: 'northport-city',
+      teams: TEAMS,
+      seed: 'weeks',
+    });
+    const played = playThrough(state, 30);
+    for (let i = 1; i < played.length; i++) {
+      expect(played[i]!.week).toBeGreaterThanOrEqual(played[i - 1]!.week);
+    }
+    expect(played[played.length - 1]!.week).toBeGreaterThan(played[0]!.week);
   });
 });

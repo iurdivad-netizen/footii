@@ -3412,3 +3412,14 @@ button.ghost.danger {
   width: auto;
   flex: 0 0 auto;
 }
+
+/*
+ * The congestion warning on the next-match card.
+ *
+ * The one thing on that card that is about a fixture the player has NOT played
+ * yet: a second match in the same week means he goes into it short of rest, and
+ * this is the only notice he gets before it costs him.
+ */
+.career-card .hint .congested {
+  color: var(--warn);
+}
