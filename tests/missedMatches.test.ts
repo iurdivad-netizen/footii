@@ -3,11 +3,15 @@ import { TEAMS, getTeam } from '../src/data/gameData.ts';
 import { createPlayer } from '../src/core/player/player.ts';
 import { createMatchStats } from '../src/core/match/matchStats.ts';
 import {
+  acceptOffer,
   endSeason,
   missMatch,
+  prepareNextMatch,
   recordPlayerMatch,
   startCareer,
+  teamSheet,
 } from '../src/simulation/CareerService.ts';
+import { INTERNATIONAL } from '../src/core/career/international.ts';
 import {
   fixturesFor,
   nextFixture,
@@ -179,5 +183,69 @@ describe('what missing matches unlocks', () => {
     endSeason(state, lookup);
     expect(state.injury).toBeNull();
     expect(state.fitness).toBe(100);
+  });
+});
+
+describe('rotation, end to end', () => {
+  it('picks the player when nobody is competing for the shirt', () => {
+    // Every career saved before rotation existed, until its next fixture builds
+    // a rival. It must play exactly as it always did rather than benching him.
+    const state = career('no-rival');
+    state.rival = null;
+    expect(teamSheet(state).selected).toBe(true);
+  });
+
+  it('builds a rival for a career that has never had one', () => {
+    const state = career('lazy-rival');
+    state.rival = null;
+    prepareNextMatch(state, lookup);
+    expect(state.rival).toBeTruthy();
+    expect(state.rival!.name.length).toBeGreaterThan(0);
+  });
+
+  it('gives the same answer however many times the hub asks', () => {
+    // The hub renders on every navigation. A selection that re-rolled would let
+    // a player reopen the screen until he was picked.
+    const state = career('stable');
+    prepareNextMatch(state, lookup);
+    const answers = [teamSheet(state), teamSheet(state), teamSheet(state)];
+    expect(answers[1]).toEqual(answers[0]);
+    expect(answers[2]).toEqual(answers[0]);
+  });
+
+  it('replaces the competition when the player signs somewhere else', () => {
+    const state = career('moving');
+    prepareNextMatch(state, lookup);
+    const before = state.rival!;
+    while (!seasonComplete(state)) play(state);
+    const outcome = endSeason(state, lookup);
+    if (outcome.offers.length === 0) return; // nothing to prove this season
+    acceptOffer(state, outcome.offers[0]!.id, lookup);
+    expect(state.rival).not.toEqual(before);
+  });
+
+  it('never lets club rotation leave him out of an international', () => {
+    const state = career('country');
+    prepareNextMatch(state, lookup);
+    // A rival so good he would never be picked for his club.
+    state.rival = { name: 'Better', age: 26, ability: 99, form: 99 };
+    while (!seasonComplete(state)) {
+      const match = nextMatch(state)!;
+      if (match.competition === INTERNATIONAL) {
+        expect(teamSheet(state).selected).toBe(true);
+        return;
+      }
+      missMatch(state, lookup);
+    }
+  });
+
+  it('lets a benched player recover form he cannot earn on the pitch', () => {
+    // Form only rises by playing, so a player dropped while out of form would
+    // need form to get back in and no way to find it.
+    const state = career('form');
+    state.player.form = 14;
+    prepareNextMatch(state, lookup);
+    missMatch(state, lookup);
+    expect(state.player.form).toBeGreaterThan(14);
   });
 });

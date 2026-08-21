@@ -13,6 +13,7 @@ import {
   endSeason,
   missMatch,
   recordPlayerMatch,
+  teamSheet,
   startCareer,
   stayAtClub,
 } from '../simulation/CareerService.ts';
@@ -771,7 +772,7 @@ export class App {
     this.save = saveCareer(this.save, career);
 
     this.mount(
-      new CareerScreen(career, {
+      new CareerScreen(career, teamSheet(career), {
         onPlay: () => this.playCareerMatch(),
         onSkip: () => this.skipCareerMatch(),
         onMiss: () => this.missCareerMatch(),
@@ -918,7 +919,10 @@ export class App {
    */
   private missCareerMatch(): void {
     const career = activeCareer(this.save);
-    if (!career || !career.injury) return;
+    // Injured, or fit and left out. Both mean the same thing from here — the
+    // fixture happens and he is not in it — and both are checked, so the button
+    // cannot resolve a match he was actually picked for.
+    if (!career || (!career.injury && teamSheet(career).selected)) return;
 
     missMatch(career, getTeam);
     this.save = saveCareer(this.save, career);

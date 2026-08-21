@@ -1251,6 +1251,79 @@ not worth what it costs: the break is months long, so almost every injury genuin
 healed, and modelling the one that would not means greeting somebody with an unplayable August. The
 cost is that an injury picked up in May is served cheaply, and that is the honest trade.
 
+### The competition for your place
+
+Rotation is the other half of what the roadmap called squad context, and it is the half that gives
+you something to do. An injury is something that happens to you; being left out while perfectly fit
+is an argument you can win.
+
+**What it makes real is your contract.** `contract.role` — Star player, First-team regular, Squad
+player — has existed since contracts did. Clubs offer it, two screens show it, and you can push a
+club up a rung in negotiation. Until now **nothing read it**. You could talk a club into calling you
+its star player and it changed precisely nothing. Rotation is what turns the central non-money term
+of a contract from a label into a promise the club has to keep.
+
+#### One rival, not a squad
+
+The obvious implementation is eighteen named players per club, and it is the wrong one here. There
+are 192 clubs, so a real squad model is three and a half thousand footballers to generate, drift
+every summer, and carry in a localStorage save that currently holds an entire career in a few tens
+of kilobytes. *Large player databases* is on the list of things this game deliberately does not
+build, and a squad for every club in the world is exactly that.
+
+What selection actually needs is far smaller: **somebody to be dropped for**. Only one club ever
+picks a team you are in, and within it only one shirt is contested. So the model is a single rival
+for your position at your club — generated when you sign, drifting while you are there, replaced
+when you move.
+
+He is **named**, and the names cost nothing new. Every club in the world already has a hand-authored
+goalkeeper, sixteen per country; splitting those into forenames and surnames and recombining them
+gives 256 names per country in exactly the right register, because the authored names *are* the
+definition of what a name from that country sounds like. A generated name is never one an existing
+keeper already has.
+
+His ability comes from the club's own squad level — so signing for a stronger side means a better
+man in possession of the shirt — but it is **capped by what the club promised you**. A club that
+calls you its star player cannot also have somebody ten points better in your position, because
+that would be the two halves of a signing contradicting each other.
+
+#### How the manager picks
+
+| Input | Effect |
+| --- | --- |
+| Ability, then form | Measured against the rival, not in the abstract. Being good is not the question; being better than the man beside you is. |
+| Squad role | What the club promised, and the size of the bias is what makes the promise worth having. |
+| Fitness × how little the match matters | Tired legs in a game nobody will remember. Both halves are required. |
+| A congested week | Sharpens the above — a second match in a week is where resting happens. |
+
+The last two are **rotation** rather than being dropped, and the difference is worth the trouble: a
+manager resting his best player in the second round of the league cup is looking after him, so the
+hub says *"Rested"* and names what he is being saved for, rather than reporting a demotion that has
+not happened.
+
+**How hard the manager tries to field his best side scales with how much the match matters.** That
+one line is what stops "signed as cover" being a season of watching: in a low-stakes cup tie both
+the pecking order and the contract count for less, because the manager is resting the people they
+favour. It is rotation working *for* the fringe player, and it is how you play your way in.
+
+Measured across careers: a star at a club below his level starts **90–96%** of matches; a player
+signed as cover at a club above his starts **15–37%**, climbing as his role improves. Nought is not
+a number the model produces any more, and that was a deliberate correction — a season of never
+playing is a dead end, not a difficulty.
+
+#### Two things that would otherwise be traps
+
+**Form drifts back toward neutral while you are out of the side.** Form is only earned by playing,
+so a player dropped while out of form would need form to get back in and no way to find it. The way
+out cannot be locked behind the thing being punished.
+
+**Club rotation never touches an international.** Your country already picks you through its own
+rule, on reputation. Two selection models voting on the same shirt would be one too many.
+
+The decision is **seeded on the calendar slot**, so the hub gives one answer however many times it
+is rendered. A selection that re-rolled on every redraw would be a slot machine, and a player would
+learn to reopen the screen until he was picked.
+
 ### Skipping a match
 
 A season is up to forty-seven matches across five competitions. Playing every one of them is a
@@ -1919,7 +1992,8 @@ of fame that ranks every career this browser has finished**, **three independent
 **export and import of the whole save**, **penalty shootouts you take the kicks in**,
 **contracts you can push back on and stated preferences about where you will play**,
 **a trial to earn a start at a club above your level**, **injuries driven by fixture congestion,
-and matches your club plays without you**, promotion and relegation machinery
+and matches your club plays without you**, **a named rival for your shirt, and a manager who leaves
+you out of the ones that do not matter**, promotion and relegation machinery
 (dormant on a one-tier world), debug mode, and a versioned localStorage save with migration that
 says so when the browser will not keep it.
 
@@ -1935,9 +2009,13 @@ finishing one leaves something behind.
 What remains, **ordered by what it unblocks rather than by size**. The first item is the one every
 other item on this list is waiting for.
 
-1. **Squad context** — named teammates, so an assist has a recipient and a club has a shape.
-   The biggest structural gap by a distance, and the blocker for most of what follows. `Team` is
-   currently a set of ratings and nothing else.
+1. **Named teammates** — so an assist has a recipient and a club has a shape. `Team` is still a set
+   of ratings plus, now, exactly one other footballer.
+
+   This is what is left of what the roadmap called *squad context*, and it is a smaller item than it
+   was. The selection half is done: there is a named rival for your shirt, and being left out is a
+   real thing that happens. What is still missing is the rest of the dressing room — somebody to
+   pass to, a loan to be sent on, a club that reads as eleven people rather than three ratings.
 
    It is no longer the blocker for playing time, though, and that is worth being precise about.
    Both levers that waited on it — the reputation settlement, and the 60% gate on individual
@@ -1947,16 +2025,12 @@ other item on this list is waiting for.
    while fit — along with assists having a recipient, loans, and a manager whose confidence in you
    could finally give morale something to do.
 
-2. **Squad rotation** — ✅ **injuries are done**; rotation is what is left of this item.
-   Injuries turned out *not* to depend on squad context, which is why they went first: missing
+2. **Injuries and squad rotation** — ✅ **Done, both halves.**
+   Injuries went first because they turned out not to depend on squad context at all: missing
    matches moves reputation and the awards gate on its own, and fixture congestion supplies the
-   cause (a season in every competition averages 67 fitness against 95 for a quiet one). See
-   *Injuries, and the matches that happen without you*.
-
-   Rotation genuinely does depend on squad context, and for the original reason: being left out
-   while fit needs somebody to be left out *for*. It is also the half that gives the player a
-   decision — an injury is something that happens to you, where fighting your way back into a side
-   is something you do.
+   cause. Rotation followed, on a single named rival for your shirt rather than a squad — which is
+   all selection ever needed, and which finally makes `contract.role` mean something. See *Injuries,
+   and the matches that happen without you* and *The competition for your place*.
 
 3. **A second division per country** — the machinery is written, tested and dormant; it needs clubs
    and a fixture list. `teams.json` is 192 clubs, sixteen per country across twelve countries, every

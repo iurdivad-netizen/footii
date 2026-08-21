@@ -1177,6 +1177,27 @@ describe('counting how a career was actually played', () => {
     expect(activeCareer(migrated)!.injury!.weeksRemaining).toBe(2);
   });
 
+  it('brings a career forward from before rotation existed, with no rival yet', () => {
+    const state = career();
+    const older = { ...state } as Record<string, unknown>;
+    delete older.rival;
+
+    const migrated = migrate({
+      version: 19,
+      career: emptyCareer(),
+      settings: defaultSettings(),
+      careers: [older, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(migrated).not.toBeNull();
+    expect(migrated.version).toBe(SAVE_VERSION);
+    // Null rather than invented: the rival comes from the club as the career
+    // knows it, and prepareNextMatch builds one at the very next fixture.
+    expect(activeCareer(migrated)!.rival).toBeNull();
+  });
+
   it('survives a round trip through export and import', () => {
     const state = career();
     state.howPlayed = { skipped: 2, played: 9, paces: { untimed: 9 } };
