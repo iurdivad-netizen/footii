@@ -121,6 +121,64 @@ clubs fill the list — but it is not what makes the feature work, and the code 
 
 See [What he will move for, and asking to leave](README.md#what-he-will-move-for-and-asking-to-leave).
 
+**13. There are a lot of injuries, even for a young player.** ⏳ **Measured, not yet acted on.**
+Raised from playing several seasons. Both halves of it check out, and the second half is the sharper
+one.
+
+Measuring it at all meant building [`scripts/measureInjuries.ts`](scripts/measureInjuries.ts), because
+this is the one part of the game nobody can judge by reading: risk is quadratic in fitness at the
+final whistle, fitness is whatever ninety minutes of a real match happened to leave, and a match
+costs slightly more than a week of rest returns. What a constant produces over a season is emergent
+rather than arithmetic. Across **480 season-samples played through the real match engine**:
+
+| | measured |
+|---|---|
+| Injuries per season | 1.29 |
+| Weeks out | 3.31 |
+| Matches missed | 3.32 of ~40 fixtures |
+| Seasons with no injury at all | 25% |
+
+So the file's own claim — "roughly one and a half across a forty-match season… about a month a
+year" — is **accurate**. The model is doing what it says. What makes it *feel* like more is that
+three seasons in four contain an injury and 49% of them are one-week knocks: the event fires far
+more often than the football lost would suggest.
+
+**The "even when young" half is a genuine gap, and not a subtle one.** The age term reads
+`input.age <= 28 ? 1 : 1 + (input.age - 28) * 0.07` — flat below 28. A nineteen-year-old is exactly
+as fragile as a twenty-eight-year-old and mends exactly as slowly. Measured, age 18 takes 0.95
+injuries a season against age 28's 1.38, which is barely above noise. The comment above it says
+*"Bodies stop forgiving a hard season somewhere around thirty"*, which describes the top half of a
+curve whose bottom half was never written.
+
+A candidate fix — a curve at **both** ends, on incidence and on recovery time — was measured and
+takes age 18 to 0.60 injuries and 0.8 weeks out, leaving peak-age and veteran careers untouched.
+Whether the overall rate should come down as well is a balance judgement and is deliberately still
+open; the numbers for a lower base risk are in the tool's output, not in the code.
+
+**14. A week of extra work costs far more than its card admits.** ⏳ **Found by the same tool,
+not yet acted on.** Not raised by anybody — found while measuring item 13, in code committed the
+same day.
+
+`TRAIN_FITNESS` takes 6 fitness a week. Fitness does not reset between matches, and the system
+already runs a slight deficit (a match costs about 36, a week's rest returns 34), so −6 turns a
+knife-edge into a ratchet. Measured, on a career that trains every week:
+
+- injuries **1.26 → 1.73**, a 37% increase
+- mean fitness at full time **53 → 36**, with a tenth percentile of **2**
+- seasons with no injury **26% → 13%**
+
+The card says *"turn up to it tired."* It does not say *"and get injured half as often again."* The
+candidate fix is a floor rather than a smaller number — a player already below 80 fitness cannot do
+extra work, which is what a coach would say, and which makes rest the visibly correct choice when
+tired instead of a trap. Measured at 1.41, a fair advertised price for training every week of a
+season.
+
+One thing the same run corrected, because the obvious reading of it is wrong: **rest looks like a
+no-op and is not.** Injuries come out at 1.26 whether or not the player rests every week — but that
+is exposure, not risk. Resting lifts mean fitness at full time from 53 to 63 and removes every match
+started below 80, and the count holds level only because a fitter player is available for more
+matches (35.0 played against 33.4).
+
 ## Found while reviewing, and fixed
 
 Four things that were not on either list, found by reading the code against what it claimed:
