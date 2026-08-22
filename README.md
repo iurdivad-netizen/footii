@@ -644,7 +644,7 @@ being left out of the league side is absence, and absence is the thing the term 
 Nothing about today's game changes, and that is the point of fixing it now: you start every league
 fixture, so the ratio is 1 either way and not one career is retuned. The term is simply *correct*
 ahead of the thing that will make it bite. Squad rotation is what makes playing time a real number,
-and it is next but one on the roadmap — a lever that is wrong while dormant is a lever that is wrong
+and it is next but one on the [roadmap](ROADMAP.md) — a lever that is wrong while dormant is a lever that is wrong
 on the day it wakes up, and much harder to notice then.
 
 | Reputation | You are | What it means |
@@ -1124,8 +1124,9 @@ league football — otherwise a good cup run could win an award the league never
 
 For a long time a slot was the only unit of time the calendar had. A season *was* its list of slots,
 so two things were true that should never have been the same thing: every match was equally spaced
-by definition, and **a new competition could only make the season longer**. That is why the roadmap
-kept saying "the calendar is already full" — because it was, and there was nowhere to put anything.
+by definition, and **a new competition could only make the season longer**. That is why the
+[roadmap](ROADMAP.md) kept saying "the calendar is already full" — because it was, and there was
+nowhere to put anything.
 
 Every slot now carries the **week** it is played in, and several slots can share one. A Saturday
 league match and a Wednesday cup tie are the same week of a footballer's life, so a competition is
@@ -1189,7 +1190,7 @@ cause: **you start every fixture there is**. Reputation weights how much of the 
 and individual awards need 60% of a league campaign — but with a full season every season, both
 ratios were 1 in every season anybody had ever played.
 
-The roadmap listed injuries as blocked on squad context, and for a long time that was right: an
+The [roadmap](ROADMAP.md) listed injuries as blocked on squad context, and for a long time that was right: an
 injury with no teammates meant a match was skipped and nothing else. **It stopped being right once
 playing time was measured properly.** Missing matches now moves both levers on its own, because
 both are measured against the league's own fixture list, and a player in the treatment room is not
@@ -1253,7 +1254,7 @@ cost is that an injury picked up in May is served cheaply, and that is the hones
 
 ### The competition for your place
 
-Rotation is the other half of what the roadmap called squad context, and it is the half that gives
+Rotation is the other half of what the [roadmap](ROADMAP.md) called squad context, and it is the half that gives
 you something to do. An injury is something that happens to you; being left out while perfectly fit
 is an argument you can win.
 
@@ -2217,214 +2218,15 @@ says so when the browser will not keep it.
 Deliberately **not** built yet: multiplayer, accounts, a backend, 3D, physics, large player
 databases.
 
-## Roadmap
+## Roadmap and changelog
 
-The four agreed stages — a world of countries, domestic cups, European competitions and
-international football — are all done, and so is the end of the loop: a career can now finish, and
-finishing one leaves something behind.
+Both used to sit at the bottom of this file and now have files of their own, because they answer a
+different question from the rest of it and change on a different clock:
 
-What remains, **ordered by what it unblocks rather than by size**. The first item is the one every
-other item on this list is waiting for.
+- **[ROADMAP.md](ROADMAP.md)** — what is still to build, ordered by what it unblocks rather than by
+  size, and the one item that is half done.
+- **[CHANGELOG.md](CHANGELOG.md)** — everything raised from playing the game and what was actually
+  done about it, several of which turned out to be a different problem from the one they looked
+  like.
 
-1. **Squad context** — ✅ **Done**, in the shape the game actually needed rather than the one the
-   list first imagined.
-
-   It was written as "named teammates, so an assist has a recipient and a club has a shape", with a
-   full squad implied. What it turned into is three smaller things, none of which needs a player
-   database: a named **rival** for your shirt (*The competition for your place*), five named
-   **receivers** to pass to (*Somebody to pass to*), and **loans** for when the first of those is
-   winning (*Going out on loan*). A club is now a set of ratings plus the six footballers you
-   actually interact with, which is every one the game can see.
-
-   What a full squad would still buy is flavour rather than mechanism: a full XI to read on a team
-   sheet, squad numbers, teammates with careers of their own. Worth doing one day; not blocking
-   anything.
-
-   It is no longer the blocker for playing time, though, and that is worth being precise about.
-   Both levers that waited on it — the reputation settlement, and the 60% gate on individual
-   awards — are now **live**, because injuries took matches off you and neither lever needed a
-   teammate to notice. League participation runs between about 70% and 100% across a career instead
-   of being pinned at exactly 100%. What squad context still unblocks is *rotation* — being left out
-   while fit — along with assists having a recipient, loans, and a manager whose confidence in you
-   could finally give morale something to do.
-
-2. **Injuries and squad rotation** — ✅ **Done, both halves.**
-   Injuries went first because they turned out not to depend on squad context at all: missing
-   matches moves reputation and the awards gate on its own, and fixture congestion supplies the
-   cause. Rotation followed, on a single named rival for your shirt rather than a squad — which is
-   all selection ever needed, and which finally makes `contract.role` mean something. See *Injuries,
-   and the matches that happen without you* and *The competition for your place*.
-
-   Rotation has since paid for something the list did not anticipate: it is what made a **transfer
-   request** cost anything. Being left out is the price of asking to leave, so the one lever in the
-   market that is entirely the player's could not have existed before it. See *Asking to leave*.
-
-3. **A second division per country** — the machinery is written, tested and dormant; it needs clubs
-   and a fixture list. `teams.json` is 192 clubs, sixteen per country across twelve countries, every
-   one of them tier 1. It is genuinely a data change rather than a re-implementation, but it is not
-   *only* one: a second tier reaches into the country coefficient, European entry (a relegated club
-   loses its place) and `positionalNeed` in the transfer model. It adds no matches to the calendar, so
-   it is cheaper than it looks — and the calendar is no longer the constraint it was anyway: it is
-   measured in weeks now, so a competition that *does* add matches fills midweeks rather than
-   lengthening the season. See *A season is measured in weeks*.
-
-4. **Playable goalkeeper** — `GK` exists as a position but has no playable match loop, so it needs
-   its own situations and involvement model. It also needs its own department in the transfer model:
-   `positionalNeed` currently reads a keeper against the outfield defence rating, and every
-   tactical-style weighting is an outfield profile. Independent of the three above, and the largest
-   single piece of new simulation left.
-
-5. **Richer location model** — the tactical zone model is designed to be swapped for 2D coordinates
-   behind the same `Zone` interface. Deliberately last: nothing else is waiting on it, and it is
-   worth more once there are teammates to have positions.
-
-Done since this list was last written, and worth recording because both were listed here as
-obvious next steps: **three career slots**, so ending a career is no longer the price of starting
-another, and **export/import of the save**, so a browser clearing its storage is no longer the end
-of everything the game has recorded. Both are documented under *Career mode*.
-
-### Reported bugs and improvements
-
-Raised from playing the game. Each is annotated with what the code actually does today, because
-several turned out to be a different problem from the one they looked like.
-
-**1. The European competitions should be a group stage, then a knockout.** ✅ **Done.**
-Four groups of four, then quarter-final, semi-final and final. Six matches for a club that goes all
-the way and three guaranteed for one that does not, where a straight knockout gave most qualifiers
-exactly one European night a year. See *European competitions* above.
-
-**2. You should be able to choose where to start, or play a trial.** ✅ **Done.**
-The choice was never the problem — the gate was. Clubs are now banded by whether they would sign
-you, give you a trial, or not look at you, and a trial is one real match. See *Where a career may
-begin* above.
-
-**3. You should be able to respond to a contract offer.** ✅ **Done.**
-You can push once, on wages, length or squad role, on any offer and on your own club's renewal —
-and a club that only half wants you can withdraw rather than be haggled with. See *Having a
-position* above.
-
-**4. You should be able to refuse a move upfront, and name preferred leagues.** ✅ **Done.**
-Stated before the window opens and read by `generateOffers`, so a refused country's clubs do not
-bid at all rather than bidding and being hidden. See *Having a position* above.
-
-**5. A cup tie that ends level eliminates the player's club.** ✅ **Done** — and it was a different
-bug from the one it looked like. A level tie never did eliminate you automatically:
-`applyPlayerResult` has always sent it to penalties. Two separate claims were worth checking, and
-only one survived:
-
-  - **The shootout was invisible.** True, and the whole of the bug. No extra time, no shootout to
-    play, nothing in the full-time screen or the hub — the only place in the entire UI that rendered
-    a `pens` tag was the world browser. You now play your own kicks; see *Penalty shootouts* above.
-  - **The odds were badly weighted.** *Not true, and the earlier note here was wrong.* Measured
-    across the whole world, the extreme case is about 72/28 and a typical mismatch about 60/40 —
-    mild, and what the code's own comment claimed. The weighting was left alone.
-
-**6. Every country should have a super cup.** ✅ **Done.**
-One match, before the first league round: last season's champions against last season's cup winners,
-or the league runner-up when one club did both. See *The super cup* above.
-
-**7. Salaries should look more like real ones.** ✅ **Done.**
-The curve was the right shape and the wrong scale, so it was rescaled rather than retuned — by the
-same factor on both what a club offers and what a player expects, which is why not one signing in
-the game moved. See *What the money looks like* above.
-
-**8. The career history table should show every trophy, season by season.** ✅ **Done.**
-It was a rendering gap, not a data one — the honours list already held a season's trophies, awards
-and promotions together. Both history tables now badge them by kind, so the eye separates what the
-club won from what the player won, and both from a relegation.
-
-**9. The decision window should be about 10 seconds at 1x.** ✅ **Done.**
-One constant, `DECISION_SCALE`, applied at the very end — so every window stretched by the same
-factor and nothing was retuned. See *The decision window, rescaled* above.
-
-**10. The default should be no time limit.** ✅ **Done.**
-`defaultSettings()` now returns `pace: 'untimed'`. A two-second window on six options you have never
-read before is a reflex test rather than a decision, and somebody whose first three chances expire
-never finds out what the game is. The keeper still commits on schedule at this setting, so the read
-is unchanged.
-
-**11. The career score should be penalised for skipped matches and for a generous pace.**
-Right in principle: a career built on skipped matches at no time limit is not the same career as one
-played out at Hardcore, and `careerScore` still cannot tell them apart. **The counting half is now
-done; the scoring half is not.**
-
-The catch this item was always going to hit is that it can only count *forward*. `skipped` existed
-per match and only the most recent one survived, in `lastResult`, so the answer to "how much of this
-career did you actually play" was overwritten every match and gone by the end of the first season.
-No amount of care at scoring time can recover a season that was never recorded.
-
-That is an argument for starting the counter **early**, not for deferring it with everything else —
-every week spent waiting on the scoring rule was a week of data nobody can get back. So
-`CareerState.howPlayed` now records, per career: matches skipped, matches played, and a histogram of
-the decision pace each played match was played at. It is written in `applyMatchToCareer`, the one
-place a finished match becomes part of a career, so it cannot drift from the statistics beside it.
-
-Three details worth knowing:
-
-- **A skipped match is filed under no pace at all.** It was not played slowly; it was not played.
-  Counting it under whatever the settings happened to say would credit a career with football
-  nobody sat through.
-- **The histogram is keyed by a plain string**, not by the `DecisionPace` union. The union lives in
-  `simulation/` and `core` may not import from there; and the pace settings have already been
-  renamed and rescaled once (see *The decision window, rescaled*), so a save holding counts under a
-  name the code no longer has should keep them as an unreadable tally rather than fail to load.
-- **Existing careers start at zero, and that is a fact rather than a default.** A career already
-  under way will under-count itself for everything it has already played, and only a career started
-  after v18 has a total that means anything. That is unavoidable for any counter added to a running
-  game, and it gets less true every day the counting is happening.
-
-What is still open is the judgement call: how much a skipped match should cost, how much a generous
-pace should, and whether a career with too little recorded football should be scored on this at all.
-That part is genuinely better late, and it is now the only part left.
-
-**12. You should be able to ask to leave, and to say what a move has to be worth.** ✅ **Done.**
-Raised after playing with rotation, and it is the item rotation unlocked rather than one that was
-waiting on nothing. Three things: a floor on how big a club has to be before he will move to it, a
-demand for European football (any of the three, or one competition and no other), and a **transfer
-request** — the only lever in the market that is entirely the player's.
-
-The last of those is the one worth recording a finding about, because the obvious implementation
-does nothing. A transfer request was written first as a multiplier on club interest, on the
-reasoning that a player known to be available is a player more clubs bid for. Measured across sixty
-seeds it produced **exactly as many offers as before**: the offer list is capped at three, and for
-anybody with a season worth bidding on the cap binds long before the interest threshold does, so
-the multiplier only reordered the same three clubs. Widening a market means raising the cap, which
-produced more offers in sixty seeds out of sixty. The interest boost was kept — it decides *which*
-clubs fill the list — but it is not what makes the feature work, and the code says so.
-
-See *What he will move for, and asking to leave* above.
-
-#### What is left
-
-Eleven of the twelve are done, and the twelfth is now half done.
-
-**(11) — penalties on the end-of-career score for skipped matches and an easy decision pace.** The
-item split cleanly into a cheap half that had to happen early and an expensive half that is better
-late, and only the second is outstanding:
-
-- **Counting — done.** `CareerState.howPlayed` records skipped matches, played matches and the pace
-  each played match was played at, from v18 onward. This is the half that could not wait, because a
-  counter can only ever count forward.
-- **Scoring — open.** Nothing reads the counts yet. Deciding what a skipped match costs, and what a
-  generous pace costs, is a balance judgement that wants a few real careers' worth of data behind
-  it — which, now that the data is being collected, is a matter of playing rather than of writing
-  anything. It is also a larger job than when it was listed, since the pace settings it would read
-  are no longer the ones it was written against — see *The decision window, rescaled*.
-
-#### Found while reviewing, and fixed
-
-Three things that were not on either list, found by reading the code against what it claimed:
-
-- **Reputation's playing-time term could never fire.** It divided every competition's matches by the
-  league's fixture list — a number that reaches fifty over one that is thirty — so it was pinned at
-  its maximum in every season anybody has played. Fixed ahead of the squad rotation that will make
-  it bite, and with no effect on any career today. See *Reputation and transfers*.
-- **Every league's trophies were worth the same.** `careerScore` priced an Austrian title and an
-  English one identically, so the shortest route up the wall of fame was to find the weakest league
-  in the world and win it repeatedly. Domestic honours are now tapered by the standing of the
-  country they were won in; European and international ones deliberately are not. See *The wall of
-  fame*.
-- **A browser that could not save said nothing about it.** Every write failure was swallowed, so a
-  career could be played to its end in a browser keeping none of it. Failures now raise a warning
-  above every screen, and offer the export that makes them survivable. See *When the browser will
-  not save*.
+This file stays what it has always been: how the game works, and why it is built the way it is.
