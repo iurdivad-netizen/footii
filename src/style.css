@@ -3644,8 +3644,26 @@ button.week-option {
   margin-top: 0;
 }
 
-button.week-option:hover {
+button.week-option:hover:not(:disabled) {
   border-color: var(--accent);
+}
+
+/*
+ * An option he is in no state to take.
+ *
+ * Shut and visible rather than removed. A choice that silently disappears reads
+ * as a bug and teaches nothing; one that is greyed out with the reason attached
+ * is what makes resting the obvious answer instead of a lesson learned in
+ * February.
+ */
+button.week-option:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  border-style: dashed;
+}
+
+button.week-option:disabled .week-option-note {
+  color: var(--warn);
 }
 
 .week-option-label {

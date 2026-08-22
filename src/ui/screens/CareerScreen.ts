@@ -543,7 +543,7 @@ export class CareerScreen {
    */
   private renderWeek(): string {
     if (seasonComplete(this.state)) return '';
-    if (!this.week.choices) {
+    if (!this.week.options) {
       return `
         <div class="career-card week-card">
           <h2>The week</h2>
@@ -562,12 +562,14 @@ export class CareerScreen {
         </div>`;
     }
 
-    const buttons = this.week.choices
+    const buttons = this.week.options
       .map(
-        (choice) => `
-          <button class="week-option" data-week="${choice}">
+        ({ choice, available, reason }) => `
+          <button class="week-option" data-week="${choice}" ${available ? '' : 'disabled'}>
             <span class="week-option-label">${WEEK_LABELS[choice]}</span>
-            <span class="week-option-note">${WEEK_DESCRIPTIONS[choice]}</span>
+            <span class="week-option-note">
+              ${available ? WEEK_DESCRIPTIONS[choice] : reason}
+            </span>
           </button>`,
       )
       .join('');

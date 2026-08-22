@@ -90,23 +90,15 @@ feature: the manager's confidence is a lever with nothing to pull it, and the we
 choices with nothing to spend them on. Together they are a loop — you are dropped, you knock on his
 door, and you are back in the side by Saturday.
 
-## What is still open
+## The one thing still open
 
 Of the fourteen items in [CHANGELOG.md](CHANGELOG.md) — thirteen raised from playing the game and one
-found while measuring another — eleven are done and three are not.
+found while measuring another — thirteen are done and the fourteenth is half done.
 
-**Items 13 and 14 — the injury rate, and what a week of extra work costs.** Both are **measured and
-awaiting a decision rather than awaiting work**, which is an unusual state for this list and worth
-distinguishing. The numbers exist, across 480 season-samples played through the real match engine,
-and so does the tool that produced them ([`scripts/measureInjuries.ts`](scripts/measureInjuries.ts)):
-
-- **The age curve is flat below 28**, so a nineteen-year-old is as fragile as a twenty-eight-year-old
-  and mends as slowly. That is a gap rather than a tuning preference, and the fix is measured.
-- **A week of extra work costs 37% more injuries than its card admits**, because a 6-fitness weekly
-  cost ratchets against a system already running a slight deficit. Also measured, also a defect
-  rather than a preference.
-- **Whether the overall rate should come down** is the genuine judgement call, and the one thing
-  here nobody should settle from a spreadsheet. It is left open deliberately.
+Items 13 and 14, the injury rate and what a week of extra work costs, went from raised to measured
+to fixed in one sitting, and the middle step is the one worth keeping: the tool that measured them
+([`scripts/measureInjuries.ts`](scripts/measureInjuries.ts)) is committed, because injuries are the
+one part of this game nobody can judge by reading the code. See [Age, at both ends](README.md#age-at-both-ends) and [The gate](README.md#the-gate-and-why-a-smaller-number-would-not-have-done).
 
 **[Item 11](CHANGELOG.md#reported-bugs-and-improvements) — penalties on the end-of-career score for skipped matches and an easy decision pace.** The
 item split cleanly into a cheap half that had to happen early and an expensive half that is better

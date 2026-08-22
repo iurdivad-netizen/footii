@@ -69,8 +69,8 @@ import {
   confidenceAfterAbsence,
   startingConfidence,
 } from '../core/career/confidence.ts';
-import type { WeekChoice, WeekPlan } from '../core/career/week.ts';
-import { WEEK_CHOICES, planApplies, spendWeek } from '../core/career/week.ts';
+import type { WeekChoice, WeekOption, WeekPlan } from '../core/career/week.ts';
+import { planApplies, spendWeek, weekOptions } from '../core/career/week.ts';
 import type {
   EuropeanDemand,
   MarketReach,
@@ -1065,8 +1065,14 @@ export function teamSheet(state: CareerState): TeamSheet {
  * be the second place in the codebase deciding when a week exists.
  */
 export interface WeekAhead {
-  /** Null when there is no week to plan: the season is over, or he is injured. */
-  choices: readonly WeekChoice[] | null;
+  /**
+   * Null when there is no week to plan: the season is over, or he is injured.
+   *
+   * Otherwise all four, each carrying whether he is in a state to take it. The
+   * unavailable ones stay in the list so the screen can shut them visibly and
+   * say why — see `weekOptions`.
+   */
+  options: readonly WeekOption[] | null;
   /** The plan already made for the next fixture, or null. */
   plan: WeekPlan | null;
   /**
@@ -1089,16 +1095,16 @@ export interface WeekAhead {
  */
 export function weekAhead(state: CareerState): WeekAhead {
   const scheduled = nextMatch(state);
-  if (!scheduled) return { choices: null, plan: null, reason: 'The season is over.' };
+  if (!scheduled) return { options: null, plan: null, reason: 'The season is over.' };
   if (state.injury) {
     return {
-      choices: null,
+      options: null,
       plan: null,
       reason: `You are in the treatment room. ${state.injury.label} — nothing to plan this week.`,
     };
   }
   const plan = planApplies(state.week ?? null, scheduled.slotIndex) ? state.week! : null;
-  return { choices: WEEK_CHOICES, plan, reason: '' };
+  return { options: weekOptions(state.fitness), plan, reason: '' };
 }
 
 /**
@@ -1121,7 +1127,10 @@ export function weekAhead(state: CareerState): WeekAhead {
  */
 export function planWeek(state: CareerState, choice: WeekChoice): WeekPlan | null {
   const ahead = weekAhead(state);
-  if (!ahead.choices || ahead.plan) return null;
+  if (!ahead.options || ahead.plan) return null;
+  // Checked here as well as rendered as a shut button, because a screen is not
+  // a rule. Anything that can reach this function has to be told no by it.
+  if (!ahead.options.some((option) => option.choice === choice && option.available)) return null;
 
   const scheduled = nextMatch(state);
   if (!scheduled) return null;
