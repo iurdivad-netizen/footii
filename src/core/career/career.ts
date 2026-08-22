@@ -47,6 +47,8 @@ import {
   moraleShift,
   startingConfidence,
 } from './confidence.ts';
+import type { WeekPlan } from './week.ts';
+import { planApplies } from './week.ts';
 import type { SuperCupTie } from './superCup.ts';
 import { playsInSuperCup, superCupOpponent } from './superCup.ts';
 
@@ -287,6 +289,14 @@ export interface CareerState {
    * the club just promised. See core/career/confidence.ts.
    */
   confidence: number;
+  /**
+   * How the week before the next match is being spent, or null.
+   *
+   * Cleared the moment the fixture it names has been played or missed, so a
+   * career mid-season carries at most one — and never one belonging to a match
+   * that has already happened. See core/career/week.ts.
+   */
+  week: WeekPlan | null;
   /**
    * The teammates worth naming — the people he passes to.
    *
@@ -895,11 +905,18 @@ export function applyMatchToCareer(
   );
   state.player.morale = clamp(state.player.morale, 0, 100);
 
+  // What the week before this match was spent on, if it was spent on anything.
+  // Read before it is cleared below, and only when it names THIS fixture: a
+  // plan that outlived the match it was made for would be a week of work spent
+  // twice. See core/career/week.ts.
+  const plan = planApplies(state.week ?? null, input.slotIndex) ? state.week! : null;
+
   const development = developAfterMatch(rng, state.development, {
     player: state.player,
     rating,
     minutes: stats.minutes,
     coaching: input.coaching,
+    effort: plan?.growth ?? 1,
   });
 
   // Reputation moves fast on goals and standout ratings; the summer settles it
@@ -937,6 +954,11 @@ export function applyMatchToCareer(
     },
     state.seasonNumber,
   );
+
+  // Spent, whatever it was spent on. Cleared here rather than at the hub so it
+  // cannot survive a fixture by any route — including the one where a save is
+  // written between the match and the screen that follows it.
+  state.week = null;
 
   state.lastDevelopment = development.changes;
   return development.changes;
@@ -1026,6 +1048,12 @@ export function advanceSeason(
   // Last season's final match must not greet the player on the first day of the
   // new one — the hub reports it as "your last match".
   state.lastResult = null;
+  // Nor may a week planned last May be spent next August. A plan names the
+  // calendar SLOT it was made for and the slots start again at zero every
+  // summer, so one left here would be applied to whichever fixture happened to
+  // sit at the same index in the new season — a week of work claimed twice, a
+  // year apart. The plan is cleared with the season that owned it.
+  state.week = null;
   state.fitness = 100;
   state.player.fitness = 100;
   // A summer heals everything. Carrying a rupture into pre-season would be the

@@ -35,7 +35,7 @@ import { rankLegacies } from '../core/career/legacy.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 24;
+export const SAVE_VERSION = 25;
 
 export interface CareerRecord {
   matches: number;
@@ -766,6 +766,20 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
           career.loan?.role ?? career.contract?.role ?? 'starter',
         );
       }
+    }
+  }
+
+  if (save.version === 24) {
+    // v24 -> v25: the week before a match is a decision.
+    //
+    // Nobody comes forward with one planned, because no earlier version had a
+    // week to plan. Null is the truthful reading and the only safe one: a plan
+    // invented here would name a calendar slot it was not made for, and would
+    // be spent on the first fixture the career happened to be sitting in front
+    // of.
+    save = { ...save, version: 25 };
+    for (const career of save.careers ?? []) {
+      if (career) career.week ??= null;
     }
   }
 

@@ -72,6 +72,21 @@ export interface DevelopmentInput {
   minutes: number;
   /** Coaching quality 0-1, from the club's standing. */
   coaching: number;
+  /**
+   * What the week before the match was worth, as a multiplier. 1 for a week
+   * nobody spent on training, which is every week before the week was a
+   * decision and every week since that was spent on something else.
+   *
+   * It moves growth and decline in OPPOSITE directions, which is the part worth
+   * knowing: extra work makes a young player better and an old one worse more
+   * slowly. Without that a training decision would be an empty menu item from
+   * about thirty-one onward, in a game whose careers run to thirty-nine — and
+   * "at your age, training is mostly about holding on" is a line the pre-season
+   * screen has been saying since training existed.
+   *
+   * See core/career/week.ts.
+   */
+  effort?: number;
 }
 
 export interface AttributeChange {
@@ -177,6 +192,7 @@ export function developAfterMatch(
   input: DevelopmentInput,
 ): DevelopmentResult {
   const { player, rating, minutes, coaching } = input;
+  const effort = clamp(input.effort ?? 1, 0.5, 1.5);
 
   const ability = currentAbility(player);
   // Headroom: rapid while far below potential, and never quite zero — a player
@@ -198,10 +214,15 @@ export function developAfterMatch(
       headroomFactor *
       playingTime *
       (0.55 + performance * 0.45) *
-      (0.7 + coaching * 0.6);
+      (0.7 + coaching * 0.6) *
+      effort;
     growth = Math.max(0, growth);
   } else if (age < 0) {
-    decline = DECLINE_BASE * -age * (0.6 + (1 - playingTime) * 0.4);
+    // A week of work slows the slide by as much as it would have sped the
+    // climb, which is the same effort spent on the only thing left to spend it
+    // on. Mirrored rather than scaled by the reciprocal, so the two directions
+    // are the same size and neither can run away.
+    decline = DECLINE_BASE * -age * (0.6 + (1 - playingTime) * 0.4) * (2 - effort);
   }
 
   state.pool += growth;

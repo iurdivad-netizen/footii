@@ -1269,6 +1269,49 @@ describe('asking to leave, and what he will move for', () => {
     expect(activeCareer(migrated)!.confidence).toBe(81);
   });
 
+  it('brings a career forward from before the week was a decision with none planned', () => {
+    // A plan invented here would name a calendar slot it was not made for, and
+    // would be spent on the first fixture the career happened to be sitting in
+    // front of.
+    const state = career();
+    const older = { ...state } as Record<string, unknown>;
+    delete older.week;
+
+    const migrated = migrate({
+      version: 24,
+      career: emptyCareer(),
+      settings: defaultSettings(),
+      careers: [older, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(activeCareer(migrated)!.week).toBeNull();
+  });
+
+  it('keeps a week a career had already planned', () => {
+    const state = career();
+    state.week = { choice: 'study', slotIndex: 2, note: 'Watched them.', growth: 1, preparation: 0.25 };
+
+    const migrated = migrate({
+      version: 24,
+      career: emptyCareer(),
+      settings: defaultSettings(),
+      careers: [state, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(activeCareer(migrated)!.week).toEqual({
+      choice: 'study',
+      slotIndex: 2,
+      note: 'Watched them.',
+      growth: 1,
+      preparation: 0.25,
+    });
+  });
+
   it('reads a demand it does not recognise as no demand at all', () => {
     // Guessing which ultimatum somebody meant is worse than reading a damaged
     // save as having made none.

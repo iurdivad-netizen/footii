@@ -73,6 +73,23 @@ obvious next steps: **three career slots**, so ending a career is no longer the 
 another, and **export/import of the save**, so a browser clearing its storage is no longer the end
 of everything the game has recorded. Both are documented under [Career mode](README.md#career-mode).
 
+Two more have since arrived that were on nobody's list, and they are worth recording precisely
+because they were not — both came from reading the game rather than from planning it, and both are
+about the part of a career that happens between matches rather than during them:
+
+- **[What the manager makes of you](README.md#what-the-manager-makes-of-you)** — a number per club that reads into selection, into the
+  renewal, and into morale. Item 1 above had listed this under what squad context would unblock; it
+  needed no squad at all, only the rival that rotation had already put in the dressing room.
+- **[The week before a match](README.md#the-week-before-a-match)** — the hub used to offer exactly one button between fixtures, so
+  a season was thirty decisions about how to finish a chance and none at all about how to be a
+  footballer. Now it is one choice out of four, each costing what the other three would have given
+  you.
+
+They are listed together because they are one change in two halves. Separately each is half a
+feature: the manager's confidence is a lever with nothing to pull it, and the week is a set of
+choices with nothing to spend them on. Together they are a loop — you are dropped, you knock on his
+door, and you are back in the side by Saturday.
+
 ## The one thing still open
 
 Of the twelve items raised from playing the game — every one of them recorded in

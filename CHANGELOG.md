@@ -123,7 +123,7 @@ See [What he will move for, and asking to leave](README.md#what-he-will-move-for
 
 ## Found while reviewing, and fixed
 
-Three things that were not on either list, found by reading the code against what it claimed:
+Four things that were not on either list, found by reading the code against what it claimed:
 
 - **Reputation's playing-time term could never fire.** It divided every competition's matches by the
   league's fixture list — a number that reaches fifty over one that is thirty — so it was pinned at

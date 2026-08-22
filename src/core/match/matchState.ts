@@ -34,6 +34,13 @@ export interface MatchSetup {
    * "a teammate" when it has nobody to name, which is what it always did.
    */
   teammates?: readonly Teammate[];
+  /**
+   * What a week spent studying this opponent is worth, in the decision timer's
+   * model units. Defaults to none, which is a quick match, a career week spent
+   * on something else, and every caller written before the week was a decision.
+   * See core/career/week.ts.
+   */
+  preparation?: number;
 }
 
 export interface MatchState {

@@ -1,6 +1,9 @@
 import { ATTRIBUTE_LABELS } from '../../core/player/attributes.ts';
 import { requestStands } from '../../core/career/transferRequest.ts';
 import { CONFIDENCE_NEUTRAL, confidenceTier } from '../../core/career/confidence.ts';
+import type { WeekChoice } from '../../core/career/week.ts';
+import { WEEK_DESCRIPTIONS, WEEK_LABELS } from '../../core/career/week.ts';
+import type { WeekAhead } from '../../simulation/CareerService.ts';
 import type { AttributeKey } from '../../core/player/attributes.ts';
 import type { CompetitionKind } from '../../core/career/calendar.ts';
 import { currentAbility } from '../../core/player/player.ts';
@@ -101,6 +104,12 @@ export class CareerScreen {
      * avoid.
      */
     private readonly teamSheet: TeamSheet,
+    /**
+     * The week in front of him: what he may do with it, and what he has already
+     * decided. Passed in for the same reason the team sheet is — this screen
+     * renders a career, it does not decide one.
+     */
+    private readonly week: WeekAhead,
     handlers: {
       onPlay: () => void;
       onSkip: () => void;
@@ -111,6 +120,8 @@ export class CareerScreen {
       onQuit: () => void;
       /** Open the panel where he says what he wants from a move. */
       onPreferences: () => void;
+      /** Spend the week before the next fixture. */
+      onWeek: (choice: WeekChoice) => void;
     },
   ) {
     this.element = document.createElement('section');
@@ -138,6 +149,9 @@ export class CareerScreen {
     this.element
       .querySelector<HTMLButtonElement>('#quit-career')
       ?.addEventListener('click', handlers.onQuit);
+    for (const button of this.element.querySelectorAll<HTMLButtonElement>('[data-week]')) {
+      button.addEventListener('click', () => handlers.onWeek(button.dataset.week as WeekChoice));
+    }
   }
 
   /**
@@ -285,6 +299,8 @@ export class CareerScreen {
                  }`
           }
         </div>
+
+        ${this.renderWeek()}
 
         <div class="career-card">
           <h2>Condition</h2>
@@ -517,6 +533,53 @@ export class CareerScreen {
    * season, so a run of goals reads as going somewhere long before the window
    * opens. Without it, an offer in the summer would arrive from nowhere.
    */
+  /**
+   * The week before the next fixture.
+   *
+   * Rendered as four buttons and then, once one is pressed, as what it did —
+   * never as both. A choice that stayed on screen after being made would invite
+   * the player to press another one, and the whole weight of this decision is
+   * that there is one of it.
+   */
+  private renderWeek(): string {
+    if (seasonComplete(this.state)) return '';
+    if (!this.week.choices) {
+      return `
+        <div class="career-card week-card">
+          <h2>The week</h2>
+          <p class="week-idle">${this.week.reason}</p>
+        </div>`;
+    }
+
+    if (this.week.plan) {
+      return `
+        <div class="career-card week-card">
+          <h2>The week</h2>
+          <p class="week-spent">
+            <strong>${WEEK_LABELS[this.week.plan.choice]}.</strong>
+            ${this.week.plan.note}
+          </p>
+        </div>`;
+    }
+
+    const buttons = this.week.choices
+      .map(
+        (choice) => `
+          <button class="week-option" data-week="${choice}">
+            <span class="week-option-label">${WEEK_LABELS[choice]}</span>
+            <span class="week-option-note">${WEEK_DESCRIPTIONS[choice]}</span>
+          </button>`,
+      )
+      .join('');
+
+    return `
+      <div class="career-card week-card">
+        <h2>The week</h2>
+        <p class="hint">Seven days before this one. You get one of them.</p>
+        <div class="week-options">${buttons}</div>
+      </div>`;
+  }
+
   private renderWatchers(): string {
     // Every club in the game, not just this division: the whole point of a
     // pyramid is that a good season down here is watched from up there.
