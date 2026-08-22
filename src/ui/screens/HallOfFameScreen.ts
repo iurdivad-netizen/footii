@@ -16,6 +16,15 @@ import { positionLabel } from '../../core/player/positions.ts';
  * best career at the top, not to settle an argument. What it is made of is
  * shown on every card, so a placing you disagree with can at least be read.
  *
+ * THE CARD IS A SUMMARY AND STAYS ONE. A wall is meant to be scanned — twenty
+ * careers each showing every season they played would be a filing cabinet
+ * rather than a wall. So the card is unchanged and the whole of it is a button:
+ * clicking one opens the career in full, on the same screen the end screen
+ * uses. A button rather than a click handler on the article, because a wall
+ * somebody navigates by keyboard should reach the same places as one navigated
+ * by mouse — and the Remove button sits OUTSIDE it, since a button inside a
+ * button is neither valid nor clickable.
+ *
  * CLEARING IS DELIBERATE, AND SEPARATE. Wiping the wall never touches the
  * career being played, and ending a career never touches the wall — they are
  * two different kinds of loss and running them together would make one of them
@@ -29,6 +38,8 @@ export interface HallOfFameHandlers {
   onClear: () => void;
   /** Remove one career from it. */
   onRemove: (id: string) => void;
+  /** Open one career in full. */
+  onOpen: (id: string) => void;
 }
 
 export class HallOfFameScreen {
@@ -98,6 +109,10 @@ export class HallOfFameScreen {
     for (const button of this.element.querySelectorAll<HTMLButtonElement>('[data-remove]')) {
       button.addEventListener('click', () => handlers.onRemove(button.dataset.remove!));
     }
+
+    for (const button of this.element.querySelectorAll<HTMLButtonElement>('[data-open]')) {
+      button.addEventListener('click', () => handlers.onOpen(button.dataset.open!));
+    }
   }
 }
 
@@ -116,37 +131,42 @@ function card(entry: CareerLegacy, rank: number, isNew: boolean): string {
   return `
     <article class="hall-card${isNew ? ' new' : ''}">
       <div class="hall-rank">${rank}</div>
-      <div class="hall-body">
-        <div class="hall-card-head">
-          <div>
-            <h2>${entry.name}</h2>
-            <p class="hall-detail">
-              ${positionLabel(entry.position)} · ${entry.finalClubName} ·
-              ${entry.finalCountryShort} · ${entry.seasons}
-              ${entry.seasons === 1 ? 'season' : 'seasons'} ·
-              ${entry.ending === 'retired' ? 'retired' : 'ended'} at ${entry.ageAtEnd}
-            </p>
+      <button class="hall-open" data-open="${entry.id}">
+        <div class="hall-body">
+          <div class="hall-card-head">
+            <div>
+              <h2>${entry.name}</h2>
+              <p class="hall-detail">
+                ${positionLabel(entry.position)} · ${entry.finalClubName} ·
+                ${entry.finalCountryShort} · ${entry.seasons}
+                ${entry.seasons === 1 ? 'season' : 'seasons'} ·
+                ${entry.ending === 'retired' ? 'retired' : 'ended'} at ${entry.ageAtEnd}
+              </p>
+            </div>
+            <div class="hall-score">
+              <span class="score-value">${entry.score}</span>
+              <span class="score-label">${entry.ending === 'retired' ? 'Retired' : 'Ended'}</span>
+            </div>
           </div>
-          <div class="hall-score">
-            <span class="score-value">${entry.score}</span>
-            <span class="score-label">${entry.ending === 'retired' ? 'Retired' : 'Ended'}</span>
+
+          <p class="hall-verdict">${entry.verdict}</p>
+
+          <div class="hall-figures">
+            <span><strong>${entry.appearances}</strong> apps</span>
+            <span><strong>${entry.goals}</strong> goals</span>
+            <span><strong>${entry.assists}</strong> assists</span>
+            <span><strong>${entry.averageRating > 0 ? entry.averageRating.toFixed(2) : '—'}</strong> rating</span>
+            <span><strong>${entry.caps}</strong> caps</span>
+            <span><strong>£${entry.earnings}m</strong> earned</span>
           </div>
+
+          ${honours ? `<ul class="honours-list">${honours}</ul>` : '<p class="hint">No honours.</p>'}
+          ${highlights ? `<ul class="hall-highlights">${highlights}</ul>` : ''}
+
+          <span class="hall-open-hint">Read this career in full →</span>
         </div>
-
-        <p class="hall-verdict">${entry.verdict}</p>
-
-        <div class="hall-figures">
-          <span><strong>${entry.appearances}</strong> apps</span>
-          <span><strong>${entry.goals}</strong> goals</span>
-          <span><strong>${entry.assists}</strong> assists</span>
-          <span><strong>${entry.averageRating > 0 ? entry.averageRating.toFixed(2) : '—'}</strong> rating</span>
-          <span><strong>${entry.caps}</strong> caps</span>
-          <span><strong>£${entry.earnings}m</strong> earned</span>
-        </div>
-
-        ${honours ? `<ul class="honours-list">${honours}</ul>` : '<p class="hint">No honours.</p>'}
-        ${highlights ? `<ul class="hall-highlights">${highlights}</ul>` : ''}
-
+      </button>
+      <div class="hall-card-actions">
         <button class="ghost small" data-remove="${entry.id}">Remove</button>
       </div>
     </article>`;

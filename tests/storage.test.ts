@@ -1090,6 +1090,69 @@ describe('when the browser will not save', () => {
   });
 });
 
+describe('a career kept in full on the wall', () => {
+  it('survives an export and an import with its whole history', () => {
+    // The detail is the part of a legacy that cannot be recomputed, so a
+    // round-trip that dropped it would lose the career rather than reformat it.
+    const full = {
+      ...legacy(),
+      detail: {
+        seasons: [
+          {
+            seasonNumber: 1,
+            clubName: 'Northport City',
+            countryShort: 'ENG',
+            age: 21,
+            position: 4,
+            matches: 30,
+            goals: 12,
+            assists: 5,
+            rating: 7.1,
+          },
+        ],
+        moves: [
+          {
+            season: 1,
+            age: 22,
+            fromClubName: 'Northport City',
+            toClubName: 'Castleford Royals',
+            fee: 24.5,
+            free: false,
+          },
+        ],
+        records: [{ label: 'Hat-tricks', value: 2, note: 'Two in a season.' }],
+        honours: [
+          {
+            kind: 'title' as const,
+            season: 1,
+            clubId: 'northport-city',
+            division: 1,
+            countryId: 'england',
+            label: 'English champions',
+            detail: 'You won the league.',
+          },
+        ],
+      },
+    };
+
+    const withLegacy = save({ hallOfFame: [full] });
+    const reimported = migrate(JSON.parse(exportSave(withLegacy)))!;
+
+    expect(reimported).not.toBeNull();
+    expect(reimported.hallOfFame[0]!.detail).toEqual(full.detail);
+  });
+
+  it('keeps an older entry that never had a detail rather than dropping it', () => {
+    // Nothing can reconstruct one — the career it would have come from was
+    // deleted when it ended — so an entry without a detail is an older entry,
+    // not a damaged one.
+    const reimported = migrate(JSON.parse(exportSave(save({ hallOfFame: [legacy()] }))))!;
+
+    expect(reimported.hallOfFame).toHaveLength(1);
+    expect(reimported.hallOfFame[0]!.detail).toBeUndefined();
+  });
+});
+
 describe('asking to leave, and what he will move for', () => {
   it('brings a career forward from before either existed, having asked for nothing', () => {
     // `any` and `null` are the truthful readings rather than convenient

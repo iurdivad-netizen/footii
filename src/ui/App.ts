@@ -88,6 +88,7 @@ import type { ShootoutSide } from '../core/career/shootout.ts';
 import { simulateShootout } from '../core/career/shootout.ts';
 import { CareerEndScreen } from './screens/CareerEndScreen.ts';
 import { HallOfFameScreen } from './screens/HallOfFameScreen.ts';
+import { LegacyScreen } from './screens/LegacyScreen.ts';
 import type { TotalsView } from './screens/FullTimeScreen.ts';
 import { FullTimeScreen } from './screens/FullTimeScreen.ts';
 import { HomeScreen } from './screens/HomeScreen.ts';
@@ -100,7 +101,12 @@ import { WorldScreen } from './screens/WorldScreen.ts';
 import { TransferScreen } from './screens/TransferScreen.ts';
 import { applyTraining } from '../core/career/training.ts';
 import type { CareerEnding } from '../core/career/legacy.ts';
-import { isWorthRemembering, retirementProspect, summariseCareer } from '../core/career/legacy.ts';
+import {
+  isWorthRemembering,
+  rankLegacies,
+  retirementProspect,
+  summariseCareer,
+} from '../core/career/legacy.ts';
 import type { SetupSelection } from './screens/SetupScreen.ts';
 import { SetupScreen } from './screens/SetupScreen.ts';
 
@@ -392,7 +398,7 @@ export class App {
 
     this.mount(
       new CareerEndScreen(
-        { state: career, legacy, ending, forced, reason },
+        { legacy, ending, forced, reason },
         {
           onConfirm: () => {
             // A career with no appearances leaves no record — see
@@ -434,9 +440,38 @@ export class App {
             // in a list that has just changed underneath it.
             this.showHallOfFame();
           },
+          onOpen: (id: string) => this.showLegacy(id),
         },
         highlightId,
       ).element,
+    );
+  }
+
+  /**
+   * One career on the wall, in full.
+   *
+   * The entry is looked up by id at the moment of opening rather than passed in
+   * from the card, so a wall that has changed since it was rendered cannot show
+   * a career it no longer holds. An id that has gone simply returns to the wall.
+   */
+  private showLegacy(id: string): void {
+    const ranked = rankLegacies(this.save.hallOfFame);
+    const index = ranked.findIndex((entry) => entry.id === id);
+    if (index === -1) {
+      this.showHallOfFame();
+      return;
+    }
+
+    this.mount(
+      new LegacyScreen(ranked[index]!, index + 1, {
+        onBack: () => this.showHallOfFame(),
+        onRemove: (removedId: string) => {
+          this.save = removeFromHallOfFame(this.save, removedId);
+          // Back to the wall rather than to a screen showing a career that is
+          // no longer on it.
+          this.showHallOfFame();
+        },
+      }).element,
     );
   }
 

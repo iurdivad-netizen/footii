@@ -2478,9 +2478,63 @@ button.ghost {
   color: var(--accent);
 }
 
+/*
+ * The whole card is the button that opens the career.
+ *
+ * Stripped back to nothing rather than styled, because everything a button
+ * brings by default — the border, the background, the centred single line of
+ * text — is wrong for a region containing a heading, a table of figures and two
+ * lists. What it keeps is the part that matters: it is focusable, it is
+ * reachable by keyboard, and it announces itself as something you can press.
+ */
+.hall-open {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.hall-open:hover .hall-open-hint,
+.hall-open:focus-visible .hall-open-hint {
+  color: var(--accent);
+}
+
+.hall-open-hint {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.74rem;
+  color: var(--text-dim);
+}
+
+/* Outside the button, so Remove is never a button inside a button. */
+.hall-card-actions {
+  display: flex;
+  align-items: flex-start;
+}
+
 .hall-body {
   flex: 1;
   min-width: 0;
+}
+
+/*
+ * One career on the wall, read in full.
+ *
+ * Almost entirely the end screen's styling, because it is almost entirely the
+ * end screen — the same panels from the same renderers. Only the line under the
+ * figures is its own, since the end screen has a reason to show instead.
+ */
+.legacy-line {
+  margin: 4px 0 16px;
+  font-size: 0.86rem;
+  color: var(--text-dim);
 }
 
 .hall-card-head {

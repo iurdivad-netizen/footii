@@ -1561,6 +1561,41 @@ it would multiply the save's size by every career you have ever finished, and ev
 would have to migrate careers nobody is playing. A finished career is finished, so it stores
 conclusions rather than the material they were drawn from.
 
+**But a summary was not enough, and the gap was the wrong way round.** The end screen showed a career
+in full — every season, every move, the whole record book — and then threw all of it away and kept
+the card. So the most complete view of a career existed exactly once, in the moment you were deciding
+to destroy it, and never again. A live career is the one you can always look at; it is right there in
+the hub. A *finished* one is the only kind that can never be re-read from its own state, which makes
+it the one that most needs keeping. The wall could rank a career it could no longer show you.
+
+So a legacy now also carries a **detail**: every season with its club and country, every move with
+both clubs, the record book in full, and every honour with the season it was won in. Clicking any
+card on the wall opens it — the same panels the end screen shows, rendered by the same functions, so
+the two cannot drift apart. The card itself is unchanged, because a wall is meant to be scanned and
+twenty careers each showing every season they played would be a filing cabinet.
+
+This does not contradict the paragraph above; it is worth being precise about why. What that
+argument rejected was keeping the live `CareerState` — a deeply nested, versioned thing that every
+future migration would have to carry forward. A detail is **flat, finished and resolved**: rows of
+numbers and names, nothing that refers to a club by id, nothing that can go stale, and nothing a
+migration will ever touch, because nothing will ever be added to it. It is a printed page rather than
+a copy of the machinery that produced one.
+
+The cost is measured rather than assumed. A twenty-season career that won something every year and
+moved every summer — longer than the game actually allows — serialises to about **9KB** against
+850 bytes for the card alone, so a full wall of twenty is roughly 180KB against a multi-megabyte
+quota. Worth it; and if it were ever not, `HALL_OF_FAME_LIMIT` is the dial.
+
+Careers already on the wall have **no detail and cannot be given one** — the state it would have come
+from was deleted when they ended. Those entries open too, showing everything the card holds and
+saying plainly that the season-by-season record was not kept. That is the same choice made everywhere
+else a counter arrived after the game did: an admitted gap beats an invented history.
+
+One consequence is worth naming. The end screen now renders from the legacy's detail rather than from
+the live career, which makes it an **honest preview**: no panel can appear there and then quietly
+fail to survive, because both screens read the same record. A field missing from the detail is a
+field missing from the end screen too, where somebody will notice.
+
 It also stores **names as well as ids**. Everywhere else the save refers to clubs by id and resolves
 them at render time, which is right for a live career: the club drifts, gets promoted, and must be
 read fresh. A finished career is the opposite case — it is a historical record, and a wall that
@@ -2167,7 +2202,7 @@ European trophies, domestic and continental trebles, top scorer, player of the s
 international caps and tournament wins, **a career record book of braces, hat-tricks, four- and five-goal games, perfect
 ratings, scoring and unbeaten runs and per-competition totals**, **an ending — retirement offered
 from 34 and forced at 39, an end screen that shows a career in full before you stop it, and a wall
-of fame that ranks every career this browser has finished**, **three independent career slots**,
+of fame that ranks every career this browser has finished and keeps each one readable in full**, **three independent career slots**,
 **export and import of the whole save**, **penalty shootouts you take the kicks in**,
 **contracts you can push back on, stated preferences about where you will play,
 how big a club you will move for and the European football you will hold out for, and a transfer
