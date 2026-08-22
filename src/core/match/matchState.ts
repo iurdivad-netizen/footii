@@ -41,6 +41,11 @@ export interface MatchSetup {
    * See core/career/week.ts.
    */
   preparation?: number;
+  /**
+   * How much this match matters, 0-1. See `matchImportance`. Defaults to a
+   * league match's weight, which is what a quick match is.
+   */
+  importance?: number;
 }
 
 export interface MatchState {

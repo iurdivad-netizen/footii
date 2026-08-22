@@ -1,4 +1,5 @@
 import { clamp, norm, round, unit } from '../core/util/math.ts';
+import { COOL_HEAD_TIME, OLD_HEAD_FATIGUE, hasTrait } from '../core/player/traits.ts';
 import { fatigueLevel } from '../core/player/player.ts';
 import { goalkeeperPressure } from '../core/goalkeeper/goalkeeper.ts';
 import type { SituationContext } from '../core/events/types.ts';
@@ -190,13 +191,27 @@ export function calculateDecisionTime(
   add('Situation difficulty', -TIMER_WEIGHTS.difficulty * template.difficulty);
 
   // --- temporary modifiers ------------------------------------------------
-  add('Fatigue', -TIMER_WEIGHTS.fatigue * fatigueLevel(context.player));
+  // An old head has learned to play without his legs, so tiredness closes his
+  // window more slowly than it closes anybody else's. It is the one thing in
+  // the game that gets BETTER with age, and it exists so that the tail of a
+  // career has something in it besides decline.
+  const fatigueWeight = hasTrait(context.player.traits, 'oldHead')
+    ? TIMER_WEIGHTS.fatigue * OLD_HEAD_FATIGUE
+    : TIMER_WEIGHTS.fatigue;
+  add('Fatigue', -fatigueWeight * fatigueLevel(context.player));
   add('Form', TIMER_WEIGHTS.form * norm(context.player.form));
   add('Morale', TIMER_WEIGHTS.morale * norm(context.player.morale));
 
   // A high-press opponent squeezes time everywhere on the pitch.
   const pressing = unit(context.defendingTeam.ratings.pressing);
   add('Opponent pressing', -0.2 * (pressing - 0.5) * 2 * 0.5);
+
+  // A cool head gets his time back exactly where he lost it. Scaled by the
+  // pressure rather than flat, so the trait is worth nothing in an empty penalty
+  // area and everything in a crowded one — which is what being unhurried means.
+  if (hasTrait(context.player.traits, 'coolHead')) {
+    add('Cool head', COOL_HEAD_TIME * context.defensivePressure);
+  }
 
   // A week spent watching them. Recorded as a modifier like everything else, so
   // the debug panel's audit shows where the extra time came from.

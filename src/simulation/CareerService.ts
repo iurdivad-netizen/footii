@@ -508,6 +508,10 @@ export function startCareer(options: StartCareerOptions): CareerState {
     confidence: CONFIDENCE_NEUTRAL,
     // The first week of a career has not been planned yet.
     week: null,
+    // Nothing has happened to him yet, which is the one thing every career has
+    // in common on its first day.
+    moments: [],
+    lastMoments: [],
     loan: null,
     loanOffer: null,
     cups: newCups(countryId, leagueTeamIds),
@@ -991,6 +995,10 @@ export function recordPlayerMatch(
     // What the match was worth to the club, which is what decides how far the
     // manager's view moves on the back of it.
     importance: matchImportance(scheduled.competition, scheduled.round),
+    // Only the moments read these. Resolved here because `core` has no club
+    // registry and no memory of where he has played.
+    opponentName: opponentNameFor(state, scheduled.opponentId, lookup),
+    againstOldClub: hasPlayedFor(state, scheduled.opponentId),
   });
 
   // The player was in the side, so the man he beat to it was not.
@@ -1016,6 +1024,37 @@ export function recordPlayerMatch(
   }
 
   return changes;
+}
+
+/**
+ * What to call the opponent, when there is one to name.
+ *
+ * A cup tie can be scheduled before its draw, so the id may be empty — and a
+ * moment that reads "back against , who used to pay your wages" is worse than
+ * no moment at all.
+ */
+function opponentNameFor(state: CareerState, opponentId: string, lookup: TeamLookup): string {
+  if (!opponentId) return 'them';
+  try {
+    return teamIn(state, lookup, opponentId).name;
+  } catch {
+    return 'them';
+  }
+}
+
+/**
+ * Has he ever been on this club's books?
+ *
+ * Reads the transfer record rather than the season history, because the history
+ * only holds seasons he COMPLETED somewhere: a summer signing who moved on
+ * again the following July would otherwise never be facing an old club, and he
+ * of all people is.
+ */
+function hasPlayedFor(state: CareerState, clubId: string): boolean {
+  if (!clubId || clubId === state.clubId) return false;
+  return state.transfers.some(
+    (move) => move.fromClubId === clubId || move.toClubId === clubId,
+  );
 }
 
 /**

@@ -1,5 +1,7 @@
 import type { Rng } from '../rng.ts';
 import { clamp01, unit } from '../util/math.ts';
+import type { TraitId } from '../player/traits.ts';
+import { GRANITE_INJURY, hasTrait } from '../player/traits.ts';
 
 /**
  * INJURIES
@@ -111,6 +113,14 @@ export interface InjuryRiskInput {
   age: number;
   /** Stamina, which is what makes one player more durable than another. */
   stamina: number;
+  /**
+   * What he is known for. Only `granite` is read, and only to lower the risk.
+   *
+   * Optional and empty for every caller that has no footballer to hand — the
+   * quick match, the tests that ask what a body of a given age risks. See
+   * core/player/traits.ts.
+   */
+  traits?: readonly TraitId[];
 }
 
 /**
@@ -128,7 +138,14 @@ export function injuryRisk(input: InjuryRiskInput): number {
   const emptied = 1 - clamp01(input.fitnessAtEnd / 100);
   const fatigue = 1 + 2.2 * emptied * emptied;
   const durability = 1 - 0.3 * unit(input.stamina);
-  return clamp01(BASE_INJURY_RISK * exposure * fatigue * ageRisk(input.age) * durability);
+  // Earned by simply always being available, and it makes him more so. A mild
+  // positive loop, and knowingly: "he is never injured" is a thing football says
+  // about people, and 0.82 is small enough that it describes a footballer
+  // rather than protecting one.
+  const granite = hasTrait(input.traits, 'granite') ? GRANITE_INJURY : 1;
+  return clamp01(
+    BASE_INJURY_RISK * exposure * fatigue * ageRisk(input.age) * durability * granite,
+  );
 }
 
 /**

@@ -209,7 +209,7 @@ matches (35.0 played against 33.4).
 
 ## Found while reviewing, and fixed
 
-Four things that were not on either list, found by reading the code against what it claimed:
+Five things that were not on either list, found by reading the code against what it claimed:
 
 - **Reputation's playing-time term could never fire.** It divided every competition's matches by the
   league's fixture list — a number that reaches fifty over one that is thirty — so it was pinned at
@@ -227,6 +227,20 @@ Four things that were not on either list, found by reading the code against what
   roadmap had listed this under what squad context would unblock, and it turned out not to need a
   squad at all — only the rival that rotation had already put in the dressing room. See
   [What the manager makes of you](README.md#what-the-manager-makes-of-you).
+- **Everything was counted and nothing was ever said.** The record book knew the exact minute a
+  career reached its hundredth appearance and had no way to mention it; a first goal was an
+  increment. Two strikers with the same twenty attributes were, in every respect the game could
+  express, the same footballer. Fixed by the pair that had to ship together: **traits**, earned from
+  what was already being recorded and never chosen, and **moments**, so that earning one is
+  something that happens to you rather than a row appearing in a table. See
+  [What you become known for](README.md#what-you-become-known-for).
+
+  Worth recording from the calibration, because it cost three attempts: the **maverick** trait
+  cannot be built on the best rating a career ever got — a maximum over five hundred matches is a
+  ten for everybody, so that version fired for 100% of careers and said nothing. Nor on a count of
+  perfect tens, which the *better* player reaches sooner while his average is still low, inverting
+  the trait. It works as a rate against an average that has stopped moving, and it is the one trait
+  a modest career earns and a great one cannot.
 - **A browser that could not save said nothing about it.** Every write failure was swallowed, so a
   career could be played to its end in a browser keeping none of it. Failures now raise a warning
   above every screen, and offer the export that makes them survivable. See [When the browser will not save](README.md#when-the-browser-will-not-save).

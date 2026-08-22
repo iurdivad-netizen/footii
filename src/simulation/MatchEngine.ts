@@ -197,6 +197,7 @@ export class MatchEngine {
       attackingTeam,
       defendingTeam,
       goalkeeper: defending ? this.setup.ownGoalkeeper : this.setup.opponentGoalkeeper,
+      importance: this.setup.importance,
       minute: this.state.minute,
       defending,
     });

@@ -1122,6 +1122,8 @@ describe('a career kept in full on the wall', () => {
           },
         ],
         records: [{ label: 'Hat-tricks', value: 2, note: 'Two in a season.' }],
+        traits: ['poacher' as const],
+        moments: [{ kind: 'firstGoal' as const, text: 'Your first goal.', season: 1 }],
         honours: [
           {
             kind: 'title' as const,
@@ -1310,6 +1312,51 @@ describe('asking to leave, and what he will move for', () => {
       growth: 1,
       preparation: 0.25,
     });
+  });
+
+  it('gives a career from before traits existed none, and lets it earn them back', () => {
+    // Not reconstructed here, and that is the point: the evidence is all still
+    // in the record book, so `applyMatchToCareer` awards what has already been
+    // earned at the very next match. Rebuilding it here would mean this
+    // function reimplementing the earning rules.
+    const state = career();
+    const older = { ...state } as Record<string, unknown>;
+    delete older.moments;
+    delete older.lastMoments;
+    delete (older.player as unknown as Record<string, unknown>).traits;
+
+    const migrated = migrate({
+      version: 25,
+      career: emptyCareer(),
+      settings: defaultSettings(),
+      careers: [older, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    const brought = activeCareer(migrated)!;
+    expect(brought.player.traits).toEqual([]);
+    expect(brought.moments).toEqual([]);
+    expect(brought.lastMoments).toEqual([]);
+  });
+
+  it('keeps traits and moments a career already had', () => {
+    const state = career();
+    state.player.traits = ['poacher'];
+    state.moments = [{ kind: 'firstGoal', text: 'Your first goal.', season: 2 }];
+
+    const migrated = migrate({
+      version: 25,
+      career: emptyCareer(),
+      settings: defaultSettings(),
+      careers: [state, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(activeCareer(migrated)!.player.traits).toEqual(['poacher']);
+    expect(activeCareer(migrated)!.moments).toHaveLength(1);
   });
 
   it('reads a demand it does not recognise as no demand at all', () => {

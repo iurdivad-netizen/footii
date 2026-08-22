@@ -90,6 +90,24 @@ feature: the manager's confidence is a lever with nothing to pull it, and the we
 choices with nothing to spend them on. Together they are a loop — you are dropped, you knock on his
 door, and you are back in the side by Saturday.
 
+A third pair has since landed on the same principle, and for the same reason:
+
+- **[What you become known for](README.md#what-you-become-known-for)** — eight traits, earned from what the record book was already
+  counting and never chosen, each changing how a match plays rather than adding a figure to a
+  screen. The game had progression, a manager, a rival and an ending, and still no **identity**: two
+  strikers with the same twenty attributes were the same footballer.
+- **[The moments a career is made of](README.md#the-moments-a-career-is-made-of)** — a debut, a first goal, a hundredth appearance, a run as
+  it lengthens, a match against a club that used to pay your wages.
+
+Again one feature in two halves. A trait announced only in a stats table is an invisible modifier —
+the exact mistake this codebase already made once with morale — so earning one has to be a moment or
+it is not really a thing that happened to you.
+
+What remains on the RPG side, roughly in the order it is worth doing: **the rival's arc** (he ages
+and nothing else; selling him when you beat him would make the club feel populated), **tendency and
+position retraining**, so a thirty-one-year-old can become the deep-lying version of himself, and
+**a background at creation**.
+
 ## The one thing still open
 
 Of the fourteen items in [CHANGELOG.md](CHANGELOG.md) — thirteen raised from playing the game and one
