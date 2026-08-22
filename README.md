@@ -1535,6 +1535,109 @@ does, so a training decision about it would be a choice with nothing on either s
 left out while *fit* is the opposite case and keeps every option — asking for a start is precisely
 what that week is for.
 
+### What you become known for
+
+Two strikers with the same twenty attributes were the same footballer. The record book counted
+everything they had ever done and none of it came back: a hat-trick was a number on a page, never a
+fact about the man who scored it.
+
+A **trait** is that fact. Eight of them, each earned from something the career was already
+recording, and each one changing how a **match plays** rather than adding a figure to a screen.
+
+| Trait | Earned by | What it changes |
+| --- | --- | --- |
+| **Big-game player** | 20+ European/international nights at 7.4+ | worth up to +0.045 on a European night and **nothing** on a Saturday |
+| **Cool head** | 30+ nines per 100 appearances | thinking time back, scaled by the pressure that took it |
+| **The provider** | 100 career assists | passes and crosses land better |
+| **Poacher** | 30 hat-tricks, 11+ per 100 | finishing **inside the box only** |
+| **Made of granite** | 33+ appearances a season over six | injury risk ×0.82 |
+| **Streaky** ⚖ | a 16-match scoring run | form moves faster — *in both directions* |
+| **Maverick** ⚖ | 4+ perfect tens per 100, with an average under 7.0 | wider execution spread: better best case, worse worst case |
+| **Old head** | 33 years old and 350 appearances | fatigue closes your decision window 30% more slowly |
+
+⚖ = cuts both ways.
+
+#### Three rules, and they are what stop this being a skill tree
+
+**Earned, never chosen.** There is no menu. A trait arrives because of something you did over enough
+football that it stopped being a coincidence.
+
+**It must be felt at the keyboard.** Every one reads into the action model, the decision window, the
+injury roll or selection. A trait that only made a number bigger would be repeating the mistake
+[morale](#what-the-manager-makes-of-you) spent every version until recently making — eight times over.
+
+**Earned from what is already counted.** This is the constraint that shaped the list, and it comes
+from a lesson this codebase has already paid for: **a counter only counts forward.** A trait needing
+a *new* counter would sit there doing nothing for every career already in progress. So every
+condition reads the record book as it already is — which means an existing career gains what it has
+already earned at its very next match. Several ideas were re-based to fit this and one, penalties,
+was dropped for failing it.
+
+#### The maverick took three attempts, and the reason is worth keeping
+
+The obvious version reads the **best rating a career ever got**. It fires for 100% of careers and
+says nothing, because a maximum over five hundred matches is a ten for everybody.
+
+The second version counted perfect tens against the career average. That inverted the trait: the
+*better* player reaches any fixed count sooner, while his average is still low, so good careers
+became mavericks and modest ones did not.
+
+The version that works is a **rate**, against an average that has stopped moving — 4+ perfect tens
+per 100 appearances, an average under 7.0, and at least 300 matches. It is the one trait a modest
+career earns and a great one cannot: a great one's average disqualifies him. He is not a maverick.
+He is just good.
+
+#### A property worth knowing
+
+Traits are checked after every match and never taken back, so **a condition on a rate effectively
+tests the highest that rate ever reached**, not where it finished. That is left as it is — *"he was,
+for a while, exactly that player"* is a true thing to say, and a career that could un-become
+something would not be a record. But it is why every rate also carries an absolute floor. Without
+one, measurement showed a middling career becoming a maverick **100% of the time**, on the strength
+of a good fortnight in its early twenties.
+
+#### How many a career ends with
+
+Measured over 25 careers of 18 seasons at three levels of ability, because the same thresholds look
+trivial to one career and out of reach to another — auto-play scores 1.0 goals a match at ability 55
+and 2.9 at ability 85, so anything calibrated on one profile alone is calibrated on nothing.
+
+| Career | Avg rating | Traits earned | Career score, no traits → with |
+| --- | --- | --- | --- |
+| Modest | 6.35 | **1.4** | 1653 → 1672 (**+1.1%**) |
+| Middling | 7.21 | **2.8** | 4388 → 4543 (**+3.5%**) |
+| Superhuman | 8.33 | **6.8** | 7995 → 8546 (**+6.9%**) |
+
+Traits are meant to be **situational flavour rather than power creep**, and at the two realistic
+levels they are. The superhuman profile is an auto-play artefact no human matches — it earns nearly
+every trait, so of course it gains most; that number is reported rather than hidden.
+
+### The moments a career is made of
+
+Everything was counted and nothing was ever said. The record book knew the exact minute a career
+reached its hundredth appearance and had no way to mention it; a first goal was an increment. A
+career you can only read as a table is a spreadsheet with a footballer's name on it.
+
+So the hub now says what was worth remarking on: a debut, a first goal, a first European night, a
+first cap, a hat-trick, a perfect ten, a round number reached, a scoring run as it lengthens, a match
+against a club that used to pay your wages — and, last and biggest, **becoming something**.
+
+**This is why traits and moments shipped together.** A trait announced only in a stats table is an
+invisible modifier, which is the exact mistake this codebase has already made once. Earning one has
+to be a moment or it is not really a thing that happened to you.
+
+**What is deliberately not here is anything that happens most weeks.** A moment for every goal would
+train the eye to skip the line that says *"your first"*, which is the only one that mattered. An
+ordinary afternoon produces nothing at all, and most afternoons are ordinary.
+
+A milestone announces itself **exactly once**, because `momentsFrom` compares the record book from
+both sides of the match rather than keeping a list of what it has already mentioned. The hundredth
+appearance is simply the match where the count crossed a hundred.
+
+A career keeps the last **80**. When it fills the oldest go — the wrong way round for a diary and the
+right way round for a save that holds a whole career in a few tens of kilobytes, and the end-of-career
+screen says so rather than quietly beginning in season six.
+
 ### Somebody to pass to
 
 An assist used to go to nobody. The commentary said *"GOAL — and an assist!"* and the man who
@@ -2422,7 +2525,9 @@ request you can hand in and take back**,
 and matches your club plays without you**, **a named rival for your shirt, and a manager who leaves
 you out of the ones that do not matter**, **a manager whose confidence in you decides selection, what
 your club offers to keep you and what it calls you when it does**, **a week between matches you
-spend on one of four things, each of which costs what the other three would have given you**, **named teammates who get on the end of your passes**,
+spend on one of four things, each of which costs what the other three would have given you**,
+**eight traits earned from what you actually did, each one changing how a match plays**, **a diary of
+the moments a career is made of**, **named teammates who get on the end of your passes**,
 **loans for a young player who cannot get a game**, promotion and relegation machinery
 (dormant on a one-tier world), debug mode, and a versioned localStorage save with migration that
 says so when the browser will not keep it.

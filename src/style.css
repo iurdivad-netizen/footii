@@ -3615,6 +3615,120 @@ button.ghost.danger {
 }
 
 /*
+ * The moments a career is made of.
+ *
+ * Green rather than amber: every one of these is something that HAPPENED,
+ * usually something good, and colouring them like an injury would read as
+ * things going wrong. It sits between the score and the development report,
+ * which is where it belongs chronologically — the part of the match somebody
+ * would actually tell you about.
+ */
+.moments-banner {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent);
+  background: rgba(74, 222, 128, 0.08);
+  border-radius: 4px;
+}
+
+.moments-banner ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.moments-banner li {
+  font-size: 0.92rem;
+  line-height: 1.55;
+  padding: 2px 0;
+}
+
+/* Becoming something outranks everything else that happened that afternoon. */
+.moment-traitEarned {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/*
+ * What he is known for.
+ *
+ * The description and not the modifier. A trait is meant to be felt in a match
+ * rather than read on a card, and a list of numbers here would turn a record of
+ * the career into a character sheet.
+ */
+.trait-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trait-list li {
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.trait-list li:last-child {
+  border-bottom: none;
+}
+
+.trait-name {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+
+.trait-name em {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  font-style: italic;
+}
+
+.trait-note {
+  display: block;
+  margin-top: 1px;
+  color: var(--text-dim);
+  font-size: 0.79rem;
+  line-height: 1.45;
+}
+
+/*
+ * The same two lists, on the screen that shows a whole career.
+ *
+ * Wider than the hub's, because the end of a career is the one place there is
+ * room to read it rather than glance at it.
+ */
+.trait-list-wide {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 4px 22px;
+}
+
+.moment-log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.moment-log li {
+  font-size: 0.88rem;
+  line-height: 1.6;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.moment-log li:last-child {
+  border-bottom: none;
+}
+
+.moment-season {
+  display: inline-block;
+  min-width: 32px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 0.76rem;
+}
+
+/*
  * The week before the next match.
  *
  * Four options rendered as a stack of wide buttons rather than a row, because

@@ -35,7 +35,7 @@ import { rankLegacies } from '../core/career/legacy.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 25;
+export const SAVE_VERSION = 26;
 
 export interface CareerRecord {
   matches: number;
@@ -780,6 +780,39 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
     save = { ...save, version: 25 };
     for (const career of save.careers ?? []) {
       if (career) career.week ??= null;
+    }
+  }
+
+  if (save.version === 25) {
+    // v25 -> v26: a footballer becomes known for things, and a career remembers.
+    //
+    // Both start EMPTY, and neither is reconstructed here — but they behave
+    // differently afterwards, and the difference is the whole reason this is
+    // only three lines.
+    //
+    // Traits are earned from evidence that was already being recorded, so an
+    // existing career is not starting from nothing: `applyMatchToCareer`
+    // evaluates the conditions against the record book, and a career that has
+    // already scored four hat-tricks becomes a poacher at its very next match.
+    // Awarding them here instead would mean this function reimplementing the
+    // earning rules, which is the sort of duplication that quietly drifts.
+    //
+    // The consequence, stated rather than hidden: a long career can earn
+    // several at once on its first match back, and the hub will say so all at
+    // once. That is a fair reading of "you were already these things and nobody
+    // had written it down".
+    //
+    // Moments genuinely cannot be recovered. Nothing can go back and narrate a
+    // first goal scored three seasons ago, so an existing career starts its
+    // diary from here. That is the same limit item 11 ran into and the same
+    // answer: a counter only counts forward.
+    save = { ...save, version: 26 };
+    for (const career of save.careers ?? []) {
+      if (career) {
+        career.moments ??= [];
+        career.lastMoments ??= [];
+        if (career.player) career.player.traits ??= [];
+      }
     }
   }
 

@@ -37,6 +37,8 @@ export interface SituationRequest {
   forceType?: SituationType;
   /** Defensive events are generated when the player's team is defending. */
   defending?: boolean;
+  /** How much the match matters, 0-1. Carried through to the context. */
+  importance?: number;
 }
 
 /** How a tendency biases each archetype. Multiplicative on the base weight. */
@@ -287,6 +289,7 @@ export function generateSituation(rng: Rng, request: SituationRequest): Generate
     firstTime: template.firstTime,
     transition,
     minute: request.minute,
+    importance: request.importance,
   };
 
   return { type, context };

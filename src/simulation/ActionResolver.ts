@@ -12,6 +12,8 @@ import type {
 } from '../core/events/types.ts';
 import { getAction } from '../data/actionCatalogue.ts';
 import { receiverOf } from '../core/career/squad.ts';
+import { DEFAULT_MATCH_IMPORTANCE } from '../core/career/confidence.ts';
+import { MAVERICK_NOISE, hasTrait, traitActionBonus } from '../core/player/traits.ts';
 
 /**
  * ACTION RESOLVER
@@ -187,7 +189,25 @@ export function resolveAction(
     },
   ];
 
-  const noise = rng.noise(RESOLUTION_WEIGHTS.noiseSd, RESOLUTION_WEIGHTS.noiseClampSd);
+  // What he is known for. A term rather than a multiplier somewhere upstream,
+  // so it shows up in the debug panel's audit beside everything else that made
+  // this outcome — a trait the player cannot see the effect of is a trait he
+  // has no reason to believe in. See core/player/traits.ts.
+  const traitBonus = traitActionBonus(context.player.traits, {
+    family: definition.family,
+    insideBox: context.zone.box === 'inside',
+    importance: context.importance ?? DEFAULT_MATCH_IMPORTANCE,
+  });
+  if (traitBonus !== 0) terms.push({ label: 'Reputation', value: traitBonus });
+
+  // A maverick's jitter is wider in BOTH directions, which is the whole of what
+  // the word means here. Nothing about this makes him better on average; it
+  // makes him less predictable, and the goal-probability curve downstream turns
+  // that into more of the afternoons nobody forgets and more of the other kind.
+  const spread = hasTrait(context.player.traits, 'maverick')
+    ? RESOLUTION_WEIGHTS.noiseSd * MAVERICK_NOISE
+    : RESOLUTION_WEIGHTS.noiseSd;
+  const noise = rng.noise(spread, RESOLUTION_WEIGHTS.noiseClampSd);
   const finalValue =
     definition.baseValue + terms.reduce((total, term) => total + term.value, 0) + noise;
 

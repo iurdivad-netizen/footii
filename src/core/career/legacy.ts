@@ -2,6 +2,8 @@ import type { CareerState } from './career.ts';
 import type { Team } from '../team/team.ts';
 import type { Position } from '../player/positions.ts';
 import type { Honour, HonourKind } from './awards.ts';
+import type { TraitId } from '../player/traits.ts';
+import type { Moment } from './moments.ts';
 import { summariseHonours } from './awards.ts';
 import type { Milestone } from './records.ts';
 import { averageOf, lifetimeTotals, milestones } from './records.ts';
@@ -125,6 +127,19 @@ export interface LegacyDetail {
    * first and rebuilding it at render time would be work for no gain.
    */
   honours: Honour[];
+  /**
+   * What he was known for by the end. Empty for a career that became nothing in
+   * particular, and for every career enshrined before traits existed.
+   */
+  traits: TraitId[];
+  /**
+   * The moments the career kept, oldest first.
+   *
+   * Resolved and finished like everything else here — the text was written when
+   * it happened, so a wall entry read five seasons later still says what it
+   * said at the time rather than reconstructing it from a world that has moved.
+   */
+  moments: Moment[];
 }
 
 /**
@@ -506,6 +521,8 @@ function detailOf(
       free: move.free,
     })),
     records: milestones(state.records),
+    traits: [...(state.player.traits ?? [])],
+    moments: [...(state.moments ?? [])],
     // Copied rather than referenced: the career this came from is about to be
     // deleted, and a legacy holding a live array would be holding a corpse.
     honours: honours.map((honour) => ({ ...honour })),

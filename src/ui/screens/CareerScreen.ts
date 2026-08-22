@@ -1,6 +1,7 @@
 import { ATTRIBUTE_LABELS } from '../../core/player/attributes.ts';
 import { requestStands } from '../../core/career/transferRequest.ts';
 import { CONFIDENCE_NEUTRAL, confidenceTier } from '../../core/career/confidence.ts';
+import { TRAITS } from '../../core/player/traits.ts';
 import type { WeekChoice } from '../../core/career/week.ts';
 import { WEEK_DESCRIPTIONS, WEEK_LABELS } from '../../core/career/week.ts';
 import type { WeekAhead } from '../../simulation/CareerService.ts';
@@ -248,6 +249,7 @@ export class CareerScreen {
 
       ${this.renderLoan()}
       ${this.renderLastResult()}
+      ${this.renderMoments()}
       ${this.renderDevelopment()}
 
       <div class="career-grid">
@@ -345,6 +347,7 @@ export class CareerScreen {
           ${this.renderWatchers()}
         </div>
 
+        ${this.renderTraits()}
         ${this.renderContract()}
         ${this.renderCups()}
         ${this.renderEurope()}
@@ -533,6 +536,54 @@ export class CareerScreen {
    * season, so a run of goals reads as going somewhere long before the window
    * opens. Without it, an offer in the summer would arrive from nowhere.
    */
+  /**
+   * What was worth remarking on about the last match.
+   *
+   * Above the development report and below the score, which is where it belongs
+   * chronologically: this is the part of the match somebody would tell you
+   * about. Absent entirely on an ordinary afternoon, which is most of them —
+   * a strip that appeared every week would train the eye to skip the one week
+   * it said something.
+   */
+  private renderMoments(): string {
+    const moments = this.state.lastMoments ?? [];
+    if (moments.length === 0) return '';
+    const lines = moments
+      .map(
+        (moment) =>
+          `<li class="moment moment-${moment.kind}">${moment.text}</li>`,
+      )
+      .join('');
+    return `<div class="moments-banner"><ul>${lines}</ul></div>`;
+  }
+
+  /**
+   * What he is known for.
+   *
+   * The description rather than the mechanic, because the mechanic is supposed
+   * to be felt in the match rather than read on the hub — and because a list of
+   * modifiers would turn a record of the career into a character sheet.
+   */
+  private renderTraits(): string {
+    const traits = this.state.player.traits ?? [];
+    if (traits.length === 0) return '';
+    const items = traits
+      .map((id) => {
+        const trait = TRAITS[id];
+        if (!trait) return '';
+        return `<li>
+          <span class="trait-name">${trait.label}${trait.doubleEdged ? ' <em>cuts both ways</em>' : ''}</span>
+          <span class="trait-note">${trait.description}</span>
+        </li>`;
+      })
+      .join('');
+    return `
+      <div class="career-card">
+        <h2>Known for</h2>
+        <ul class="trait-list">${items}</ul>
+      </div>`;
+  }
+
   /**
    * The week before the next fixture.
    *

@@ -26,7 +26,7 @@ import { groupFixtureFor } from './groupStage.ts';
 import type { CareerRecords } from './records.ts';
 import type { Coefficients } from './coefficients.ts';
 import type { NationStrengths } from './nationDrift.ts';
-import { breakStreaks, recordMatch as recordMatchInBook } from './records.ts';
+import { breakStreaks, lifetimeTotals, recordMatch as recordMatchInBook } from './records.ts';
 import { advanceInjury, rollInjury } from './injury.ts';
 import type { Injury } from './injury.ts';
 import type { Rival } from './squad.ts';
@@ -47,6 +47,10 @@ import {
   moraleShift,
   startingConfidence,
 } from './confidence.ts';
+import type { Moment } from './moments.ts';
+import { momentsFrom, rememberMoments } from './moments.ts';
+import { STREAKY_FORM, hasTrait, newTraits } from '../player/traits.ts';
+import type { TraitEvidence } from '../player/traits.ts';
 import type { WeekPlan } from './week.ts';
 import { planApplies } from './week.ts';
 import type { SuperCupTie } from './superCup.ts';
@@ -289,6 +293,21 @@ export interface CareerState {
    * the club just promised. See core/career/confidence.ts.
    */
   confidence: number;
+  /**
+   * The moments this career is made of, oldest first.
+   *
+   * Capped, and the oldest go when it fills — see `MOMENT_LIMIT`. The wrong way
+   * round for a diary and the right way round for a save.
+   */
+  moments: Moment[];
+  /**
+   * The moments from the most recent match, for the hub to report.
+   *
+   * Held separately for the same reason `lastDevelopment` is: the hub shows
+   * what just happened, and searching the whole list for "anything from this
+   * match" would mean the list having to remember which ones it had shown.
+   */
+  lastMoments: Moment[];
   /**
    * How the week before the next match is being spent, or null.
    *
@@ -780,6 +799,15 @@ export interface MatchOutcomeInput {
   /** The calendar slot it was played in, so the season advances past it. */
   slotIndex: number;
   /**
+   * Who it was against, and whether they used to pay his wages.
+   *
+   * Only the moments read these, and they are handed in rather than looked up
+   * because `core` has no club registry — the service knows the name and knows
+   * where he has played, and this file knows neither.
+   */
+  opponentName?: string;
+  againstOldClub?: boolean;
+  /**
    * How much the match mattered to the club, 0-1. See `matchImportance`.
    *
    * Read only by the manager's confidence, which weights a performance by where
@@ -798,6 +826,72 @@ export interface MatchOutcomeInput {
    * would credit a career with football it never sat through.
    */
   pace: string | null;
+}
+
+/**
+ * A copy of the record book, deep enough for the moments to compare against.
+ *
+ * `momentsFrom` reads the book from both sides of a match, so it needs the
+ * BEFORE to survive `recordMatch` mutating the after. Only the parts the
+ * moments actually read are copied deeply — the per-competition totals, which
+ * are the objects `recordMatch` reaches into — because a structured clone of
+ * the whole book on every match would be a lot of garbage for two comparisons.
+ */
+function snapshotRecords(records: CareerRecords): CareerRecords {
+  const byCompetition: CareerRecords['byCompetition'] = {};
+  for (const [kind, totals] of Object.entries(records.byCompetition)) {
+    if (totals) byCompetition[kind as CompetitionKind] = { ...totals };
+  }
+  return {
+    ...records,
+    hauls: { ...records.hauls },
+    ratings: { ...records.ratings },
+    scoringStreak: { ...records.scoringStreak },
+    unbeatenStreak: { ...records.unbeatenStreak },
+    byCompetition,
+  };
+}
+
+/**
+ * What this career has done, as the trait conditions need to see it.
+ *
+ * Assembled here rather than in `core/player` because everything it reads lives
+ * on the career, and because the direction of the dependency matters: a player
+ * knows nothing about seasons or European nights, and should not start to.
+ *
+ * The big-match figures are European and international football together. Both
+ * are the matches a season is judged on, neither happens weekly, and a player
+ * who has fifteen of them between the two has been playing at that level for
+ * long enough that it is a fact about him.
+ */
+export function traitEvidence(state: CareerState): TraitEvidence {
+  const totals = lifetimeTotals(state.records);
+  let bigMatches = 0;
+  let bigRatingTotal = 0;
+  for (const [kind, entry] of Object.entries(state.records.byCompetition)) {
+    if (!entry) continue;
+    const competition = kind as CompetitionKind;
+    if (!isEuropean(competition) && !isInternational(competition)) continue;
+    bigMatches += entry.matches;
+    bigRatingTotal += entry.ratingTotal;
+  }
+
+  return {
+    appearances: totals.matches,
+    goals: totals.goals,
+    assists: totals.assists,
+    averageRating: totals.matches > 0 ? totals.ratingTotal / totals.matches : 0,
+    nineOrBetter: state.records.ratings.nineOrBetter,
+    perfectRatings: state.records.ratings.perfect,
+    hatTricks: state.records.hauls.hatTricks,
+    longestScoringRun: state.records.scoringStreak.longest,
+    // Completed seasons, so the season in progress does not count as one he has
+    // been available for the whole of.
+    seasons: state.history.length,
+    bigMatches,
+    bigMatchAverage: bigMatches > 0 ? bigRatingTotal / bigMatches : 0,
+    age: state.player.age,
+  };
 }
 
 /** Fold one match into a running set of statistics. */
@@ -870,6 +964,12 @@ export function applyMatchToCareer(
 
   // The record book takes every match in every competition: a hat-trick is a
   // hat-trick whether it came in the league or a European quarter-final.
+  //
+  // Snapshotted first, because the moments below are decided by comparing the
+  // book on both sides of this match. That is what lets a hundredth appearance
+  // announce itself exactly once without anybody keeping a list of what has
+  // already been mentioned.
+  const bookBefore = snapshotRecords(state.records);
   recordMatchInBook(state.records, {
     competition: input.competition,
     goals: stats.goals,
@@ -878,10 +978,37 @@ export function applyMatchToCareer(
     result,
   });
 
+  // What he has become, if this match made him something. Read AFTER the record
+  // book and before the moments, because becoming something is itself a moment.
+  const earned = newTraits(state.player.traits, traitEvidence(state));
+  if (earned.length > 0) {
+    state.player.traits = [...(state.player.traits ?? []), ...earned];
+  }
+
+  state.lastMoments = momentsFrom({
+    records: state.records,
+    before: bookBefore,
+    competition: input.competition,
+    goals: stats.goals,
+    assists: stats.assists,
+    rating,
+    season: state.seasonNumber,
+    opponentName: input.opponentName ?? 'them',
+    againstOldClub: !!input.againstOldClub,
+    traits: earned,
+  });
+  state.moments = rememberMoments(state.moments ?? [], state.lastMoments);
+
   // Form is a moving average of recent ratings, expressed on the 0-100 scale
-  // the timer and resolver expect. It moves quickly but not instantly.
+  // the timer and resolver expect. It moves quickly but not instantly — unless
+  // he is the sort of footballer it does not, which is what `streaky` means and
+  // the reason that trait cuts both ways.
   const ratingAsForm = clamp((rating - 4) * 16.5, 0, 100);
-  state.player.form = round(state.player.form * 0.65 + ratingAsForm * 0.35, 1);
+  const formWeight = hasTrait(state.player.traits, 'streaky') ? STREAKY_FORM : 0.35;
+  state.player.form = round(
+    state.player.form * (1 - formWeight) + ratingAsForm * formWeight,
+    1,
+  );
 
   // The manager's view of him moves on the performance rather than the result,
   // and by how much the match mattered. Before morale, because morale now reads
@@ -951,6 +1078,7 @@ export function applyMatchToCareer(
       minutes: stats.minutes,
       age: state.player.age,
       stamina: state.player.attributes.stamina,
+      traits: state.player.traits,
     },
     state.seasonNumber,
   );

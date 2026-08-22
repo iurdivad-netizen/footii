@@ -54,12 +54,33 @@ import { INTERNATIONAL } from '../src/core/career/international.ts';
 import { countryOfNation, nationId } from '../src/core/career/nations.ts';
 import { isExpired } from '../src/core/career/contracts.ts';
 import { injuryRisk } from '../src/core/career/injury.ts';
+import { TRAITS, TRAIT_IDS } from '../src/core/player/traits.ts';
+import type { TraitId } from '../src/core/player/traits.ts';
+import { lifetimeTotals } from '../src/core/career/records.ts';
+import { traitEvidence } from '../src/core/career/career.ts';
+import type { TraitEvidence } from '../src/core/player/traits.ts';
+import { careerScore, honourPoints } from '../src/core/career/legacy.ts';
 import { planWeek } from '../src/simulation/CareerService.ts';
 
 /** Which week choice the probe makes, if any. Third CLI argument. */
 const WEEK = process.argv[4] as 'rest' | 'train' | 'study' | 'push' | undefined;
 
 const lookup = (id: string) => getTeam(id);
+
+/** One finished career, for the trait and power-creep report. */
+interface CareerSample {
+  traits: TraitId[];
+  appearances: number;
+  goals: number;
+  assists: number;
+  averageRating: number;
+  score: number;
+  moments: number;
+}
+
+const careerSamples: CareerSample[] = [];
+const evidenceSamples: TraitEvidence[] = [];
+const perfectSamples: number[] = [];
 
 interface SeasonSample {
   season: number;
@@ -79,15 +100,25 @@ const perMatchRisk: number[] = [];
 const startByStage: number[][] = [[], [], [], [], []];
 const riskByStage: number[][] = [[], [], [], [], []];
 
+/**
+ * How good the probe career is allowed to become.
+ *
+ * Fifth CLI argument. It matters more than it looks: auto-play scores 1.0 goals
+ * a match at ability 55 and 2.9 at ability 85, so the same thresholds look
+ * trivial to one career and out of reach to another. Anything calibrated on one
+ * profile alone is calibrated on nothing.
+ */
+const POTENTIAL = Number(process.argv[5] ?? 86);
+
 function prospect(age: number): Player {
   return createPlayer({
     name: 'Probe',
     position: 'ST',
     age,
     experience: 12,
-    baseAttribute: 58,
+    baseAttribute: Math.min(58, POTENTIAL - 4),
     reputation: 34,
-    potentialAbility: 86,
+    potentialAbility: POTENTIAL,
     attributes: { finishing: 66, stamina: 60, awareness: 50, composure: 48, decisionMaking: 46 },
   });
 }
@@ -203,6 +234,29 @@ function playCareer(seed: string, seasons: number): SeasonSample[] {
     else if (canStay(state)) stayAtClub(state);
     else if (isExpired(state.contract)) break;
   }
+
+  const evidence = traitEvidence(state);
+  evidenceSamples.push(evidence);
+  const totals = lifetimeTotals(state.records);
+  careerSamples.push({
+    traits: [...(state.player.traits ?? [])],
+    appearances: totals.matches,
+    goals: totals.goals,
+    assists: totals.assists,
+    averageRating: totals.matches > 0 ? totals.ratingTotal / totals.matches : 0,
+    score: careerScore({
+      goals: totals.goals,
+      assists: totals.assists,
+      appearances: totals.matches,
+      averageRating: totals.matches > 0 ? totals.ratingTotal / totals.matches : 0,
+      caps: state.records.byCompetition.international?.matches ?? 0,
+      seasons: state.history.length,
+      honours: [],
+      honourPoints: honourPoints(state.honours),
+    }),
+    moments: state.moments.length,
+  });
+  perfectSamples.push(state.records.ratings.perfect);
   return samples;
 }
 
@@ -283,6 +337,52 @@ for (const n of [0, 1, 2, 3, 4, 5]) {
   const rows = all.filter((s) => (n === 5 ? s.injuries >= 5 : s.injuries === n));
   console.log(`${n === 5 ? '5+' : n} injuries: ${((rows.length / all.length) * 100).toFixed(0)}%`);
 }
+console.log('');
+console.log('--- traits earned per finished career ---');
+const traitCounts = careerSamples.map((c) => c.traits.length);
+console.log(`mean ${mean(traitCounts).toFixed(2)} · min ${Math.min(...traitCounts)} · max ${Math.max(...traitCounts)}`);
+for (const id of TRAIT_IDS) {
+  const held = careerSamples.filter((c) => c.traits.includes(id)).length;
+  console.log(
+    `${TRAITS[id].label.padEnd(18)}: ${((held / careerSamples.length) * 100).toFixed(0)}% of careers`,
+  );
+}
+console.log('');
+console.log('--- the evidence traits are judged on ---');
+const ev = (pick: (e: TraitEvidence) => number) => evidenceSamples.map(pick);
+const line = (label: string, pick: (e: TraitEvidence) => number, dp = 2) => {
+  const xs = ev(pick);
+  console.log(
+    `${label.padEnd(20)}: mean ${mean(xs).toFixed(dp)} · p10 ${pct(xs, 0.1).toFixed(dp)}` +
+      ` · p50 ${pct(xs, 0.5).toFixed(dp)} · p90 ${pct(xs, 0.9).toFixed(dp)}`,
+  );
+};
+line('appearances', (e) => e.appearances, 0);
+line('assists', (e) => e.assists, 0);
+line('average rating', (e) => e.averageRating, 2);
+line('perfect tens', (e) => e.perfectRatings, 1);
+line('nine-or-better', (e) => e.nineOrBetter, 0);
+line('nines per 100 apps', (e) => (e.appearances ? (e.nineOrBetter / e.appearances) * 100 : 0), 1);
+line('hat-tricks', (e) => e.hatTricks, 0);
+line('hat-tricks per 100', (e) => (e.appearances ? (e.hatTricks / e.appearances) * 100 : 0), 1);
+line('longest scoring run', (e) => e.longestScoringRun, 1);
+line('big matches', (e) => e.bigMatches, 0);
+line('big-match average', (e) => e.bigMatchAverage, 2);
+line('apps per season', (e) => (e.seasons ? e.appearances / e.seasons : 0), 1);
+console.log(
+  `${'perfect tens'.padEnd(20)}: mean ${mean(perfectSamples).toFixed(2)} · p10 ${pct(perfectSamples, 0.1)} · p50 ${pct(perfectSamples, 0.5)} · p90 ${pct(perfectSamples, 0.9)}`,
+);
+
+console.log('');
+console.log('--- career outcome (power creep watch) ---');
+console.log(
+  `appearances ${mean(careerSamples.map((c) => c.appearances)).toFixed(0)}` +
+    ` · goals ${mean(careerSamples.map((c) => c.goals)).toFixed(0)}` +
+    ` · assists ${mean(careerSamples.map((c) => c.assists)).toFixed(0)}` +
+    ` · avg rating ${mean(careerSamples.map((c) => c.averageRating)).toFixed(3)}` +
+    ` · score ${mean(careerSamples.map((c) => c.score)).toFixed(0)}`,
+);
+console.log(`moments kept per career: ${mean(careerSamples.map((c) => c.moments)).toFixed(1)}`);
 console.log('');
 console.log('--- severity mix ---');
 const severities = all.flatMap((s) => s.severities);

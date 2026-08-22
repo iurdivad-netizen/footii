@@ -4,6 +4,7 @@ import { createAttributes } from './attributes.ts';
 import type { Position } from './positions.ts';
 import type { Tendencies } from './tendencies.ts';
 import { createTendencies } from './tendencies.ts';
+import type { TraitId } from './traits.ts';
 
 /**
  * The player the human controls.
@@ -44,6 +45,16 @@ export interface Player {
    */
   caps: number;
   /**
+   * What he has become known for, oldest first.
+   *
+   * Earned from the record book rather than chosen, and never taken back. Lives
+   * on the PLAYER rather than the career because it is a fact about the
+   * footballer, and because putting it here means every `fit` and `execution`
+   * in the action catalogue can already see it — `SituationContext` carries the
+   * whole player. See core/player/traits.ts.
+   */
+  traits: TraitId[];
+  /**
    * The country he plays for, as a country id.
    *
    * Distinct from the country he plays IN: a move abroad changes his league,
@@ -68,6 +79,7 @@ export function clonePlayer(player: Player): Player {
     ...player,
     attributes: { ...player.attributes },
     tendencies: { ...player.tendencies },
+    traits: [...(player.traits ?? [])],
   };
 }
 
@@ -85,6 +97,7 @@ export interface PlayerInit {
   reputation?: number;
   potentialAbility?: number;
   caps?: number;
+  traits?: TraitId[];
   nationality?: string;
   baseAttribute?: number;
 }
@@ -104,6 +117,8 @@ export function createPlayer(init: PlayerInit): Player {
     reputation: init.reputation ?? 40,
     potentialAbility: init.potentialAbility ?? 70,
     caps: init.caps ?? 0,
+    // Nobody starts as anything. Every trait in the game is earned by playing.
+    traits: init.traits ? [...init.traits] : [],
     nationality: init.nationality ?? 'england',
   };
 }

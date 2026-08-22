@@ -1,4 +1,6 @@
 import type { CareerLegacy, LegacyDetail } from '../../core/career/legacy.ts';
+import { TRAITS } from '../../core/player/traits.ts';
+import { MOMENT_LIMIT } from '../../core/career/moments.ts';
 import { renderSeasonHonours } from './CareerScreen.ts';
 
 /**
@@ -170,10 +172,76 @@ function figure(value: number | string, label: string): string {
  */
 export function renderCareerRecord(legacy: CareerLegacy, detail: LegacyDetail): string {
   return `
+    ${renderTraits(detail)}
     <div class="career-end-columns">
       ${renderHonours(legacy.honours)}
       ${renderRecords(detail)}
     </div>
+    ${renderMoments(detail)}
     ${renderHistory(detail)}
     ${renderJourney(legacy, detail)}`;
+}
+
+/**
+ * What he was known for, at the top of the record.
+ *
+ * Above the honours, deliberately. What a footballer WAS is a different
+ * question from what he won, and for most careers it is the one with an answer:
+ * the honours list is empty for the majority of them and this rarely is.
+ *
+ * Absent for a career enshrined before traits existed, which is a gap rather
+ * than a statement — those careers earned things nobody was writing down. The
+ * screen says nothing rather than claiming he was nothing.
+ */
+export function renderTraits(detail: LegacyDetail): string {
+  const traits = detail.traits ?? [];
+  if (traits.length === 0) return '';
+  const items = traits
+    .map((id) => TRAITS[id])
+    .filter(Boolean)
+    .map(
+      (trait) =>
+        `<li><span class="trait-name">${trait.label}</span>
+         <span class="trait-note">${trait.description}</span></li>`,
+    )
+    .join('');
+  if (!items) return '';
+  return `
+    <div class="career-card">
+      <h2>What he was known for</h2>
+      <ul class="trait-list trait-list-wide">${items}</ul>
+    </div>`;
+}
+
+/**
+ * The career in its own words, oldest first.
+ *
+ * The one part of this screen that is prose rather than a table, and the reason
+ * moments exist at all: a career you can only read as a grid of numbers is a
+ * spreadsheet with a footballer's name on it.
+ *
+ * Only the last `MOMENT_LIMIT` survive a long career — the oldest go first,
+ * which is the wrong way round for a diary and the right way round for a save.
+ * Said plainly rather than hidden, because a diary that silently began in
+ * season six would look like a bug.
+ */
+export function renderMoments(detail: LegacyDetail): string {
+  const moments = detail.moments ?? [];
+  if (moments.length === 0) return '';
+  const items = moments
+    .map(
+      (moment) =>
+        `<li><span class="moment-season">S${moment.season}</span> ${moment.text}</li>`,
+    )
+    .join('');
+  const trimmed =
+    moments.length >= MOMENT_LIMIT
+      ? `<p class="hint">Only the most recent ${MOMENT_LIMIT} are kept. The earliest have gone.</p>`
+      : '';
+  return `
+    <div class="career-card">
+      <h2>The moments</h2>
+      ${trimmed}
+      <ul class="moment-log">${items}</ul>
+    </div>`;
 }

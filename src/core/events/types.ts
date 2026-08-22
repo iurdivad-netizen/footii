@@ -188,6 +188,15 @@ export interface SituationContext {
   /** True if this is a fast transition (counterattack). */
   transition: boolean;
   minute: number;
+  /**
+   * How much the match matters, 0-1. See `matchImportance`.
+   *
+   * Optional, and a league match's own weight when absent: a quick match has no
+   * competition to matter in, and every caller written before a trait cared
+   * about the occasion was playing league football as far as this is concerned.
+   * Read by `bigGame` — see core/player/traits.ts.
+   */
+  importance?: number;
 }
 
 export type OutcomeKind =
