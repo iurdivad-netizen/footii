@@ -224,6 +224,124 @@ describe('summarising a career', () => {
   });
 });
 
+describe('the career a legacy keeps in full', () => {
+  /** A career with enough history, moves and honours to be worth reading. */
+  function played(): CareerState {
+    const state = career();
+    play(state, 40, { goals: 1, rating: 7.2 });
+    state.history.push(
+      season(1, { matches: 30, goals: 8, ratingTotal: 30 * 6.8 }),
+      season(2, { matches: 32, goals: 14, ratingTotal: 32 * 7.3 }, { clubId: 'castleford-royals' }),
+    );
+    state.honours.push(
+      { ...honour('title', 'English champions'), season: 2, clubId: 'castleford-royals' },
+      { ...honour('nationalCup', 'English Cup'), season: 2, clubId: 'castleford-royals' },
+    );
+    state.transfers.push({
+      season: 1,
+      fromClubId: 'northport-city',
+      toClubId: 'castleford-royals',
+      fee: 24.5,
+      wage: 60,
+      years: 4,
+      role: 'starter',
+      age: 22,
+      free: false,
+      fromCountryId: 'england',
+      toCountryId: 'england',
+    });
+    return state;
+  }
+
+  it('keeps every season, with the names already resolved', () => {
+    const detail = summariseCareer(played(), getTeam, 'retired').detail!;
+
+    expect(detail.seasons).toHaveLength(2);
+    expect(detail.seasons[0]!.clubName).toBe(getTeam('northport-city').name);
+    expect(detail.seasons[1]!.clubName).toBe(getTeam('castleford-royals').name);
+    expect(detail.seasons[1]!.goals).toBe(14);
+    expect(detail.seasons[1]!.rating).toBeCloseTo(7.3, 1);
+  });
+
+  it('resolves a club that no longer exists rather than losing the season', () => {
+    // The rule the whole legacy is built on: a history must survive the world
+    // it was played in being changed underneath it.
+    const state = played();
+    state.history.push(season(3, { matches: 10, goals: 1, ratingTotal: 65 }, { clubId: 'gone' }));
+    const detail = summariseCareer(state, getTeam, 'retired').detail!;
+
+    expect(detail.seasons).toHaveLength(3);
+    expect(detail.seasons[2]!.clubName).toBe('gone');
+  });
+
+  it('keeps every move, both clubs named', () => {
+    const detail = summariseCareer(played(), getTeam, 'retired').detail!;
+
+    expect(detail.moves).toHaveLength(1);
+    expect(detail.moves[0]!.fromClubName).toBe(getTeam('northport-city').name);
+    expect(detail.moves[0]!.toClubName).toBe(getTeam('castleford-royals').name);
+    expect(detail.moves[0]!.fee).toBe(24.5);
+  });
+
+  it('keeps the honours with their seasons, which the grouped list cannot', () => {
+    const legacyOf = summariseCareer(played(), getTeam, 'retired');
+
+    // The card's list has lost the season; the detail's has not, which is what
+    // lets the history table badge the right row.
+    expect(legacyOf.honours.every((entry) => !('season' in entry))).toBe(true);
+    expect(legacyOf.detail!.honours.every((entry) => entry.season === 2)).toBe(true);
+  });
+
+  it('copies the honours rather than holding the career\'s own array', () => {
+    // The career this came from is about to be deleted; a legacy referencing a
+    // live array would be holding a corpse.
+    const state = played();
+    const detail = summariseCareer(state, getTeam, 'retired').detail!;
+    state.honours.length = 0;
+
+    expect(detail.honours).toHaveLength(2);
+  });
+
+  it('keeps the whole record book, not just the four the card shows', () => {
+    const legacyOf = summariseCareer(played(), getTeam, 'retired');
+    expect(legacyOf.detail!.records.length).toBeGreaterThanOrEqual(legacyOf.highlights.length);
+    expect(legacyOf.highlights.length).toBeLessThanOrEqual(4);
+  });
+
+  it('stays small enough that a full wall is not a storage problem', () => {
+    // The one real cost of keeping a detail. A wall holds twenty careers, and
+    // the whole save has to fit in localStorage beside a live one — so the size
+    // of the longest career anybody can play is worth pinning down rather than
+    // assuming.
+    const state = career();
+    play(state, 700, { goals: 1, assists: 1, rating: 7.5 });
+    for (let i = 1; i <= 20; i += 1) {
+      state.history.push(season(i, { matches: 38, goals: 20, ratingTotal: 38 * 7.4 }));
+      state.honours.push({ ...honour('title', 'English champions'), season: i });
+      state.honours.push({ ...honour('nationalCup', 'English Cup'), season: i });
+      state.transfers.push({
+        season: i,
+        fromClubId: 'northport-city',
+        toClubId: 'castleford-royals',
+        fee: 30,
+        wage: 90,
+        years: 3,
+        role: 'star',
+        age: 18 + i,
+        free: false,
+        fromCountryId: 'england',
+        toCountryId: 'england',
+      });
+    }
+
+    const bytes = JSON.stringify(summariseCareer(state, getTeam, 'retired')).length;
+    // A twenty-season career that won something every year and moved every
+    // summer — comfortably longer than the game allows — under 16KB, so a full
+    // wall of them is a few hundred KB against a multi-megabyte quota.
+    expect(bytes).toBeLessThan(16_000);
+  });
+});
+
 describe('what a career is worth', () => {
   it('puts a winner above a journeyman who played twice as long', () => {
     const winner = careerScore({

@@ -5,6 +5,7 @@ import type { Honour, HonourKind } from './awards.ts';
 import { summariseHonours } from './awards.ts';
 import type { Milestone } from './records.ts';
 import { averageOf, lifetimeTotals, milestones } from './records.ts';
+import { averageRating } from './seasonStats.ts';
 import { currentAbility } from '../player/player.ts';
 import { countryPrestige, getCountry } from './countries.ts';
 import { INTERNATIONAL } from './international.ts';
@@ -44,6 +45,87 @@ import { round } from '../util/math.ts';
 
 /** How a career came to an end. */
 export type CareerEnding = 'retired' | 'abandoned';
+
+/**
+ * One season of a finished career, with its names already resolved.
+ *
+ * A flattened `SeasonRecord`, and flattened deliberately. The live record keeps
+ * club and country as IDS because a live career must read them fresh — the club
+ * drifts, gets promoted, is renamed by a later data file. A finished career is
+ * the opposite case, and the rule the whole legacy is built on applies here
+ * exactly as it does to the final club: store the name it was played under, so
+ * a history cannot be made unreadable by a change to the world it happened in.
+ */
+export interface LegacySeason {
+  seasonNumber: number;
+  clubName: string;
+  countryShort: string;
+  age: number;
+  /** Final league position. */
+  position: number;
+  matches: number;
+  goals: number;
+  assists: number;
+  /** Already averaged, because nothing will ever be added to it again. */
+  rating: number;
+}
+
+/** One move, with both clubs resolved for the same reason. */
+export interface LegacyMove {
+  season: number;
+  age: number;
+  fromClubName: string;
+  toClubName: string;
+  /** In millions. Zero on a free. */
+  fee: number;
+  free: boolean;
+}
+
+/**
+ * Everything a finished career kept beyond its own summary.
+ *
+ * This is the part `summariseCareer`'s header note said a legacy would not
+ * hold, and the note is worth re-reading rather than quietly contradicting.
+ * What it argued against was keeping the whole `CareerState`: a live, deeply
+ * nested, versioned thing, every future migration of which would have to
+ * migrate careers nobody is playing any more.
+ *
+ * None of that applies to this. A detail is FLAT, FINISHED and RESOLVED — plain
+ * rows of numbers and names, nothing that refers to a club by id, nothing that
+ * can go stale, and nothing any future migration will ever have to touch,
+ * because nothing will ever be added to it. It is a printed page rather than a
+ * copy of the machinery that produced one.
+ *
+ * WHY IT EXISTS. The end screen showed a career in full — every season, every
+ * move, the whole record book — and then threw all of it away and kept the
+ * card. So the most complete view of a career was available exactly once, in
+ * the moment you were deciding to end it, and never again. The wall could rank
+ * a career it could no longer show you.
+ *
+ * OPTIONAL, AND STAYS OPTIONAL. Careers already on the wall were enshrined by a
+ * version that kept none of this, and nothing can reconstruct it: the state it
+ * would have come from was deleted when the career ended. An entry without a
+ * detail is therefore not a damaged entry, it is an older one, and the screen
+ * says so rather than rendering empty tables.
+ */
+export interface LegacyDetail {
+  /** Every completed season, oldest first. */
+  seasons: LegacySeason[];
+  /** Every move, oldest first. */
+  moves: LegacyMove[];
+  /** The record book in full, rather than the four the card shows. */
+  records: Milestone[];
+  /**
+   * Every honour, with the season it was won in.
+   *
+   * The raw list rather than the grouped one on the legacy itself, because the
+   * two answer different questions: the cabinet asks "what did he win", and the
+   * history table asks "what did he win THAT year". The grouped list is
+   * derivable from this one; it is kept as its own field because it was there
+   * first and rebuilding it at render time would be work for no gain.
+   */
+  honours: Honour[];
+}
 
 /**
  * One finished career, as the wall of fame remembers it.
@@ -94,6 +176,12 @@ export interface CareerLegacy {
   score: number;
   /** One line on what kind of footballer this was. */
   verdict: string;
+  /**
+   * The whole career, for the screen that shows one in full.
+   *
+   * Absent on entries enshrined before this was kept. See `LegacyDetail`.
+   */
+  detail?: LegacyDetail;
 }
 
 /**
@@ -379,7 +467,49 @@ export function summariseCareer(
   const verdict = careerVerdict(legacy);
   const score = careerScore({ ...legacy, honourPoints: honourPoints(honours) });
 
-  return { ...legacy, verdict, score };
+  return { ...legacy, verdict, score, detail: detailOf(state, lookup, honours) };
+}
+
+/**
+ * The whole career, flattened and resolved, for the screen that shows one.
+ *
+ * Every name is resolved HERE, at the one moment the world is still known,
+ * rather than at render time. That is the entire design: a wall entry read five
+ * data files later must show the career that was actually played, not a table
+ * of dashes where the clubs used to be.
+ */
+function detailOf(
+  state: CareerState,
+  lookup: (id: string) => Team,
+  honours: readonly Honour[],
+): LegacyDetail {
+  return {
+    seasons: state.history.map((season) => ({
+      seasonNumber: season.seasonNumber,
+      clubName: safeClubName(season.clubId, lookup),
+      countryShort: getCountry(season.countryId ?? state.countryId).short,
+      age: season.age,
+      position: season.position,
+      matches: season.stats.matches,
+      goals: season.stats.goals,
+      assists: season.stats.assists,
+      // Averaged now rather than kept as a running total, because a finished
+      // season will never have another match folded into it.
+      rating: round(averageRating(season.stats), 2),
+    })),
+    moves: (state.transfers ?? []).map((move) => ({
+      season: move.season,
+      age: move.age,
+      fromClubName: safeClubName(move.fromClubId, lookup),
+      toClubName: safeClubName(move.toClubId, lookup),
+      fee: move.fee,
+      free: move.free,
+    })),
+    records: milestones(state.records),
+    // Copied rather than referenced: the career this came from is about to be
+    // deleted, and a legacy holding a live array would be holding a corpse.
+    honours: honours.map((honour) => ({ ...honour })),
+  };
 }
 
 /**
