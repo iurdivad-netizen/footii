@@ -1,6 +1,7 @@
 import type { CareerLegacy } from '../../core/career/legacy.ts';
 import { rankLegacies } from '../../core/career/legacy.ts';
 import { positionLabel } from '../../core/player/positions.ts';
+import { describeHowPlayed } from '../../core/career/howPlayed.ts';
 
 /**
  * THE WALL OF FAME
@@ -150,6 +151,7 @@ function card(entry: CareerLegacy, rank: number, isNew: boolean): string {
           </div>
 
           <p class="hall-verdict">${entry.verdict}</p>
+          ${howPlayedTag(entry)}
 
           <div class="hall-figures">
             <span><strong>${entry.appearances}</strong> apps</span>
@@ -170,6 +172,25 @@ function card(entry: CareerLegacy, rank: number, isNew: boolean): string {
         <button class="ghost small" data-remove="${entry.id}">Remove</button>
       </div>
     </article>`;
+}
+
+/**
+ * How much of the career the person at the keyboard actually sat through.
+ *
+ * A tag beside the verdict rather than an adjustment to the score above it. The
+ * two answer different questions — how good the career was, and how much of it
+ * was played — and the whole point of settling CHANGELOG item 11 this way is
+ * that neither has to be converted into the other. See core/career/howPlayed.ts.
+ *
+ * Shown only when the counts are trustworthy. An entry from before anybody was
+ * counting gets no tag at all: a wall that quietly labelled those "simulated"
+ * would be making an accusation out of a missing field.
+ */
+function howPlayedTag(entry: CareerLegacy): string {
+  const summary = describeHowPlayed(entry.howPlayed, entry.appearances);
+  if (!summary.reliable) return '';
+  const played = Math.round((summary.playedShare ?? 0) * 100);
+  return `<p class="hall-how-played" title="${summary.detail}">${summary.label} · ${played}% played</p>`;
 }
 
 function ordinal(n: number): string {

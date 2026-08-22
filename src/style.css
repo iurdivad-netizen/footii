@@ -3615,6 +3615,31 @@ button.ghost.danger {
 }
 
 /*
+ * How much of a career was actually played.
+ *
+ * Beside the score rather than folded into it, and that separation is the whole
+ * design: the score says how good the career was, this says how much of it the
+ * person at the keyboard sat through, and neither is an answer to the other.
+ * Quiet on purpose — it is a fact about the career, not a judgement of it.
+ */
+.how-played-label {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  color: var(--accent);
+}
+
+.how-played-label.unrecorded {
+  color: var(--text-dim);
+}
+
+.hall-how-played {
+  margin: 4px 0 0;
+  font-size: 0.76rem;
+  color: var(--text-dim);
+  font-family: var(--mono);
+}
+
+/*
  * News about somebody else, on the season review.
  *
  * The only part of a review that is not about the player: a rival sold, a rival
