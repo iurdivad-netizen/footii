@@ -47,6 +47,7 @@ import {
   moraleShift,
   startingConfidence,
 } from './confidence.ts';
+import type { FormerRival } from './squad.ts';
 import type { Moment } from './moments.ts';
 import { momentsFrom, rememberMoments } from './moments.ts';
 import { STREAKY_FORM, hasTrait, newTraits } from '../player/traits.ts';
@@ -293,6 +294,15 @@ export interface CareerState {
    * the club just promised. See core/career/confidence.ts.
    */
   confidence: number;
+  /**
+   * Men he once competed with for a shirt, and where they went.
+   *
+   * Capped and tiny — a name and a club each. It exists for one thing: to
+   * notice when one of them lines up against him years later. That is the
+   * cheapest continuity in the game and the only part of the world outside his
+   * own club that remembers him.
+   */
+  formerRivals: FormerRival[];
   /**
    * The moments this career is made of, oldest first.
    *
@@ -807,6 +817,8 @@ export interface MatchOutcomeInput {
    */
   opponentName?: string;
   againstOldClub?: boolean;
+  /** A man he once competed with, in the opposition tonight. */
+  formerRivalName?: string | null;
   /**
    * How much the match mattered to the club, 0-1. See `matchImportance`.
    *
@@ -995,6 +1007,7 @@ export function applyMatchToCareer(
     season: state.seasonNumber,
     opponentName: input.opponentName ?? 'them',
     againstOldClub: !!input.againstOldClub,
+    formerRivalName: input.formerRivalName ?? null,
     traits: earned,
   });
   state.moments = rememberMoments(state.moments ?? [], state.lastMoments);

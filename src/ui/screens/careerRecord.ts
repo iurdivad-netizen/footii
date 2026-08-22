@@ -1,6 +1,9 @@
 import type { CareerLegacy, LegacyDetail } from '../../core/career/legacy.ts';
 import { TRAITS } from '../../core/player/traits.ts';
 import { MOMENT_LIMIT } from '../../core/career/moments.ts';
+import { describeHowPlayed } from '../../core/career/howPlayed.ts';
+import { DECISION_PACE_LABELS } from '../../simulation/DecisionTimer.ts';
+import type { DecisionPace } from '../../simulation/DecisionTimer.ts';
 import { renderSeasonHonours } from './CareerScreen.ts';
 
 /**
@@ -172,6 +175,7 @@ function figure(value: number | string, label: string): string {
  */
 export function renderCareerRecord(legacy: CareerLegacy, detail: LegacyDetail): string {
   return `
+    ${renderHowPlayed(legacy)}
     ${renderTraits(detail)}
     <div class="career-end-columns">
       ${renderHonours(legacy.honours)}
@@ -180,6 +184,48 @@ export function renderCareerRecord(legacy: CareerLegacy, detail: LegacyDetail): 
     ${renderMoments(detail)}
     ${renderHistory(detail)}
     ${renderJourney(legacy, detail)}`;
+}
+
+/**
+ * How much of this career was actually played.
+ *
+ * A statement rather than a scoring adjustment, which is the whole of the
+ * design — see core/career/howPlayed.ts. Nothing here touches the number beside
+ * it, and the two are shown together on purpose: the score says how good the
+ * career was, and this says how much of it the person at the keyboard sat
+ * through. They are different questions and neither answers the other.
+ */
+export function renderHowPlayed(legacy: CareerLegacy): string {
+  const summary = describeHowPlayed(legacy.howPlayed, legacy.appearances);
+  const pace = paceLabel(summary);
+  return `
+    <div class="career-card how-played">
+      <h2>How it was played</h2>
+      <p class="how-played-label${summary.reliable ? '' : ' unrecorded'}">${summary.label}</p>
+      <p class="hint">${summary.detail}${pace}</p>
+    </div>`;
+}
+
+/**
+ * The pace, when there is one worth naming.
+ *
+ * Resolved HERE rather than in `core`, because the pace ids belong to
+ * `simulation/` and the histogram is deliberately keyed loosely enough that a
+ * save can hold one this version has never heard of. An unrecognised id shows
+ * nothing at all — an unreadable tally is what the save was designed to keep,
+ * and printing a raw key on the wall of fame would be worse than silence.
+ */
+function paceLabel(summary: ReturnType<typeof describeHowPlayed>): string {
+  if (!summary.reliable || !summary.dominantPace) return '';
+  const label = DECISION_PACE_LABELS[summary.dominantPace as DecisionPace];
+  if (!label) return '';
+  // Only the setting name, not the "about ten seconds" half: this is a fact
+  // about the career, not an explanation of a menu.
+  const name = label.split('—')[0]!.trim();
+  const share = Math.round(summary.dominantShare * 100);
+  return share >= 95
+    ? ` All of it at ${name}.`
+    : ` Mostly at ${name} (${share}%).`;
 }
 
 /**

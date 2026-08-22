@@ -1367,6 +1367,67 @@ The decision is **seeded on the calendar slot**, so the hub gives one answer how
 is rendered. A selection that re-rolled on every redraw would be a slot machine, and a player would
 learn to reopen the screen until he was picked.
 
+### The rival's own career
+
+He used to age and nothing else. Beat him for the shirt thirty times and he was still there in
+August, a year older, waiting to be beaten again — which made the club a place where nothing that
+happened had consequences for anybody but the player.
+
+Three outcomes now, decided in the summer on the season just played:
+
+| Fate | When | What follows |
+| --- | --- | --- |
+| **Sold** | he started 3 or fewer contested matches while you started 15+ | a replacement arrives, pitched a shade **higher** than the man he follows |
+| **Retires** | he is 34 | a replacement arrives |
+| **Stays** | everything else | he ages and drifts, as he always did |
+
+**Winning the shirt buys a harder argument for it**, which is the loop: the club keeps testing you,
+and what you won last May you have to win again in August.
+
+#### The fourth outcome, and why it does not exist
+
+The obvious missing one is *the club buys somebody better when you cannot get a game.* It sounds
+realistic and it is a trap: it makes losing your place the **cause** of a harder opponent for it, so
+a bad season becomes impossible to recover from. That is the same spiral the
+[confidence drift](#it-never-digs-the-hole-deeper) and the form drift both refuse to build, refused
+here for the same reason — the way out cannot be locked behind the thing being punished.
+
+What actually happens to a footballer who cannot get a game is that **he** moves, and the game
+already models that: the market, the loan, the transfer request. A club has no need to buy while the
+man it owns is playing well. So the only fate the player can cause is the one he earns.
+
+#### Two guards that took measuring to find
+
+**Only contested starts count.** A match you missed injured is not a shirt lost — it is a shirt
+nobody was competing for — and counting it would let a torn hamstring persuade the club in June that
+it prefers the other man.
+
+**A club does not sell a man it signed twelve months ago.** Without this guard a strong career got
+through a new rival **almost every season** (9.2 over sixteen, measured), and somebody replaced that
+often stops being a person and becomes a respawning obstacle.
+
+With both, over sixteen seasons at a club you stay at:
+
+| Career | Rivals who left | Careers where nobody ever left |
+| --- | --- | --- |
+| Modest | **1.4** | 8% |
+| Middling | **2.2** | 0% |
+| Superhuman | 7.2 | 0% |
+
+There is a texture in those numbers worth noting: a modest career's rivals mostly **retire**, and a
+good career's are **sold**. Nobody wrote that rule — it falls out of the fact that only one of them
+displaces anybody.
+
+And a career that moves club every summer displaces **nobody at all**, because a rival never reaches
+a second season. That is not a bug: you cannot take a shirt off a man at a club you keep leaving.
+
+#### Where he goes
+
+A sold rival is remembered — a name, a club, the season — up to six of them, oldest forgotten first.
+When one of them lines up against you years later the hub says so. Nothing simulates his career, so
+the honest reading of "he plays for them" is the one written down when he left: a cheap fiction, and
+the alternative is the player database this game deliberately does not build.
+
 ### What the manager makes of you
 
 Morale has been on the hub since there was a hub, and until now it did exactly one thing: it
@@ -1864,6 +1925,48 @@ dialog any more: the end screen *is* the confirmation. You are shown what you ar
 every season, the honours, the record book, the whole route from first club to last — with the
 button to go back underneath it. A career that survives being read in full is one you meant to end.
 Nothing is written until you press the button.
+
+#### How much of it you actually played
+
+A career played out at Hardcore and one skipped from start to finish are different careers, and
+until now the game could not tell them apart. `CareerState.howPlayed` has counted the difference
+since v18 — matches played, matches skipped, and the pace each played one was played at — and
+nothing read it.
+
+It is settled as **a label rather than a penalty**, which is a deliberate departure from how the
+request was first written.
+
+It was raised as *"the career score should be penalised for skipped matches and for a generous
+pace"*, and that framing has a problem it cannot solve: **how much?** Is a skipped match worth half
+a played one, or a tenth? Is Relaxed worth 0.9 of Standard? Nothing in the game can answer that,
+because it is not a question about football — it is a question about how somebody chose to spend
+their evening, and there is no honest exchange rate between an hour of a person's attention and a
+number on a wall.
+
+A label needs no exchange rate. **Played out**, **Mostly played**, **Part-played**, **Largely
+simulated**, **Simulated** — with the dominant pace named beside it. That is all the original
+request actually wanted: for the two not to look identical. `careerScore` is untouched, and there is
+a test that says so.
+
+The two sit **side by side** on the wall of fame and the end-of-career screen. The score says how
+good the career was; this says how much of it the person at the keyboard sat through. Neither is an
+answer to the other.
+
+#### Refusing to guess
+
+A career begun before v18 under-counts itself — the counter can only count forward — so its counts
+cover only however much happened after the migration. Labelling that *"largely simulated"* would be
+an accusation made out of a missing field.
+
+So the summary compares what was counted against the appearances actually made, and reports **Not
+recorded** when the two disagree by more than a tenth. There is no cost to declining: *"this career
+began before the game started counting"* is a true and unembarrassing thing for a wall to say, and
+the wall of fame shows no tag at all rather than a wrong one.
+
+The pace is resolved **outside** `core`, because the pace ids belong to `simulation/` and the
+histogram is deliberately keyed loosely enough to hold one this version has never heard of. An
+unrecognised id shows nothing — an unreadable tally is what the save was designed to keep, and
+printing a raw key would be worse than silence.
 
 #### The wall of fame
 
@@ -2524,7 +2627,8 @@ request you can hand in and take back**,
 **a trial to earn a start at a club above your level**, **injuries driven by fixture congestion,
 and matches your club plays without you**, **a named rival for your shirt, and a manager who leaves
 you out of the ones that do not matter**, **a manager whose confidence in you decides selection, what
-your club offers to keep you and what it calls you when it does**, **a week between matches you
+your club offers to keep you and what it calls you when it does**, **a rival with a career of his
+own, who is sold when you take his shirt and turns up against you years later**, **a week between matches you
 spend on one of four things, each of which costs what the other three would have given you**,
 **eight traits earned from what you actually did, each one changing how a match plays**, **a diary of
 the moments a career is made of**, **named teammates who get on the end of your passes**,

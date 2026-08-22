@@ -28,13 +28,19 @@ import type { Teammate } from '../core/team/team.ts';
 import type { Loan, LoanOffer } from '../core/career/loan.ts';
 import { loanPitch, loanRole, needsLoan, rankLoanClubs } from '../core/career/loan.ts';
 import {
+  FORMER_RIVAL_LIMIT,
   createRival,
   createSquad,
   driftRival,
   matchImportance,
   pickSide,
   rivalAfterMatch,
+  rivalFate,
+  rivalFateNote,
 } from '../core/career/squad.ts';
+import type { FormerRival } from '../core/career/squad.ts';
+import type { Moment } from '../core/career/moments.ts';
+import { rememberMoments, summerMoment } from '../core/career/moments.ts';
 import { playerName } from '../data/gameData.ts';
 import { createMatchStats } from '../core/match/matchStats.ts';
 import { teamStrength } from '../core/team/team.ts';
@@ -512,6 +518,7 @@ export function startCareer(options: StartCareerOptions): CareerState {
     // in common on its first day.
     moments: [],
     lastMoments: [],
+    formerRivals: [],
     loan: null,
     loanOffer: null,
     cups: newCups(countryId, leagueTeamIds),
@@ -549,16 +556,39 @@ export function startCareer(options: StartCareerOptions): CareerState {
  * footballer is waiting whenever this career signs for this club — and a
  * different one is waiting at the club next door.
  */
-function newRival(state: CareerState, lookup: TeamLookup, clubId: string): Rival {
+function newRival(
+  state: CareerState,
+  lookup: TeamLookup,
+  clubId: string,
+  /**
+   * True when the last one was displaced rather than merely left behind.
+   *
+   * It changes two things: the man is pitched a shade higher, and the SEED
+   * carries the season. Without the season a replacement would be drawn from
+   * the same stream as the man he replaces and arrive with his name and his
+   * ability, which is not a new footballer, it is the old one with amnesia.
+   */
+  replacing = false,
+): Rival {
   const team = clubIn(state, lookup, clubId);
-  const rng = new Rng(`${state.seed}:rival:${clubId}:${state.player.position}`);
+  const rng = new Rng(
+    replacing
+      ? `${state.seed}:rival:${clubId}:${state.player.position}:s${state.seasonNumber}`
+      : `${state.seed}:rival:${clubId}:${state.player.position}`,
+  );
   const countryId = locateClub(state.leagues, clubId)?.countryId ?? state.countryId;
-  return createRival(rng, team, playerName(rng, countryId), {
-    // Same reasoning as selection: the club he is at is the one whose word for
-    // him bounds the competition he finds there.
-    role: state.loan?.role ?? state.contract?.role ?? 'starter',
-    playerAbility: effectiveAbility(state.player),
-  });
+  return createRival(
+    rng,
+    team,
+    playerName(rng, countryId),
+    {
+      // Same reasoning as selection: the club he is at is the one whose word for
+      // him bounds the competition he finds there.
+      role: state.loan?.role ?? state.contract?.role ?? 'starter',
+      playerAbility: effectiveAbility(state.player),
+    },
+    replacing,
+  );
 }
 
 /**
@@ -999,10 +1029,12 @@ export function recordPlayerMatch(
     // registry and no memory of where he has played.
     opponentName: opponentNameFor(state, scheduled.opponentId, lookup),
     againstOldClub: hasPlayedFor(state, scheduled.opponentId),
+    formerRivalName: formerRivalAt(state, scheduled.opponentId),
   });
 
   // The player was in the side, so the man he beat to it was not.
   advanceRival(state, scheduled.slotIndex, true);
+
 
   if (leagueFixture) {
     simulateRound(state, leagueFixture.round, lookup);
@@ -1024,6 +1056,100 @@ export function recordPlayerMatch(
   }
 
   return changes;
+}
+
+/**
+ * The rival's summer.
+ *
+ * He used to age and nothing else — beat him for the shirt thirty times and he
+ * was still there in August, a year older, waiting to be beaten again. Now the
+ * season decides whether he is still there at all, and a replacement who is a
+ * shade better than he was arrives when he is not.
+ *
+ * Run AFTER the season record is written, because the fate is judged on the
+ * season that has just been archived, and before the new rival is generated,
+ * because that generation reads the club as it now stands.
+ *
+ * Returns whatever it is worth telling the player, for the season review. A
+ * transfer in June has no fixture to sit between, so it cannot go through
+ * `momentsFrom` — see `summerMoment`.
+ */
+function settleRival(
+  state: CareerState,
+  record: SeasonRecord,
+  lookup: TeamLookup,
+): Moment[] {
+  if (!state.rival) return [];
+
+  const rng = new Rng(`${state.seed}:s${record.seasonNumber}:rival:summer`);
+  const fate = rivalFate({ rival: state.rival, playerStarts: record.stats.matches });
+
+  if (fate === 'stays') {
+    state.rival = driftRival(rng, state.rival);
+    return [];
+  }
+
+  const leaving = state.rival;
+  // Where he went, and only for a sale: a man who has retired has not gone
+  // anywhere, and inventing a club for him would put a name in the world that
+  // could line up against the player having stopped playing.
+  const destination = fate === 'sold' ? sellRivalTo(state, rng, leaving, lookup) : null;
+
+  // The replacement is pitched a shade higher than the man he follows, which is
+  // what makes winning the shirt buy a harder argument rather than an empty one.
+  state.rival = newRival(state, lookup, state.clubId, true);
+
+  return [
+    summerMoment(
+      'rivalGone',
+      rivalFateNote(fate, leaving, destination?.clubName),
+      record.seasonNumber,
+    ),
+  ];
+}
+
+/**
+ * Find him a club, and remember it.
+ *
+ * Drawn from the league the player is in rather than the whole world, for one
+ * reason: the point of remembering is that he might line up against you, and a
+ * man sold to the other end of the earth never will. Weighted toward nobody in
+ * particular — a second-choice footballer moving on is not a story the world
+ * needs an opinion about.
+ */
+function sellRivalTo(
+  state: CareerState,
+  rng: Rng,
+  rival: Rival,
+  lookup: TeamLookup,
+): FormerRival | null {
+  const options = state.leagueTeamIds.filter((id) => id !== state.clubId);
+  if (options.length === 0) return null;
+
+  const clubId = options[Math.floor(rng.next() * options.length)]!;
+  const record: FormerRival = {
+    name: rival.name,
+    clubId,
+    clubName: opponentNameFor(state, clubId, lookup),
+    season: state.seasonNumber,
+  };
+
+  state.formerRivals = [...(state.formerRivals ?? []), record].slice(-FORMER_RIVAL_LIMIT);
+  return record;
+}
+
+/**
+ * Is one of the men he displaced in the side tonight?
+ *
+ * Only the club is checked, not whether that club still employs him: nothing
+ * simulates his career, so the honest reading of "he plays for them" is the one
+ * the game wrote down when he left. A cheap fiction, and the alternative is the
+ * player database this game deliberately does not build.
+ */
+function formerRivalAt(state: CareerState, clubId: string): string | null {
+  if (!clubId) return null;
+  const found = (state.formerRivals ?? []).find((one) => one.clubId === clubId);
+  return found?.name ?? null;
 }
 
 /**
@@ -1229,10 +1355,23 @@ function sharesWeek(state: CareerState, scheduled: ScheduledMatch): boolean {
  * Called from both paths, because the rival's season happens whether or not the
  * player was watching it: he plays exactly the matches the player does not.
  */
-function advanceRival(state: CareerState, slotIndex: number, playerPlayed: boolean): void {
+function advanceRival(
+  state: CareerState,
+  slotIndex: number,
+  playerPlayed: boolean,
+  /**
+   * True when the player was FIT for this one and left out anyway.
+   *
+   * Only these count toward the shirt the summer settles. A match the player
+   * missed injured is not one the rival took off him, and treating it as one
+   * would let a torn hamstring persuade the club in June that it prefers the
+   * other man. See `rivalAfterMatch`.
+   */
+  contested = false,
+): void {
   if (!state.rival) return;
   const rng = new Rng(`${state.seed}:s${state.seasonNumber}:c${slotIndex}:rival`);
-  state.rival = rivalAfterMatch(rng, state.rival, !playerPlayed);
+  state.rival = rivalAfterMatch(rng, state.rival, !playerPlayed, contested);
 }
 
 /** What happened in a fixture the player was not fit to play. */
@@ -1266,6 +1405,10 @@ export function missMatch(state: CareerState, lookup: TeamLookup): MissedMatch {
 
   const scheduled = nextMatch(state);
   if (!scheduled) throw new Error('missMatch called with no match remaining');
+
+  // Was he available for this one? Read here, at the top, because everything
+  // below moves the injury on and the answer would change under it.
+  const wasFit = state.injury === null;
 
   const isHome = scheduled.home;
   // His country plays the international, not his club.
@@ -1353,8 +1496,11 @@ export function missMatch(state: CareerState, lookup: TeamLookup): MissedMatch {
   // injury moves one step closer to over. This is the only thing that ever
   // heals one, so it must run on the missed path as well as the played one.
   restUntilNextMatch(state, scheduled.slotIndex, state.fitness);
-  // He played, because somebody had to.
-  advanceRival(state, scheduled.slotIndex, false);
+  // He played, because somebody had to — and whether that counts as taking the
+  // shirt depends on whether there was a shirt to take. `wasFit` is read from
+  // BEFORE `restUntilNextMatch` above moved the injury on, because the question
+  // is whether he could have played this one.
+  advanceRival(state, scheduled.slotIndex, false, wasFit);
 
   // Form drifts back toward neutral rather than staying frozen, and the
   // difference is the whole difference between a hard spell and a trap. Form is
@@ -1758,6 +1904,13 @@ export interface SeasonEnd {
   champion: string;
   /** How the player changed across the season just completed. */
   progress: SeasonProgress;
+  /**
+   * Anything the summer itself produced, for the review to report.
+   *
+   * A transfer in June has no fixture to sit between, so these cannot come
+   * through the match fold like every other moment does. Empty in most summers.
+   */
+  moments: Moment[];
   /** Points earned for pre-season training. */
   trainingAwarded: number;
   trainingNotes: string[];
@@ -2156,15 +2309,9 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     joinClub(state, lookup, state.clubId);
   }
 
-  // The rival had a summer too. He is a year older and better or worse for it,
-  // so a shirt won last season is not one that stays won — and a rival who kept
-  // the player out at thirty-one is a problem that starts solving itself.
-  if (state.rival) {
-    state.rival = driftRival(
-      new Rng(`${state.seed}:s${state.seasonNumber}:rival:drift`),
-      state.rival,
-    );
-  }
+  // The rival had a summer too, and it is now one that can end his time at the
+  // club rather than only age him. See `rivalFate`.
+  const summerMoments = settleRival(state, record, lookup);
 
   // A new season needs new knockouts, entered by whoever is in the league now.
   // The finished ones are handed back on the season end so the review can
@@ -2278,11 +2425,16 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   // worth asking now that being out of the side is a thing that happens.
   state.loanOffer = findLoan(state, lookup, leagueStats.matches, playedSeasonLength);
 
+  // Whatever the summer itself produced. Written into the career as well as
+  // handed back, so a review closed without being read is not a review lost.
+  state.moments = rememberMoments(state.moments ?? [], summerMoments);
+
   return {
     record,
     position,
     champion,
     progress,
+    moments: summerMoments,
     trainingAwarded: award.points,
     trainingNotes: award.notes,
     reputation,

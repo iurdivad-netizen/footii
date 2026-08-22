@@ -1,4 +1,4 @@
-import type { CareerState } from './career.ts';
+import type { CareerState, HowItWasPlayed } from './career.ts';
 import type { Team } from '../team/team.ts';
 import type { Position } from '../player/positions.ts';
 import type { Honour, HonourKind } from './awards.ts';
@@ -191,6 +191,15 @@ export interface CareerLegacy {
   score: number;
   /** One line on what kind of footballer this was. */
   verdict: string;
+  /**
+   * How much of the career was actually played rather than skipped, and at
+   * what pace. The raw counts, so both screens derive the same summary from one
+   * source — see core/career/howPlayed.ts.
+   *
+   * Absent on entries enshrined before this was kept, which reads as "not
+   * recorded" and is the truthful answer for them.
+   */
+  howPlayed?: HowItWasPlayed;
   /**
    * The whole career, for the screen that shows one in full.
    *
@@ -482,7 +491,15 @@ export function summariseCareer(
   const verdict = careerVerdict(legacy);
   const score = careerScore({ ...legacy, honourPoints: honourPoints(honours) });
 
-  return { ...legacy, verdict, score, detail: detailOf(state, lookup, honours) };
+  return {
+    ...legacy,
+    verdict,
+    score,
+    // Carried, and deliberately NOT fed into `score` above. See
+    // core/career/howPlayed.ts for why this is a label rather than a penalty.
+    howPlayed: state.howPlayed,
+    detail: detailOf(state, lookup, honours),
+  };
 }
 
 /**

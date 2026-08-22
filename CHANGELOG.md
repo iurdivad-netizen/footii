@@ -70,10 +70,10 @@ read before is a reflex test rather than a decision, and somebody whose first th
 never finds out what the game is. The keeper still commits on schedule at this setting, so the read
 is unchanged.
 
-**11. The career score should be penalised for skipped matches and for a generous pace.**
-Right in principle: a career built on skipped matches at no time limit is not the same career as one
-played out at Hardcore, and `careerScore` still cannot tell them apart. **The counting half is now
-done; the scoring half is not.**
+**11. The career score should be penalised for skipped matches and for a generous pace.** ✅ **Done,
+and not in the shape it was asked for.** Right in principle — a career built on skipped matches at
+no time limit is not the same career as one played out at Hardcore — and the fix is a **label rather
+than a penalty**.
 
 The catch this item was always going to hit is that it can only count *forward*. `skipped` existed
 per match and only the most recent one survived, in `lastResult`, so the answer to "how much of this
@@ -100,9 +100,26 @@ Three details worth knowing:
   after v18 has a total that means anything. That is unavoidable for any counter added to a running
   game, and it gets less true every day the counting is happening.
 
-What is still open is the judgement call: how much a skipped match should cost, how much a generous
-pace should, and whether a career with too little recorded football should be scored on this at all.
-That part is genuinely better late, and it is now the only part left.
+**Why not the penalty that was asked for.** The framing has a problem it cannot solve: *how much?*
+Is a skipped match worth half a played one, or a tenth? Is Relaxed worth 0.9 of Standard? Nothing in
+the game can answer that, because it is not a question about football — it is a question about how
+somebody chose to spend their evening, and there is no honest exchange rate between an hour of a
+person's attention and a number on a wall. Every value that could be picked would be arbitrary and
+would then be defended for years as though it were not.
+
+A label needs no exchange rate. **Played out**, **Mostly played**, **Part-played**, **Largely
+simulated**, **Simulated**, with the dominant pace named beside it — shown next to the score on the
+wall of fame and the end-of-career screen rather than folded into it. The score says how good the
+career was; this says how much of it was actually sat through. Neither is an answer to the other,
+and that is precisely why converting one into the other was the wrong move. `careerScore` is
+untouched and a test asserts that it stays untouched.
+
+The third of the three questions — *whether a career with too little recorded football should be
+judged on this at all* — turned out to be the one with a real answer, and it is no. A career begun
+before v18 under-counts itself, so the summary compares what was counted against the appearances
+actually made and reports **Not recorded** when they disagree by more than a tenth. Declining costs
+nothing; labelling a career "largely simulated" on the strength of a field nobody was filling in
+would be an accusation made out of a gap. See [How much of it you actually played](README.md#how-much-of-it-you-actually-played).
 
 **12. You should be able to ask to leave, and to say what a move has to be worth.** ✅ **Done.**
 Raised after playing with rotation, and it is the item rotation unlocked rather than one that was

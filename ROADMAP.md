@@ -103,30 +103,37 @@ Again one feature in two halves. A trait announced only in a stats table is an i
 the exact mistake this codebase already made once with morale — so earning one has to be a moment or
 it is not really a thing that happened to you.
 
-What remains on the RPG side, roughly in the order it is worth doing: **the rival's arc** (he ages
-and nothing else; selling him when you beat him would make the club feel populated), **tendency and
-position retraining**, so a thirty-one-year-old can become the deep-lying version of himself, and
-**a background at creation**.
+**[The rival's own career](README.md#the-rivals-own-career)** has since closed the third of those pairs. He used to age and nothing
+else; now the summer decides whether he is still at the club at all, a replacement pitched a shade
+higher arrives when he is not, and the men you displaced turn up against you years later. The half
+of it worth recording is the fate that was deliberately NOT written — the club buying better when
+you cannot get a game — because it would make losing your place the cause of a harder opponent for
+it, which is the spiral this codebase refuses on principle.
 
-## The one thing still open
+What remains on the RPG side: **tendency and position retraining**, so a thirty-one-year-old can
+become the deep-lying version of himself, **a background at creation**, and a **full squad** — a
+readable XI and squad numbers — which is flavour rather than mechanism and blocks nothing.
 
-Of the fourteen items in [CHANGELOG.md](CHANGELOG.md) — thirteen raised from playing the game and one
-found while measuring another — thirteen are done and the fourteenth is half done.
+One thing found while measuring and deliberately not acted on: **auto-play scores far too much.**
+A skipped match resolves at 1.0 goals a match at ability 55 and **2.9 at ability 85**, with an
+average rating of 9.4 — so "let him play it" produces a superhuman career, and it distorts the
+golden boot, the record book and the wall of fame. Retuning it would move every career already
+played, so it is recorded here rather than changed.
 
-Items 13 and 14, the injury rate and what a week of extra work costs, went from raised to measured
-to fixed in one sitting, and the middle step is the one worth keeping: the tool that measured them
-([`scripts/measureInjuries.ts`](scripts/measureInjuries.ts)) is committed, because injuries are the
-one part of this game nobody can judge by reading the code. See [Age, at both ends](README.md#age-at-both-ends) and [The gate](README.md#the-gate-and-why-a-smaller-number-would-not-have-done).
+## Nothing is still open
 
-**[Item 11](CHANGELOG.md#reported-bugs-and-improvements) — penalties on the end-of-career score for skipped matches and an easy decision pace.** The
-item split cleanly into a cheap half that had to happen early and an expensive half that is better
-late, and only the second is outstanding:
+All fourteen items in [CHANGELOG.md](CHANGELOG.md) are now done — thirteen raised from playing the
+game and one found while measuring another.
 
-- **Counting — done.** `CareerState.howPlayed` records skipped matches, played matches and the pace
-  each played match was played at, from v18 onward. This is the half that could not wait, because a
-  counter can only ever count forward.
-- **Scoring — open.** Nothing reads the counts yet. Deciding what a skipped match costs, and what a
-  generous pace costs, is a balance judgement that wants a few real careers' worth of data behind
-  it — which, now that the data is being collected, is a matter of playing rather than of writing
-  anything. It is also a larger job than when it was listed, since the pace settings it would read
-  are no longer the ones it was written against — see [The decision window, rescaled](README.md#the-decision-window-rescaled).
+**Item 11 was the last, and it closed by being answered differently from how it was asked.** It
+wanted the career score penalised for skipped matches and an easy decision pace. The counting half
+landed in v18 because a counter can only count forward; the scoring half sat open for a long time
+because it needs a number nobody can honestly produce — there is no exchange rate between an hour of
+somebody's attention and a point on a wall. It is settled as a **label** instead, which needed no
+such number and was all the request actually wanted: for a career played out at Hardcore and one
+skipped from start to finish not to look identical. See
+[How much of it you actually played](README.md#how-much-of-it-you-actually-played).
+
+What is left is the three roadmap items above — a second division, a playable goalkeeper, a richer
+location model — plus the RPG work listed with them, and one balance question recorded but
+deliberately untouched.
