@@ -3615,6 +3615,24 @@ button.ghost.danger {
 }
 
 /*
+ * News about somebody else, on the season review.
+ *
+ * The only part of a review that is not about the player: a rival sold, a rival
+ * retired. It reads as a list rather than prose because each line is a separate
+ * thing that happened to a separate person.
+ */
+.summer-news {
+  margin: 0;
+  padding: 0 0 0 18px;
+}
+
+.summer-news li {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  padding: 2px 0;
+}
+
+/*
  * The moments a career is made of.
  *
  * Green rather than amber: every one of these is something that HAPPENED,

@@ -103,10 +103,22 @@ Again one feature in two halves. A trait announced only in a stats table is an i
 the exact mistake this codebase already made once with morale — so earning one has to be a moment or
 it is not really a thing that happened to you.
 
-What remains on the RPG side, roughly in the order it is worth doing: **the rival's arc** (he ages
-and nothing else; selling him when you beat him would make the club feel populated), **tendency and
-position retraining**, so a thirty-one-year-old can become the deep-lying version of himself, and
-**a background at creation**.
+**[The rival's own career](README.md#the-rivals-own-career)** has since closed the third of those pairs. He used to age and nothing
+else; now the summer decides whether he is still at the club at all, a replacement pitched a shade
+higher arrives when he is not, and the men you displaced turn up against you years later. The half
+of it worth recording is the fate that was deliberately NOT written — the club buying better when
+you cannot get a game — because it would make losing your place the cause of a harder opponent for
+it, which is the spiral this codebase refuses on principle.
+
+What remains on the RPG side: **tendency and position retraining**, so a thirty-one-year-old can
+become the deep-lying version of himself, **a background at creation**, and a **full squad** — a
+readable XI and squad numbers — which is flavour rather than mechanism and blocks nothing.
+
+One thing found while measuring and deliberately not acted on: **auto-play scores far too much.**
+A skipped match resolves at 1.0 goals a match at ability 55 and **2.9 at ability 85**, with an
+average rating of 9.4 — so "let him play it" produces a superhuman career, and it distorts the
+golden boot, the record book and the wall of fame. Retuning it would move every career already
+played, so it is recorded here rather than changed.
 
 ## The one thing still open
 

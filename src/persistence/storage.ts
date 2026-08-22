@@ -35,7 +35,7 @@ import { rankLegacies } from '../core/career/legacy.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 26;
+export const SAVE_VERSION = 27;
 
 export interface CareerRecord {
   matches: number;
@@ -813,6 +813,29 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
         career.lastMoments ??= [];
         if (career.player) career.player.traits ??= [];
       }
+    }
+  }
+
+  if (save.version === 26) {
+    // v26 -> v27: the rival has a career of his own.
+    //
+    // The list of men he has displaced starts empty, because nothing anywhere in
+    // an older save records who they were. Nobody is invented: a name conjured
+    // here would be a footballer the player never actually beat.
+    //
+    // One consequence worth stating rather than hiding, because it follows from
+    // the same rule every counter in this game obeys — it can only count
+    // forward. `Rival.starts` is unset on a migrated career and reads as zero,
+    // so the FIRST summer after this lands judges the contest on however much
+    // of the season happened to be left when the save came forward. That
+    // under-counts the rival and makes selling him slightly likelier than the
+    // season really justified, exactly once. The cost is bounded — a rival
+    // leaves a year early and a replacement arrives — and the alternative,
+    // a sentinel meaning "not counted" threaded through the model forever, is
+    // more machinery than one mildly early transfer is worth.
+    save = { ...save, version: 27 };
+    for (const career of save.careers ?? []) {
+      if (career) career.formerRivals ??= [];
     }
   }
 

@@ -1359,6 +1359,26 @@ describe('asking to leave, and what he will move for', () => {
     expect(activeCareer(migrated)!.moments).toHaveLength(1);
   });
 
+  it('gives a career from before the rival had a career of his own an empty list', () => {
+    // Nobody is invented: a name conjured here would be a footballer the player
+    // never actually beat.
+    const state = career();
+    const older = { ...state } as Record<string, unknown>;
+    delete older.formerRivals;
+
+    const migrated = migrate({
+      version: 26,
+      career: emptyCareer(),
+      settings: defaultSettings(),
+      careers: [older, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(activeCareer(migrated)!.formerRivals).toEqual([]);
+  });
+
   it('reads a demand it does not recognise as no demand at all', () => {
     // Guessing which ultimatum somebody meant is worse than reading a damaged
     // save as having made none.

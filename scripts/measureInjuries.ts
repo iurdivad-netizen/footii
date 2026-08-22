@@ -81,6 +81,8 @@ interface CareerSample {
 const careerSamples: CareerSample[] = [];
 const evidenceSamples: TraitEvidence[] = [];
 const perfectSamples: number[] = [];
+const rivalSummers: { displaced: number; former: number }[] = [];
+let displacedCount = 0;
 
 interface SeasonSample {
   season: number;
@@ -109,6 +111,9 @@ const riskByStage: number[][] = [[], [], [], [], []];
  * profile alone is calibrated on nothing.
  */
 const POTENTIAL = Number(process.argv[5] ?? 86);
+
+/** Sixth CLI argument: "settled" refuses every transfer offer. */
+const SETTLED = process.argv[6] === 'settled';
 
 function prospect(age: number): Player {
   return createPlayer({
@@ -213,6 +218,7 @@ function playCareer(seed: string, seasons: number): SeasonSample[] {
     seed,
   });
   const samples: SeasonSample[] = [];
+  displacedCount = 0;
 
   for (let i = 0; i < seasons; i++) {
     const sample: SeasonSample = {
@@ -228,13 +234,21 @@ function playCareer(seed: string, seasons: number): SeasonSample[] {
     playSeason(state, sample);
     samples.push(sample);
 
-    endSeason(state, lookup);
+    const summer = endSeason(state, lookup);
+    displacedCount += summer.moments.filter((m) => m.kind === 'rivalGone').length;
     const best = state.offers[0];
-    if (best) acceptOffer(state, best.id, lookup);
+    // SETTLED mode: refuse every offer. A career that moves clubs every summer
+    // never keeps a rival long enough to displace one, which is true of the
+    // game and useless for measuring the thing that only happens when you stay.
+    if (best && !SETTLED) acceptOffer(state, best.id, lookup);
     else if (canStay(state)) stayAtClub(state);
     else if (isExpired(state.contract)) break;
   }
 
+  rivalSummers.push({
+    displaced: displacedCount,
+    former: (state.formerRivals ?? []).length,
+  });
   const evidence = traitEvidence(state);
   evidenceSamples.push(evidence);
   const totals = lifetimeTotals(state.records);
@@ -347,6 +361,21 @@ for (const id of TRAIT_IDS) {
     `${TRAITS[id].label.padEnd(18)}: ${((held / careerSamples.length) * 100).toFixed(0)}% of careers`,
   );
 }
+console.log('');
+console.log('--- the rival, over a career ---');
+console.log(
+  `rivals who left: mean ${mean(rivalSummers.map((r) => r.displaced)).toFixed(2)}` +
+    ` · min ${Math.min(...rivalSummers.map((r) => r.displaced))}` +
+    ` · max ${Math.max(...rivalSummers.map((r) => r.displaced))}`,
+);
+console.log(
+  `former rivals remembered: mean ${mean(rivalSummers.map((r) => r.former)).toFixed(2)}`,
+);
+console.log(
+  `careers where nobody ever left: ` +
+    `${((rivalSummers.filter((r) => r.displaced === 0).length / rivalSummers.length) * 100).toFixed(0)}%`,
+);
+
 console.log('');
 console.log('--- the evidence traits are judged on ---');
 const ev = (pick: (e: TraitEvidence) => number) => evidenceSamples.map(pick);

@@ -48,6 +48,8 @@ export type MomentKind =
   | 'goalMilestone'
   | 'scoringRun'
   | 'oldClub'
+  | 'oldRival'
+  | 'rivalGone'
   | 'traitEarned';
 
 export interface Moment {
@@ -84,6 +86,14 @@ export interface MomentInput {
   /** The opponent's name, and whether he used to play for them. */
   opponentName: string;
   againstOldClub: boolean;
+  /**
+   * A man who once competed with him for a shirt, now in the opposition.
+   *
+   * Null almost every week. It is the cheapest continuity in the game and the
+   * one that makes the world feel like it has people in it: somebody you beat
+   * four years ago is still playing, somewhere, and tonight he is over there.
+   */
+  formerRivalName?: string | null;
   /** Traits earned by this match, already decided. See core/player/traits.ts. */
   traits: readonly TraitId[];
 }
@@ -151,6 +161,13 @@ export function momentsFrom(input: MomentInput): Moment[] {
     at('oldClub', `Back against ${input.opponentName}, who used to pay your wages.${scored}`);
   }
 
+  if (input.formerRivalName) {
+    at(
+      'oldRival',
+      `${input.formerRivalName} lined up against you tonight. You took his shirt once.`,
+    );
+  }
+
   // Last, and deliberately: whatever else happened, becoming something is the
   // biggest thing that happened.
   for (const id of input.traits) {
@@ -158,6 +175,17 @@ export function momentsFrom(input: MomentInput): Moment[] {
   }
 
   return moments;
+}
+
+/**
+ * A moment that happened over the summer rather than in a match.
+ *
+ * The rival leaving is the only one so far, and it needs its own door because
+ * `momentsFrom` is built around comparing a record book on both sides of a
+ * fixture — and a transfer in June has no fixture to sit between.
+ */
+export function summerMoment(kind: MomentKind, text: string, season: number): Moment {
+  return { kind, text, season };
 }
 
 /** Has he ever played in a competition matching this test? */

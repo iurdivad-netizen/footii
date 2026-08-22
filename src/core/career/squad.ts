@@ -54,7 +54,48 @@ export interface Rival {
   ability: number;
   /** 0-100. Moves with matches played, exactly as the player's does. */
   form: number;
+  /**
+   * Matches he started THIS SEASON that the player was fit for.
+   *
+   * The contest, counted. Deliberately not every match he played: the ones the
+   * player missed injured are not a shirt lost, they are a shirt nobody was
+   * competing for, and counting them would let a bad hamstring decide in the
+   * summer that the club prefers somebody else. Reset every August.
+   *
+   * Optional so a career saved before the rival had an arc reads as nobody
+   * having won anything yet, which is the truthful answer for a season nobody
+   * was counting.
+   */
+  starts?: number;
+  /**
+   * Full seasons he has been at the club, not counting the one in progress.
+   *
+   * Only the summer reads it, and only to refuse to sell a man the club signed
+   * twelve months ago. Without it a strong career churns through a new rival
+   * almost every year — measured at 9.2 over sixteen seasons — and somebody
+   * replaced that often stops being a person and becomes a respawning obstacle.
+   */
+  seasons?: number;
 }
+
+/**
+ * A man the player once competed with, and where he went.
+ *
+ * Two strings and a season. Kept because a name that reappears four years later
+ * is worth more than anything else this small could buy — and because the
+ * alternative, simulating his career, is the player database this game does not
+ * build.
+ */
+export interface FormerRival {
+  name: string;
+  clubId: string;
+  clubName: string;
+  /** The summer he left, so the moment can say how long ago it was. */
+  season: number;
+}
+
+/** How many are remembered. Beyond this the oldest are forgotten, as people are. */
+export const FORMER_RIVAL_LIMIT = 6;
 
 /** Whether the player is in the side, and why not when he is not. */
 export interface TeamSheet {
@@ -95,23 +136,35 @@ export function createRival(
   team: Team,
   name: string,
   promise: { role: SquadRole; playerAbility: number },
+  /**
+   * True when this man is replacing one the player displaced.
+   *
+   * A club that has just sold its second choice does not replace him with
+   * somebody worse, so the draw is centred at the squad's own level rather than
+   * below it and the ceiling is a shade kinder to him. Winning the shirt
+   * therefore earns a harder opponent for it, which is the point: the club
+   * keeps testing you, and the argument you won last May is one you have to win
+   * again in August.
+   */
+  replacing = false,
 ): Rival {
   const level = squadLevel(team);
   // Centred a shade below the squad's own level: the contested shirt is more
   // often a squad-standard player than a star, or the club would not be
   // shopping for one.
-  const drawn = Math.round(level - 3 + rng.range(-6, 9));
+  const drawn = Math.round(level - (replacing ? 0 : 3) + rng.range(-6, 9));
   // Then held to what the club actually promised. Without this the two halves
   // of a signing can contradict each other outright — a club calls you its star
   // player, hands you the wage of one, and has somebody ten points better in
   // your position who you will never displace. The role is the club's own
   // judgement of where you stand in its squad, so it is the thing that has to
   // bound the competition rather than the other way round.
+  const lift = replacing ? 3 : 0;
   const ceiling =
     promise.role === 'star'
-      ? promise.playerAbility - 2
+      ? promise.playerAbility - 2 + lift
       : promise.role === 'starter'
-        ? promise.playerAbility + 2
+        ? promise.playerAbility + 2 + lift
         : // Signed as cover, and told so — but a rival you could never reach is
           // a career with nothing in it, not a hard one.
           promise.playerAbility + 9;
@@ -122,6 +175,8 @@ export function createRival(
     ability,
     // Everybody starts a season with something to prove and nothing decided.
     form: 50,
+    starts: 0,
+    seasons: 0,
   };
 }
 
@@ -141,7 +196,79 @@ export function driftRival(rng: Rng, rival: Rival): Rival {
     age,
     ability: clamp(Math.round(rival.ability + growth), 30, 95),
     form: 50,
+    // A new season, and nobody has taken anything off anybody yet.
+    starts: 0,
+    seasons: (rival.seasons ?? 0) + 1,
   };
+}
+
+/**
+ * THE RIVAL'S OWN CAREER
+ *
+ * He used to age and nothing else. Beat him for the shirt thirty times and he
+ * was still there in August, a year older, waiting to be beaten again — which
+ * made the club a place where nothing that happened had any consequences for
+ * anybody but the player.
+ *
+ * Three outcomes, and the shape of the set matters more than any of them.
+ */
+export type RivalFate = 'stays' | 'sold' | 'retires';
+
+/**
+ * What becomes of him over the summer.
+ *
+ * WHAT IS DELIBERATELY NOT HERE is a fate for losing. The obvious fourth
+ * outcome — the club buys somebody better when the player cannot get a game —
+ * is realistic-sounding and would be a trap: it makes losing your place the
+ * cause of a harder opponent for it, so a bad season becomes impossible to
+ * recover from. That is the same spiral `confidenceAfterAbsence` and the form
+ * drift both refuse to build, and it is refused here for the same reason: the
+ * way out cannot be locked behind the thing being punished.
+ *
+ * What actually happens to a footballer who cannot get a game is that HE moves,
+ * and the game already models that — the transfer market, the loan, the request.
+ * The club has no need to buy while the man it already owns is playing well.
+ *
+ * So the only fate the player can cause is the one he earns. Beat him
+ * comprehensively and the club sells him; a replacement arrives who is a little
+ * better than he was (see `createRival`), which means winning the shirt buys a
+ * harder argument for it rather than an empty one.
+ */
+export function rivalFate(input: {
+  rival: Rival;
+  /** Matches the player started this season. */
+  playerStarts: number;
+}): RivalFate {
+  // Old enough that it stops being about the player at all.
+  if (input.rival.age >= 34) return 'retires';
+
+  // A club does not sell a man it signed twelve months ago, however little he
+  // has played. It is also what stops him being a respawning obstacle rather
+  // than a person: without it a strong career gets through a new one nearly
+  // every season.
+  if ((input.rival.seasons ?? 0) < 1) return 'stays';
+
+  const his = input.rival.starts ?? 0;
+  // Both halves are required. A season where the player barely played either —
+  // injured most of it, or at a club with no fixtures to spare — is not a shirt
+  // won, and a club does not sell a man over eleven matches nobody contested.
+  if (his <= 3 && input.playerStarts >= 15) return 'sold';
+
+  return 'stays';
+}
+
+/** What the season review says about it, in the club's voice rather than a rule's. */
+export function rivalFateNote(fate: RivalFate, rival: Rival, clubName?: string): string {
+  switch (fate) {
+    case 'retires':
+      return `${rival.name} has retired. The shirt you spent last season arguing over is nobody's now.`;
+    case 'sold':
+      return clubName
+        ? `${rival.name} has gone to ${clubName}. He was not going to sit and watch you.`
+        : `${rival.name} has been sold. He was not going to sit and watch you.`;
+    case 'stays':
+      return `${rival.name} is still here.`;
+  }
 }
 
 /**
@@ -153,7 +280,19 @@ export function driftRival(rng: Rng, rival: Rival): Rival {
  * for the thing form is here to do — make the competition move while the player
  * is not looking, so winning the shirt back is a race rather than a threshold.
  */
-export function rivalAfterMatch(rng: Rng, rival: Rival, played: boolean): Rival {
+export function rivalAfterMatch(
+  rng: Rng,
+  rival: Rival,
+  played: boolean,
+  /**
+   * True when the player was FIT and left out anyway.
+   *
+   * The difference between a shirt taken and a shirt nobody was competing for.
+   * A match missed injured is not one the rival won, and counting it as one
+   * would let a hamstring decide in the summer that the club prefers him.
+   */
+  contested = false,
+): Rival {
   if (!played) {
     // Out of the side, and drifting back toward neutral rather than decaying to
     // nothing: a man on the bench is not getting worse, he is getting forgotten.
@@ -161,7 +300,11 @@ export function rivalAfterMatch(rng: Rng, rival: Rival, played: boolean): Rival 
   }
   const expected = remap(rival.ability, 40, 90, 42, 68);
   const performance = clamp(expected + rng.range(-16, 16), 0, 100);
-  return { ...rival, form: round(rival.form * 0.65 + performance * 0.35, 1) };
+  return {
+    ...rival,
+    form: round(rival.form * 0.65 + performance * 0.35, 1),
+    starts: (rival.starts ?? 0) + (contested ? 1 : 0),
+  };
 }
 
 /**

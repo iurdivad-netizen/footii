@@ -1,4 +1,5 @@
 import type { SeasonRecord } from '../../core/career/career.ts';
+import type { Moment } from '../../core/career/moments.ts';
 import type { SeasonProgress } from '../../core/career/training.ts';
 import { averageRating, goalContributions } from '../../core/career/seasonStats.ts';
 import type { ReputationSettlement } from '../../core/career/reputation.ts';
@@ -40,6 +41,13 @@ export class SeasonReviewScreen {
       newAge: number;
       potentialHint: string;
       progress: SeasonProgress;
+      /**
+       * Anything the summer itself produced — a rival sold, a rival retired.
+       *
+       * Empty in most summers, and the card is absent entirely when it is: a
+       * heading with nothing under it reads as something failing to load.
+       */
+      moments?: Moment[];
       /** The season before this one, for a like-for-like comparison. */
       previous?: SeasonRecord;
       trainingPoints: number;
@@ -172,6 +180,7 @@ export class SeasonReviewScreen {
       ${renderSuperCup(context.superCup ?? null, record.clubId)}
       ${renderCupRuns(context.cups, record.clubId, context.countryId)}
       ${renderHonours(context.honours, context.capsGained)}
+      ${renderSummerNews(context.moments ?? [])}
       ${renderProgress(context.progress)}
       ${renderReputation(context.reputation)}
       ${renderContractNews(context)}
@@ -551,6 +560,23 @@ function ordinal(n: number): string {
  * ability is an abstraction, but "you now get half a second longer on the ball"
  * is the thing you actually experience in the next match.
  */
+/**
+ * What happened at the club while nobody was playing.
+ *
+ * Its own card rather than a line in the progress report, because it is news
+ * about somebody else — the one part of a season review that is not about the
+ * player at all, and the only place the game says the world moved without him.
+ */
+function renderSummerNews(moments: Moment[]): string {
+  if (moments.length === 0) return '';
+  const lines = moments.map((moment) => `<li>${moment.text}</li>`).join('');
+  return `
+    <div class="career-card">
+      <h2>While you were away</h2>
+      <ul class="summer-news">${lines}</ul>
+    </div>`;
+}
+
 function renderProgress(progress: SeasonProgress): string {
   const windowDelta = progress.windowAfter - progress.windowBefore;
   const abilityDelta = progress.abilityAfter - progress.abilityBefore;
