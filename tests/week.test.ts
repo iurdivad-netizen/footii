@@ -18,6 +18,7 @@ import {
   PREPARATION_BONUS,
   REST_FITNESS,
   TRAIN_FITNESS,
+  TRAIN_FITNESS_FLOOR,
   WEEK_CHOICES,
   WEEK_DESCRIPTIONS,
   WEEK_LABELS,
@@ -25,6 +26,7 @@ import {
   planApplies,
   pushChance,
   spendWeek,
+  weekOptions,
 } from '../src/core/career/week.ts';
 import type { WeekChoice } from '../src/core/career/week.ts';
 import { createDevelopmentState, developAfterMatch } from '../src/core/career/development.ts';
@@ -74,14 +76,47 @@ describe('resting, and working', () => {
   });
 
   it('extra work is paid for in fitness', () => {
-    const worked = outcome('train');
-    expect(worked.fitness).toBe(base.fitness - TRAIN_FITNESS);
+    const worked = outcome('train', { fitness: 95 });
+    expect(worked.fitness).toBe(95 - TRAIN_FITNESS);
     expect(worked.growth).toBeGreaterThan(1);
   });
 
   it('never pushes fitness outside 0-100', () => {
     expect(outcome('rest', { fitness: 97 }).fitness).toBe(100);
-    expect(outcome('train', { fitness: 3 }).fitness).toBe(0);
+    expect(outcome('train', { fitness: 100 }).fitness).toBe(100 - TRAIN_FITNESS);
+  });
+
+  it('will not take extra work below the floor', () => {
+    // The cost does not reset between matches, so an uncapped one ratchets: a
+    // career that trained every week finished matches on a mean fitness of 36
+    // and took 37% more injuries for it.
+    expect(outcome('train', { fitness: TRAIN_FITNESS_FLOOR + 2 }).fitness).toBe(
+      TRAIN_FITNESS_FLOOR,
+    );
+  });
+
+  it('never lets a hard week HAND fitness back', () => {
+    // The trap in the obvious implementation of a floor: `max(80, f - 6)` at
+    // fitness 60 hands the player 80, so extra work becomes a way to recover.
+    for (const fitness of [0, 30, 60, 79]) {
+      expect(outcome('train', { fitness }).fitness).toBeLessThanOrEqual(fitness);
+    }
+  });
+
+  it('is not offered at all to a player in no state for it', () => {
+    const tired = weekOptions(TRAIN_FITNESS_FLOOR - 1);
+    const train = tired.find((option) => option.choice === 'train')!;
+    expect(train.available).toBe(false);
+    expect(train.reason.length).toBeGreaterThan(0);
+    // Shut, not removed: the screen greys it out and says why, which is what
+    // makes resting the obvious answer rather than a lesson learned in February.
+    expect(tired).toHaveLength(WEEK_CHOICES.length);
+    // And nothing else is gated on being tired.
+    expect(tired.filter((option) => !option.available)).toHaveLength(1);
+  });
+
+  it('is offered again once he is fresh enough', () => {
+    expect(weekOptions(TRAIN_FITNESS_FLOOR).every((option) => option.available)).toBe(true);
   });
 
   it('is worth more to a happy footballer than an unhappy one', () => {
@@ -265,6 +300,17 @@ describe('a week belongs to exactly one fixture', () => {
     expect(state.week).toBeNull();
   });
 
+  it('refuses a choice the player is in no state to take', () => {
+    // A screen is not a rule. Anything that can reach the service has to be
+    // told no by the service.
+    const state = career('gated');
+    state.fitness = TRAIN_FITNESS_FLOOR - 10;
+    expect(planWeek(state, 'train')).toBeNull();
+    expect(state.week).toBeNull();
+    // And the week is still his to spend on something he can do.
+    expect(planWeek(state, 'rest')).not.toBeNull();
+  });
+
   it('accepts one pick and refuses a second', () => {
     // For the same reason negotiation allows exactly one push: a decision you
     // can retake until you like the answer is not a decision.
@@ -287,7 +333,8 @@ describe('a week belongs to exactly one fixture', () => {
 describe('the week in front of him', () => {
   it('is there to be planned before an ordinary fixture', () => {
     const ahead = weekAhead(career());
-    expect(ahead.choices).toEqual(WEEK_CHOICES);
+    expect(ahead.options?.map((o) => o.choice)).toEqual(WEEK_CHOICES);
+    expect(ahead.options?.every((o) => o.available)).toBe(true);
     expect(ahead.plan).toBeNull();
   });
 
@@ -303,7 +350,7 @@ describe('the week in front of him', () => {
       season: state.seasonNumber,
     };
     const ahead = weekAhead(state);
-    expect(ahead.choices).toBeNull();
+    expect(ahead.options).toBeNull();
     expect(ahead.reason).toContain('Hamstring strain');
     expect(planWeek(state, 'train')).toBeNull();
   });
@@ -312,7 +359,7 @@ describe('the week in front of him', () => {
     // Being dropped is the week asking for a start exists for.
     const state = career('benched');
     const ahead = weekAhead(state);
-    expect(ahead.choices).toEqual(WEEK_CHOICES);
+    expect(ahead.options?.map((o) => o.choice)).toEqual(WEEK_CHOICES);
   });
 
   it('reports the plan once it has been made', () => {

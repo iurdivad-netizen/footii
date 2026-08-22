@@ -57,16 +57,33 @@ export interface Injury {
 }
 
 /**
- * Chance of an injury in one full match by a fresh, average-aged player.
+ * Chance of an injury in one full match by a fresh, peak-aged player.
  *
  * Calibrated against the season rather than the match, which is the only scale
- * anybody can judge it on: this works out at roughly one and a half injuries
- * across a forty-match season, averaging two and a half weeks each, so an
- * ordinary career loses about a month a year. A busy season at a club in every
- * competition loses appreciably more, because the multipliers below are what
- * make congestion cost something.
+ * anybody can judge it on. A busy season at a club in every competition loses
+ * appreciably more, because the multipliers below are what make congestion cost
+ * something.
+ *
+ * MEASURED, NOT DERIVED, and that distinction is the whole reason
+ * `scripts/measureInjuries.ts` exists. Nothing about this number can be read off
+ * the arithmetic: risk is quadratic in fitness at the final whistle, fitness is
+ * whatever ninety minutes of a real match happened to leave, and a match costs
+ * slightly more than a week of rest returns — so a season's worth of injuries is
+ * emergent. The only honest way to set this constant is to play several hundred
+ * seasons with it and count.
+ *
+ * At 0.035 that count was 1.29 injuries a season, 3.3 weeks out, and only a
+ * quarter of seasons with no injury at all — accurate to what this comment used
+ * to claim, and more than it felt like it should be from the other side of the
+ * screen. Three seasons in four containing an injury is what "a lot of injuries"
+ * means, even when the weeks lost are modest, because roughly half of them are
+ * one-week knocks and it is the EVENT a player counts rather than the football.
+ *
+ * At 0.031, with the age curve below, an ordinary season carries about one
+ * injury and a bit over two weeks. Noticeable when it happens, rather than a
+ * recurring tax. See CHANGELOG.md, item 13.
  */
-export const BASE_INJURY_RISK = 0.035;
+export const BASE_INJURY_RISK = 0.031;
 
 /** The bands, their share of injuries, and how long they keep a player out. */
 const SEVERITIES: readonly {
@@ -110,10 +127,65 @@ export function injuryRisk(input: InjuryRiskInput): number {
   const exposure = clamp01(input.minutes / 90);
   const emptied = 1 - clamp01(input.fitnessAtEnd / 100);
   const fatigue = 1 + 2.2 * emptied * emptied;
-  // Bodies stop forgiving a hard season somewhere around thirty.
-  const age = input.age <= 28 ? 1 : 1 + (input.age - 28) * 0.07;
   const durability = 1 - 0.3 * unit(input.stamina);
-  return clamp01(BASE_INJURY_RISK * exposure * fatigue * age * durability);
+  return clamp01(BASE_INJURY_RISK * exposure * fatigue * ageRisk(input.age) * durability);
+}
+
+/**
+ * How far below peak age a body stops being a young one, and how fast.
+ *
+ * Shared by both age curves below because they are the same fact seen twice —
+ * a young body both gets hurt less and mends faster, and giving them separate
+ * slopes would be inventing a difference nobody could feel. The floor exists
+ * because a teenager is not made of rubber: it binds from about nineteen down,
+ * so the very young are all equally durable rather than trending toward
+ * invulnerable.
+ */
+const YOUTH_TAPER = 0.035;
+const YOUTH_FLOOR = 0.7;
+
+/** Peak age, where both curves are 1 and neither helps nor hurts. */
+const PEAK_AGE = 28;
+
+/**
+ * How much more, or less, a body of this age gets hurt.
+ *
+ * The half of this that always existed is the top: bodies stop forgiving a hard
+ * season somewhere around thirty, and every season after that costs more. The
+ * half that did not is the bottom, and its absence was a real gap rather than a
+ * simplification — measured over 480 seasons, a nineteen-year-old took 0.95
+ * injuries a season against a twenty-eight-year-old's 1.38, which is barely
+ * above noise. A teenager was exactly as fragile as a man ten years older, and
+ * anybody who played a young career could feel it.
+ *
+ * It is worth being precise about what this does NOT claim. Real footballers do
+ * not stop getting injured for being young — the medical literature has youth
+ * incidence close to flat, with its own growth-related injuries. What is
+ * genuinely true is that young bodies MEND faster, which is why the larger half
+ * of this correction lives in `recoveryFactor` rather than here. This term is
+ * the smaller, honest nod to the fact that twenty-two years old and thirty-two
+ * years old are not the same body under the same workload.
+ */
+export function ageRisk(age: number): number {
+  if (age >= PEAK_AGE) return 1 + (age - PEAK_AGE) * 0.07;
+  return Math.max(YOUTH_FLOOR, 1 - (PEAK_AGE - age) * YOUTH_TAPER);
+}
+
+/**
+ * How long a body of this age takes to mend, as a multiplier on the weeks.
+ *
+ * The better-supported half of the age correction, and the one a player feels
+ * most directly, because weeks out is the number that takes matches off him. A
+ * nineteen-year-old shrugs off in two weeks what keeps a thirty-four-year-old
+ * out for three.
+ *
+ * Capped at the top so that a veteran's every knock does not become a month:
+ * past the mid-thirties a career is already ending on the ageing curve in
+ * `development.ts`, and it should not also be ending in the treatment room.
+ */
+export function recoveryFactor(age: number): number {
+  if (age >= PEAK_AGE) return Math.min(1.35, 1 + (age - PEAK_AGE) * 0.045);
+  return Math.max(YOUTH_FLOOR, 1 - (PEAK_AGE - age) * YOUTH_TAPER);
 }
 
 /**
@@ -132,18 +204,23 @@ export function rollInjury(rng: Rng, input: InjuryRiskInput, season: number): In
   let seen = 0;
   for (const band of SEVERITIES) {
     seen += band.share;
-    if (roll <= seen) return diagnose(rng, band, season);
+    if (roll <= seen) return diagnose(rng, band, season, input.age);
   }
-  return diagnose(rng, SEVERITIES[SEVERITIES.length - 1]!, season);
+  return diagnose(rng, SEVERITIES[SEVERITIES.length - 1]!, season, input.age);
 }
 
 function diagnose(
   rng: Rng,
   band: (typeof SEVERITIES)[number],
   season: number,
+  age: number,
 ): Injury {
   const [shortest, longest] = band.weeks;
-  const weeks = shortest + Math.floor(rng.next() * (longest - shortest + 1));
+  const drawn = shortest + Math.floor(rng.next() * (longest - shortest + 1));
+  // Never below a week, whatever the arithmetic says. An injury that keeps a
+  // footballer out for no matches at all is not an injury, and the hub has no
+  // way to render one.
+  const weeks = Math.max(1, Math.round(drawn * recoveryFactor(age)));
   return {
     severity: band.severity,
     label: band.label,

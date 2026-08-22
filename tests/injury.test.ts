@@ -3,8 +3,10 @@ import { Rng } from '../src/core/rng.ts';
 import {
   BASE_INJURY_RISK,
   advanceInjury,
+  ageRisk,
   injuryReport,
   injuryRisk,
+  recoveryFactor,
   rollInjury,
 } from '../src/core/career/injury.ts';
 import type { Injury } from '../src/core/career/injury.ts';
@@ -38,10 +40,32 @@ describe('what makes an injury likely', () => {
     expect(injuryRisk({ ...fresh, stamina: 95 })).toBeLessThan(injuryRisk({ ...fresh, stamina: 30 }));
   });
 
-  it('treats every age up to the late twenties the same', () => {
-    // Bodies do not start giving out at 23, and a model that says they do makes
-    // every young career feel unlucky for no reason it can point at.
-    expect(injuryRisk({ ...fresh, age: 20 })).toBe(injuryRisk({ ...fresh, age: 28 }));
+  it('never makes a young player MORE fragile than a peak-aged one', () => {
+    // The original point of this test, and it still holds: bodies do not start
+    // giving out at 23, and a model that says they do makes every young career
+    // feel unlucky for no reason it can point at. What changed is the other
+    // direction — a young body is now allowed to be a little sturdier.
+    for (const age of [17, 20, 23, 26, 28]) {
+      expect(injuryRisk({ ...fresh, age })).toBeLessThanOrEqual(injuryRisk({ ...fresh, age: 28 }));
+    }
+  });
+
+  it('gives youth a real edge rather than a rounding error', () => {
+    // Flat below 28 was the state this replaced, and it was measurable in
+    // careers: a nineteen-year-old took as many injuries as a man of 28.
+    expect(ageRisk(19)).toBeLessThan(ageRisk(28));
+    expect(injuryRisk({ ...fresh, age: 19 })).toBeLessThan(injuryRisk({ ...fresh, age: 28 }) * 0.85);
+  });
+
+  it('stops short of making the very young invulnerable', () => {
+    // A teenager is not made of rubber, and a floor is what says so.
+    expect(ageRisk(14)).toBe(ageRisk(17));
+    expect(ageRisk(17)).toBeGreaterThan(0.5);
+  });
+
+  it('still charges a veteran more, and by more than it discounts a teenager', () => {
+    expect(ageRisk(35)).toBeGreaterThan(1);
+    expect(ageRisk(35) - 1).toBeGreaterThan(1 - ageRisk(18));
   });
 
   it('stays a small number for an ordinary match', () => {
@@ -49,6 +73,49 @@ describe('what makes an injury likely', () => {
     // above the base rate here becomes several injuries a month.
     expect(injuryRisk(fresh)).toBeLessThan(BASE_INJURY_RISK * 2);
     expect(injuryRisk(fresh)).toBeGreaterThan(0);
+  });
+});
+
+describe('how fast a body mends', () => {
+  it('heals a young player faster and an old one slower', () => {
+    expect(recoveryFactor(19)).toBeLessThan(1);
+    expect(recoveryFactor(28)).toBe(1);
+    expect(recoveryFactor(35)).toBeGreaterThan(1);
+  });
+
+  it('caps how long a veteran is kept out', () => {
+    // Past the mid-thirties a career is already ending on the ageing curve in
+    // development.ts. It should not also be ending in the treatment room.
+    expect(recoveryFactor(45)).toBe(recoveryFactor(37));
+    expect(recoveryFactor(45)).toBeLessThanOrEqual(1.35);
+  });
+
+  it('shortens the weeks a young player actually serves', () => {
+    // Sampled rather than compared one-to-one: a single roll at the same seed
+    // does not fire at both ages, because the young player is less likely to be
+    // hurt in the first place. What is being measured here is the LENGTH of the
+    // ones that do happen, so the rate has to be sampled out of the way.
+    const served = (age: number) => {
+      const rng = new Rng(`mend-${age}`);
+      const weeks: number[] = [];
+      for (let i = 0; i < 4000; i++) {
+        const injury = rollInjury(rng, { ...fresh, fitnessAtEnd: 0, age }, 3);
+        if (injury) weeks.push(injury.weeks);
+      }
+      expect(weeks.length).toBeGreaterThan(100);
+      return weeks.reduce((a, b) => a + b, 0) / weeks.length;
+    };
+    expect(served(19)).toBeLessThan(served(28));
+    expect(served(28)).toBeLessThan(served(35));
+  });
+
+  it('never diagnoses an injury worth no matches at all', () => {
+    // A one-week knock scaled by 0.7 rounds toward nothing, and an injury the
+    // hub cannot render is worse than no injury model.
+    for (const seed of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
+      const injury = rollInjury(new Rng(seed), { ...fresh, fitnessAtEnd: 2, age: 17 }, 1);
+      if (injury) expect(injury.weeks).toBeGreaterThanOrEqual(1);
+    }
   });
 });
 

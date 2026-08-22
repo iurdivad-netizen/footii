@@ -97,6 +97,60 @@ export const REST_FITNESS = 8;
 export const TRAIN_FITNESS = 6;
 
 /**
+ * How fresh he has to be to do extra work at all.
+ *
+ * A cost that does not reset is a ratchet, and this one very nearly was. Fitness
+ * carries between matches, a match costs about 36 of it and a week's rest
+ * returns 34 — so the system already runs a slight deficit, and taking another
+ * six every week compounds into free-fall. Measured over 360 seasons, a career
+ * that trained every week took 1.73 injuries a season against 1.26 for one that
+ * planned nothing, finished matches on a mean fitness of 36 with a tenth
+ * percentile of 2, and went from one season in four with no injury to one in
+ * eight. The card promised "turn up to it tired". It was not describing that.
+ *
+ * The fix is a gate rather than a smaller number, because a smaller number
+ * still ratchets — it only takes longer. Below this a player is in no state to
+ * do extra work, which is also the thing a coach would actually say, and the
+ * gate turns the trap into the reverse: when he is tired the screen tells him
+ * so, and resting is visibly the right answer rather than a lesson he learns in
+ * February. See CHANGELOG.md, item 14.
+ */
+export const TRAIN_FITNESS_FLOOR = 80;
+
+/** Is he fresh enough to do extra work this week? */
+export function canTrain(fitness: number): boolean {
+  return fitness >= TRAIN_FITNESS_FLOOR;
+}
+
+/**
+ * The four options, and which of them he is in a state to take.
+ *
+ * Returned with the unavailable one still IN the list rather than filtered out
+ * of it, so the screen can grey it out and say why. A choice that silently
+ * disappears reads as a bug and teaches nothing; one that is visibly shut,
+ * with the reason attached, is what makes resting the obvious answer.
+ */
+export interface WeekOption {
+  choice: WeekChoice;
+  available: boolean;
+  /** Why not, when it is not. Empty when it is. */
+  reason: string;
+}
+
+export function weekOptions(fitness: number): WeekOption[] {
+  return WEEK_CHOICES.map((choice) => {
+    if (choice === 'train' && !canTrain(fitness)) {
+      return {
+        choice,
+        available: false,
+        reason: 'You are in no state for it. Rest first.',
+      };
+    }
+    return { choice, available: true, reason: '' };
+  });
+}
+
+/**
  * How much more a match is worth after a week of extra work, at neutral morale.
  *
  * Deliberately small. This is a multiplier on a development budget that was
@@ -222,7 +276,14 @@ export function spendWeek(rng: Rng, input: WeekInput): WeekOutcome {
     case 'train':
       return {
         ...base,
-        fitness: clamp(input.fitness - TRAIN_FITNESS, 0, 100),
+        // Never below the floor, and never ABOVE where he started: the gate
+        // stops the cost compounding, and must not become a way to recover by
+        // training. `min` is what says so, and it is not redundant — without it
+        // a player at 60 fitness would come out of a hard week on 80.
+        fitness: Math.min(
+          input.fitness,
+          Math.max(TRAIN_FITNESS_FLOOR, clamp(input.fitness - TRAIN_FITNESS, 0, 100)),
+        ),
         growth: round(1 + TRAIN_GROWTH * effort, 3),
         note:
           input.morale >= 60

@@ -1205,9 +1205,31 @@ week that already had one. A linear term would have spread risk evenly across ev
 tiredness and made a hard season feel like a slightly unluckier version of an easy one.
 
 That makes **fixture congestion the engine**, rather than a dice roll that fires sometimes. Minutes
-played, age past the late twenties, and stamina adjust it from there — a substitute risks less than
-a man who played ninety, a thirty-five-year-old more than a twenty-two-year-old, and a durable
-player less than a fragile one. Nothing happens to a player who did not play at all.
+played, age and stamina adjust it from there — a substitute risks less than a man who played ninety,
+and a durable player less than a fragile one. Nothing happens to a player who did not play at all.
+
+#### Age, at both ends
+
+The age term used to read `age <= 28 ? 1 : …` — **flat below the peak**. A nineteen-year-old was
+exactly as fragile as a twenty-eight-year-old and mended exactly as slowly. That was a gap rather
+than a simplification, and it was measurable: across 480 seasons a teenager took 0.95 injuries a
+season against a twenty-eight-year-old's 1.38, which is barely above noise. Anybody who played a
+young career could feel it, and somebody did.
+
+There is now a curve at both ends, and it is deliberately split across two different things:
+
+- **Getting hurt** (`ageRisk`) tapers gently to ×0.7 by nineteen and rises 7% a year past
+  twenty-eight. The floor is there because a teenager is not made of rubber.
+- **Mending** (`recoveryFactor`) uses the same taper downward, and rises more slowly upward to a
+  cap of ×1.35. A nineteen-year-old shrugs off in two weeks what keeps a thirty-four-year-old out
+  for three.
+
+The split is the honest part. Real footballers do not stop getting injured for being young — the
+medical literature has youth incidence close to flat, with its own growth-related problems. What is
+genuinely true is that young bodies **recover** faster, so the larger half of the correction lives
+in the duration rather than in the rate. The veteran end is also capped on purpose: past the
+mid-thirties a career is already ending on the ageing curve in `development.ts`, and it should not
+also be ending in the treatment room.
 
 It is diagnosed **at full time, never mid-match**. A player pulling up in the 62nd minute is the
 better simulation and the worse game: it ends the one thing you came to do, halfway through, on a
@@ -1222,10 +1244,30 @@ roll you cannot see or influence.
 | A torn muscle | 13% | 4–7 weeks |
 | A rupture | 4% | 9–16 weeks |
 
-Measured across careers, this comes out at **one to three spells a season and typically nought to
-ten weeks out** — leaving league participation between about 70% and 100%, usually in the nineties.
-That range is the whole point: it is the first time those numbers have been able to be anything
-other than exactly 100%.
+#### What the rate actually is, and how it is known
+
+Nothing about the base risk can be read off the arithmetic. Risk is quadratic in fitness at the
+final whistle, fitness is whatever ninety minutes of a real match happened to leave, and **a match
+costs slightly more than a week of rest returns** — so what any constant produces over a season is
+emergent. The only honest way to set it is to play several hundred seasons and count, which is what
+[`scripts/measureInjuries.ts`](scripts/measureInjuries.ts) exists to do.
+
+| | at the old 0.035 | at 0.031, with the age curve |
+| --- | --- | --- |
+| Injuries per season | 1.29 | **1.06** |
+| Weeks out | 3.31 | **2.38** |
+| Matches missed | 3.32 | **2.58** |
+| Seasons with none at all | 25% | **29%** |
+| Age 18: injuries · weeks | 0.95 · 1.9 | **0.47 · 0.7** |
+
+The old number was accurate to what its comment claimed and still felt like too much from the other
+side of the screen, and the reason is worth recording: **roughly half of all injuries are one-week
+knocks, and it is the event a player counts rather than the football lost.** Three seasons in four
+containing an injury reads as "always injured" even when the weeks are modest.
+
+League participation still runs between about **70% and 100%**, usually in the nineties. That range
+is the whole point: it is the first time those numbers have been able to be anything other than
+exactly 100%.
 
 Weeks are what an injury is counted in, which is only expressible because the season is now measured
 in them. A midweek fixture is a gap of **zero** weeks, so missing it does not shorten the injury that
@@ -1404,7 +1446,7 @@ four things a player can do with seven days:
 | | what it gives | what it costs |
 |---|---|---|
 | **Rest up** | +8 fitness, which selection reads | you learn nothing from the week |
-| **Extra work** | more out of the next match | −6 fitness, which selection also reads |
+| **Extra work** | more out of the next match | −6 fitness, which selection also reads — and not offered at all below 80 |
 | **Study the opponent** | a wider decision window in the next match | nothing physical — its whole price is the other three |
 | **Ask for a start** | your manager's confidence, if it lands | his confidence, if it does not |
 
@@ -1442,6 +1484,29 @@ to produce a whole career arc, and a week's work worth half as much again would 
 career somewhere the model was never tuned for. It is also self-limiting, which is why it can be as
 generous as it is — training costs fitness, fitness is read by selection, and development only
 happens in matches you play. A career spent entirely in the gym trains its way out of the side.
+
+#### The gate, and why a smaller number would not have done
+
+The fitness cost very nearly shipped as a **ratchet**, and it is worth recording how, because the
+mistake is invisible from the code. Fitness carries between matches; a match costs about 36 and a
+week's rest returns 34, so the system already runs a slight deficit. Taking another six every week
+compounds. Measured over 360 seasons, a career that trained every week:
+
+| | never planning a week | training every week |
+| --- | --- | --- |
+| Injuries per season | 1.26 | **1.73** |
+| Mean fitness at full time | 53 | **36** (10th percentile: **2**) |
+| Seasons with no injury | 26% | **13%** |
+
+The card promised *"turn up to it tired."* It was not describing that. The fix is a **gate rather
+than a smaller number**, because a smaller number still ratchets — it only takes longer. Below 80
+fitness a player is in no state for extra work, which is what a coach would say anyway. The option
+is greyed out with the reason on it rather than hidden, so being tired makes resting *visibly* the
+right answer instead of a lesson learned in February.
+
+After it, the three physical choices sit in the order they should: **rest 0.90 injuries a season,
+planning nothing 1.06, training every week 1.23.** Extra work costs about 16% more injuries, which
+is a price worth advertising rather than one worth hiding.
 
 #### Asking for a start limits itself
 

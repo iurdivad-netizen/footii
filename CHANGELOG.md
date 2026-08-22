@@ -121,6 +121,92 @@ clubs fill the list — but it is not what makes the feature work, and the code 
 
 See [What he will move for, and asking to leave](README.md#what-he-will-move-for-and-asking-to-leave).
 
+**13. There are a lot of injuries, even for a young player.** ✅ **Done, and measured before and
+after.** Raised from playing several seasons. Both halves of it check out, and the second half is
+the sharper one.
+
+Measuring it at all meant building [`scripts/measureInjuries.ts`](scripts/measureInjuries.ts), because
+this is the one part of the game nobody can judge by reading: risk is quadratic in fitness at the
+final whistle, fitness is whatever ninety minutes of a real match happened to leave, and a match
+costs slightly more than a week of rest returns. What a constant produces over a season is emergent
+rather than arithmetic. Across **480 season-samples played through the real match engine**:
+
+| | measured |
+|---|---|
+| Injuries per season | 1.29 |
+| Weeks out | 3.31 |
+| Matches missed | 3.32 of ~40 fixtures |
+| Seasons with no injury at all | 25% |
+
+So the file's own claim — "roughly one and a half across a forty-match season… about a month a
+year" — is **accurate**. The model is doing what it says. What makes it *feel* like more is that
+three seasons in four contain an injury and 49% of them are one-week knocks: the event fires far
+more often than the football lost would suggest.
+
+**The "even when young" half is a genuine gap, and not a subtle one.** The age term reads
+`input.age <= 28 ? 1 : 1 + (input.age - 28) * 0.07` — flat below 28. A nineteen-year-old is exactly
+as fragile as a twenty-eight-year-old and mends exactly as slowly. Measured, age 18 takes 0.95
+injuries a season against age 28's 1.38, which is barely above noise. The comment above it says
+*"Bodies stop forgiving a hard season somewhere around thirty"*, which describes the top half of a
+curve whose bottom half was never written.
+
+**What was done.** A curve at **both** ends, split across two different things because they are
+two different facts: `ageRisk` for getting hurt, tapering to ×0.7 by nineteen, and `recoveryFactor`
+for mending, using the same taper and rising more slowly to a cap of ×1.35 at the top. The split is
+the honest part — real footballers do not stop getting injured for being young, but young bodies do
+recover faster, so the larger half of the correction lives in the duration rather than the rate.
+`BASE_INJURY_RISK` also came down from 0.035 to 0.031, which was the one genuine balance judgement
+here and was taken deliberately rather than derived.
+
+Measured after, on the same 480 seasons:
+
+| | before | after |
+|---|---|---|
+| Injuries per season | 1.29 | **1.06** |
+| Weeks out | 3.31 | **2.38** |
+| Matches missed | 3.32 | **2.58** |
+| Seasons with none | 25% | **29%** |
+| Age 18: injuries · weeks | 0.95 · 1.9 | **0.47 · 0.7** |
+
+A teenager now misses well under a match a season and an ordinary season carries about one injury —
+noticeable when it happens rather than a recurring tax. Peak-age and veteran careers move much less,
+which is the intended shape: the complaint was about being young, not about being fragile.
+
+**14. A week of extra work costs far more than its card admits.** ✅ **Done.** Not raised by
+anybody — found while measuring item 13, in code committed the same day.
+
+`TRAIN_FITNESS` takes 6 fitness a week. Fitness does not reset between matches, and the system
+already runs a slight deficit (a match costs about 36, a week's rest returns 34), so −6 turns a
+knife-edge into a ratchet. Measured, on a career that trains every week:
+
+- injuries **1.26 → 1.73**, a 37% increase
+- mean fitness at full time **53 → 36**, with a tenth percentile of **2**
+- seasons with no injury **26% → 13%**
+
+The card says *"turn up to it tired."* It does not say *"and get injured half as often again."*
+
+**What was done**, and the shape of it matters: a **gate rather than a smaller number**, because a
+smaller number still ratchets — it only takes longer. Below 80 fitness a player is in no state for
+extra work, which is what a coach would say anyway. The option is rendered greyed out with the
+reason attached rather than hidden, so being tired makes resting *visibly* the right answer instead
+of a lesson learned in February, and the service refuses the choice as well as the screen — a screen
+is not a rule.
+
+One trap inside the fix, worth recording because the obvious implementation has it: `max(80, f - 6)`
+at fitness 60 hands the player 80, so extra work becomes a way to **recover**. The cost is therefore
+clamped to never exceed where he started as well as never to fall below the floor, and there is a
+test for exactly that.
+
+After it, the three physical choices sit in the order they should: rest **0.90** injuries a season,
+planning nothing **1.06**, training every week **1.23** — about 16% more, which is a price worth
+advertising rather than hiding.
+
+One thing the same run corrected, because the obvious reading of it is wrong: **rest looks like a
+no-op and is not.** Injuries come out at 1.26 whether or not the player rests every week — but that
+is exposure, not risk. Resting lifts mean fitness at full time from 53 to 63 and removes every match
+started below 80, and the count holds level only because a fitter player is available for more
+matches (35.0 played against 33.4).
+
 ## Found while reviewing, and fixed
 
 Four things that were not on either list, found by reading the code against what it claimed:
