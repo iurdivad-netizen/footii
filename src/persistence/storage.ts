@@ -15,7 +15,8 @@ import { initialNationStrengths } from '../core/career/nationDrift.ts';
 import type { CoefficientLedger, Coefficients } from '../core/career/coefficients.ts';
 import { Rng } from '../core/rng.ts';
 import { initialStrengths } from '../core/career/clubDrift.ts';
-import { defaultPreferences } from '../core/career/preferences.ts';
+import { STANDING_FLOORS, defaultPreferences } from '../core/career/preferences.ts';
+import { isEuropeanTier } from '../core/career/europe.ts';
 import { contractYears, offeredWage, squadRole } from '../core/career/transfers.ts';
 import type { DecisionPace } from '../simulation/DecisionTimer.ts';
 import type { CareerLegacy } from '../core/career/legacy.ts';
@@ -33,7 +34,7 @@ import { rankLegacies } from '../core/career/legacy.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 22;
+export const SAVE_VERSION = 23;
 
 export interface CareerRecord {
   matches: number;
@@ -721,6 +722,26 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
     }
   }
 
+  if (save.version === 22) {
+    // v22 -> v23: he can ask to leave, and can say how big a club has to be.
+    //
+    // Three fields, all of them absences rather than defaults. Nobody comes
+    // forward with a transfer request standing, because no earlier version had
+    // one to hand in; and nobody comes forward with a demand stated, because a
+    // career that could not state one has not stated one. `any` and `null` are
+    // therefore the truthful readings as well as the safe ones — they say "he
+    // has not asked", which is exactly what an older save means.
+    //
+    // The alternative — inferring a demand from where the career has been
+    // playing — would be inventing a position somebody never took, and it would
+    // silently shrink the market of a career that was happy with it.
+    save = { ...save, version: 23 };
+    for (const career of save.careers ?? []) {
+      if (career) career.transferRequest ??= null;
+    }
+    if (save.careerState) save.careerState.transferRequest ??= null;
+  }
+
   // The flat field is a migration detail and must not survive into the save.
   // Leaving it would give the game two answers to "which career is this", and
   // the stale one would win on any code path that had not been updated.
@@ -751,6 +772,20 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
     }
     if (!Array.isArray(career.preferences.refused)) career.preferences.refused = [];
     if (!Array.isArray(career.preferences.favoured)) career.preferences.favoured = [];
+    // The two demands are additive in the same way, and repaired the same way:
+    // an unrecognised band is treated as no demand at all rather than as the
+    // nearest one, because guessing which ultimatum somebody meant is worse
+    // than reading a damaged save as having made none.
+    if (!(career.preferences.standing in STANDING_FLOORS)) career.preferences.standing = 'any';
+    if (
+      career.preferences.european !== null &&
+      career.preferences.european !== 'any' &&
+      !isEuropeanTier(career.preferences.european ?? '')
+    ) {
+      career.preferences.european = null;
+    }
+    // A request that names a club nobody plays for any more is not a request.
+    if (career.transferRequest === undefined) career.transferRequest = null;
     // A career from before the super cup existed simply has none to play.
     if (career.superCup === undefined) career.superCup = null;
     return career;

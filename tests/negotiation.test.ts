@@ -205,7 +205,10 @@ describe('what he wants from a move', () => {
       'Not looking to move',
     );
     expect(
-      describePreferences({ settled: false, favoured: ['spain'], refused: ['italy'] }, name),
+      describePreferences(
+        { ...defaultPreferences(), favoured: ['spain'], refused: ['italy'] },
+        name,
+      ),
     ).toBe('You are keen on SPAIN, and will not move to ITALY.');
   });
 });
@@ -253,7 +256,7 @@ function offersWith(preferences: Parameters<typeof generateOffers>[1]['preferenc
 
 describe('preferences reach the market', () => {
   it('brings nobody at all when he says he is settled', () => {
-    expect(offersWith({ settled: true, refused: [], favoured: [] })).toEqual([]);
+    expect(offersWith({ ...defaultPreferences(), settled: true })).toEqual([]);
   });
 
   it('keeps a refused country out of the offers entirely', () => {
@@ -264,13 +267,13 @@ describe('preferences reach the market', () => {
     const refusedCountry = countries.find((id) => id !== 'england');
     expect(refusedCountry).toBeDefined();
 
-    const filtered = offersWith({ settled: false, refused: [refusedCountry!], favoured: [] });
+    const filtered = offersWith({ ...defaultPreferences(), refused: [refusedCountry!] });
     expect(filtered.every((offer) => countryOf(offer.clubId) !== refusedCountry)).toBe(true);
   });
 
   it('never refuses him his own country, so he always has somewhere to sign', () => {
     const everywhere = [...new Set(TEAMS.map((team) => countryOf(team.id)))];
-    const offers = offersWith({ settled: false, refused: everywhere, favoured: [] });
+    const offers = offersWith({ ...defaultPreferences(), refused: everywhere });
     expect(offers.every((offer) => countryOf(offer.clubId) === 'england')).toBe(true);
   });
 });

@@ -1,4 +1,5 @@
 import { ATTRIBUTE_LABELS } from '../../core/player/attributes.ts';
+import { requestStands } from '../../core/career/transferRequest.ts';
 import type { AttributeKey } from '../../core/player/attributes.ts';
 import type { CompetitionKind } from '../../core/career/calendar.ts';
 import { currentAbility } from '../../core/player/player.ts';
@@ -1016,8 +1017,18 @@ export function renderSeasonHonours(honours: readonly Honour[], season: number):
 function preferenceLabel(state: CareerState): string {
   const preferences = state.preferences;
   if (!preferences) return 'What you want from a move';
+  // Said first and on its own, because it is the only one of these that is
+  // costing him something every week it stands. A player being left out should
+  // never have to open a screen to find out why.
+  if (requestStands(state.transferRequest, state.clubId)) {
+    return 'You have asked to leave — take it back';
+  }
   if (preferences.settled) return 'Not looking to move — change that';
-  const stated = preferences.favoured.length + preferences.refused.length;
+  const stated =
+    preferences.favoured.length +
+    preferences.refused.length +
+    (preferences.standing !== 'any' ? 1 : 0) +
+    (preferences.european ? 1 : 0);
   return stated > 0
     ? `What you want from a move · ${stated} stated`
     : 'What you want from a move';

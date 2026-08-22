@@ -40,6 +40,7 @@ import { isSelected, nationId } from './nations.ts';
 import type { ClubStrengths } from './clubDrift.ts';
 import type { Honour } from './awards.ts';
 import type { CareerPreferences } from './preferences.ts';
+import type { TransferRequest } from './transferRequest.ts';
 import type { SuperCupTie } from './superCup.ts';
 import { playsInSuperCup, superCupOpponent } from './superCup.ts';
 
@@ -172,6 +173,16 @@ export interface CareerState {
    * that had already been decided. See core/career/preferences.ts.
    */
   preferences: CareerPreferences;
+  /**
+   * A transfer request he has handed in, or null.
+   *
+   * The one thing in the market he decides on his own, and the only entry in
+   * this state that costs him something while it sits here: it is read by
+   * selection as well as by the summer. It names the club it was handed to, so
+   * a move clears it without anybody having to remember to.
+   * See core/career/transferRequest.ts.
+   */
+  transferRequest: TransferRequest | null;
   /** Total wages banked across the career, in millions. */
   careerEarnings: number;
   /**
