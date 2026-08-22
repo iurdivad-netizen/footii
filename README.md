@@ -1325,6 +1325,151 @@ The decision is **seeded on the calendar slot**, so the hub gives one answer how
 is rendered. A selection that re-rolled on every redraw would be a slot machine, and a player would
 learn to reopen the screen until he was picked.
 
+### What the manager makes of you
+
+Morale has been on the hub since there was a hub, and until now it did exactly one thing: it
+contributed `TIMER_WEIGHTS.morale` — **0.08** — to the decision window. Across the whole 0-100 range
+that is **0.53 seconds out of ten**. A player could go from delighted to despairing and never see
+the game change. It was a number on a screen rather than a mechanic, which is the same problem
+`contract.role` had before rotation, and it has the same fix: what gives a mood teeth is somebody
+whose opinion decides whether you play.
+
+So there is now a second number, **manager confidence**, 0-100, held per club. It is what the man
+picking the side currently makes of you, and it is deliberately not the same thing as how you feel:
+
+| | whose it is | what moves it |
+|---|---|---|
+| **Morale** | his | **results**, because a footballer in a winning side is happy whatever his manager thinks |
+| **Confidence** | the manager's | **performances**, weighted by how much the match mattered |
+
+Keeping both is what lets them disagree, and the disagreement is the point. A good player in a bad
+side keeps his manager's trust while his mood sinks. A passenger in a winning side is cheerful and
+about to be dropped. Neither is sayable with one number.
+
+**Where it starts** is what the club called you when it signed you — a third job for `contract.role`,
+and the one that makes the term mean something on day one rather than in March. A star arrives
+believed in (64), a squad player arrives doubted (40), and neither head start is big enough to
+settle the argument on its own.
+
+**What it reads into** is three things, and deliberately no more:
+
+- **Selection**, alongside the squad role and the transfer request and on the same scale they use.
+  The full range of a manager's opinion is worth ±0.12 — slightly less than the gap between being
+  signed as a star and being signed as cover, and more than the gap between `starter` and `squad`.
+  A manager can talk himself into and out of a footballer; he cannot make a bad one good.
+- **The renewal**, which is the one question the market cannot ask. Every club in the world answers
+  the other five identically about the same player; only his own club knows what its manager
+  thinks. This is the mechanism behind a career that was previously unsayable — the good footballer
+  whose manager has stopped fancying him, whose contract runs down while clubs elsewhere are still
+  interested. It can also **move the club's word for him one step**: a season of being undroppable
+  gets a squad player offered a starter's deal, and being offered one is how the game says the
+  argument was won.
+- **Morale**, which is the coupling that gives the older number its job at last. Being trusted lifts
+  him and being frozen out grinds him down, worth ±12 on a target that sits between 34 and 78 — a
+  real term and not the decisive one. Being frozen out at a winning club still beats being adored at
+  a losing one, which is the correct ordering; footballers say so.
+
+**What it deliberately does not read is a transfer request.** That already has a measured price in
+selection and at the negotiating table, and charging it again here would make one decision cost
+twice — the exact mistake [asking to leave](#what-he-will-move-for-and-asking-to-leave) was careful
+not to make.
+
+#### It never digs the hole deeper
+
+Being left out pulls confidence **toward neutral, never away from it**. Being dropped is already the
+punishment for a manager's doubt; making it also the cause would lock the way out behind the thing
+being punished — the same trap [form](#the-competition-for-your-place) avoids while you are out of
+the side, and avoided here in the same shape. A manager who has stopped picking you slowly stops
+having a view, which is both the merciful reading and the true one: a player nobody has watched for
+six weeks is a question rather than an answer, and the answer comes back the moment he plays. An
+injury does it faster than an omission, because nobody is being judged for a hamstring.
+
+It also **belongs to the club**, like the rival and the named teammates. Signing somewhere else does
+not carry a grudge across: the new manager has his own view, and it starts from what the new club
+just promised you.
+
+The hub shows it as **a band and a line in the manager's voice** — *Out of favour*, *Unconvinced*,
+*Watching*, *Trusted*, *Untouchable* — rather than as a figure. A two-digit number beside `Morale`
+is exactly what this was written to stop being.
+
+### The week before a match
+
+A career used to be a conveyor belt. Between one fixture and the next the hub offered exactly one
+button — *Play match* — and everything else on the screen was a readout. A season was thirty
+decisions about how to finish a chance and none at all about how to be a footballer.
+
+So the week is a decision now. **One choice, made before the next fixture and spent on it**, out of
+four things a player can do with seven days:
+
+| | what it gives | what it costs |
+|---|---|---|
+| **Rest up** | +8 fitness, which selection reads | you learn nothing from the week |
+| **Extra work** | more out of the next match | −6 fitness, which selection also reads |
+| **Study the opponent** | a wider decision window in the next match | nothing physical — its whole price is the other three |
+| **Ask for a start** | your manager's confidence, if it lands | his confidence, if it does not |
+
+None of them is a free bonus. Every one costs what the other three would have given you, and two of
+them cost more than that on their own — training hard is a way to end up not being picked, and
+knocking on the manager's door is the only option in the game that can go backwards.
+
+**Morale decides what a week is worth.** This is the second half of giving morale a job (the first
+is [manager confidence](#what-the-manager-makes-of-you)): a number that only ever receives is still
+decoration. What a footballer takes from a week of work is multiplied by whether he wants to be
+there — 0.6 at rock bottom, 1.4 at the top — and it is most of what decides whether asking for a
+start lands, because the conversation is going to be had by whichever version of him turns up to it.
+
+#### Two halves land immediately, and two wait for the match
+
+Fitness and confidence are applied **the moment you choose**, and that is most of what makes the
+week feel like a decision rather than a form. Both are read by the team sheet, so resting up or
+arguing your way back in can flip the very selection you were looking at when you chose — **a man
+who has just been dropped can talk his way back into the side before the match he was dropped
+from**. The other two wait because they have nowhere else to land: what a week of work is worth is
+only knowable once there is a match to apply it to, and studying an opponent is worth nothing until
+you are facing them.
+
+#### Extra work at both ends of a career
+
+The training multiplier moves **growth and decline in opposite directions**, and that is the detail
+that keeps it from being an empty menu item after thirty. Growth is zero past the peak, so a
+multiplier on growth alone would leave a decision with nothing on either side of it for eight of the
+twenty-three seasons a career can run. Instead, extra work makes a young player better and an old
+one worse more slowly — which is the same line the pre-season training screen has been saying since
+training existed: *at your age, training is mostly about holding on.*
+
+It is deliberately a **nudge rather than a rewrite**: it multiplies a development budget calibrated
+to produce a whole career arc, and a week's work worth half as much again would take a fifteen-year
+career somewhere the model was never tuned for. It is also self-limiting, which is why it can be as
+generous as it is — training costs fitness, fitness is read by selection, and development only
+happens in matches you play. A career spent entirely in the gym trains its way out of the side.
+
+#### Asking for a start limits itself
+
+The odds rise with morale and form, and **fall as the manager's confidence rises**. That is not a
+balance patch bolted on afterwards, it is the thing itself: a player his manager already rates has
+nothing to ask for, and asking anyway is exactly what turns a man who was happy with him into one
+who is not.
+
+Run the arithmetic and it settles itself. At confidence 20 the expected move is strongly positive;
+at 50 it is close to nothing; at 80 it is negative enough that a season of nagging costs a place in
+the side. So this is the option a benched career reaches for and a settled career leaves alone —
+and **nobody had to write a rule capping how often he may ask**.
+
+#### The rules around it
+
+**One pick, and it is final.** For the same reason [negotiation](#having-a-position-contracts-and-where-you-will-go) allows exactly one push: a
+decision you can retake until you like the answer is a slot machine rather than a decision.
+
+**A plan names the calendar slot it was made for**, so it is spent exactly once. It is cleared by
+the match it was made for — whether he played it or watched it, which is the honest cost of planning
+a week you are then left out of — and it is cleared again by the summer, because slots start at zero
+every August and a plan left over from May would otherwise be spent twice, a year apart.
+
+**While injured there is no week to plan.** The fixture is going to pass without him whatever he
+does, so a training decision about it would be a choice with nothing on either side of it. Being
+left out while *fit* is the opposite case and keeps every option — asking for a start is precisely
+what that week is for.
+
 ### Somebody to pass to
 
 An assist used to go to nobody. The commentary said *"GOAL — and an assist!"* and the man who
@@ -2210,7 +2355,9 @@ how big a club you will move for and the European football you will hold out for
 request you can hand in and take back**,
 **a trial to earn a start at a club above your level**, **injuries driven by fixture congestion,
 and matches your club plays without you**, **a named rival for your shirt, and a manager who leaves
-you out of the ones that do not matter**, **named teammates who get on the end of your passes**,
+you out of the ones that do not matter**, **a manager whose confidence in you decides selection, what
+your club offers to keep you and what it calls you when it does**, **a week between matches you
+spend on one of four things, each of which costs what the other three would have given you**, **named teammates who get on the end of your passes**,
 **loans for a young player who cannot get a game**, promotion and relegation machinery
 (dormant on a one-tier world), debug mode, and a versioned localStorage save with migration that
 says so when the browser will not keep it.

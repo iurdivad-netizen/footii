@@ -26,13 +26,18 @@ other item on this list is waiting for.
    sheet, squad numbers, teammates with careers of their own. Worth doing one day; not blocking
    anything.
 
+   One thing that list did promise has since arrived: **a manager whose confidence in you gives
+   morale something to do**. It needed no teammates either — the rival rotation already put in the
+   dressing room was enough for somebody to hold an opinion — and it turned out to be a fix for a
+   bug rather than a feature: morale had exactly one consumer, worth half a second on a ten-second
+   window. See [What the manager makes of you](README.md#what-the-manager-makes-of-you).
+
    It is no longer the blocker for playing time, though, and that is worth being precise about.
    Both levers that waited on it — the reputation settlement, and the 60% gate on individual
    awards — are now **live**, because injuries took matches off you and neither lever needed a
    teammate to notice. League participation runs between about 70% and 100% across a career instead
    of being pinned at exactly 100%. What squad context still unblocks is *rotation* — being left out
-   while fit — along with assists having a recipient, loans, and a manager whose confidence in you
-   could finally give morale something to do.
+   while fit — along with assists having a recipient and loans. Every one of those is now done.
 
 2. **Injuries and squad rotation** — ✅ **Done, both halves.**
    Injuries went first because they turned out not to depend on squad context at all: missing
@@ -67,6 +72,23 @@ Done since this list was last written, and worth recording because both were lis
 obvious next steps: **three career slots**, so ending a career is no longer the price of starting
 another, and **export/import of the save**, so a browser clearing its storage is no longer the end
 of everything the game has recorded. Both are documented under [Career mode](README.md#career-mode).
+
+Two more have since arrived that were on nobody's list, and they are worth recording precisely
+because they were not — both came from reading the game rather than from planning it, and both are
+about the part of a career that happens between matches rather than during them:
+
+- **[What the manager makes of you](README.md#what-the-manager-makes-of-you)** — a number per club that reads into selection, into the
+  renewal, and into morale. Item 1 above had listed this under what squad context would unblock; it
+  needed no squad at all, only the rival that rotation had already put in the dressing room.
+- **[The week before a match](README.md#the-week-before-a-match)** — the hub used to offer exactly one button between fixtures, so
+  a season was thirty decisions about how to finish a chance and none at all about how to be a
+  footballer. Now it is one choice out of four, each costing what the other three would have given
+  you.
+
+They are listed together because they are one change in two halves. Separately each is half a
+feature: the manager's confidence is a lever with nothing to pull it, and the week is a set of
+choices with nothing to spend them on. Together they are a loop — you are dropped, you knock on his
+door, and you are back in the side by Saturday.
 
 ## The one thing still open
 

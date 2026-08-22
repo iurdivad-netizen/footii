@@ -17,7 +17,10 @@ import {
   missMatch,
   recordPlayerMatch,
   requestTransfer,
+  planWeek,
+  preparationFor,
   teamSheet,
+  weekAhead,
   startCareer,
   stayAtClub,
   withdrawTransferRequest,
@@ -813,7 +816,7 @@ export class App {
     this.save = saveCareer(this.save, career);
 
     this.mount(
-      new CareerScreen(career, teamSheet(career), {
+      new CareerScreen(career, teamSheet(career), weekAhead(career), {
         onPlay: () => this.playCareerMatch(),
         onSkip: () => this.skipCareerMatch(),
         onMiss: () => this.missCareerMatch(),
@@ -821,6 +824,14 @@ export class App {
         onEndSeason: () => this.reviewSeason(),
         onQuit: () => this.showHome(),
         onPreferences: () => this.showPreferences(career),
+        // Re-entering the hub rather than re-rendering in place, because a week
+        // can change the team sheet: resting up or arguing your way back in are
+        // both read by selection, and the card above this one has to say so.
+        onWeek: (choice) => {
+          planWeek(career, choice);
+          this.save = saveCareer(this.save, career);
+          this.showCareerHub();
+        },
       }).element,
     );
   }
@@ -953,9 +964,11 @@ export class App {
           length: 90,
           playerTeamIsHome: isHome,
           paceScale: this.paceScale,
-          // Only in a CAREER: a quick match has no dressing room, so the engine
-          // narrates "a teammate" there exactly as it always did.
+          // Only in a CAREER, both of them. A quick match has no dressing room,
+          // so the engine narrates "a teammate" exactly as it always did — and
+          // no week before it to have been spent studying anybody.
           teammates: career.teammates,
+          preparation: preparationFor(career),
         },
         seed,
       ),

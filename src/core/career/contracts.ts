@@ -1,8 +1,9 @@
-import { clamp, round } from '../util/math.ts';
+import { clamp, clamp01, round } from '../util/math.ts';
 import type { Player } from '../player/player.ts';
 import type { Team } from '../team/team.ts';
 import type { SeasonStats } from './seasonStats.ts';
 import type { ClubInterest, SquadRole } from './transfers.ts';
+import { CONFIDENCE_NEUTRAL, confidenceInterest, renewalRole } from './confidence.ts';
 import {
   MAX_WAGE,
   MIN_WAGE,
@@ -134,6 +135,17 @@ export interface RenewalInput {
   stats: SeasonStats;
   season: number;
   prestige: number;
+  /**
+   * What the manager makes of him, 0-100.
+   *
+   * The one question the market cannot ask, and the reason it belongs here: the
+   * five below are answered identically by every club in the world looking at
+   * the same footballer, and this one is only answerable by the club he is
+   * actually at. Optional and neutral when absent, so a save from before
+   * managers had a view renews exactly as it always did.
+   * See core/career/confidence.ts.
+   */
+  confidence?: number;
 }
 
 /**
@@ -155,28 +167,44 @@ export function renewalOffer(input: RenewalInput): ContractOffer | null {
     // they are not keeping already.
     retaining: true,
   });
-  if (interest.score < RENEWAL_THRESHOLD) return null;
+  // What his own manager thinks, applied to what the club would otherwise think
+  // of any player with his season. This is what lets a contract run down on a
+  // footballer other clubs still want — the market sees the player, and only
+  // the club sees the dressing room.
+  const confidence = input.confidence ?? CONFIDENCE_NEUTRAL;
+  const score = clamp01(interest.score * confidenceInterest(confidence));
+  if (score < RENEWAL_THRESHOLD) return null;
 
-  const wage = offeredWage(input.player, input.club, interest.role, input.prestige);
+  // The club's word for him can move a step on a season of being trusted, or of
+  // not being. Read before the wage, because the role is what the wage is
+  // pitched at: being offered a starter's deal has to mean being offered a
+  // starter's money, or the promotion is a label on the same contract.
+  const role = renewalRole(interest.role, confidence);
+
+  const wage = offeredWage(input.player, input.club, role, input.prestige);
   if (!wageAcceptable(wage, wageDemand(input.player, input.prestige))) return null;
 
   return {
     clubId: input.club.id,
     wage,
     years: contractYears(input.player),
-    role: interest.role,
+    role,
     season: input.season,
-    interest: interest.score,
-    notes: renewalNotes(input.club, interest),
+    interest: score,
+    notes: renewalNotes(input.club, { ...interest, role }, confidence),
   };
 }
 
-function renewalNotes(club: Team, interest: ClubInterest): string[] {
+function renewalNotes(club: Team, interest: ClubInterest, confidence: number): string[] {
   const notes: string[] = [];
   if (interest.role === 'star') notes.push(`${club.name} are building around you.`);
   else notes.push(`${club.name} want you to stay.`);
   if (interest.need > 0.7) notes.push('They have nobody else who plays your position.');
   if (interest.fit > 0.65) notes.push('You are exactly the footballer they want in this side.');
+  // Said plainly, because it is the one line on the offer the player earned
+  // week by week rather than by being who he is.
+  if (confidence >= 78) notes.push('The manager pushed for this one himself.');
+  else if (confidence <= 25) notes.push('The manager is not the one who wanted this offered.');
   return notes;
 }
 

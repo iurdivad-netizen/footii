@@ -31,6 +31,7 @@ import { startCareer } from '../src/simulation/CareerService.ts';
 import { createPlayer } from '../src/core/player/player.ts';
 import { TEAMS } from '../src/data/gameData.ts';
 import { seasonCalendar } from '../src/core/career/calendar.ts';
+import { startingConfidence } from '../src/core/career/confidence.ts';
 import { createCareerRecords, milestones, recordMatch } from '../src/core/career/records.ts';
 import { countriesByStanding, hasRecord, nationCoefficient } from '../src/core/career/coefficients.ts';
 import { countriesByPrestige } from '../src/core/career/countries.ts';
@@ -1200,6 +1201,115 @@ describe('asking to leave, and what he will move for', () => {
     });
     expect(activeCareer(migrated)!.preferences.standing).toBe('big');
     expect(activeCareer(migrated)!.preferences.european).toBe('championsLeague');
+  });
+
+  it('gives a career from before managers had a view the one its contract implies', () => {
+    // Derived rather than defaulted. A flat neutral would invent a manager who
+    // has watched a whole career and formed no opinion of it; the squad role is
+    // the one thing an older save actually records about how the club sees him.
+    const state = career();
+    state.contract.role = 'star';
+    const older = { ...state } as Record<string, unknown>;
+    delete older.confidence;
+
+    const migrated = migrate({
+      version: 23,
+      career: emptyCareer(),
+      settings: defaultSettings(),
+      careers: [older, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(activeCareer(migrated)!.confidence).toBe(startingConfidence('star'));
+  });
+
+  it('reads the loan club\'s word for him ahead of the parent\'s', () => {
+    // The same rule selection and the rival already follow: the manager whose
+    // confidence matters is the one picking the side.
+    const state = career();
+    state.contract.role = 'squad';
+    state.loan = {
+      parentClubId: state.clubId,
+      parentClubName: 'Parent',
+      clubId: 'northport-city',
+      clubName: 'Northport City',
+      role: 'star',
+      season: state.seasonNumber,
+    };
+    const older = { ...state } as Record<string, unknown>;
+    delete older.confidence;
+
+    const migrated = migrate({
+      version: 23,
+      career: emptyCareer(),
+      settings: defaultSettings(),
+      careers: [older, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(activeCareer(migrated)!.confidence).toBe(startingConfidence('star'));
+  });
+
+  it('keeps a manager\'s view a career already had', () => {
+    const state = career();
+    state.confidence = 81;
+
+    const migrated = migrate({
+      version: 23,
+      career: emptyCareer(),
+      settings: defaultSettings(),
+      careers: [state, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(activeCareer(migrated)!.confidence).toBe(81);
+  });
+
+  it('brings a career forward from before the week was a decision with none planned', () => {
+    // A plan invented here would name a calendar slot it was not made for, and
+    // would be spent on the first fixture the career happened to be sitting in
+    // front of.
+    const state = career();
+    const older = { ...state } as Record<string, unknown>;
+    delete older.week;
+
+    const migrated = migrate({
+      version: 24,
+      career: emptyCareer(),
+      settings: defaultSettings(),
+      careers: [older, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(activeCareer(migrated)!.week).toBeNull();
+  });
+
+  it('keeps a week a career had already planned', () => {
+    const state = career();
+    state.week = { choice: 'study', slotIndex: 2, note: 'Watched them.', growth: 1, preparation: 0.25 };
+
+    const migrated = migrate({
+      version: 24,
+      career: emptyCareer(),
+      settings: defaultSettings(),
+      careers: [state, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(activeCareer(migrated)!.week).toEqual({
+      choice: 'study',
+      slotIndex: 2,
+      note: 'Watched them.',
+      growth: 1,
+      preparation: 0.25,
+    });
   });
 
   it('reads a demand it does not recognise as no demand at all', () => {

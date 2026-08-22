@@ -3615,6 +3615,92 @@ button.ghost.danger {
 }
 
 /*
+ * The week before the next match.
+ *
+ * Four options rendered as a stack of wide buttons rather than a row, because
+ * each one carries a line about what it costs and a row would either truncate
+ * those or squeeze them to nothing on a phone. The cost is the whole decision,
+ * so it is the part that must not be the first thing to go.
+ *
+ * Once spent, the buttons are gone and one line says what happened. Leaving a
+ * pressed option on screen beside three unpressed ones would invite a second
+ * press, and the entire weight of this decision is that there is one of it.
+ */
+.week-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+button.week-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 9px 12px;
+  margin-top: 0;
+}
+
+button.week-option:hover {
+  border-color: var(--accent);
+}
+
+.week-option-label {
+  display: block;
+  font-size: 0.92rem;
+}
+
+.week-option-note {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.week-spent {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.week-idle {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/*
+ * What the manager makes of him.
+ *
+ * A band and a line rather than a figure, so it reads as somebody's opinion
+ * instead of another statistic — the note is what makes it a sentence and not
+ * a score. It sits on its own row because a two-line value would otherwise
+ * push the numbers beside it out of alignment.
+ */
+.stat-list .stat-manager {
+  align-items: baseline;
+}
+
+.stat-list .stat-manager dd {
+  text-align: right;
+}
+
+.stat-list .manager-note {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-style: italic;
+}
+
+/*
  * Loans.
  *
  * The banner is green rather than amber: going out to play is not a setback,

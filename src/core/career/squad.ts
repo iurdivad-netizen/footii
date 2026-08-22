@@ -9,6 +9,7 @@ import type { CompetitionKind } from './calendar.ts';
 import { isEuropean, isInternational, isSuperCup } from './calendar.ts';
 import { EUROPEAN_GROUP_ROUNDS } from './europe.ts';
 import { REQUEST_SELECTION_BIAS } from './transferRequest.ts';
+import { CONFIDENCE_NEUTRAL, confidenceBias } from './confidence.ts';
 
 /**
  * THE COMPETITION FOR YOUR PLACE
@@ -311,6 +312,15 @@ export interface SelectionInput {
    * than a free button. See core/career/transferRequest.ts.
    */
   requested?: boolean;
+  /**
+   * What the manager currently makes of him, 0-100.
+   *
+   * Optional, and neutral when absent: a career saved before the manager had a
+   * view of anybody is a career whose manager has no view, and neutral is the
+   * only reading of that which changes nobody's team sheet.
+   * See core/career/confidence.ts.
+   */
+  confidence?: number;
 }
 
 /**
@@ -347,7 +357,15 @@ export function selectionChance(input: SelectionInput): number {
   // strictness, which is what stops it from being an exile. In a match that
   // matters the manager still picks his best side; it is the ordinary Saturdays
   // he now has a reason to give to somebody who will still be here in August.
-  const standing = ROLE_BIAS[input.role] + (input.requested ? REQUEST_SELECTION_BIAS : 0);
+  //
+  // The manager's own view joins them on the same scale, and it is the one term
+  // here the player can move during a season: the contract was signed last
+  // summer and the request is a single decision, but what the man picking the
+  // side makes of you is answered every week. See core/career/confidence.ts.
+  const standing =
+    ROLE_BIAS[input.role] +
+    (input.requested ? REQUEST_SELECTION_BIAS : 0) +
+    confidenceBias(input.confidence ?? CONFIDENCE_NEUTRAL);
 
   return clamp01(0.5 + (edge * 0.42 + standing) * strictness - rest);
 }
@@ -399,6 +417,12 @@ function selectionNote(input: SelectionInput, selected: boolean, chance: number)
   }
   if (behind > 3) {
     return `${input.rival.name} is ahead of you at the moment, and the manager has gone with him.`;
+  }
+  // Checked before the contract, because it is the half of the story that can
+  // still change. What the club signed him as is settled until the summer; what
+  // the manager makes of him is answered by the next match he gets.
+  if ((input.confidence ?? CONFIDENCE_NEUTRAL) < 38) {
+    return `${input.rival.name} starts. The manager is not convinced by you at the moment.`;
   }
   if (input.role === 'squad') {
     return `${input.rival.name} starts. You were signed as cover, and this is what that means.`;

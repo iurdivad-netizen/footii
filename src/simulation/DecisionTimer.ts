@@ -158,6 +158,16 @@ export function calculateDecisionTime(
   context: SituationContext,
   template: SituationTemplate,
   paceScale = 1,
+  /**
+   * What a week spent studying the opponent is worth, in model units.
+   *
+   * Added before the pace multiplier rather than after it, deliberately: a
+   * bonus applied in seconds would be worth three times as much at Hardcore as
+   * at Relaxed, and a week's homework should mean the same thing to every
+   * player. Zero in a quick match, in any week not spent on it, and in every
+   * caller that predates the week being a decision. See core/career/week.ts.
+   */
+  preparation = 0,
 ): DecisionTimerResult {
   const { attributes } = context.player;
   const modifiers: TimerModifier[] = [];
@@ -187,6 +197,10 @@ export function calculateDecisionTime(
   // A high-press opponent squeezes time everywhere on the pitch.
   const pressing = unit(context.defendingTeam.ratings.pressing);
   add('Opponent pressing', -0.2 * (pressing - 0.5) * 2 * 0.5);
+
+  // A week spent watching them. Recorded as a modifier like everything else, so
+  // the debug panel's audit shows where the extra time came from.
+  add('Prepared', preparation);
 
   const raw = modifiers.reduce((total, m) => total + m.seconds, template.baseTime);
 

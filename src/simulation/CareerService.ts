@@ -64,6 +64,13 @@ import { negotiate } from '../core/career/negotiation.ts';
 import { defaultPreferences } from '../core/career/preferences.ts';
 import type { TransferRequest } from '../core/career/transferRequest.ts';
 import { handInRequest, requestStands } from '../core/career/transferRequest.ts';
+import {
+  CONFIDENCE_NEUTRAL,
+  confidenceAfterAbsence,
+  startingConfidence,
+} from '../core/career/confidence.ts';
+import type { WeekChoice, WeekPlan } from '../core/career/week.ts';
+import { WEEK_CHOICES, planApplies, spendWeek } from '../core/career/week.ts';
 import type {
   EuropeanDemand,
   MarketReach,
@@ -496,6 +503,11 @@ export function startCareer(options: StartCareerOptions): CareerState {
     injury: null,
     rival: null,
     teammates: [],
+    // Overwritten by `joinClub` below, which knows what the club called him.
+    // Present here because the state has to be whole before anything reads it.
+    confidence: CONFIDENCE_NEUTRAL,
+    // The first week of a career has not been planned yet.
+    week: null,
     loan: null,
     loanOffer: null,
     cups: newCups(countryId, leagueTeamIds),
@@ -668,6 +680,15 @@ export function acceptLoan(state: CareerState, offer: LoanOffer, lookup: TeamLoo
 function joinClub(state: CareerState, lookup: TeamLookup, clubId: string): void {
   state.rival = newRival(state, lookup, clubId);
   state.teammates = newTeammates(state, lookup, clubId);
+  // A new manager's view of him, which starts from what the club just called
+  // him and nothing else. It is deliberately not carried across from wherever
+  // he came from: a reputation travels, but an opinion formed in another
+  // dressing room is not one this manager has any reason to hold.
+  //
+  // On loan, the club whose word counts is the loan club — the same rule
+  // selection and the rival already follow, and for the same reason: the man
+  // picking the side is the one whose confidence matters.
+  state.confidence = startingConfidence(state.loan?.role ?? state.contract?.role ?? 'starter');
 }
 
 /**
@@ -967,6 +988,9 @@ export function recordPlayerMatch(
     slotIndex: scheduled.slotIndex,
     skipped: !!input.skipped,
     pace: input.skipped ? null : (input.pace ?? null),
+    // What the match was worth to the club, which is what decides how far the
+    // manager's view moves on the back of it.
+    importance: matchImportance(scheduled.competition, scheduled.round),
   });
 
   // The player was in the side, so the man he beat to it was not.
@@ -1028,7 +1052,120 @@ export function teamSheet(state: CareerState): TeamSheet {
     // club. A request handed to the parent must not cost him his place
     // somewhere he never asked to leave — and `requestStands` is what says so.
     requested: requestStands(state.transferRequest, state.clubId),
+    confidence: state.confidence,
   });
+}
+
+/**
+ * What the player may do with the week before the next fixture, and whether he
+ * has already decided.
+ *
+ * Returned whole rather than as four separate questions, because the hub asks
+ * all of them at once and a screen that had to assemble the answer itself would
+ * be the second place in the codebase deciding when a week exists.
+ */
+export interface WeekAhead {
+  /** Null when there is no week to plan: the season is over, or he is injured. */
+  choices: readonly WeekChoice[] | null;
+  /** The plan already made for the next fixture, or null. */
+  plan: WeekPlan | null;
+  /**
+   * Why there is nothing to decide, when there is not. Empty otherwise.
+   *
+   * A card that simply vanishes reads as a bug; one that says he is in the
+   * treatment room reads as a career.
+   */
+  reason: string;
+}
+
+/**
+ * The week in front of him.
+ *
+ * NOTHING TO PLAN WHILE INJURED, deliberately. The fixture is going to pass
+ * without him whatever he does, so a training decision about it would be a
+ * choice with nothing on either side of it. Being left out while fit is the
+ * opposite case and keeps every option — asking for a start is precisely what
+ * that week is for.
+ */
+export function weekAhead(state: CareerState): WeekAhead {
+  const scheduled = nextMatch(state);
+  if (!scheduled) return { choices: null, plan: null, reason: 'The season is over.' };
+  if (state.injury) {
+    return {
+      choices: null,
+      plan: null,
+      reason: `You are in the treatment room. ${state.injury.label} — nothing to plan this week.`,
+    };
+  }
+  const plan = planApplies(state.week ?? null, scheduled.slotIndex) ? state.week! : null;
+  return { choices: WEEK_CHOICES, plan, reason: '' };
+}
+
+/**
+ * Spend the week on one of the four things a footballer can do with seven days.
+ *
+ * Applied IMMEDIATELY rather than at kick-off, and that is most of what makes
+ * it a decision you can feel. Fitness and the manager's confidence are both
+ * read by `teamSheet`, so resting up or knocking on his door can flip the very
+ * team sheet the player was looking at when he chose — a man who has just been
+ * dropped can argue his way back into the side before the match he was dropped
+ * from. The two deferred halves are deferred because they have nowhere else to
+ * land: what a week of work is worth is only knowable once there is a match to
+ * apply it to, and studying an opponent is worth nothing until you are facing
+ * them.
+ *
+ * Returns null when there was no week to plan, or when one has already been
+ * planned for this fixture. One pick, and it is final — for the same reason
+ * negotiation allows exactly one push: a decision you can retake until you like
+ * the answer is not a decision.
+ */
+export function planWeek(state: CareerState, choice: WeekChoice): WeekPlan | null {
+  const ahead = weekAhead(state);
+  if (!ahead.choices || ahead.plan) return null;
+
+  const scheduled = nextMatch(state);
+  if (!scheduled) return null;
+
+  // Seeded off the calendar slot, like every other decision the career makes
+  // about a specific fixture: the same week cannot be re-rolled by asking twice.
+  const rng = new Rng(`${state.seed}:s${state.seasonNumber}:c${scheduled.slotIndex}:week`);
+  const outcome = spendWeek(rng, {
+    choice,
+    fitness: state.fitness,
+    morale: state.player.morale,
+    form: state.player.form,
+    confidence: state.confidence ?? CONFIDENCE_NEUTRAL,
+  });
+
+  state.fitness = outcome.fitness;
+  // Both, because the match engine plays a clone taken from the player and the
+  // career keeps its own copy. Letting them disagree is how a career ends up
+  // playing a match at a fitness nobody chose.
+  state.player.fitness = outcome.fitness;
+  state.player.morale = outcome.morale;
+  state.confidence = outcome.confidence;
+
+  const plan: WeekPlan = {
+    choice,
+    slotIndex: scheduled.slotIndex,
+    note: outcome.note,
+    growth: outcome.growth,
+    preparation: outcome.preparation,
+  };
+  state.week = plan;
+  return plan;
+}
+
+/**
+ * What a planned week is worth to the match about to be played.
+ *
+ * Asked by whoever builds the match engine, and answered here rather than there
+ * so that the guard on WHICH fixture a plan belongs to lives in one place.
+ */
+export function preparationFor(state: CareerState): number {
+  const scheduled = nextMatch(state);
+  if (!scheduled) return 0;
+  return planApplies(state.week ?? null, scheduled.slotIndex) ? state.week!.preparation : 0;
 }
 
 /** Is there another match for him in the same week as this one? */
@@ -1177,6 +1314,18 @@ export function missMatch(state: CareerState, lookup: TeamLookup): MissedMatch {
   // that form for as long as he was out of the side — and need form to get back
   // into it. The way out cannot be locked behind the thing being punished.
   state.player.form = round(state.player.form * 0.88 + 50 * 0.12, 1);
+  // The manager's view drifts the same way and for the same reason, a little
+  // more slowly. An injury pulls it back faster than an omission does: nobody
+  // is being judged for a hamstring. See core/career/confidence.ts.
+  state.confidence = confidenceAfterAbsence(
+    state.confidence ?? CONFIDENCE_NEUTRAL,
+    state.injury !== null,
+  );
+
+  // The week is spent whether or not he got on the pitch, and that is the
+  // honest cost of planning one: a week of extra work before a match you are
+  // left out of bought you nothing, which is exactly what would have happened.
+  if (planApplies(state.week ?? null, scheduled.slotIndex)) state.week = null;
 
   return {
     competition: scheduled.competition,
@@ -2057,6 +2206,9 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
         stats: record.stats,
         season: record.seasonNumber,
         prestige: nextPrestige,
+        // The question only his own club can answer. It decides whether terms
+        // go up at all, and what they call him when they do.
+        confidence: state.confidence,
       })
     : null;
 

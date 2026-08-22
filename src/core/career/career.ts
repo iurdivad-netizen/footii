@@ -41,6 +41,14 @@ import type { ClubStrengths } from './clubDrift.ts';
 import type { Honour } from './awards.ts';
 import type { CareerPreferences } from './preferences.ts';
 import type { TransferRequest } from './transferRequest.ts';
+import {
+  DEFAULT_MATCH_IMPORTANCE,
+  confidenceAfterMatch,
+  moraleShift,
+  startingConfidence,
+} from './confidence.ts';
+import type { WeekPlan } from './week.ts';
+import { planApplies } from './week.ts';
 import type { SuperCupTie } from './superCup.ts';
 import { playsInSuperCup, superCupOpponent } from './superCup.ts';
 
@@ -273,6 +281,22 @@ export interface CareerState {
    * has nothing to do with the one at the old one.
    */
   rival: Rival | null;
+  /**
+   * What the manager currently makes of him, 0-100.
+   *
+   * Belongs to the CLUB, like the rival and the teammates, and is replaced on
+   * signing elsewhere: a new manager has his own view, and it starts from what
+   * the club just promised. See core/career/confidence.ts.
+   */
+  confidence: number;
+  /**
+   * How the week before the next match is being spent, or null.
+   *
+   * Cleared the moment the fixture it names has been played or missed, so a
+   * career mid-season carries at most one — and never one belonging to a match
+   * that has already happened. See core/career/week.ts.
+   */
+  week: WeekPlan | null;
   /**
    * The teammates worth naming — the people he passes to.
    *
@@ -755,6 +779,15 @@ export interface MatchOutcomeInput {
   competition: CompetitionKind;
   /** The calendar slot it was played in, so the season advances past it. */
   slotIndex: number;
+  /**
+   * How much the match mattered to the club, 0-1. See `matchImportance`.
+   *
+   * Read only by the manager's confidence, which weights a performance by where
+   * it happened. Optional, and defaulted to a league match's own importance,
+   * because every caller that predates confidence was playing football at that
+   * weight whether or not it said so.
+   */
+  importance?: number;
   /** True when it was resolved automatically rather than played. */
   skipped: boolean;
   /**
@@ -850,19 +883,40 @@ export function applyMatchToCareer(
   const ratingAsForm = clamp((rating - 4) * 16.5, 0, 100);
   state.player.form = round(state.player.form * 0.65 + ratingAsForm * 0.35, 1);
 
-  // Morale follows results more than personal performance.
+  // The manager's view of him moves on the performance rather than the result,
+  // and by how much the match mattered. Before morale, because morale now reads
+  // it: what he has just been told about himself is part of how he feels.
+  state.confidence ??= startingConfidence(state.contract?.role ?? 'starter');
+  state.confidence = confidenceAfterMatch({
+    confidence: state.confidence,
+    rating,
+    result,
+    importance: input.importance ?? DEFAULT_MATCH_IMPORTANCE,
+  });
+
+  // Morale follows results more than personal performance — and now also what
+  // the man picking the side thinks of him, which is the job morale spent every
+  // version until this one not having. See core/career/confidence.ts.
   const moraleTarget = result > 0 ? 78 : result < 0 ? 34 : 52;
   state.player.morale = round(
-    state.player.morale * 0.7 + (moraleTarget + (rating - 6.5) * 6) * 0.3,
+    state.player.morale * 0.7 +
+      (moraleTarget + (rating - 6.5) * 6 + moraleShift(state.confidence)) * 0.3,
     1,
   );
   state.player.morale = clamp(state.player.morale, 0, 100);
+
+  // What the week before this match was spent on, if it was spent on anything.
+  // Read before it is cleared below, and only when it names THIS fixture: a
+  // plan that outlived the match it was made for would be a week of work spent
+  // twice. See core/career/week.ts.
+  const plan = planApplies(state.week ?? null, input.slotIndex) ? state.week! : null;
 
   const development = developAfterMatch(rng, state.development, {
     player: state.player,
     rating,
     minutes: stats.minutes,
     coaching: input.coaching,
+    effort: plan?.growth ?? 1,
   });
 
   // Reputation moves fast on goals and standout ratings; the summer settles it
@@ -900,6 +954,11 @@ export function applyMatchToCareer(
     },
     state.seasonNumber,
   );
+
+  // Spent, whatever it was spent on. Cleared here rather than at the hub so it
+  // cannot survive a fixture by any route — including the one where a save is
+  // written between the match and the screen that follows it.
+  state.week = null;
 
   state.lastDevelopment = development.changes;
   return development.changes;
@@ -989,6 +1048,12 @@ export function advanceSeason(
   // Last season's final match must not greet the player on the first day of the
   // new one — the hub reports it as "your last match".
   state.lastResult = null;
+  // Nor may a week planned last May be spent next August. A plan names the
+  // calendar SLOT it was made for and the slots start again at zero every
+  // summer, so one left here would be applied to whichever fixture happened to
+  // sit at the same index in the new season — a week of work claimed twice, a
+  // year apart. The plan is cleared with the season that owned it.
+  state.week = null;
   state.fitness = 100;
   state.player.fitness = 100;
   // A summer heals everything. Carrying a rupture into pre-season would be the
