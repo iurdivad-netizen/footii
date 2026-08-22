@@ -1090,6 +1090,76 @@ describe('when the browser will not save', () => {
   });
 });
 
+describe('asking to leave, and what he will move for', () => {
+  it('brings a career forward from before either existed, having asked for nothing', () => {
+    // `any` and `null` are the truthful readings rather than convenient
+    // defaults: a career that could not state a demand has not stated one.
+    const state = career();
+    const older = { ...state } as Record<string, unknown>;
+    delete older.transferRequest;
+    delete (older.preferences as unknown as Record<string, unknown>).standing;
+    delete (older.preferences as unknown as Record<string, unknown>).european;
+
+    const migrated = migrate({
+      version: 22,
+      career: emptyCareer(),
+      settings: defaultSettings(),
+      careers: [older, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(migrated).not.toBeNull();
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(activeCareer(migrated)!.transferRequest).toBeNull();
+    expect(activeCareer(migrated)!.preferences.standing).toBe('any');
+    expect(activeCareer(migrated)!.preferences.european).toBeNull();
+  });
+
+  it('keeps a request and a demand a migrated career already had', () => {
+    const state = career();
+    state.transferRequest = { clubId: 'northport-city', season: 3 };
+    state.preferences.standing = 'big';
+    state.preferences.european = 'championsLeague';
+
+    const migrated = migrate({
+      version: 22,
+      career: emptyCareer(),
+      settings: defaultSettings(),
+      careers: [state, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(activeCareer(migrated)!.transferRequest).toEqual({
+      clubId: 'northport-city',
+      season: 3,
+    });
+    expect(activeCareer(migrated)!.preferences.standing).toBe('big');
+    expect(activeCareer(migrated)!.preferences.european).toBe('championsLeague');
+  });
+
+  it('reads a demand it does not recognise as no demand at all', () => {
+    // Guessing which ultimatum somebody meant is worse than reading a damaged
+    // save as having made none.
+    const state = career();
+    (state.preferences as unknown as Record<string, unknown>).standing = 'enormous';
+    (state.preferences as unknown as Record<string, unknown>).european = 'cupWinnersCup';
+
+    const migrated = migrate({
+      version: 22,
+      career: emptyCareer(),
+      settings: defaultSettings(),
+      careers: [state, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(activeCareer(migrated)!.preferences.standing).toBe('any');
+    expect(activeCareer(migrated)!.preferences.european).toBeNull();
+  });
+});
+
 describe('counting how a career was actually played', () => {
   it('starts a new career at zero on both counts', () => {
     const state = career();

@@ -9,7 +9,9 @@ import type { SeasonStats } from './seasonStats.ts';
 import { clubStature } from './reputation.ts';
 import { getCountry } from './countries.ts';
 import type { CareerPreferences } from './preferences.ts';
-import { defaultPreferences, interestMultiplier, willConsider } from './preferences.ts';
+import { defaultPreferences, interestMultiplier, meetsDemands, willConsider } from './preferences.ts';
+import type { EuropeanTier } from './europe.ts';
+import { REQUEST_FEE_DISCOUNT, REQUEST_INTEREST_BOOST } from './transferRequest.ts';
 
 /**
  * TRANSFERS
@@ -57,6 +59,19 @@ export const OFFER_THRESHOLD = 0.36;
 
 /** Most offers a single summer will produce, best first. */
 export const MAX_OFFERS = 3;
+
+/**
+ * And how many when he has asked to leave.
+ *
+ * One more, and the extra one is the whole mechanism rather than a rounding of
+ * it. Interest alone could not deliver "more clubs bid", and it is worth being
+ * precise about why: the list is CAPPED, and for anybody with a season worth
+ * bidding on the cap is what binds rather than the threshold. Multiplying
+ * interest under a full cap only reorders the same three clubs. Raising the cap
+ * is what actually widens a market — and widening it is the thing a player who
+ * cannot get a game handed in a request to do.
+ */
+export const REQUESTED_MAX_OFFERS = MAX_OFFERS + 1;
 
 /** Interest above this is worth telling the player about during the season. */
 export const SCOUTING_THRESHOLD = 0.2;
@@ -604,6 +619,27 @@ export interface OfferGenerationInput {
    * not leave England would change nothing except what you were shown.
    */
   preferences?: CareerPreferences;
+  /**
+   * Which European competition a club is in NEXT season, or null for none.
+   *
+   * Next season rather than the one just finished, because that is the season
+   * the offer is for. Qualification is settled before offers are generated, so
+   * this is a fact by the time it is read rather than a prediction.
+   *
+   * Defaults to nobody being in Europe, which is the safe default rather than
+   * the flattering one: a caller that does not supply it has not told the
+   * market who qualified, and inventing European football for clubs that may
+   * not have it would let a demand be met by a club that cannot meet it.
+   */
+  europeanTierOf?: (clubId: string) => EuropeanTier | null;
+  /**
+   * True when he has handed in a transfer request.
+   *
+   * Read here rather than folded into preferences, because it is not one. A
+   * preference is a position; this is an act with a price already being paid
+   * elsewhere. See core/career/transferRequest.ts.
+   */
+  transferRequested?: boolean;
 }
 
 /**
@@ -626,6 +662,7 @@ export function generateOffers(rng: Rng, input: OfferGenerationInput): TransferO
   const currentCountry = current ? countryOf(current.id) : '';
 
   const preferences = input.preferences ?? defaultPreferences();
+  const europeanTierOf = input.europeanTierOf ?? (() => null);
 
   const interested = input.clubs
     .filter((team) => team.id !== input.currentClubId)
@@ -633,6 +670,16 @@ export function generateOffers(rng: Rng, input: OfferGenerationInput): TransferO
     // A country he has ruled out does not bid at all, and a player who says he
     // is settled hears from nobody.
     .filter((team) => willConsider(preferences, countryOf(team.id), currentCountry))
+    // And nor does a club too small for what he has said he will move for, or
+    // without the European football he is holding out for. Applied at the same
+    // point and for the same reason as the country filter: a demand that only
+    // hid finished offers would be cosmetic — the clubs would still have bid.
+    .filter((team) =>
+      meetsDemands(preferences, {
+        appeal: clubAppeal(team, prestigeOf(team.id)),
+        europeanTier: europeanTierOf(team.id),
+      }),
+    )
     .map((team) =>
       clubInterest({
         player: input.player,
@@ -647,10 +694,18 @@ export function generateOffers(rng: Rng, input: OfferGenerationInput): TransferO
       }),
     )
     // A country he wants makes its clubs keener, which can be the difference
-    // between watching him and bidding for him.
+    // between watching him and bidding for him — and so, more so, does knowing
+    // he has asked to leave. Both are multipliers on interest rather than on
+    // the threshold, so neither can manufacture a club that had not noticed
+    // him: they move a club that was already close, which is what being
+    // available actually does.
     .map((interest) => ({
       ...interest,
-      score: clamp01(interest.score * interestMultiplier(preferences, countryOf(interest.clubId))),
+      score: clamp01(
+        interest.score *
+          interestMultiplier(preferences, countryOf(interest.clubId)) *
+          (input.transferRequested ? REQUEST_INTEREST_BOOST : 1),
+      ),
     }))
     .filter((interest) => interest.score >= OFFER_THRESHOLD)
     .sort((a, b) => b.score - a.score);
@@ -673,9 +728,13 @@ export function generateOffers(rng: Rng, input: OfferGenerationInput): TransferO
     if (offers.length > 0 && !rng.chance(interest.score)) continue;
 
     const budget = transferBudget(team);
-    const fee = input.outOfContract
-      ? 0
-      : round(clamp(value * (0.85 + interest.score * 0.6), 0.1, budget), 2);
+    // A club that knows the player wants out cannot hold out for its price, and
+    // the discount matters more than it looks: the fee is clamped to the buyer's
+    // budget, so cutting it brings clubs that could not have afforded him into
+    // the market at all. That is the half of a transfer request that actually
+    // moves a career.
+    const asking = value * (0.85 + interest.score * 0.6) * (input.transferRequested ? REQUEST_FEE_DISCOUNT : 1);
+    const fee = input.outOfContract ? 0 : round(clamp(asking, 0.1, budget), 2);
 
     offers.push({
       id: `s${input.season}:${team.id}`,
@@ -689,7 +748,7 @@ export function generateOffers(rng: Rng, input: OfferGenerationInput): TransferO
       free: !!input.outOfContract,
       notes: interest.notes,
     });
-    if (offers.length >= MAX_OFFERS) break;
+    if (offers.length >= (input.transferRequested ? REQUESTED_MAX_OFFERS : MAX_OFFERS)) break;
   }
 
   return offers;

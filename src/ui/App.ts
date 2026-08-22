@@ -12,11 +12,15 @@ import {
   worldCup,
   worldTable,
   endSeason,
+  hasTransferRequest,
+  marketReach,
   missMatch,
   recordPlayerMatch,
+  requestTransfer,
   teamSheet,
   startCareer,
   stayAtClub,
+  withdrawTransferRequest,
 } from '../simulation/CareerService.ts';
 import { allClubIds, countryPrestige, getCountry, locateClub } from '../core/career/countries.ts';
 import { knockoutFor, nextMatch, seasonComplete } from '../core/career/career.ts';
@@ -76,6 +80,7 @@ import { ShootoutEngine } from '../simulation/ShootoutEngine.ts';
 import { ShootoutScreen } from './screens/ShootoutScreen.ts';
 import { PreferencesScreen } from './screens/PreferencesScreen.ts';
 import { defaultPreferences } from '../core/career/preferences.ts';
+import { describeRequest } from '../core/career/transferRequest.ts';
 import { clubStanding, reachOf, trialPassed, trialRequirement } from '../core/career/trial.ts';
 import { TrialResultScreen } from './screens/TrialResultScreen.ts';
 import { squadLevel } from '../core/career/transfers.ts';
@@ -815,14 +820,39 @@ export class App {
 
   /** Where he says what he wants from a move, before the summer asks. */
   private showPreferences(career: CareerState): void {
+    const request = career.transferRequest;
     this.mount(
-      new PreferencesScreen(career.preferences ?? defaultPreferences(), career.countryId, {
-        onChange: (preferences) => {
-          career.preferences = preferences;
-          this.save = saveCareer(this.save, career);
+      new PreferencesScreen(
+        career.preferences ?? defaultPreferences(),
+        career.countryId,
+        marketReach(career, getTeam),
+        {
+          // Against the club he plays for, so a request handed to a parent club
+          // does not read as one at the club he is on loan at.
+          standing: hasTransferRequest(career),
+          description: request ? describeRequest(request, career.seasonNumber) : '',
         },
-        onBack: () => this.showCareerHub(),
-      }).element,
+        {
+          onChange: (preferences) => {
+            career.preferences = preferences;
+            this.save = saveCareer(this.save, career);
+          },
+          // Both write and re-enter the screen rather than re-rendering in
+          // place, because the card they change is built from the career rather
+          // than from the screen's own copy of the preferences.
+          onRequestTransfer: () => {
+            requestTransfer(career);
+            this.save = saveCareer(this.save, career);
+            this.showPreferences(career);
+          },
+          onWithdrawRequest: () => {
+            withdrawTransferRequest(career);
+            this.save = saveCareer(this.save, career);
+            this.showPreferences(career);
+          },
+          onBack: () => this.showCareerHub(),
+        },
+      ).element,
     );
   }
 

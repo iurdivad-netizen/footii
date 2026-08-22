@@ -44,6 +44,7 @@ import { clubStature, settleReputation } from '../core/career/reputation.ts';
 import type { ReputationSettlement } from '../core/career/reputation.ts';
 import {
   applyTransferEffects,
+  clubAppeal,
   effectiveAbility,
   generateOffers,
   scoutingInterest,
@@ -61,6 +62,14 @@ import {
 import type { Contract, ContractOffer } from '../core/career/contracts.ts';
 import { negotiate } from '../core/career/negotiation.ts';
 import { defaultPreferences } from '../core/career/preferences.ts';
+import type { TransferRequest } from '../core/career/transferRequest.ts';
+import { handInRequest, requestStands } from '../core/career/transferRequest.ts';
+import type {
+  EuropeanDemand,
+  MarketReach,
+  StandingFloor,
+} from '../core/career/preferences.ts';
+import { STANDING_FLOORS } from '../core/career/preferences.ts';
 import type { SuperCupTie } from '../core/career/superCup.ts';
 import {
   SUPER_CUP,
@@ -86,6 +95,7 @@ import type { CupKind, CupState } from '../core/career/cups.ts';
 import {
   EUROPEAN_MATCHES,
   EUROPEAN_TIERS,
+  PLACES_BY_TIER,
   advanceEuropeanSeason,
   championsLeaguePlaces,
   createEuropeanSeason,
@@ -461,6 +471,7 @@ export function startCareer(options: StartCareerOptions): CareerState {
     seasonStartExperience: options.player.experience,
     trainingPoints: 0,
     preferences: defaultPreferences(),
+    transferRequest: null,
     // No previous season to have earned one.
     superCup: null,
     offers: [],
@@ -1013,6 +1024,10 @@ export function teamSheet(state: CareerState): TeamSheet {
     fitness: state.fitness,
     importance: matchImportance(scheduled.competition, scheduled.round),
     congested,
+    // Against the club actually picking the side, which on loan is the loan
+    // club. A request handed to the parent must not cost him his place
+    // somewhere he never asked to leave — and `requestStands` is what says so.
+    requested: requestStands(state.transferRequest, state.clubId),
   });
 }
 
@@ -2004,6 +2019,10 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   const nextPrestige = countryPrestige(nextCountry);
   const offerRng = new Rng(`${state.seed}:s${record.seasonNumber}:transfers`);
   const lastMove = state.transfers[state.transfers.length - 1];
+  // Read against the club that would SELL him, which on loan is the parent: the
+  // request was handed to the people who own his contract, and they are the
+  // ones a bidding club has to deal with.
+  const requested = requestStands(state.transferRequest, state.loan?.parentClubId ?? state.clubId);
   state.offers = generateOffers(offerRng, {
     player: state.player,
     currentClubId: state.clubId,
@@ -2017,12 +2036,21 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     countryOf: (id) => countryOfClub(state, id),
     outOfContract,
     preferences: state.preferences,
+    // Next season's qualification, which the lines above have just settled. A
+    // player holding out for European football is asking about the season he
+    // would actually play, not the one that has just finished.
+    europeanTierOf: (id) => nextEuropeanEntries[id] ?? null,
+    transferRequested: requested,
   });
 
   // His own club only puts terms up when the old deal has actually run out.
   // Anything else and he is simply still under contract, and staying needs no
   // decision at all.
-  state.renewal = outOfContract
+  // A club does not put new terms in front of a player who has asked to leave.
+  // This is the second half of what a request costs, and the sharper half when
+  // his contract is running down: asking to go in the last year of a deal means
+  // the door behind him closes as well.
+  state.renewal = outOfContract && !requested
     ? renewalOffer({
         player: state.player,
         club: clubIn(state, lookup, state.clubId),
@@ -2140,6 +2168,10 @@ export function acceptOffer(
   state.transfers.push(record);
   // Signed for somebody: the loan on the table is off it.
   state.loanOffer = null;
+  // And the request has been answered by the thing it asked for. Cleared rather
+  // than left to `requestStands` to ignore, so that a career carries no record
+  // of wanting to leave a club it no longer plays for.
+  state.transferRequest = null;
 
 
   // A move can cross a country as well as a tier, which changes the whole
@@ -2229,6 +2261,86 @@ export function negotiateDeal(
   const result = negotiate(rng, state.offers[index]!, ask);
   state.offers[index] = result.deal;
   return result;
+}
+
+/**
+ * Hand in a transfer request, or take one back.
+ *
+ * Deliberately available at any point in a career rather than only in the
+ * summer, because the moment a player wants to leave is the moment he has been
+ * left out — not the moment the window opens. Handing one in during the season
+ * is the version with teeth: the manager reads it before every team sheet
+ * between now and the summer that might act on it.
+ *
+ * It is handed to the club he plays for, which on loan is the loan club rather
+ * than the parent. That is the club he is being left out by, so it is the club
+ * the argument is with — and a request handed in on loan expires with the loan,
+ * which is the right length for an argument about a season somebody else is
+ * paying for.
+ */
+export function requestTransfer(state: CareerState): TransferRequest {
+  state.transferRequest = handInRequest(state.clubId, state.seasonNumber);
+  return state.transferRequest;
+}
+
+/**
+ * Take it back.
+ *
+ * Free, and that is a statement rather than an oversight: the price of a
+ * transfer request is the matches missed while it stood, which is already paid
+ * and cannot be refunded. Charging again on the way out would be punishing one
+ * decision twice — and would make withdrawing something a player avoids doing,
+ * which is the opposite of what a reversible lever is for.
+ */
+export function withdrawTransferRequest(state: CareerState): void {
+  state.transferRequest = null;
+}
+
+/** Does he have one standing at the club he is currently playing for? */
+export function hasTransferRequest(state: CareerState): boolean {
+  return requestStands(state.transferRequest, state.clubId);
+}
+
+/**
+ * How much of the world each demand leaves him, as the screen reports it.
+ *
+ * Computed from the career's own leagues rather than the data file, so a club
+ * that has drifted up or down since the career began is counted as it is now.
+ *
+ * The European counts are read off the PLACES rather than off who currently
+ * holds them, and that is the correct answer rather than a convenient one. The
+ * demand is applied against NEXT season's qualification, which is not settled
+ * until this season is played — and in a career's first season nothing has
+ * qualified for anything, so counting live entries would tell a player that
+ * holding out for Europe leaves him nought clubs when it will in fact leave him
+ * a full field. Every competition has the same number of entrants every year
+ * whoever fills them, so the number is knowable now and the names are not.
+ */
+export function marketReach(state: CareerState, lookup: TeamLookup): MarketReach {
+  const clubs = allClubs(state, lookup);
+  const clearing: Record<StandingFloor, number> = { any: 0, established: 0, big: 0, elite: 0 };
+  const inEurope: Record<EuropeanDemand, number> = {
+    any: 0,
+    championsLeague: 0,
+    europaLeague: 0,
+    conferenceLeague: 0,
+  };
+
+  for (const club of clubs) {
+    const appeal = clubAppeal(club, prestigeOfClub(state, club.id));
+    for (const band of Object.keys(clearing) as StandingFloor[]) {
+      if (appeal >= STANDING_FLOORS[band]) clearing[band] += 1;
+    }
+  }
+
+  for (const tier of EUROPEAN_TIERS) {
+    // Summed rather than taken as a constant, so a world with a different
+    // number of countries reports its own field instead of this one's.
+    inEurope[tier] = PLACES_BY_TIER[tier].reduce((total, places) => total + places, 0);
+    inEurope.any += inEurope[tier];
+  }
+
+  return { clearing, inEurope, total: clubs.length };
 }
 
 export function stayAtClub(state: CareerState): Contract {

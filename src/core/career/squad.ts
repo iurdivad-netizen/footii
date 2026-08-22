@@ -8,6 +8,7 @@ import { clamp, clamp01, remap, round } from '../util/math.ts';
 import type { CompetitionKind } from './calendar.ts';
 import { isEuropean, isInternational, isSuperCup } from './calendar.ts';
 import { EUROPEAN_GROUP_ROUNDS } from './europe.ts';
+import { REQUEST_SELECTION_BIAS } from './transferRequest.ts';
 
 /**
  * THE COMPETITION FOR YOUR PLACE
@@ -303,6 +304,13 @@ export interface SelectionInput {
   importance: number;
   /** True when this is the second match of the same week. */
   congested: boolean;
+  /**
+   * True when he has handed in a transfer request that still stands.
+   *
+   * The price of asking to leave, and the reason asking is a decision rather
+   * than a free button. See core/career/transferRequest.ts.
+   */
+  requested?: boolean;
 }
 
 /**
@@ -334,7 +342,14 @@ export function selectionChance(input: SelectionInput): number {
   // without it being signed as cover is a season of watching with no way in.
   const strictness = 0.45 + 0.55 * clamp01(input.importance);
 
-  return clamp01(0.5 + (edge * 0.42 + ROLE_BIAS[input.role]) * strictness - rest);
+  // Asking to leave sits alongside the squad role because it is the same kind
+  // of fact — what the club thinks it is holding — and it is scaled by the same
+  // strictness, which is what stops it from being an exile. In a match that
+  // matters the manager still picks his best side; it is the ordinary Saturdays
+  // he now has a reason to give to somebody who will still be here in August.
+  const standing = ROLE_BIAS[input.role] + (input.requested ? REQUEST_SELECTION_BIAS : 0);
+
+  return clamp01(0.5 + (edge * 0.42 + standing) * strictness - rest);
 }
 
 /**
@@ -374,6 +389,13 @@ function selectionNote(input: SelectionInput, selected: boolean, chance: number)
 
   if (tired && input.importance < 0.55) {
     return `Rested. ${input.rival.name} starts, and you are being saved for something that matters more.`;
+  }
+  // Checked before the ability comparison, because it is the more useful thing
+  // to be told. A player left out on merit can train; a player left out for
+  // asking to leave has a different decision in front of him, and one he can
+  // reverse.
+  if (input.requested) {
+    return `${input.rival.name} starts. You asked to leave, and the manager is planning without you.`;
   }
   if (behind > 3) {
     return `${input.rival.name} is ahead of you at the moment, and the manager has gone with him.`;

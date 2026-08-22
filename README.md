@@ -1760,6 +1760,102 @@ can genuinely rule a league out and cannot make a club in one want him. Refusing
 already play in means "I will not move abroad" and never blocks you from staying or signing at home
 — reading it the other way would strand an out-of-contract player with nowhere at all to go.
 
+### What he will move for, and asking to leave
+
+Two more things a player gets to decide, added because the three above only ever answered **where**.
+
+#### How big a club, and what it has to be playing in
+
+A country is not the only thing a footballer has a position on. Two clubs in the same league are not
+the same move, and "I am not dropping down for this" and "I am only leaving for European football"
+are both ordinary things for a player to mean. Neither could be said.
+
+Both are now stated on the same screen as the countries, and both sit on the **absolute** side of
+the line: a club that fails one does not bid, exactly as a refused country's clubs do not.
+
+- **How big a club.** Four bands rather than a slider, measured against `clubAppeal` — the club's own
+  standing multiplied by the stage its league plays on, which is the number that already answers "is
+  this a step up". A slider on a 0-1 quantity nobody can see would invite the false precision of
+  choosing 0.63 over 0.61. The floors are set off the world as it is: of 192 clubs, **141** clear
+  *an established club*, **48** clear *a big club* and **12** clear *the very top*.
+- **European football.** *Any of the three*, or one competition and no other. Read against **next**
+  season's qualification rather than the season just finished, because that is the season the move is
+  for — a club that has just qualified has European football to offer and one that has just fallen
+  out of it does not, whatever it did last year.
+
+`null` and *any* are deliberately different states. The first says he does not mind; the second says
+the club must be in one of the three. And the two demands **stack** rather than replace each other:
+a big club without a European place fails a player who asked for both.
+
+The screen reports how many clubs are left on the other side of every band, and that number is the
+honest half of the control. A player is entitled to hold out for the Champions League. He is also
+entitled to know it leaves sixteen clubs able to bid, and that if none of them wants him the summer
+is silent **by his own choice** rather than by the game's — because a demand can only ever narrow the
+market. It cannot conjure the offer it describes.
+
+The European counts are read off the **places** rather than off who currently holds them, which is
+the correct answer rather than a convenient one. Next season's field is not settled until this season
+is played, and in a career's first season nothing has qualified for anything — so counting live
+entries would tell a new player that holding out for Europe leaves him nought clubs, when it will in
+fact leave him a full field. Every competition has the same number of entrants every year whoever
+fills them, so the number is knowable now and the names are not.
+
+Neither demand can reach his own club's renewal, and that needs no special case: a club never bids
+for a player it already has. Setting an impossible bar leaves him where he is rather than with
+nowhere at all.
+
+#### Asking to leave
+
+The one lever in the market that is entirely his. Everything else — offers, interest, even the
+preferences above — is a position taken in advance of somebody else's decision. A transfer request
+does not ask the club's permission, because in football it does not: a player who wants to go says
+so, and what the club decides is not whether he said it but what to do about it.
+
+**It needed rotation to exist first.** On the old model, where the player started every match there
+was, a transfer request would have been free — a button that made offers likelier and cost nothing,
+so the correct play was to press it every summer and never press it back. Selection is what gives it
+a price. The manager choosing between you and the man competing for your shirt now knows you have
+asked to leave, and has a ready-made reason to pick somebody who will still be here in August.
+
+So the deal is legible and genuinely two-sided:
+
+| You get | You pay |
+| --- | --- |
+| **A wider market** — one more club may bid than would have | **Your place in the side** while it stands |
+| **A lower fee**, which brings clubs that could not have afforded you | **Any prospect of new terms** — your club stops planning around you |
+
+The widening is done by **raising the cap on offers, not by raising interest**, and the distinction
+is the whole implementation rather than a detail. Offers are capped at three; for anybody with a
+season worth bidding on, the cap binds long before the interest threshold does. Multiplying interest
+under a full cap only reorders the same three clubs — measured across sixty seeds it produced
+*exactly as many offers as before*. Raising the cap produced more in sixty out of sixty. The interest
+boost is still there and still does something real: it decides **which** clubs fill the list. It is
+simply not the thing that widens it.
+
+The fee discount matters more than it looks, for the same kind of reason. A fee is clamped to the
+buyer's budget, so cutting it brings clubs into the market that could not otherwise have afforded
+him — which is exactly where a player who cannot get a game needs the market to widen.
+
+**It can be handed in at any point**, not only in the summer, and that is deliberate: the moment a
+player wants to leave is the moment he has been left out, not the moment the window opens. Handing
+one in during the season is the version with teeth, because the manager reads it before every team
+sheet between now and the summer that might act on it.
+
+The selection penalty is a **bias, not a bar**. A player good enough to be undroppable is still
+undroppable — a manager fighting for a title does not leave his best footballer out to make a point
+— which is what keeps this a cost rather than an exile, and what makes handing one in at a club you
+are too good for a genuinely different decision from handing one in at a club you are not.
+
+It is handed to the club he plays for, which **on loan is the loan club** rather than the parent, so
+a request never follows him somewhere he did not make it. Accepting a move clears it: the request has
+been answered by the thing it asked for, and a career carries no record of wanting to leave a club it
+no longer plays for.
+
+**Taking it back is free**, and that is a statement rather than an oversight. The price of a transfer
+request is the matches missed while it stood, which is already paid and cannot be refunded. Charging
+again on the way out would punish one decision twice — and would make withdrawing something a player
+avoids doing, which is the opposite of what a reversible lever is for.
+
 ### The super cup
 
 One match, before the season starts: last year's champions against last year's cup winners.
@@ -2073,7 +2169,9 @@ ratings, scoring and unbeaten runs and per-competition totals**, **an ending —
 from 34 and forced at 39, an end screen that shows a career in full before you stop it, and a wall
 of fame that ranks every career this browser has finished**, **three independent career slots**,
 **export and import of the whole save**, **penalty shootouts you take the kicks in**,
-**contracts you can push back on and stated preferences about where you will play**,
+**contracts you can push back on, stated preferences about where you will play,
+how big a club you will move for and the European football you will hold out for, and a transfer
+request you can hand in and take back**,
 **a trial to earn a start at a club above your level**, **injuries driven by fixture congestion,
 and matches your club plays without you**, **a named rival for your shirt, and a manager who leaves
 you out of the ones that do not matter**, **named teammates who get on the end of your passes**,
@@ -2121,6 +2219,10 @@ other item on this list is waiting for.
    cause. Rotation followed, on a single named rival for your shirt rather than a squad — which is
    all selection ever needed, and which finally makes `contract.role` mean something. See *Injuries,
    and the matches that happen without you* and *The competition for your place*.
+
+   Rotation has since paid for something the list did not anticipate: it is what made a **transfer
+   request** cost anything. Being left out is the price of asking to leave, so the one lever in the
+   market that is entirely the player's could not have existed before it. See *Asking to leave*.
 
 3. **A second division per country** — the machinery is written, tested and dormant; it needs clubs
    and a fixture list. `teams.json` is 192 clubs, sixteen per country across twelve countries, every
@@ -2240,9 +2342,26 @@ What is still open is the judgement call: how much a skipped match should cost, 
 pace should, and whether a career with too little recorded football should be scored on this at all.
 That part is genuinely better late, and it is now the only part left.
 
+**12. You should be able to ask to leave, and to say what a move has to be worth.** ✅ **Done.**
+Raised after playing with rotation, and it is the item rotation unlocked rather than one that was
+waiting on nothing. Three things: a floor on how big a club has to be before he will move to it, a
+demand for European football (any of the three, or one competition and no other), and a **transfer
+request** — the only lever in the market that is entirely the player's.
+
+The last of those is the one worth recording a finding about, because the obvious implementation
+does nothing. A transfer request was written first as a multiplier on club interest, on the
+reasoning that a player known to be available is a player more clubs bid for. Measured across sixty
+seeds it produced **exactly as many offers as before**: the offer list is capped at three, and for
+anybody with a season worth bidding on the cap binds long before the interest threshold does, so
+the multiplier only reordered the same three clubs. Widening a market means raising the cap, which
+produced more offers in sixty seeds out of sixty. The interest boost was kept — it decides *which*
+clubs fill the list — but it is not what makes the feature work, and the code says so.
+
+See *What he will move for, and asking to leave* above.
+
 #### What is left
 
-Ten of the eleven are done, and the eleventh is now half done.
+Eleven of the twelve are done, and the twelfth is now half done.
 
 **(11) — penalties on the end-of-career score for skipped matches and an easy decision pace.** The
 item split cleanly into a cheap half that had to happen early and an expensive half that is better

@@ -3210,6 +3210,80 @@ button.ghost.danger {
   color: var(--accent);
 }
 
+/*
+ * The two demands: how big a club, and what it has to be playing in.
+ *
+ * A column rather than the grid the countries use, and deliberately: the
+ * countries are a set you pick several from, these are a ladder you pick one
+ * rung of. Stacking them puts the bands in order of how much of the world each
+ * one throws away, which is the comparison being made.
+ */
+.demand-bands {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.band {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) 2fr auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 12px;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+}
+
+.band-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.band-note,
+.band-count {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+/* The count is the honest half of the control, so it is not allowed to wrap. */
+.band-count {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.band.chosen {
+  border-color: var(--accent);
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.band.chosen .band-note,
+.band.chosen .band-count {
+  color: var(--accent);
+}
+
+/*
+ * Asking to leave.
+ *
+ * Bordered in the danger colour only while it STANDS, because that is when it
+ * is costing him something. An unpressed button is an option, not a warning.
+ */
+.request-card.standing {
+  border-color: var(--danger);
+}
+
+.request-card.standing > p:first-of-type {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+@media (max-width: 620px) {
+  .band {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
 /* ------------------------------------------- European group stage ------- */
 
 /*
