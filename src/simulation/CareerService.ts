@@ -64,6 +64,11 @@ import { negotiate } from '../core/career/negotiation.ts';
 import { defaultPreferences } from '../core/career/preferences.ts';
 import type { TransferRequest } from '../core/career/transferRequest.ts';
 import { handInRequest, requestStands } from '../core/career/transferRequest.ts';
+import {
+  CONFIDENCE_NEUTRAL,
+  confidenceAfterAbsence,
+  startingConfidence,
+} from '../core/career/confidence.ts';
 import type {
   EuropeanDemand,
   MarketReach,
@@ -496,6 +501,9 @@ export function startCareer(options: StartCareerOptions): CareerState {
     injury: null,
     rival: null,
     teammates: [],
+    // Overwritten by `joinClub` below, which knows what the club called him.
+    // Present here because the state has to be whole before anything reads it.
+    confidence: CONFIDENCE_NEUTRAL,
     loan: null,
     loanOffer: null,
     cups: newCups(countryId, leagueTeamIds),
@@ -668,6 +676,15 @@ export function acceptLoan(state: CareerState, offer: LoanOffer, lookup: TeamLoo
 function joinClub(state: CareerState, lookup: TeamLookup, clubId: string): void {
   state.rival = newRival(state, lookup, clubId);
   state.teammates = newTeammates(state, lookup, clubId);
+  // A new manager's view of him, which starts from what the club just called
+  // him and nothing else. It is deliberately not carried across from wherever
+  // he came from: a reputation travels, but an opinion formed in another
+  // dressing room is not one this manager has any reason to hold.
+  //
+  // On loan, the club whose word counts is the loan club — the same rule
+  // selection and the rival already follow, and for the same reason: the man
+  // picking the side is the one whose confidence matters.
+  state.confidence = startingConfidence(state.loan?.role ?? state.contract?.role ?? 'starter');
 }
 
 /**
@@ -967,6 +984,9 @@ export function recordPlayerMatch(
     slotIndex: scheduled.slotIndex,
     skipped: !!input.skipped,
     pace: input.skipped ? null : (input.pace ?? null),
+    // What the match was worth to the club, which is what decides how far the
+    // manager's view moves on the back of it.
+    importance: matchImportance(scheduled.competition, scheduled.round),
   });
 
   // The player was in the side, so the man he beat to it was not.
@@ -1028,6 +1048,7 @@ export function teamSheet(state: CareerState): TeamSheet {
     // club. A request handed to the parent must not cost him his place
     // somewhere he never asked to leave — and `requestStands` is what says so.
     requested: requestStands(state.transferRequest, state.clubId),
+    confidence: state.confidence,
   });
 }
 
@@ -1177,6 +1198,13 @@ export function missMatch(state: CareerState, lookup: TeamLookup): MissedMatch {
   // that form for as long as he was out of the side — and need form to get back
   // into it. The way out cannot be locked behind the thing being punished.
   state.player.form = round(state.player.form * 0.88 + 50 * 0.12, 1);
+  // The manager's view drifts the same way and for the same reason, a little
+  // more slowly. An injury pulls it back faster than an omission does: nobody
+  // is being judged for a hamstring. See core/career/confidence.ts.
+  state.confidence = confidenceAfterAbsence(
+    state.confidence ?? CONFIDENCE_NEUTRAL,
+    state.injury !== null,
+  );
 
   return {
     competition: scheduled.competition,
@@ -2057,6 +2085,9 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
         stats: record.stats,
         season: record.seasonNumber,
         prestige: nextPrestige,
+        // The question only his own club can answer. It decides whether terms
+        // go up at all, and what they call him when they do.
+        confidence: state.confidence,
       })
     : null;
 

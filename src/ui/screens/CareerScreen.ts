@@ -1,5 +1,6 @@
 import { ATTRIBUTE_LABELS } from '../../core/player/attributes.ts';
 import { requestStands } from '../../core/career/transferRequest.ts';
+import { CONFIDENCE_NEUTRAL, confidenceTier } from '../../core/career/confidence.ts';
 import type { AttributeKey } from '../../core/player/attributes.ts';
 import type { CompetitionKind } from '../../core/career/calendar.ts';
 import { currentAbility } from '../../core/player/player.ts';
@@ -210,6 +211,11 @@ export class CareerScreen {
     const sheet = this.teamSheet;
     const stats = this.state.seasonStats;
     const venue = scheduled ? (scheduled.home ? 'Home' : 'Away') : '';
+    // In words rather than as a figure, deliberately. The number beside
+    // `Morale` is what this feature exists to stop being — a stat the player
+    // watches move and can do nothing with — so what he is shown is the band
+    // and the manager's own line about it. See core/career/confidence.ts.
+    const manager = confidenceTier(this.state.confidence ?? CONFIDENCE_NEUTRAL);
 
     return `
       <header class="career-header">
@@ -301,6 +307,13 @@ export class CareerScreen {
             }
             <div><dt>Form</dt><dd>${Math.round(player.form)}</dd></div>
             <div><dt>Morale</dt><dd>${Math.round(player.morale)}</dd></div>
+            <div class="stat-manager">
+              <dt>Manager</dt>
+              <dd>
+                ${manager.label}
+                <span class="manager-note">${manager.note}</span>
+              </dd>
+            </div>
             <div><dt>Experience</dt><dd>${Math.round(player.experience)}</dd></div>
           </dl>
         </div>

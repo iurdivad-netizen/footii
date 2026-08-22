@@ -3615,6 +3615,30 @@ button.ghost.danger {
 }
 
 /*
+ * What the manager makes of him.
+ *
+ * A band and a line rather than a figure, so it reads as somebody's opinion
+ * instead of another statistic — the note is what makes it a sentence and not
+ * a score. It sits on its own row because a two-line value would otherwise
+ * push the numbers beside it out of alignment.
+ */
+.stat-list .stat-manager {
+  align-items: baseline;
+}
+
+.stat-list .stat-manager dd {
+  text-align: right;
+}
+
+.stat-list .manager-note {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-style: italic;
+}
+
+/*
  * Loans.
  *
  * The banner is green rather than amber: going out to play is not a setback,

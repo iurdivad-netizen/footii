@@ -16,6 +16,7 @@ import type { CoefficientLedger, Coefficients } from '../core/career/coefficient
 import { Rng } from '../core/rng.ts';
 import { initialStrengths } from '../core/career/clubDrift.ts';
 import { STANDING_FLOORS, defaultPreferences } from '../core/career/preferences.ts';
+import { startingConfidence } from '../core/career/confidence.ts';
 import { isEuropeanTier } from '../core/career/europe.ts';
 import { contractYears, offeredWage, squadRole } from '../core/career/transfers.ts';
 import type { DecisionPace } from '../simulation/DecisionTimer.ts';
@@ -34,7 +35,7 @@ import { rankLegacies } from '../core/career/legacy.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 23;
+export const SAVE_VERSION = 24;
 
 export interface CareerRecord {
   matches: number;
@@ -740,6 +741,32 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
       if (career) career.transferRequest ??= null;
     }
     if (save.careerState) save.careerState.transferRequest ??= null;
+  }
+
+  if (save.version === 23) {
+    // v23 -> v24: the manager has a view of him.
+    //
+    // Derived rather than defaulted, and the distinction is the whole of this
+    // step. A flat neutral would be inventing a manager who has watched a
+    // ten-season career and formed no opinion of it, which is not a truthful
+    // reading of anything. The one thing an older save DOES record about how
+    // the club sees him is what it called him when it signed him — so his
+    // squad role is where his manager starts, exactly as it is for a player
+    // signing today.
+    //
+    // What is genuinely lost is the seasons themselves: a career that has been
+    // undroppable for three years arrives at whatever its contract says rather
+    // than at the trust it earned, and there is no way to recover that from a
+    // save that never wrote it down. It is corrected by playing — a handful of
+    // matches move this number to where the football says it should be.
+    save = { ...save, version: 24 };
+    for (const career of save.careers ?? []) {
+      if (career) {
+        career.confidence ??= startingConfidence(
+          career.loan?.role ?? career.contract?.role ?? 'starter',
+        );
+      }
+    }
   }
 
   // The flat field is a migration detail and must not survive into the save.

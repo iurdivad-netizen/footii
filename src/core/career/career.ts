@@ -41,6 +41,12 @@ import type { ClubStrengths } from './clubDrift.ts';
 import type { Honour } from './awards.ts';
 import type { CareerPreferences } from './preferences.ts';
 import type { TransferRequest } from './transferRequest.ts';
+import {
+  DEFAULT_MATCH_IMPORTANCE,
+  confidenceAfterMatch,
+  moraleShift,
+  startingConfidence,
+} from './confidence.ts';
 import type { SuperCupTie } from './superCup.ts';
 import { playsInSuperCup, superCupOpponent } from './superCup.ts';
 
@@ -273,6 +279,14 @@ export interface CareerState {
    * has nothing to do with the one at the old one.
    */
   rival: Rival | null;
+  /**
+   * What the manager currently makes of him, 0-100.
+   *
+   * Belongs to the CLUB, like the rival and the teammates, and is replaced on
+   * signing elsewhere: a new manager has his own view, and it starts from what
+   * the club just promised. See core/career/confidence.ts.
+   */
+  confidence: number;
   /**
    * The teammates worth naming — the people he passes to.
    *
@@ -755,6 +769,15 @@ export interface MatchOutcomeInput {
   competition: CompetitionKind;
   /** The calendar slot it was played in, so the season advances past it. */
   slotIndex: number;
+  /**
+   * How much the match mattered to the club, 0-1. See `matchImportance`.
+   *
+   * Read only by the manager's confidence, which weights a performance by where
+   * it happened. Optional, and defaulted to a league match's own importance,
+   * because every caller that predates confidence was playing football at that
+   * weight whether or not it said so.
+   */
+  importance?: number;
   /** True when it was resolved automatically rather than played. */
   skipped: boolean;
   /**
@@ -850,10 +873,24 @@ export function applyMatchToCareer(
   const ratingAsForm = clamp((rating - 4) * 16.5, 0, 100);
   state.player.form = round(state.player.form * 0.65 + ratingAsForm * 0.35, 1);
 
-  // Morale follows results more than personal performance.
+  // The manager's view of him moves on the performance rather than the result,
+  // and by how much the match mattered. Before morale, because morale now reads
+  // it: what he has just been told about himself is part of how he feels.
+  state.confidence ??= startingConfidence(state.contract?.role ?? 'starter');
+  state.confidence = confidenceAfterMatch({
+    confidence: state.confidence,
+    rating,
+    result,
+    importance: input.importance ?? DEFAULT_MATCH_IMPORTANCE,
+  });
+
+  // Morale follows results more than personal performance — and now also what
+  // the man picking the side thinks of him, which is the job morale spent every
+  // version until this one not having. See core/career/confidence.ts.
   const moraleTarget = result > 0 ? 78 : result < 0 ? 34 : 52;
   state.player.morale = round(
-    state.player.morale * 0.7 + (moraleTarget + (rating - 6.5) * 6) * 0.3,
+    state.player.morale * 0.7 +
+      (moraleTarget + (rating - 6.5) * 6 + moraleShift(state.confidence)) * 0.3,
     1,
   );
   state.player.morale = clamp(state.player.morale, 0, 100);

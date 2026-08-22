@@ -133,6 +133,14 @@ Three things that were not on either list, found by reading the code against wha
   English one identically, so the shortest route up the wall of fame was to find the weakest league
   in the world and win it repeatedly. Domestic honours are now tapered by the standing of the
   country they were won in; European and international ones deliberately are not. See [The wall of fame](README.md#the-wall-of-fame).
+- **Morale was decoration.** It had exactly one consumer — a 0.08 weight in the decision timer —
+  which across its whole 0-100 range is 0.53 seconds out of ten. The hub rendered it beside form and
+  fitness as though it were one of them, so a player could watch it move for a decade and never see
+  the game change. Fixed by giving the club an opinion of its own: **manager confidence** reads into
+  selection, into the renewal, and into morale, which is the number it was written to rescue. The
+  roadmap had listed this under what squad context would unblock, and it turned out not to need a
+  squad at all — only the rival that rotation had already put in the dressing room. See
+  [What the manager makes of you](README.md#what-the-manager-makes-of-you).
 - **A browser that could not save said nothing about it.** Every write failure was swallowed, so a
   career could be played to its end in a browser keeping none of it. Failures now raise a warning
   above every screen, and offer the export that makes them survivable. See [When the browser will not save](README.md#when-the-browser-will-not-save).

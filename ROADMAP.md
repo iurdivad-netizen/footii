@@ -26,13 +26,18 @@ other item on this list is waiting for.
    sheet, squad numbers, teammates with careers of their own. Worth doing one day; not blocking
    anything.
 
+   One thing that list did promise has since arrived: **a manager whose confidence in you gives
+   morale something to do**. It needed no teammates either — the rival rotation already put in the
+   dressing room was enough for somebody to hold an opinion — and it turned out to be a fix for a
+   bug rather than a feature: morale had exactly one consumer, worth half a second on a ten-second
+   window. See [What the manager makes of you](README.md#what-the-manager-makes-of-you).
+
    It is no longer the blocker for playing time, though, and that is worth being precise about.
    Both levers that waited on it — the reputation settlement, and the 60% gate on individual
    awards — are now **live**, because injuries took matches off you and neither lever needed a
    teammate to notice. League participation runs between about 70% and 100% across a career instead
    of being pinned at exactly 100%. What squad context still unblocks is *rotation* — being left out
-   while fit — along with assists having a recipient, loans, and a manager whose confidence in you
-   could finally give morale something to do.
+   while fit — along with assists having a recipient and loans. Every one of those is now done.
 
 2. **Injuries and squad rotation** — ✅ **Done, both halves.**
    Injuries went first because they turned out not to depend on squad context at all: missing
