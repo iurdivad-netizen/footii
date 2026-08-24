@@ -44,7 +44,7 @@ import { rememberMoments, summerMoment } from '../core/career/moments.ts';
 import { playerName } from '../data/gameData.ts';
 import { createMatchStats } from '../core/match/matchStats.ts';
 import { teamStrength } from '../core/team/team.ts';
-import { clamp01 } from '../core/util/math.ts';
+import { clamp, clamp01 } from '../core/util/math.ts';
 import { createDevelopmentState } from '../core/career/development.ts';
 import { clubStature, settleReputation } from '../core/career/reputation.ts';
 import type { ReputationSettlement } from '../core/career/reputation.ts';
@@ -196,6 +196,8 @@ import {
   tablePosition,
 } from '../core/career/league.ts';
 import { createSeasonStats } from '../core/career/seasonStats.ts';
+import { judgeObjective, setObjective } from '../core/career/objective.ts';
+import type { ObjectiveOutcome } from '../core/career/objective.ts';
 import type { MatchStats } from '../core/match/matchStats.ts';
 
 /**
@@ -474,6 +476,8 @@ export function startCareer(options: StartCareerOptions): CareerState {
     calendarIndex: 0,
     seasonStats: createSeasonStats(),
     leagueStats: createSeasonStats(),
+    seasonInjuredMisses: 0,
+    objective: null,
     development: createDevelopmentState(),
     history: [],
     seed: options.seed,
@@ -723,6 +727,50 @@ function joinClub(state: CareerState, lookup: TeamLookup, clubId: string): void 
   // selection and the rival already follow, and for the same reason: the man
   // picking the side is the one whose confidence matters.
   state.confidence = startingConfidence(state.loan?.role ?? state.contract?.role ?? 'starter');
+  // A new manager has his own demands as well as his own opinion, and he makes
+  // them the day you walk in. Set here rather than only in the summer so that a
+  // player who moves mid-career is never answerable to the club he left.
+  refreshObjective(state, lookup);
+}
+
+/**
+ * What the man picking the side wants this season.
+ *
+ * Called wherever the ANSWER would change: a new club, a new season, a renewed
+ * contract that calls him something different. Everything it needs comes off
+ * the state and the team data, so the objective model itself stays pure and
+ * testable without a career — see core/career/objective.ts.
+ *
+ * The squad level is the club's own rating, so the demand reads the side he is
+ * actually in: the same player is the man they look to at a modest club and one
+ * of several at a great one, and he is asked for different things in each.
+ */
+function refreshObjective(state: CareerState, lookup: TeamLookup): void {
+  const club = clubIn(state, lookup, state.clubId);
+  const previous = state.history[state.history.length - 1];
+
+  state.objective = setObjective({
+    season: state.seasonNumber,
+    clubId: state.clubId,
+    // On loan the word that counts is the loan club's, the same rule selection,
+    // the rival and confidence all follow: the man picking the side is the one
+    // whose demand you are playing against.
+    role: state.loan?.role ?? state.contract?.role ?? 'starter',
+    position: state.player.position,
+    ability: currentAbility(state.player),
+    squadLevel: Math.round((club.ratings.attack + club.ratings.midfield + club.ratings.defence) / 3),
+    // His club's LEAGUE fixtures, not the calendar. See the note on
+    // `leagueFixtures` — the calendar counts weeks, including dates he may
+    // never play, and a demand measured against it asks for a season that does
+    // not exist.
+    leagueFixtures: fixturesFor(state, state.clubId).length,
+    lastSeason: previous
+      ? {
+          appearances: previous.stats.matches,
+          contributions: previous.stats.goals + previous.stats.assists,
+        }
+      : undefined,
+  });
 }
 
 /**
@@ -1502,6 +1550,13 @@ export function missMatch(state: CareerState, lookup: TeamLookup): MissedMatch {
   // is whether he could have played this one.
   advanceRival(state, scheduled.slotIndex, false, wasFit);
 
+  // A fixture that passed while he was hurt, counted for the one thing that
+  // needs to know: an objective must not be failed from the treatment room. It
+  // is `wasFit` rather than the current injury because that is the question —
+  // could he have played THIS one — and `restUntilNextMatch` above has already
+  // moved the injury on. See core/career/objective.ts.
+  if (!wasFit) state.seasonInjuredMisses = (state.seasonInjuredMisses ?? 0) + 1;
+
   // Form drifts back toward neutral rather than staying frozen, and the
   // difference is the whole difference between a hard spell and a trap. Form is
   // only earned by playing, so a player dropped while out of form would keep
@@ -1911,6 +1966,15 @@ export interface SeasonEnd {
    * through the match fold like every other moment does. Empty in most summers.
    */
   moments: Moment[];
+  /**
+   * How his manager judged the season against what he asked for in August.
+   *
+   * Always present, but frequently `unjudged` — a summer transfer, a season
+   * spent injured, or a career that predates objectives all produce a verdict
+   * with nothing to report and no shift to apply. The review screen renders it
+   * only when there is something to say. See core/career/objective.ts.
+   */
+  objective: ObjectiveOutcome;
   /** Points earned for pre-season training. */
   trainingAwarded: number;
   trainingNotes: string[];
@@ -2287,6 +2351,23 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   // separately in the record book's per-competition split.
   const leagueStats = state.leagueStats;
 
+  // THE MANAGER'S VERDICT, taken here because `advanceSeason` below resets both
+  // the season ledger and the injured-absence count this reads. It is applied
+  // to confidence before the summer's other business, so a renewal offered
+  // later in this same function is made by a manager who has already had the
+  // conversation — which is the whole reason the objective is worth having.
+  const objectiveOutcome = judgeObjective(state.objective, state.seasonStats, {
+    season: state.seasonNumber,
+    clubId: state.clubId,
+    fixtures: calendarFor(state).length,
+    injuredFixtures: state.seasonInjuredMisses ?? 0,
+  });
+  state.confidence = clamp(
+    (state.confidence ?? CONFIDENCE_NEUTRAL) + objectiveOutcome.confidenceShift,
+    0,
+    100,
+  );
+
   const rng = new Rng(`${state.seed}:s${state.seasonNumber}:end`);
   const nextRng = new Rng(`${state.seed}:season:${state.seasonNumber + 1}`);
   const record = advanceSeason(rng, state, position, {
@@ -2425,6 +2506,21 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   // worth asking now that being out of the side is a thing that happens.
   state.loanOffer = findLoan(state, lookup, leagueStats.matches, playedSeasonLength);
 
+  // NEXT SEASON'S DEMAND, set here at the very end because it reads the calendar
+  // and the calendar is only complete now: the cups, the European campaign and
+  // the international tournament above all add dates to it, and an objective set
+  // before them would be pitched against a season several matches shorter than
+  // the one he is about to play.
+  //
+  // It reads `state.contract.role`, which the renewal a few lines above may just
+  // have changed — so a player whose season earned him a starter's deal is asked
+  // for a starter's season, in that order and not the other way round.
+  //
+  // A player who moves in the summer has this overwritten when he signs:
+  // `joinClub` sets its own, because the demand belongs to whoever is picking
+  // the side.
+  refreshObjective(state, lookup);
+
   // Whatever the summer itself produced. Written into the career as well as
   // handed back, so a review closed without being read is not a review lost.
   state.moments = rememberMoments(state.moments ?? [], summerMoments);
@@ -2435,6 +2531,7 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
     champion,
     progress,
     moments: summerMoments,
+    objective: objectiveOutcome,
     trainingAwarded: award.points,
     trainingNotes: award.notes,
     reputation,

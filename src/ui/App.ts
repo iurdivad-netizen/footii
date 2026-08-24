@@ -1279,6 +1279,7 @@ export class App {
           potentialHint,
           progress: outcome.progress,
           moments: outcome.moments,
+          objective: outcome.objective,
           // history holds the season just archived last, so the one before it
           // is the comparison point.
           previous: career.history[career.history.length - 2],

@@ -226,7 +226,7 @@ matches (35.0 played against 33.4).
 
 ## Found while reviewing, and fixed
 
-Five things that were not on either list, found by reading the code against what it claimed:
+Eight things that were not on either list, found by reading the code against what it claimed:
 
 - **Reputation's playing-time term could never fire.** It divided every competition's matches by the
   league's fixture list — a number that reaches fifty over one that is thirty — so it was pinned at
@@ -261,3 +261,53 @@ Five things that were not on either list, found by reading the code against what
 - **A browser that could not save said nothing about it.** Every write failure was swallowed, so a
   career could be played to its end in a browser keeping none of it. Failures now raise a warning
   above every screen, and offer the export that makes them survivable. See [When the browser will not save](README.md#when-the-browser-will-not-save).
+
+- **The career's diary was only readable once it was over.** `state.moments` has been accumulating
+  the last eighty things worth remarking on since moments existed, and the only places it could be
+  read in full were the end-of-career screen and the summer news — the hub showed only the moments
+  from the last match. So the game wrote a diary and showed it to the player once, after it was too
+  late to be the person in it. Fixed by rendering the log it already keeps, newest first, on the hub.
+  Nothing new is recorded, which is why every existing save has a full diary the moment it loads.
+  See [The diary, while the career is still being played](README.md#the-diary-while-the-career-is-still-being-played).
+
+- **Manager confidence was a scoreboard with nobody posting the score.** It had read into selection,
+  the renewal and morale since it was written, and moved on every match — without the player ever
+  being told what he was being judged against. The one question a footballer would actually ask in
+  August had no answer anywhere in the game. Fixed by the manager saying it: appearances and goals
+  or assists, set when a season starts, on the hub all year, settled in the summer.
+
+  Worth recording from the calibration, because the first attempt was wrong twice in opposite
+  directions. The demand was first measured against the **calendar**, which counts weeks rather than
+  matches — so a seventeen-year-old was asked for forty-nine appearances in a thirty-match league.
+  With that fixed, the contribution half was pitched at what a striker *ought* to return by the
+  standards of real football, and 77% of seasons exceeded it: this engine is simply more generous
+  than real football, at about 1.22 goals and assists per appearance for an auto-played striker. The
+  rate is now set just under what a skipped season already produces, and the verdict lands at
+  20% exceeded / 50% met / 30% missed. `scripts/measureObjectives.ts` is committed, for the same
+  reason `measureInjuries.ts` was: the second time somebody asks whether a target is fair should be
+  cheaper than the first. See [What he wants this season](README.md#what-he-wants-this-season).
+
+- **One colour was doing four jobs, and 192 colours were doing none.** `--accent` green was the
+  focus ring, the primary button, a positive statistic and a league position at once, so nothing on
+  the hub could be made to stand out — everything already had the loudest colour available. Meanwhile
+  every club in `teams.json` has carried a `colour` since the world was generated and the interface
+  used it in exactly two places, so signing for one club looked identical to signing for any other.
+  Fixed together, because they are the same problem: each token now has exactly one meaning, and club
+  colour became the identity channel that was missing. 60 of the 192 are too dark to see against the
+  page and are lifted in their own hue until they clear a contrast floor — asserted across the whole
+  data file rather than checked by eye. See [What each colour means](README.md#what-each-colour-means).
+
+- **The roadmap's auto-play finding was real and mis-attributed**, which is the sort of thing only a
+  measurement settles. It recorded that "auto-play scores far too much" and deliberately left it
+  alone. Measuring the same fixture under four policies on the same seeds shows that a striker
+  choosing the **worst available option every single time** still scores 1.58 goals a match at
+  ability 85 — so the inflation is the engine's chance supply, which a played career gets in exactly
+  the same measure, and retuning auto-play would have made skipping a punishment while fixing
+  nothing.
+
+  What *is* wrong with auto-play is the opposite of the claim: the gap between it and a perfect read
+  narrows from −0.95 rating at ability 55 to −0.31 at 85, so the value of playing the match yourself
+  shrinks to almost nothing exactly as a career becomes good enough to matter. `AUTO_SHARPNESS` is
+  not the lever either — sweeping it across five candidate ranges moves the average rating by at most
+  0.02. Both halves are still recorded rather than changed, because either would move every career
+  already played, but they are now recorded accurately and `scripts/measureAutoPlay.ts` is committed.

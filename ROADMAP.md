@@ -135,11 +135,70 @@ What remains on the RPG side: **tendency and position retraining**, so a thirty-
 become the deep-lying version of himself, **a background at creation**, and a **full squad** — a
 readable XI and squad numbers — which is flavour rather than mechanism and blocks nothing.
 
+Worth noting about retraining, because it makes the item smaller than it looks: `Tendencies` is a
+complete 0-100 blend model that is **set once in the creator and never mutated again** by any career
+path, and `player.position` is likewise only ever assigned there. The machinery to be a different
+footballer at thirty-one already exists; nothing has ever been wired to move it.
+
+**Three more have since landed**, all from reading the game rather than from planning it:
+
+- **[What he wants this season](README.md#what-he-wants-this-season)** — manager confidence had been a scoreboard with no posted
+  score since it was written: the number moved every match and nothing anywhere said what it was
+  moving against. Now the manager asks for a number of appearances and a number of goals or assists,
+  it sits on the hub all year, and the summer settles it. Calibrated rather than estimated, and the
+  first attempt was wrong by half — see the README for the measured distribution and the tool.
+- **[The diary, while the career is still being played](README.md#the-diary-while-the-career-is-still-being-played)** — the moment log had a reader problem
+  rather than a writer one. It has been accumulating since moments existed and could only be read in
+  full at the end of a career, so the game wrote a diary and showed it to you once, after it was too
+  late to be the person in it. It is a hub card now, and every existing save has a full one the
+  moment it loads.
+- **[What each colour means](README.md#what-each-colour-means)** — the palette had one working hue doing four jobs, so nothing
+  could be made to stand out. Each token now has exactly one meaning, and the club colour every one
+  of the 192 clubs has carried since the world was generated — and which the interface used twice —
+  is now identity throughout, lifted for legibility where the data is too dark to see.
+
 One thing found while measuring and deliberately not acted on: **auto-play scores far too much.**
 A skipped match resolves at 1.0 goals a match at ability 55 and **2.9 at ability 85**, with an
 average rating of 9.4 — so "let him play it" produces a superhuman career, and it distorts the
 golden boot, the record book and the wall of fame. Retuning it would move every career already
 played, so it is recorded here rather than changed.
+
+**That attribution has since been measured, and it was wrong.** `scripts/measureAutoPlay.ts` plays
+the same fixture under four policies — worst option, random, auto-play, best option — on the same
+seeds, which is the comparison the original observation could not make from a single column of
+numbers. What it shows at ability 85:
+
+| policy | goals/match | rating | gap to a perfect read |
+|---|---|---|---|
+| always the worst option | 1.58 | 8.40 | −0.97 |
+| uniformly at random | 1.68 | 8.66 | −0.71 |
+| **auto-play** | **2.30** | **9.06** | **−0.31** |
+| always the best option | 2.32 | 9.37 | — |
+
+Two findings, and only the second is auto-play's fault.
+
+**The scoring is the engine's, not the policy's.** A striker picking the *worst available option
+every single time* still scores 1.58 goals a match at ability 85. That is the inflation, and it
+affects a played career exactly as much as a skipped one — so retuning auto-play would not touch it,
+and would make skipping a punishment, which AutoPlay.ts's own notes forbid. Fixing it properly means
+the engine's chance supply at high ability, which moves **every** career, played or skipped, and is a
+much larger balance change than the one this note proposed.
+
+**What is genuinely wrong with auto-play is the opposite of "too good in general": the value of
+turning up shrinks as the career gets good.** The gap between auto-play and a perfect read runs
+−0.95 at ability 55, −0.69 at 70, and −0.31 at 85 — so a skipped match at 85 scores 2.30 goals
+against a perfectly played 2.32. The decision mechanic the whole game is built on becomes optional
+precisely for the careers going for the wall of fame.
+
+`AUTO_SHARPNESS` is **not** the lever, which was the other thing worth measuring before touching it.
+Sweeping the sharpness range across five candidates moves the average rating by at most 0.02 at any
+ability — the six options a situation offers are mostly sensible, so the exponent has little to
+discriminate between. The scaling actually comes from `autoTimeUsed`, and any real fix is there
+rather than in the choice policy.
+
+Both halves are recorded rather than changed, for the reason the original note gave — either would
+move careers already played — but they are now recorded **accurately**, and the tool that settles the
+question is committed.
 
 ## Nothing is still open
 

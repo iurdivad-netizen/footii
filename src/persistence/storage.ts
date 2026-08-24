@@ -37,7 +37,7 @@ import { rankLegacies } from '../core/career/legacy.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 27;
+export const SAVE_VERSION = 28;
 
 export interface CareerRecord {
   matches: number;
@@ -860,6 +860,31 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
     save = { ...save, version: 27 };
     for (const career of save.careers ?? []) {
       if (career) career.formerRivals ??= [];
+    }
+  }
+
+  if (save.version === 27) {
+    // v27 -> v28: the manager says what he wants this season.
+    //
+    // Nothing is invented here, and the reason is the usual one: a demand
+    // back-dated to a season already half played would be judged in the summer
+    // against months the player spent not knowing about it. So a migrated
+    // career carries NO objective until its next seam — a transfer, or the end
+    // of the season it is in — and `judgeObjective` returns `unjudged` for a
+    // null one, which is exactly the right verdict on a season nobody set a
+    // target for.
+    //
+    // `seasonInjuredMisses` starts at zero for the same reason it cannot be
+    // recovered: no older save records which absences were injuries. The one
+    // season that straddles this migration therefore under-counts them, which
+    // can only make an objective HARDER to have forgiven — and since there is no
+    // objective to forgive until the next one is set, it costs nothing at all.
+    save = { ...save, version: 28 };
+    for (const career of save.careers ?? []) {
+      if (career) {
+        career.objective ??= null;
+        career.seasonInjuredMisses ??= 0;
+      }
     }
   }
 

@@ -8,6 +8,12 @@ import type { WeekAhead } from '../../simulation/CareerService.ts';
 import type { HubLayout, HubSection } from './hubSections.ts';
 import { HUB_SECTION_LABELS, renderHubFolds, renderHubTabs } from './hubSections.ts';
 import { competitionsPeek } from '../hubPeek.ts';
+import {
+  objectiveAchieved,
+  objectiveProgress,
+  objectiveSummary,
+} from '../../core/career/objective.ts';
+import { applyClubPalette } from '../clubColour.ts';
 import type { AttributeKey } from '../../core/player/attributes.ts';
 import type { CompetitionKind } from '../../core/career/calendar.ts';
 import { currentAbility } from '../../core/player/player.ts';
@@ -87,6 +93,15 @@ import type { Team } from '../../core/team/team.ts';
 import { getTeam } from '../../data/gameData.ts';
 
 /**
+ * How many diary lines the hub shows.
+ *
+ * Twelve rather than the eighty the save keeps: enough to cover the current
+ * season and a little before it, which is what somebody between matches is
+ * actually looking for. The rest is what the end-of-career screen is for.
+ */
+const DIARY_LENGTH = 12;
+
+/**
  * CAREER HUB
  *
  * The screen between matches: who you are, how you are developing, where the
@@ -146,6 +161,12 @@ export class CareerScreen {
     this.element = document.createElement('section');
     this.element.className = 'screen career-screen';
     this.element.innerHTML = this.render();
+
+    // The club's colour, for this screen's subtree only. Set here rather than
+    // in the markup because it is three custom properties rather than one
+    // style, and because the stylesheet — not this screen — decides what a club
+    // colour is allowed to be used for. See ui/clubColour.ts.
+    applyClubPalette(this.element, this.club(this.state.clubId).colour);
 
     this.element
       .querySelector<HTMLButtonElement>('#play-match')
@@ -277,7 +298,8 @@ export class CareerScreen {
         <div>
           <h1>${player.name}</h1>
           <p class="career-sub">
-            ${positionLabel(player.position)} · age ${player.age} · ${club.name}
+            ${positionLabel(player.position)} · age ${player.age}
+            · <span class="club-mark" aria-hidden="true"></span>${club.name}
             · ${leagueName(country.id)} · Season ${this.state.seasonNumber}
           </p>
         </div>
@@ -598,12 +620,18 @@ export class CareerScreen {
         id: 'club',
         label: HUB_SECTION_LABELS.club,
         peek: [
+          // The demand leads, because it is the one line on this tab that can
+          // change what he does this week rather than merely describe him.
+          this.state.objective
+            ? objectiveSummary(this.state.objective, this.state.seasonStats)
+            : '',
           position > 0 ? `${ordinal(position)} in the league` : '',
           `${this.state.contract.yearsRemaining} yr${this.state.contract.yearsRemaining === 1 ? '' : 's'} left`,
         ]
           .filter(Boolean)
           .join(' · '),
         html: `<div class="career-grid">
+          ${this.renderObjective()}
           ${this.renderContract()}
           ${card('Scouts and standing', this.renderWatchers() || '<p class="hint">Nobody is watching you yet.</p>')}
           ${card(
@@ -638,10 +666,17 @@ export class CareerScreen {
             ? `${this.state.transfers.length} move${this.state.transfers.length === 1 ? '' : 's'}`
             : '',
           this.state.history.length > 0 ? `${this.state.history.length} seasons` : '',
+          // Last, and only when there is nothing else to say. A first-season
+          // career has a diary and no honours, no moves and no history, so
+          // without this its Career tab would peek as an empty string — which
+          // is the one thing the peek exists to prevent.
+          honours.length === 0 && this.state.transfers.length === 0 && this.state.history.length === 0
+            ? `${(this.state.moments ?? []).length} moment${(this.state.moments ?? []).length === 1 ? '' : 's'}`
+            : '',
         ]
           .filter(Boolean)
           .join(' · '),
-        html: `${this.renderHonours()}${this.renderHistory()}${this.renderTransfers()}`,
+        html: `${this.renderDiary()}${this.renderHonours()}${this.renderHistory()}${this.renderTransfers()}`,
       },
     ];
   }
@@ -1072,6 +1107,58 @@ export class CareerScreen {
    * matters is the one counting down: a player in his final season needs to
    * know it now, while there are still matches left to change somebody's mind.
    */
+  /**
+   * WHAT HE WAS ASKED FOR, AND HOW FAR ALONG HE IS.
+   *
+   * The manager's confidence has been on this hub for a while and it has always
+   * been a verdict without a question: a tier label that moved for reasons the
+   * player could watch but never read. This is the question — said in August,
+   * visible all season, settled in the summer.
+   *
+   * TWO BARS RATHER THAN ONE, because the two halves fail differently and the
+   * difference is the useful part: not being picked and not delivering are
+   * separate problems with separate answers, and a single blended percentage
+   * would hide which one he has. See core/career/objective.ts.
+   *
+   * The bars are `--accent`, not `--club`. This is progress, which is a thing
+   * the interface says about YOU; the club colour is identity and says only
+   * which club is asking. Mixing them is the exact confusion the palette note
+   * at the top of style.css exists to prevent.
+   */
+  private renderObjective(): string {
+    const objective = this.state.objective;
+    if (!objective) return '';
+
+    const stats = this.state.seasonStats;
+    const progress = objectiveProgress(objective, stats);
+    const contributions = stats.goals + stats.assists;
+    const done = objectiveAchieved(objective, stats);
+
+    const bar = (label: string, have: number, want: number, share: number) => `
+      <div class="objective-line${have >= want ? ' met' : ''}">
+        <div class="objective-head">
+          <span>${label}</span>
+          <span class="objective-count">${have}<span class="objective-of"> / ${want}</span></span>
+        </div>
+        <div class="objective-track" role="img" aria-label="${have} of ${want} ${label.toLowerCase()}">
+          <span class="objective-fill" style="width: ${(share * 100).toFixed(1)}%"></span>
+        </div>
+      </div>`;
+
+    return `
+      <div class="career-card objective-card${done ? ' objective-done' : ''}">
+        <h2>What he wants this season</h2>
+        <p class="objective-brief">${objective.brief}</p>
+        ${bar('Appearances', stats.matches, objective.appearances, progress.appearances)}
+        ${bar('Goals and assists', contributions, objective.contributions, progress.contributions)}
+        ${
+          done
+            ? `<p class="objective-verdict">Done — everything from here is on top of what he asked for.</p>`
+            : ''
+        }
+      </div>`;
+  }
+
   private renderContract(): string {
     const contract = this.state.contract;
     if (!contract) return '';
@@ -1104,6 +1191,57 @@ export class CareerScreen {
    * is still there at 34, and it is the only record the game keeps that a bad
    * year cannot touch.
    */
+  /**
+   * THE CAREER IN ITS OWN WORDS, WHILE IT IS STILL BEING PLAYED.
+   *
+   * The moment log has been accumulating since moments existed — `state.moments`
+   * holds the last eighty things worth remarking on — and until now the only
+   * place it could be READ in full was the end-of-career screen and the summer
+   * news. So the game wrote a diary the player was shown once, after it was too
+   * late to be the person in it.
+   *
+   * That is the whole of this card: the same log, on the hub, newest first.
+   * Nothing new is recorded and nothing is computed — if this had needed a new
+   * counter it would have been the mistake the moments file warns about, where
+   * a career already in progress gets an empty feature.
+   *
+   * NEWEST FIRST, which is the opposite of the end screen. The orders are
+   * different because the questions are: a finished career is read from the
+   * beginning as a story, and a live one is checked from the top for what just
+   * happened. `careerRecord.ts` keeps its own order for its own reason.
+   *
+   * TWELVE, not eighty. Enough to cover the season you are in and a little
+   * before it; the rest is what the end screen is for. A card that scrolled for
+   * a page would be a section of its own rather than a card in one.
+   */
+  private renderDiary(): string {
+    const moments = this.state.moments ?? [];
+    if (moments.length === 0) return '';
+
+    const shown = [...moments].reverse().slice(0, DIARY_LENGTH);
+    const items = shown
+      .map(
+        (moment) =>
+          `<li class="moment-${moment.kind}"><span class="moment-season">S${moment.season}</span> ${moment.text}</li>`,
+      )
+      .join('');
+
+    // Said only when there is more, and phrased as a fact about this card
+    // rather than about the save: the older ones are still on the end screen,
+    // and only the ones past MOMENT_LIMIT have actually gone.
+    const more =
+      moments.length > DIARY_LENGTH
+        ? `<p class="hint">The ${moments.length - DIARY_LENGTH} before these are kept for the end of your career.</p>`
+        : '';
+
+    return `
+      <div class="career-card">
+        <h2>Your career so far</h2>
+        <ul class="moment-log">${items}</ul>
+        ${more}
+      </div>`;
+  }
+
   private renderHonours(): string {
     const honours = this.state.honours ?? [];
     if (honours.length === 0) return '';

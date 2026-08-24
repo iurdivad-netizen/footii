@@ -13,6 +13,7 @@ import {
 } from '../../core/career/transfers.ts';
 import type { ContractOffer } from '../../core/career/contracts.ts';
 import { reputationTier } from '../../core/career/reputation.ts';
+import { clubPalette } from '../clubColour.ts';
 import { getCountry, leagueName } from '../../core/career/countries.ts';
 import type { LoanOffer } from '../../core/career/loan.ts';
 import { europeanNameInProse } from '../../core/career/europe.ts';
@@ -311,7 +312,7 @@ function offerCard(
   const downClass = (abroad ? leagueStep < -0.06 : step <= -6) ? 'down' : '';
 
   return `
-    <div class="career-card offer-card" style="border-left: 4px solid ${club.colour}">
+    <div class="career-card offer-card" style="border-left: 4px solid ${clubPalette(club.colour).colour}">
       <div class="offer-head">
         <h2>${club.name}</h2>
         <span class="offer-step ${stepClass}${downClass}">${stepLabel}</span>

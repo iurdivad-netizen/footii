@@ -1,4 +1,5 @@
 import type { CareerState } from '../../core/career/career.ts';
+import { clubPalette } from '../clubColour.ts';
 import { goalDifference } from '../../core/career/league.ts';
 import type { TableRow } from '../../core/career/league.ts';
 import {
@@ -225,7 +226,7 @@ export class WorldScreen {
         const gd = goalDifference(row);
         return `<tr class="${isPlayer ? 'own' : ''}">
             <td>${index + 1}</td>
-            <td><span class="club-dot" style="background:${team.colour}"></span>${team.name}</td>
+            <td><span class="club-dot" style="background:${clubPalette(team.colour).colour}"></span>${team.name}</td>
             <td class="dim">${TACTICAL_STYLE_LABELS[team.style]}</td>
             <td>${squadLevel(team)}</td>
             <td>${row.played}</td>

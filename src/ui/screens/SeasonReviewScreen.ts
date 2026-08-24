@@ -2,6 +2,7 @@ import type { SeasonRecord } from '../../core/career/career.ts';
 import type { Moment } from '../../core/career/moments.ts';
 import type { SeasonProgress } from '../../core/career/training.ts';
 import { averageRating, goalContributions } from '../../core/career/seasonStats.ts';
+import type { ObjectiveOutcome } from '../../core/career/objective.ts';
 import type { ReputationSettlement } from '../../core/career/reputation.ts';
 import { reputationTier } from '../../core/career/reputation.ts';
 import type { Honour } from '../../core/career/awards.ts';
@@ -48,6 +49,15 @@ export class SeasonReviewScreen {
        * heading with nothing under it reads as something failing to load.
        */
       moments?: Moment[];
+      /**
+       * How his manager judged the season against what he asked for in August.
+       *
+       * Optional because a career that predates objectives has none, and
+       * frequently `unjudged` even when present — a summer transfer or a year
+       * lost to injury both settle to nothing. The card renders only when there
+       * is a verdict worth reading. See core/career/objective.ts.
+       */
+      objective?: ObjectiveOutcome;
       /** The season before this one, for a like-for-like comparison. */
       previous?: SeasonRecord;
       trainingPoints: number;
@@ -181,6 +191,7 @@ export class SeasonReviewScreen {
       ${renderCupRuns(context.cups, record.clubId, context.countryId)}
       ${renderHonours(context.honours, context.capsGained)}
       ${renderSummerNews(context.moments ?? [])}
+      ${renderObjectiveVerdict(context.objective)}
       ${renderProgress(context.progress)}
       ${renderReputation(context.reputation)}
       ${renderContractNews(context)}
@@ -624,6 +635,47 @@ function renderProgress(progress: SeasonProgress): string {
  * footballer at a club that finishes bottom every year slides out of view, and
  * the screen has to say so before the empty transfer window does.
  */
+/**
+ * THE CONVERSATION IN HIS OFFICE.
+ *
+ * Placed above the reputation panel on purpose: the manager's verdict is what
+ * his own club thought, and reputation is what everybody else thought. A season
+ * is judged at home first.
+ *
+ * Absent entirely when there is nothing to say — a summer transfer, or a career
+ * older than objectives. A card reading "unjudged" would be the game reporting
+ * its own internal state, which is never what a player wanted to know.
+ */
+function renderObjectiveVerdict(outcome: ObjectiveOutcome | undefined): string {
+  if (!outcome || !outcome.note) return '';
+
+  const heading =
+    outcome.verdict === 'exceeded'
+      ? 'He got more than he asked for'
+      : outcome.verdict === 'met'
+        ? 'He got what he asked for'
+        : outcome.verdict === 'missed'
+          ? 'Not the season he asked for'
+          : 'No season to judge';
+
+  // The shift is shown rather than described, because it is the one number on
+  // this card that changes what happens next — selection and the renewal both
+  // read confidence. Zero is not printed: "+0" is noise dressed as information.
+  const shift =
+    outcome.confidenceShift !== 0
+      ? `<span class="verdict-shift ${outcome.confidenceShift > 0 ? 'up' : 'down'}">
+           ${outcome.confidenceShift > 0 ? '+' : ''}${outcome.confidenceShift} confidence
+         </span>`
+      : '';
+
+  return `
+    <div class="career-card verdict-panel verdict-${outcome.verdict}">
+      <h2>${heading}</h2>
+      <p>${outcome.note}</p>
+      ${shift}
+    </div>`;
+}
+
 function renderReputation(settlement: ReputationSettlement): string {
   const tier = reputationTier(settlement.after);
   const direction = settlement.delta > 0.5 ? 'good' : settlement.delta < -0.5 ? 'bad' : '';

@@ -631,6 +631,54 @@ free, and are announced as disclosures. Tabs carry `role="tab"`/`role="tabpanel"
 the hub — rebuilding sixteen cards' worth of markup to look at a contract would scroll the page
 back to the top for nothing.
 
+### What each colour means
+
+The palette had one working hue. `--accent` green was the focus ring, the primary button, a positive
+statistic **and** a league position — four jobs for one colour, and a colour doing four jobs is a
+colour saying nothing. Nothing on the hub could be made to stand out, because everything already had
+the loudest colour available.
+
+Each one now has exactly one meaning, and the list is short enough to keep:
+
+| token | what it means |
+|---|---|
+| `--accent` | **you**, and things going well — focus, primary actions, progress, a rating above par |
+| `--goal` | **a goal**, and the honours a career of them wins. Nothing else may use it |
+| `--warn` | **jeopardy that has not happened yet** — a keeper committing, a contract running down |
+| `--danger` | **something has gone wrong** — an injury, a relegation, a refusal |
+| `--club` | **which club this is**. Identity, never sentiment |
+
+The match already owns red, orange and yellow for its action families (shot, header, dribble), and
+that constrains all of the above: the hub cannot borrow those hues for decoration without teaching
+the eye a second meaning for a colour it has to read in under a second during a match.
+
+**The club colour is the one that is not semantic.** Every club in `teams.json` has carried a
+`colour` since the world was generated, and the interface used it in exactly two places — a border
+on a transfer offer and a dot in the world table. Signing for Northport City looked identical to
+signing for anybody else, which is a strange thing for a game about spending fifteen years
+somewhere. It is now set per club on the career screen and used for identity only: a band on the
+hub header, a mark beside the club's name, the transfer cards.
+
+It **never replaces the accent**. A hub where signing for a red club turned every success message
+red is a hub where colour has stopped meaning anything.
+
+Two things a stylesheet cannot do on its own, which is why `ui/clubColour.ts` exists:
+
+- **Legibility.** The page is `#0b1a12`, very dark. A club whose colour is a deep navy or a maroon
+  disappears into it, and a crest colour that cannot be seen reads as a rendering bug rather than as
+  a design. So a colour is **lifted in its own hue** until it clears a contrast floor of 3.5 against
+  the page — in HSL rather than by blending toward white, because blending desaturates and a maroon
+  mixed with white becomes pink, which is a different club. 60 of the 192 need it; none is left
+  under 3.5, asserted over the whole data file in `tests/clubColour.test.ts` rather than checked by
+  eye.
+- **Text on top of it.** Where the colour becomes a filled band, the words on it are black or white
+  depending on what is underneath, which is a per-club answer.
+
+A property worth knowing, because it is what makes this worth doing at all: there are 16 distinct
+colours across 192 clubs, and **every country has all sixteen**. So within the league you actually
+play in, every club is a different colour — which is where a player reads colour. Across the world
+they repeat, and that is fine.
+
 ### Why development is applied per match
 
 Because the payoff has to be felt in the core mechanic, not read on a summary screen.
@@ -1571,6 +1619,74 @@ The hub shows it as **a band and a line in the manager's voice** — *Out of fav
 *Watching*, *Trusted*, *Untouchable* — rather than as a figure. A two-digit number beside `Morale`
 is exactly what this was written to stop being.
 
+### What he wants this season
+
+Manager confidence answered *what does he think of me*. It did not answer the question a footballer
+would actually ask in August, which is **what do you want from me** — and without that, confidence
+was a scoreboard with no posted score. The number moved every match, the band changed, and nothing
+anywhere in the game said what it was moving against.
+
+So the manager says it. **Two numbers and a sentence**, set when a season starts, on the hub all
+year, settled in the summer.
+
+> *You are his best player. He wants 27 appearances and 38 goals or assists — and a season people
+> remember.*
+
+**Two numbers rather than one**, because the two ways of failing are different and a career has to
+tell them apart. A striker who plays thirty matches and scores four has a problem; one who scores
+eight in eleven has a different problem, and it is not his finishing. Appearances and contributions
+separate *he does not pick me* from *I am not delivering* — the two arguments this game already
+models everywhere else.
+
+**Where the appearance target comes from** is `contract.role`, which is now doing a fourth job: a
+star is asked for 78% of a season, a starter 64%, a squad player 42%. Missing it means missing what
+your own contract said you were, which is a fair thing to be asked about. A season is measured as
+the **league fixture list plus the football around it** — cup ties, European nights, internationals
+— which measurement puts at about 1.15 times the league alone. It is deliberately *not* the
+calendar: the calendar counts weeks, including dates he may never play, and the first version of
+this asked a seventeen-year-old for forty-nine appearances in a thirty-match league.
+
+**Where the contribution target comes from** was calibrated rather than estimated, and the first
+attempt was wrong by about half in the direction nobody expects. The rates started at what a striker
+*ought* to return by the standards of real football, and `scripts/measureObjectives.ts` reported
+**77% of seasons exceeding the demand** and 12% missing it. A target three-quarters of careers clear
+without noticing is not a target. This engine is more generous than real football — an auto-played
+striker returns about **1.22 goals and assists per appearance** — so the demand is now set just
+under what a *skipped* season already produces. Measured again at that setting:
+
+| verdict | share of seasons |
+|---|---|
+| exceeded | 20% |
+| met | 50% |
+| missed | 30% |
+
+Those are auto-played seasons, which is a **floor rather than a typical career**: auto-play is
+deliberately worse than a person reading the situation. A demand met comfortably at that standard is
+one a human will meet.
+
+**Exceeding it needs both halves**, not either. On *either*, more than half of all seasons came back
+exceeded — clearing the appearance half comfortably is close to automatic for anybody being picked,
+and a verdict most seasons receive is not a verdict.
+
+**It is not allowed to be a spiral**, which is the constraint that shaped the judging. Being dropped
+already costs confidence indirectly, and an objective that punished a player for the appearances his
+manager refused to give him would make being out of favour the *cause* of being further out of
+favour — the exact trap `confidenceAfterAbsence` and `missMatch` are both written to avoid. So a
+season more than a third of which was lost to **injury is not judged at all**, in either direction,
+and the summer says so out loud rather than quietly forgiving it. Nobody is judged for a torn
+hamstring.
+
+**What it is worth** is deliberately small: **+9** confidence for exceeding, **+3** for meeting,
+**−8** for missing. Confidence moves 10-22% of the way toward a verdict on every match played, so
+thirty matches vastly outweigh anything here — and that ordering is load-bearing. The football is
+where a manager makes his mind up; this is the conversation in his office afterwards, and a
+conversation is worth a few points. A summer that could overturn a season would make the season not
+matter.
+
+**It never travels.** A move means a new manager with his own demands, made the day you walk in —
+the same reason confidence itself belongs to the club. A demand somebody else made can never be
+marked against you.
+
 ### The week before a match
 
 A career used to be a conveyor belt. Between one fixture and the next the hub offered exactly one
@@ -1774,6 +1890,27 @@ appearance is simply the match where the count crossed a hundred.
 A career keeps the last **80**. When it fills the oldest go — the wrong way round for a diary and the
 right way round for a save that holds a whole career in a few tens of kilobytes, and the end-of-career
 screen says so rather than quietly beginning in season six.
+
+### The diary, while the career is still being played
+
+The moment log had a reader problem rather than a writer one. `state.moments` has been accumulating
+the last eighty things worth remarking on since moments existed — and the only places it could be
+read **in full** were the end-of-career screen and the summer news. The game wrote a career's diary
+and showed it to you once, after it was too late to be the person in it.
+
+It is now a card on the hub, in the **Career** section: the same log, newest first, twelve lines
+deep.
+
+Nothing new is recorded and nothing is computed. That is the point — a diary needing a new counter
+would be the mistake `traits` and `moments` were both built to avoid, where a career already in
+progress gets a feature with nothing in it. Every existing save has a full diary the moment it loads.
+
+**Newest first here, oldest first at the end of a career**, and the orders differ because the
+questions do. A finished career is read from the beginning as a story. A live one is checked from
+the top for what just happened.
+
+Twelve rather than eighty, because a card that scrolled for a page would be a section rather than a
+card. The rest is what the end screen is for, and the hub says so when there are more.
 
 ### Somebody to pass to
 
