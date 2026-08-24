@@ -443,6 +443,47 @@ describe('save migration', () => {
     expect(migrated.settings).toEqual(defaultSettings());
   });
 
+  it('falls back to a hub layout it can actually draw', () => {
+    // Additive is not the same as trusted. A hand-edited or downgraded save can
+    // name a layout this version has never heard of, and a hub that renders
+    // neither shape is a career you cannot play.
+    const migrated = migrate({
+      version: SAVE_VERSION,
+      career: emptyCareer(),
+      settings: { pace: 'untimed', matchSpeed: 1, hubLayout: 'accordion', hubOpen: ['you'] },
+    } as never)!;
+    expect(migrated.settings.hubLayout).toBe(defaultSettings().hubLayout);
+  });
+
+  it('drops remembered sections that no longer exist, and keeps the ones that do', () => {
+    const migrated = migrate({
+      version: SAVE_VERSION,
+      career: emptyCareer(),
+      settings: { pace: 'untimed', matchSpeed: 1, hubLayout: 'folds', hubOpen: ['club', 'wages'] },
+    } as never)!;
+    expect(migrated.settings.hubOpen).toEqual(['club']);
+  });
+
+  it('takes an empty open set at its word rather than reopening a section', () => {
+    // Every fold shut is a choice somebody made, and a migration that treated
+    // it as missing data would undo it on every load.
+    const migrated = migrate({
+      version: SAVE_VERSION,
+      career: emptyCareer(),
+      settings: { pace: 'untimed', matchSpeed: 1, hubLayout: 'folds', hubOpen: [] },
+    } as never)!;
+    expect(migrated.settings.hubOpen).toEqual([]);
+  });
+
+  it('replaces an open set that is not a list at all', () => {
+    const migrated = migrate({
+      version: SAVE_VERSION,
+      career: emptyCareer(),
+      settings: { pace: 'untimed', matchSpeed: 1, hubLayout: 'tabs', hubOpen: 'club' },
+    } as never)!;
+    expect(migrated.settings.hubOpen).toEqual(defaultSettings().hubOpen);
+  });
+
   it('repairs a career whose history is missing rather than discarding the save', () => {
     const state = career() as unknown as Record<string, unknown>;
     delete state.history;
@@ -459,7 +500,7 @@ describe('save migration', () => {
     const original: SaveData = {
       version: SAVE_VERSION,
       career: { ...emptyCareer(), goals: 4 },
-      settings: { pace: 'relaxed', matchSpeed: 2 },
+      settings: { pace: 'relaxed', matchSpeed: 2, hubLayout: 'folds' as const, hubOpen: ['club'] },
       careers: [career(), null, null],
       activeSlot: 0,
       hallOfFame: [],
@@ -897,7 +938,9 @@ describe('slots across versions', () => {
 
 describe('export and import', () => {
   it('round-trips everything: careers, the wall, and preferences', () => {
-    let original = save({ settings: { pace: 'relaxed', matchSpeed: 2 } });
+    let original = save({
+      settings: { pace: 'relaxed', matchSpeed: 2, hubLayout: 'folds', hubOpen: ['club', 'career'] },
+    });
     original = saveCareer(selectSlot(original, 1), career());
     original = { ...original, hallOfFame: [legacy({ id: 'kept' })] };
 
@@ -908,7 +951,12 @@ describe('export and import', () => {
     expect(restored.careers[0]).toBeNull();
     expect(restored.activeSlot).toBe(1);
     expect(restored.hallOfFame.map((entry) => entry.id)).toEqual(['kept']);
-    expect(restored.settings).toEqual({ pace: 'relaxed', matchSpeed: 2 });
+    expect(restored.settings).toEqual({
+      pace: 'relaxed',
+      matchSpeed: 2,
+      hubLayout: 'folds',
+      hubOpen: ['club', 'career'],
+    });
   });
 
   it('brings an OLDER export forward, rather than refusing it', () => {

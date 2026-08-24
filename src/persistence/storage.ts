@@ -16,6 +16,8 @@ import type { CoefficientLedger, Coefficients } from '../core/career/coefficient
 import { Rng } from '../core/rng.ts';
 import { initialStrengths } from '../core/career/clubDrift.ts';
 import { STANDING_FLOORS, defaultPreferences } from '../core/career/preferences.ts';
+import type { HubLayout } from '../ui/screens/hubSections.ts';
+import { isHubLayout, isHubSectionId } from '../ui/screens/hubSections.ts';
 import { startingConfidence } from '../core/career/confidence.ts';
 import { isEuropeanTier } from '../core/career/europe.ts';
 import { contractYears, offeredWage, squadRole } from '../core/career/transfers.ts';
@@ -67,6 +69,25 @@ export interface GameSettings {
   pace: DecisionPace;
   /** Index into the match screen's speed presets. */
   matchSpeed: number;
+  /**
+   * How the career hub arranges the twelve cards you do not need every week.
+   *
+   * A setting rather than a decision taken for the player, because the trade is
+   * genuinely a matter of taste: tabs make the shortest page and cost a
+   * navigation model, folds cost nothing to learn and make a longer one.
+   * See ui/screens/hubSections.ts.
+   */
+  hubLayout: HubLayout;
+  /**
+   * Which sections he last had open, so the hub comes back as he left it.
+   *
+   * One list for both layouts, which is what lets a player switch between them
+   * without losing his place: in folds it is every open section, and in tabs it
+   * is read as the one to show. A setting rather than career state because it
+   * is a fact about how somebody likes to read a screen, not about a
+   * footballer — and because it should carry across all three career slots.
+   */
+  hubOpen: string[];
 }
 
 /**
@@ -81,7 +102,10 @@ export interface GameSettings {
  * is gone. Turning the clock on afterwards is one control on the front door.
  */
 export function defaultSettings(): GameSettings {
-  return { pace: 'untimed', matchSpeed: 1 };
+  // Tabs by default: it is the layout that fixes the problem the restructure
+  // was for — a phone hub three and a half thousand pixels tall — and the
+  // front door offers the other one to anybody who would rather scroll.
+  return { pace: 'untimed', matchSpeed: 1, hubLayout: 'tabs', hubOpen: ['you'] };
 }
 
 export interface SaveData {
@@ -847,8 +871,21 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
   if (save.version !== SAVE_VERSION) return null;
 
   // Settings are additive: an older save simply had none, and a save written
-  // before a new preference existed must still load.
+  // before a new preference existed must still load. That is why the hub layout
+  // needed no migration step of its own — an older save has no `hubLayout` key
+  // and gets the default, which is exactly right.
   save.settings = { ...defaultSettings(), ...(save.settings ?? {}) };
+
+  // Additive is not the same as trusted. A hand-edited or downgraded save can
+  // carry a layout this version has never heard of, and a hub that renders
+  // neither shape is a career you cannot play — so an unrecognised value falls
+  // back rather than being taken at its word.
+  if (!isHubLayout(save.settings.hubLayout)) {
+    save.settings.hubLayout = defaultSettings().hubLayout;
+  }
+  save.settings.hubOpen = Array.isArray(save.settings.hubOpen)
+    ? save.settings.hubOpen.filter(isHubSectionId)
+    : defaultSettings().hubOpen;
 
   // A career that predates a field must not crash the game. Applied to every
   // slot, not just the active one: a slot you are not currently playing is

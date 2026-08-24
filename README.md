@@ -155,10 +155,12 @@ catalogue.
 
 ### Settings
 
-**Decision pace** and **match speed** live on the home screen and are **saved between sessions**,
-because they describe how *you* want to play rather than anything about a particular match. They
-were previously chosen per match and never persisted, which meant reloading and continuing a career
-silently reverted a deliberately relaxed game to Standard — the game got harder without saying so.
+**Decision pace**, **match speed** and **career hub** live on the home screen and are **saved
+between sessions**, because they describe how *you* want to play rather than anything about a
+particular match. The first two were previously chosen per match and never persisted, which meant
+reloading and continuing a career silently reverted a deliberately relaxed game to Standard — the
+game got harder without saying so. The third picks the hub's layout; see
+[The shape of the hub](#the-shape-of-the-hub).
 
 ### Decision pace
 
@@ -585,6 +587,49 @@ Beyond the single match, a career follows **one footballer season by season**.
   your statistics, a scout's view of whether your ceiling has moved, and where your reputation now
   sits. Then comes the summer — the transfer window and any contract decision, then pre-season
   training — and you age a year and go again.
+
+### The shape of the hub
+
+A mature career renders **sixteen cards** on the hub — from the next fixture to the
+season-by-season history — and it used to render all sixteen in one flat grid, every week, every
+one of them shouting at the same volume. On a phone that was about **3,300 pixels** of scrolling
+to reach a button that had been on the first screen in season one.
+
+The fix is not fewer cards; every one of them earns its place at some point in a season. The
+problem is that only a few earn it *every* week. So **the next match and the week stay pinned**,
+under whatever the last match and the last moment had to say, and the rest go into four named
+sections — **You**, **Club**, **Competitions**, **Career**.
+
+**Every section carries a peek**: a line of live text beside its name — *"Club · 1st in the league ·
+3 yrs left"*, *"Competitions · The English Cup · Quarter-final"* — assembled from the actual cards
+inside it. That line is the whole reason the restructure is not a regression. Hiding a card behind
+a heading costs you the glance that told you whether to look; a peek gives the glance back. A peek
+built from anything other than the real contents would be a decoration that happened to look like
+information, which is why the competitions one says *"not started"* for a cup that has been drawn
+but not played rather than naming a round nobody has been in yet.
+
+**The layout is a setting, not a decision taken for you**, because the trade is genuinely a matter
+of taste:
+
+| Layout | What it does | What it costs |
+| --- | --- | --- |
+| **Tabs** (default) | One section at a time behind a tab bar. Shortest page — the phone hub drops to about 1,700px. | A navigation model to learn, and find-in-page only searches the open tab. |
+| **Folds** | All four listed as collapsible rows; open as many as you like. | A longer page — about 2,250px on a phone — but nothing to learn. |
+
+Both draw the **same division**, defined exactly once in `ui/screens/hubSections.ts`. Two layouts
+that disagreed about which card belongs where would be two different hubs, and the second one would
+drift; worse, the setting would quietly become a difficulty level rather than a preference. The
+sections you leave open are remembered across sessions and **shared between the layouts**, so
+switching does not lose your place — in folds the list is every open section, in tabs it is read as
+the one to show. A remembered section that does not exist this week — a first-season career has no
+honours, no transfers and no history, so it has no Career section — falls back to the first one
+there is rather than showing an empty screen.
+
+Folds are real `<details>` elements, so they open without JavaScript, are keyboard-operable for
+free, and are announced as disclosures. Tabs carry `role="tab"`/`role="tabpanel"` and the
+`aria-controls` pairing that ties each one to its panel, and switching a tab does **not** re-render
+the hub — rebuilding sixteen cards' worth of markup to look at a contract would scroll the page
+back to the top for nothing.
 
 ### Why development is applied per match
 

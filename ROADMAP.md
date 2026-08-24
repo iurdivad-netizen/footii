@@ -116,11 +116,20 @@ eleven-pixel caption painted on a canvas — see [The goalkeeper is the mechanic
 simply missing work: a keyboard-first game with no visible focus ring, no reduced-motion support,
 no live regions and type down to nine pixels — see [Getting to it](README.md#getting-to-it).
 
-What is still open on the interface, and deliberately not started because it wants a design decision
-rather than tidier CSS: **the hub is one flat scroll of eleven cards** — 3,300px on a phone, with
-ragged card heights and a lot of dead space on the desktop — and **choosing a club at setup is a
-192-item dropdown** that truncates mid-word and says nothing about any of them, although the game
-models whether each would sign you, trial you or ignore you.
+**The hub has since been restructured**, which was the design decision the interface pass had left
+open — and the count in that note was wrong: a mature career renders **sixteen** cards, not eleven,
+which is how it reached 3,300px on a phone. The next match and the week stay pinned and the rest go
+into four named sections, each carrying a **peek** assembled from its own contents, because hiding a
+card behind a heading costs you the glance that told you whether to look. The shape is a **player
+setting** rather than a decision taken for him — tabs are the shortest page and cost a navigation
+model, folds are longer and cost nothing to learn — with the division defined once and drawn twice,
+so the choice can never become a difficulty level. Measured in a browser at both widths: 3,325px to
+**1,738px** in tabs and 2,255px in folds, no horizontal overflow at 390px. See
+[The shape of the hub](README.md#the-shape-of-the-hub).
+
+What is still open on the interface: **choosing a club at setup is a 192-item dropdown** that
+truncates mid-word and says nothing about any of them, although the game models whether each would
+sign you, trial you or ignore you.
 
 What remains on the RPG side: **tendency and position retraining**, so a thirty-one-year-old can
 become the deep-lying version of himself, **a background at creation**, and a **full squad** — a

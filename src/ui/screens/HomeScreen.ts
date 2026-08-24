@@ -2,6 +2,8 @@ import { DECISION_PACE_LABELS } from '../../simulation/DecisionTimer.ts';
 import type { DecisionPace } from '../../simulation/DecisionTimer.ts';
 import type { GameSettings } from '../../persistence/storage.ts';
 import { MATCH_SPEEDS } from '../screens/matchSpeeds.ts';
+import { HUB_LAYOUTS, HUB_LAYOUT_LABELS } from './hubSections.ts';
+import type { HubLayout } from './hubSections.ts';
 import type { CareerLegacy } from '../../core/career/legacy.ts';
 import { rankLegacies } from '../../core/career/legacy.ts';
 
@@ -147,6 +149,19 @@ export class HomeScreen {
             </select>
             <p class="hint">How fast the simulated minutes tick by between your moments.</p>
           </div>
+          <div class="field">
+            <label for="home-hub">Career hub</label>
+            <select id="home-hub">
+              ${HUB_LAYOUTS.map(
+                (key) =>
+                  `<option value="${key}" ${key === settings.hubLayout ? 'selected' : ''}>${HUB_LAYOUT_LABELS[key]}</option>`,
+              ).join('')}
+            </select>
+            <p class="hint">
+              Where the cards you do not need every week go. The next match and the week are
+              pinned either way.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -218,6 +233,11 @@ export class HomeScreen {
       handlers.onSettingsChange({ pace: paceSelect.value as DecisionPace });
     });
     updatePaceNote();
+
+    const hubSelect = this.element.querySelector<HTMLSelectElement>('#home-hub')!;
+    hubSelect.addEventListener('change', () => {
+      handlers.onSettingsChange({ hubLayout: hubSelect.value as HubLayout });
+    });
 
     const speedSelect = this.element.querySelector<HTMLSelectElement>('#home-speed')!;
     speedSelect.addEventListener('change', () => {
