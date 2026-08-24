@@ -3856,6 +3856,169 @@ button.ghost.danger {
 }
 
 /*
+ * THE HUB, DIVIDED
+ *
+ * Four things stay pinned — the last result, the moments, the next match and
+ * the week — and the twelve cards nobody needs every week go into four
+ * sections, shown as tabs or as folds. See ui/screens/hubSections.ts for why
+ * the division is defined once and the presentation twice.
+ */
+.career-grid.pinned {
+  /* Two cards of comparable weight, so neither stretches to the other's
+     height. The old grid put these beside four short readouts and made all six
+     as tall as the tallest. */
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+/*
+ * Where he stands, as chips.
+ *
+ * Two cards — Condition and Standing — became this row. They held eleven
+ * numbers between them and were the emptiest panels on the hub; as chips they
+ * are one line, and they read left to right instead of as two columns nobody
+ * was comparing.
+ */
+.hub-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 16px;
+}
+
+.hub-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 13px;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+}
+
+.hub-chip i {
+  font-style: normal;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.hub-chip b { font-weight: 600; }
+.hub-chip.good b { color: var(--accent); }
+.hub-chip.warn b { color: var(--warn); }
+
+/* ----------------------------------------------------------------- tabs --- */
+.hub-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 16px;
+}
+
+.hub-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--text-dim);
+  text-align: left;
+  padding: 9px 14px;
+  margin: 0;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.hub-tab-label {
+  display: block;
+  font-size: 0.92rem;
+}
+
+/*
+ * The peek: what is inside, without opening it.
+ *
+ * The one thing tabs otherwise cost against a flat page is knowing whether a
+ * section is worth a click. `Club · 1st in the league · 3 yrs left` answers
+ * that from the tab itself, which is the whole reason this line exists.
+ */
+.hub-tab-peek {
+  display: block;
+  margin-top: 1px;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  opacity: 0.85;
+}
+
+.hub-tab:hover { color: var(--text); }
+
+.hub-tab[aria-selected='true'] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.hub-tab[aria-selected='true'] .hub-tab-peek { color: var(--text-dim); opacity: 1; }
+
+.hub-panel[hidden] { display: none; }
+
+/* ---------------------------------------------------------------- folds --- */
+.hub-folds { margin-bottom: 16px; }
+
+.hub-fold {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+
+.hub-fold > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 16px;
+  min-height: 44px;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.hub-fold > summary::-webkit-details-marker { display: none; }
+
+.hub-fold > summary::after {
+  content: '+';
+  margin-left: auto;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 1rem;
+}
+
+.hub-fold[open] > summary::after { content: '−'; }
+
+.hub-fold-label {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.hub-fold-peek {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.hub-fold-body { padding: 0 12px 4px; }
+
+/* The cards inside a fold sit on the fold, so they lose their own surface. */
+.hub-fold-body .career-card {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+/*
  * The moments a career is made of.
  *
  * Green rather than amber: every one of these is something that HAPPENED,

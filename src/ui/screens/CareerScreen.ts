@@ -5,6 +5,9 @@ import { TRAITS } from '../../core/player/traits.ts';
 import type { WeekChoice } from '../../core/career/week.ts';
 import { WEEK_DESCRIPTIONS, WEEK_LABELS } from '../../core/career/week.ts';
 import type { WeekAhead } from '../../simulation/CareerService.ts';
+import type { HubLayout, HubSection } from './hubSections.ts';
+import { HUB_SECTION_LABELS, renderHubFolds, renderHubTabs } from './hubSections.ts';
+import { competitionsPeek } from '../hubPeek.ts';
 import type { AttributeKey } from '../../core/player/attributes.ts';
 import type { CompetitionKind } from '../../core/career/calendar.ts';
 import { currentAbility } from '../../core/player/player.ts';
@@ -111,6 +114,12 @@ export class CareerScreen {
      * renders a career, it does not decide one.
      */
     private readonly week: WeekAhead,
+    /**
+     * How he wants the twelve occasional cards arranged, and which sections he
+     * left open. Both come from the saved settings — see hubSections.ts.
+     */
+    private readonly layout: HubLayout,
+    private readonly open: readonly string[],
     handlers: {
       onPlay: () => void;
       onSkip: () => void;
@@ -123,6 +132,15 @@ export class CareerScreen {
       onPreferences: () => void;
       /** Spend the week before the next fixture. */
       onWeek: (choice: WeekChoice) => void;
+      /**
+       * He opened or closed a section.
+       *
+       * Reported rather than stored here, because where it belongs is the
+       * settings block — the hub is a renderer, and a preference that lived in
+       * a screen would be forgotten the moment the screen was rebuilt, which
+       * is after every single match.
+       */
+      onSections: (open: string[]) => void;
     },
   ) {
     this.element = document.createElement('section');
@@ -152,6 +170,34 @@ export class CareerScreen {
       ?.addEventListener('click', handlers.onQuit);
     for (const button of this.element.querySelectorAll<HTMLButtonElement>('[data-week]')) {
       button.addEventListener('click', () => handlers.onWeek(button.dataset.week as WeekChoice));
+    }
+
+    // Tabs switch in place rather than re-rendering the hub. Rebuilding the
+    // whole screen to show a different panel would scroll the page back to the
+    // top and re-run every card's markup, which is a lot of work to look at a
+    // contract.
+    for (const tab of this.element.querySelectorAll<HTMLButtonElement>('[data-hub-tab]')) {
+      tab.addEventListener('click', () => {
+        const id = tab.dataset.hubTab!;
+        for (const other of this.element.querySelectorAll<HTMLButtonElement>('[data-hub-tab]')) {
+          other.setAttribute('aria-selected', String(other === tab));
+        }
+        for (const panel of this.element.querySelectorAll<HTMLElement>('.hub-panel')) {
+          panel.hidden = panel.id !== `hub-panel-${id}`;
+        }
+        handlers.onSections([id]);
+      });
+    }
+
+    // Folds report the whole open set, because several can be open at once and
+    // the setting has to describe the screen rather than the last click.
+    for (const fold of this.element.querySelectorAll<HTMLDetailsElement>('[data-hub-fold]')) {
+      fold.addEventListener('toggle', () => {
+        const open = [...this.element.querySelectorAll<HTMLDetailsElement>('[data-hub-fold]')]
+          .filter((one) => one.open)
+          .map((one) => one.dataset.hubFold!);
+        handlers.onSections(open);
+      });
     }
   }
 
@@ -224,13 +270,7 @@ export class CareerScreen {
     const done = seasonComplete(this.state);
     const injury = this.state.injury;
     const sheet = this.teamSheet;
-    const stats = this.state.seasonStats;
     const venue = scheduled ? (scheduled.home ? 'Home' : 'Away') : '';
-    // In words rather than as a figure, deliberately. The number beside
-    // `Morale` is what this feature exists to stop being — a stat the player
-    // watches move and can do nothing with — so what he is shown is the band
-    // and the manager's own line about it. See core/career/confidence.ts.
-    const manager = confidenceTier(this.state.confidence ?? CONFIDENCE_NEUTRAL);
 
     return `
       <header class="career-header">
@@ -252,7 +292,7 @@ export class CareerScreen {
       ${this.renderMoments()}
       ${this.renderDevelopment()}
 
-      <div class="career-grid">
+      <div class="career-grid pinned">
         <div class="career-card">
           <h2>Next match</h2>
           ${
@@ -303,86 +343,10 @@ export class CareerScreen {
         </div>
 
         ${this.renderWeek()}
-
-        <div class="career-card">
-          <h2>Condition</h2>
-          <dl class="stat-list">
-            <div><dt>Fitness</dt><dd>${Math.round(this.state.fitness)}</dd></div>
-            ${
-              injury
-                ? `<div class="stat-injury">
-                     <dt>Injured</dt>
-                     <dd>${injury.label} · ${injury.weeksRemaining}w</dd>
-                   </div>`
-                : ''
-            }
-            ${
-              this.state.rival
-                ? `<div><dt>Competing with</dt>
-                     <dd class="rival">${this.state.rival.name} · ${this.state.rival.ability}</dd>
-                   </div>`
-                : ''
-            }
-            <div><dt>Form</dt><dd>${Math.round(player.form)}</dd></div>
-            <div><dt>Morale</dt><dd>${Math.round(player.morale)}</dd></div>
-            <div class="stat-manager">
-              <dt>Manager</dt>
-              <dd>
-                ${manager.label}
-                <span class="manager-note">${manager.note}</span>
-              </dd>
-            </div>
-            <div><dt>Experience</dt><dd>${Math.round(player.experience)}</dd></div>
-          </dl>
-        </div>
-
-        <div class="career-card">
-          <h2>Standing</h2>
-          <dl class="stat-list">
-            <div><dt>Reputation</dt><dd>${Math.round(player.reputation)}</dd></div>
-            <div><dt>Known as</dt><dd>${reputationTier(player.reputation).label}</dd></div>
-            <div><dt>Market value</dt><dd>£${marketValue(player)}m</dd></div>
-            ${player.caps > 0 ? `<div><dt>Caps</dt><dd>${player.caps}</dd></div>` : ''}
-          </dl>
-          ${this.renderWatchers()}
-        </div>
-
-        ${this.renderTraits()}
-        ${this.renderContract()}
-        ${this.renderCups()}
-        ${this.renderEurope()}
-        ${this.renderNation()}
-
-        <div class="career-card">
-          <h2>Season ${this.state.seasonNumber}</h2>
-          <dl class="stat-list">
-            <div><dt>Matches</dt><dd>${stats.matches}</dd></div>
-            <div><dt>Goals</dt><dd>${stats.goals}</dd></div>
-            <div><dt>Assists</dt><dd>${stats.assists}</dd></div>
-            <div><dt>Key passes</dt><dd>${stats.keyPasses}</dd></div>
-            <div><dt>Average rating</dt><dd>${stats.matches ? averageRating(stats).toFixed(2) : '—'}</dd></div>
-            <div><dt>Best rating</dt><dd>${stats.bestRating ? stats.bestRating.toFixed(1) : '—'}</dd></div>
-          </dl>
-        </div>
       </div>
 
-      <div class="career-grid wide">
-        <div class="career-card">
-          <h2>${leagueName(country.id)}</h2>
-          ${this.renderTable()}
-          <button class="ghost" id="browse-world">Other leagues around the world</button>
-          <button class="ghost" id="transfer-preferences">${preferenceLabel(this.state)}</button>
-        </div>
-        <div class="career-card">
-          <h2>Key attributes</h2>
-          ${this.renderAttributes()}
-        </div>
-      </div>
-
-      ${this.renderHonours()}
-      ${this.renderRecords()}
-      ${this.renderHistory()}
-      ${this.renderTransfers()}
+      ${this.renderStrip()}
+      ${this.renderSections()}
 
       <button id="quit-career" class="ghost">Leave career</button>`;
   }
@@ -536,6 +500,153 @@ export class CareerScreen {
    * season, so a run of goals reads as going somewhere long before the window
    * opens. Without it, an offer in the summer would arrive from nowhere.
    */
+  /**
+   * WHERE HE STANDS, AS A ROW OF CHIPS
+   *
+   * This was two cards — Condition and Standing — holding eleven numbers
+   * between them, and both were among the emptiest panels on the hub: a
+   * six-row list in a card sized by whatever happened to be beside it. As
+   * chips they are one line, they read left to right rather than as two
+   * columns to compare, and the two emptiest panels stop existing.
+   *
+   * The manager keeps his own chip and his own colour, because he is the one
+   * value here that is a judgement rather than a measurement.
+   */
+  private renderStrip(): string {
+    const { player } = this.state;
+    const injury = this.state.injury;
+    // In words rather than as a figure, deliberately. The number beside
+    // `Morale` is what the confidence feature exists to stop being — a stat the
+    // player watches move and can do nothing with — so what he is shown is the
+    // band and not the arithmetic. See core/career/confidence.ts.
+    const manager = confidenceTier(this.state.confidence ?? CONFIDENCE_NEUTRAL);
+    const trusted = (this.state.confidence ?? CONFIDENCE_NEUTRAL) >= 58;
+
+    const chip = (label: string, value: string, tone = '') =>
+      `<span class="hub-chip ${tone}"><i>${label}</i><b>${value}</b></span>`;
+
+    return `
+      <div class="hub-strip">
+        ${chip('Fitness', String(Math.round(this.state.fitness)), this.state.fitness < 70 ? 'warn' : 'good')}
+        ${injury ? chip('Injured', `${injury.label} · ${injury.weeksRemaining}w`, 'warn') : ''}
+        ${chip('Form', String(Math.round(player.form)))}
+        ${chip('Morale', String(Math.round(player.morale)))}
+        ${chip('Manager', manager.label, trusted ? 'good' : 'warn')}
+        ${this.state.rival ? chip('Competing with', `${this.state.rival.name} · ${this.state.rival.ability}`) : ''}
+        ${chip('Reputation', `${Math.round(player.reputation)} · ${reputationTier(player.reputation).label}`)}
+        ${chip('Value', `£${marketValue(player)}m`)}
+        ${player.caps > 0 ? chip('Caps', String(player.caps)) : ''}
+      </div>`;
+  }
+
+  /**
+   * The twelve cards nobody needs every week, in whichever shape he chose.
+   *
+   * The DIVISION lives in ui/screens/hubSections.ts and is shared by both
+   * layouts; only the presentation differs here. Sections that would be empty
+   * are dropped rather than rendered as a heading with nothing under it — a
+   * first-season career has no honours, no transfers and no history, and three
+   * empty folds would be a worse hub than the one this replaced.
+   */
+  private renderSections(): string {
+    const sections = this.sections().filter((section) => section.html.trim().length > 0);
+    if (sections.length === 0) return '';
+    return this.layout === 'folds'
+      ? `<div class="hub-folds">${renderHubFolds(sections, this.open)}</div>`
+      : renderHubTabs(sections, this.open);
+  }
+
+  private sections(): HubSection[] {
+    const { player } = this.state;
+    const stats = this.state.seasonStats;
+    const country = getCountry(this.state.countryId);
+    const traits = player.traits ?? [];
+    const honours = this.state.honours ?? [];
+    const position = tablePosition(this.state.table, this.state.clubId);
+
+    const card = (title: string, body: string) =>
+      `<div class="career-card"><h2>${title}</h2>${body}</div>`;
+
+    return [
+      {
+        id: 'you',
+        label: HUB_SECTION_LABELS.you,
+        peek: [
+          traits.length > 0 ? `${traits.length} trait${traits.length === 1 ? '' : 's'}` : '',
+          stats.matches > 0 ? `${stats.matches} apps · ${averageRating(stats).toFixed(2)}` : 'no apps yet',
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        html: `<div class="career-grid">
+          ${this.renderTraits()}
+          ${card(
+            `Season ${this.state.seasonNumber}`,
+            `<dl class="stat-list">
+              <div><dt>Matches</dt><dd>${stats.matches}</dd></div>
+              <div><dt>Goals</dt><dd>${stats.goals}</dd></div>
+              <div><dt>Assists</dt><dd>${stats.assists}</dd></div>
+              <div><dt>Key passes</dt><dd>${stats.keyPasses}</dd></div>
+              <div><dt>Average rating</dt><dd>${stats.matches ? averageRating(stats).toFixed(2) : '—'}</dd></div>
+              <div><dt>Best rating</dt><dd>${stats.bestRating ? stats.bestRating.toFixed(1) : '—'}</dd></div>
+            </dl>`,
+          )}
+          ${card('Key attributes', this.renderAttributes())}
+          ${this.renderRecords()}
+        </div>`,
+      },
+      {
+        id: 'club',
+        label: HUB_SECTION_LABELS.club,
+        peek: [
+          position > 0 ? `${ordinal(position)} in the league` : '',
+          `${this.state.contract.yearsRemaining} yr${this.state.contract.yearsRemaining === 1 ? '' : 's'} left`,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        html: `<div class="career-grid">
+          ${this.renderContract()}
+          ${card('Scouts and standing', this.renderWatchers() || '<p class="hint">Nobody is watching you yet.</p>')}
+          ${card(
+            leagueName(country.id),
+            `${this.renderTable()}
+             <button class="ghost" id="browse-world">Other leagues around the world</button>
+             <button class="ghost" id="transfer-preferences">${preferenceLabel(this.state)}</button>`,
+          )}
+        </div>`,
+      },
+      {
+        id: 'competitions',
+        label: HUB_SECTION_LABELS.competitions,
+        peek: competitionsPeek({
+          cups: this.state.cups,
+          clubId: this.state.clubId,
+          countryId: this.state.countryId,
+          europe: this.state.europe,
+        }),
+        html: `<div class="career-grid">
+          ${this.renderCups()}
+          ${this.renderEurope()}
+          ${this.renderNation()}
+        </div>`,
+      },
+      {
+        id: 'career',
+        label: HUB_SECTION_LABELS.career,
+        peek: [
+          honours.length > 0 ? `${honours.length} honour${honours.length === 1 ? '' : 's'}` : '',
+          this.state.transfers.length > 0
+            ? `${this.state.transfers.length} move${this.state.transfers.length === 1 ? '' : 's'}`
+            : '',
+          this.state.history.length > 0 ? `${this.state.history.length} seasons` : '',
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        html: `${this.renderHonours()}${this.renderHistory()}${this.renderTransfers()}`,
+      },
+    ];
+  }
+
+
   /**
    * What was worth remarking on about the last match.
    *

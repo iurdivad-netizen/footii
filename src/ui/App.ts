@@ -816,23 +816,34 @@ export class App {
     this.save = saveCareer(this.save, career);
 
     this.mount(
-      new CareerScreen(career, teamSheet(career), weekAhead(career), {
-        onPlay: () => this.playCareerMatch(),
-        onSkip: () => this.skipCareerMatch(),
-        onMiss: () => this.missCareerMatch(),
-        onWorld: () => this.showWorld(),
-        onEndSeason: () => this.reviewSeason(),
-        onQuit: () => this.showHome(),
-        onPreferences: () => this.showPreferences(career),
-        // Re-entering the hub rather than re-rendering in place, because a week
-        // can change the team sheet: resting up or arguing your way back in are
-        // both read by selection, and the card above this one has to say so.
-        onWeek: (choice) => {
-          planWeek(career, choice);
-          this.save = saveCareer(this.save, career);
-          this.showCareerHub();
+      new CareerScreen(
+        career,
+        teamSheet(career),
+        weekAhead(career),
+        this.save.settings.hubLayout,
+        this.save.settings.hubOpen,
+        {
+          onPlay: () => this.playCareerMatch(),
+          onSkip: () => this.skipCareerMatch(),
+          onMiss: () => this.missCareerMatch(),
+          onWorld: () => this.showWorld(),
+          onEndSeason: () => this.reviewSeason(),
+          onQuit: () => this.showHome(),
+          onPreferences: () => this.showPreferences(career),
+          // Re-entering the hub rather than re-rendering in place, because a
+          // week can change the team sheet: resting up or arguing your way back
+          // in are both read by selection, and the card above has to say so.
+          onWeek: (choice) => {
+            planWeek(career, choice);
+            this.save = saveCareer(this.save, career);
+            this.showCareerHub();
+          },
+          // Saved but NOT re-rendered: the screen has already switched the panel
+          // or opened the fold itself, and rebuilding the hub to agree with it
+          // would scroll the page back to the top for nothing.
+          onSections: (open) => this.updateSettings({ hubOpen: open }),
         },
-      }).element,
+      ).element,
     );
   }
 
