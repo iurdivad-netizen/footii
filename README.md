@@ -185,7 +185,20 @@ Typical timings at Standard pace:
 
 The most important thing on screen is the goalkeeper. He starts **set**, and **commits partway
 through your decision window** — rushing out, diving near or far post, going to ground, or staying
-on his line. The canvas shows this clearly (he changes colour and pulses).
+on his line. The canvas shows this (he changes colour and pulses), and a **keeper strip** beneath it
+says it in words: what he is doing, and what it has opened up.
+
+That strip is a correction. For a long time the mechanic the README calls the most important thing
+on screen was an **eleven-pixel monospace caption painted onto the middle of the pitch** — the
+quietest element on the busiest part of the interface, and invisible to a screen reader, because a
+canvas is `aria-hidden` and cannot be anything else. The words live in the DOM now, at a size that
+matches their importance, and turn amber the moment he moves.
+
+Showing the same fact more legibly is **not a balance change**, and it is worth saying so plainly:
+every state was already on screen at exactly the moment it is now. Nothing is revealed earlier, and
+nothing new is revealed at all. The one thing the strip adds is a **tell** — *"the far post is his
+weak side now"* — which names a consequence a player who had watched a lot of football would already
+see. It never says what to do. That would be the game playing itself.
 
 That creates the central tension:
 
@@ -195,6 +208,24 @@ That creates the central tension:
   clock, and deciding in the final sliver of the window is a rushed action.
 
 There is no universally optimal button. That's the point.
+
+#### Reading the rest of it
+
+Two smaller things around that strip, both of which had been quietly wrong since the overlay was
+written:
+
+**The pitch had no key.** The action families had one from the start — SHOT, RUN, CROSS — while the
+dots on the pitch had none, so a new player had to work out that blue was himself from the fact that
+it moved. There is a key now, drawn from the renderer's own palette rather than a restatement of it:
+a key in approximately the right colour is worse than no key.
+
+**The clock did not say what it was counting.** During the build-up it showed the window length
+beside a full bar, which reads as a countdown that has jammed; at the *no time limit* setting it
+showed `∞`, which is honest but tells you nothing about how long you have been standing there. Both
+now carry a caption — **your window**, **seconds left**, **elapsed · no limit** — and the number
+shows **one decimal instead of two**. Nobody has ever read a hundredth of a second off a screen, and
+the extra digit only made it harder to glance at in the one moment glancing is all there is time
+for.
 
 ### Set pieces
 
@@ -2592,6 +2623,38 @@ their constants:
 
 ---
 
+## Getting to it
+
+The interface is a keyboard-first one — a whole match is played on **1** to **6** — and for a long
+time it had exactly **one** `:focus-visible` rule in the entire stylesheet. Everything else fell
+back to the browser default, which on a background this dark computes to a roughly black hairline: a
+player using a keyboard could not see where they were anywhere outside a match. That is fixed
+globally, with the ring offset so it reads as focus rather than as a border, and switched to the
+page colour on the accent-filled buttons where a green ring on green would be no ring at all.
+
+Alongside it, three things that were missing rather than wrong:
+
+- **Motion can be turned down.** There were eight transition and animation rules and no way to
+  escape any of them. `prefers-reduced-motion` is honoured now — with the deliberate exception of
+  the timer bar, whose width is written from JavaScript every frame precisely so it always shows
+  real remaining time. **Reducing motion must not become reducing information.**
+- **What happens is announced.** The keeper strip and the hub's moments banner are live regions, and
+  the commentary announces its **newest line only, once**. The feed itself cannot be the live region:
+  it is rewritten whole every frame, newest first, so a screen reader would re-read fourteen lines
+  every time a minute ticked.
+- **Nothing is too small to read.** The floor is 0.7rem. It used to reach **0.58rem — about nine
+  pixels — on the SHOT/RUN/CROSS tag of the box a player has seconds to read under a clock.** A
+  floor rather than a rescale: everything already above it is untouched.
+
+Contrast was measured and needed no work: dim text sits at **8.0:1** and the accent at **10.3:1**
+against the page, comfortably past the 4.5:1 that WCAG AA asks for. The secondary buttons were
+37px tall and now have a 44px floor.
+
+All of it is guarded by [`tests/uiAccessibility.test.ts`](tests/uiAccessibility.test.ts), which reads
+the stylesheet directly. Accessibility work is uniquely easy to undo by accident — nothing breaks,
+no test fails, the screenshots look identical, and a keyboard player simply cannot see where they
+are again.
+
 ## Current scope
 
 The core mechanic and a playable career loop.
@@ -2631,7 +2694,9 @@ your club offers to keep you and what it calls you when it does**, **a rival wit
 own, who is sold when you take his shirt and turns up against you years later**, **a week between matches you
 spend on one of four things, each of which costs what the other three would have given you**,
 **eight traits earned from what you actually did, each one changing how a match plays**, **a diary of
-the moments a career is made of**, **named teammates who get on the end of your passes**,
+the moments a career is made of**, **a keeper you can read at a glance rather than in nine-pixel
+type**, **a visible keyboard focus ring, reduced-motion support and live regions for what the match
+says**, **named teammates who get on the end of your passes**,
 **loans for a young player who cannot get a game**, promotion and relegation machinery
 (dormant on a one-tier world), debug mode, and a versioned localStorage save with migration that
 says so when the browser will not keep it.

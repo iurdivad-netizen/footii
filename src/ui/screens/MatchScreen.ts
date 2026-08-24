@@ -18,6 +18,8 @@ export class MatchScreen {
   private speedIndex: number;
   private paused = false;
   private busy = false;
+  /** The last commentary line announced, so it is never announced twice. */
+  private announced = '';
   private readonly onSpeedChange: ((index: number) => void) | undefined;
 
   constructor(
@@ -46,6 +48,14 @@ export class MatchScreen {
         <div class="feed-column">
           <div class="outcome-banner hidden" id="outcome"></div>
           <ol class="commentary" id="commentary"></ol>
+          <!--
+            The commentary is rewritten whole on every frame, newest first, so
+            it cannot itself be a live region: a screen reader would re-read all
+            fourteen lines every time a minute ticked. This announces the newest
+            line and only when it is new, which is the thing somebody would
+            actually want interrupting them for.
+          -->
+          <p class="visually-hidden" id="commentary-live" aria-live="polite"></p>
         </div>
         <div class="stat-column">
           <h2 id="player-name"></h2>
@@ -169,6 +179,16 @@ export class MatchScreen {
     feed.innerHTML = recent
       .map((line) => `<li class="tone-${line.tone}"><span>${line.minute}'</span> ${line.text}</li>`)
       .join('');
+
+    // Announce the newest line, once. Compared against what was last announced
+    // rather than against a length, because the feed is a rolling window and
+    // its length stops changing long before the match does.
+    const latest = state.commentary[state.commentary.length - 1];
+    if (latest && latest.text !== this.announced) {
+      this.announced = latest.text;
+      this.element.querySelector<HTMLElement>('#commentary-live')!.textContent =
+        `${latest.minute} minutes. ${latest.text}`;
+    }
 
     const s = state.stats;
     const stats: [string, string][] = [

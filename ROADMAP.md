@@ -110,6 +110,18 @@ of it worth recording is the fate that was deliberately NOT written — the club
 you cannot get a game — because it would make losing your place the cause of a harder opponent for
 it, which is the spiral this codebase refuses on principle.
 
+**The interface has had a pass too**, and the two halves of it are worth distinguishing. The match
+one was a real design fault: the goalkeeper is what this README calls the mechanic and he was an
+eleven-pixel caption painted on a canvas — see [The goalkeeper is the mechanic](README.md#the-goalkeeper-is-the-mechanic). The other was
+simply missing work: a keyboard-first game with no visible focus ring, no reduced-motion support,
+no live regions and type down to nine pixels — see [Getting to it](README.md#getting-to-it).
+
+What is still open on the interface, and deliberately not started because it wants a design decision
+rather than tidier CSS: **the hub is one flat scroll of eleven cards** — 3,300px on a phone, with
+ragged card heights and a lot of dead space on the desktop — and **choosing a club at setup is a
+192-item dropdown** that truncates mid-word and says nothing about any of them, although the game
+models whether each would sign you, trial you or ignore you.
+
 What remains on the RPG side: **tendency and position retraining**, so a thirty-one-year-old can
 become the deep-lying version of himself, **a background at creation**, and a **full squad** — a
 readable XI and squad numbers — which is flavour rather than mechanism and blocks nothing.

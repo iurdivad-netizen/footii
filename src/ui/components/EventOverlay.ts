@@ -3,6 +3,9 @@ import type { InteractiveEvent } from '../../simulation/MatchEngine.ts';
 import { SituationRenderer } from '../../rendering/events/SituationRenderer.ts';
 import type { InputController } from '../interaction/InputController.ts';
 import { LEGEND_ORDER, familyStyle } from '../actionFamilyStyle.ts';
+import { keeperStatus } from '../keeperStatus.ts';
+import type { GoalkeeperAction } from '../../core/goalkeeper/goalkeeper.ts';
+import { COLOURS } from '../../rendering/events/SituationRenderer.ts';
 import {
   calculateBuildUpTime,
   calculateScanTime,
@@ -16,6 +19,21 @@ import {
  * rather than by setInterval, so the elapsed time recorded for a decision is
  * the real elapsed time, and the timer bar never drifts.
  */
+
+/**
+ * What the dots on the pitch are.
+ *
+ * The action families had a key from the start and the pitch never did, so a
+ * first-time player had to infer that blue was himself from the fact that it
+ * moved. Drawn from the renderer's own palette rather than restated, because a
+ * key in approximately the right colour is worse than no key.
+ */
+const PITCH_KEY: readonly { colour: string; label: string }[] = [
+  { colour: COLOURS.player, label: 'You' },
+  { colour: COLOURS.ball, label: 'Ball' },
+  { colour: COLOURS.defender, label: 'Defender' },
+  { colour: COLOURS.keeper, label: 'Keeper' },
+];
 
 export interface DecisionResult {
   option: ActionOption | null;
@@ -33,6 +51,13 @@ export class EventOverlay {
   private readonly subline: HTMLElement;
   private readonly grid: HTMLElement;
   private readonly setLabel: HTMLElement;
+  private readonly timerCaption: HTMLElement;
+  private readonly keeperStrip: HTMLElement;
+  private readonly keeperState: HTMLElement;
+  private readonly keeperTell: HTMLElement;
+  private readonly pitchKey: HTMLElement;
+  /** The last keeper state written, so the DOM is only touched when it moves. */
+  private keeperShown = '';
   private readonly legend: HTMLElement;
   private readonly buttons: HTMLButtonElement[] = [];
 
@@ -65,9 +90,18 @@ export class EventOverlay {
         <ol class="event-story"></ol>
         <div class="event-subline"></div>
         <canvas class="event-canvas" width="480" height="240" aria-hidden="true"></canvas>
+        <p class="pitch-key" aria-hidden="true"></p>
+        <div class="keeper-strip" aria-live="polite">
+          <span class="keeper-who">Keeper</span>
+          <span class="keeper-state"></span>
+          <span class="keeper-tell"></span>
+        </div>
         <div class="timer">
           <div class="timer-bar"><span></span></div>
-          <div class="timer-value">0.00</div>
+          <div class="timer-readout">
+            <span class="timer-value">0.0</span>
+            <span class="timer-caption"></span>
+          </div>
         </div>
         <div class="set-label" aria-live="polite"></div>
         <div class="option-grid" role="group" aria-label="Choose an action"></div>
@@ -83,6 +117,14 @@ export class EventOverlay {
     this.subline = this.element.querySelector('.event-subline')!;
     this.grid = this.element.querySelector('.option-grid')!;
     this.setLabel = this.element.querySelector('.set-label')!;
+    this.timerCaption = this.element.querySelector('.timer-caption')!;
+    this.keeperStrip = this.element.querySelector('.keeper-strip')!;
+    this.keeperState = this.element.querySelector('.keeper-state')!;
+    this.keeperTell = this.element.querySelector('.keeper-tell')!;
+    this.pitchKey = this.element.querySelector('.pitch-key')!;
+    this.pitchKey.innerHTML = PITCH_KEY.map(
+      (entry) => `<span><i style="background:${entry.colour}"></i>${entry.label}</span>`,
+    ).join('');
     this.legend = this.element.querySelector('.family-legend')!;
 
     for (let slot = 1; slot <= 6; slot++) {
@@ -158,6 +200,10 @@ export class EventOverlay {
     this.buildUpTime = calculateBuildUpTime(event.buildUp, this.paceScale);
     this.scanTime = calculateScanTime(this.paceScale);
     this.countdownStarted = false;
+    // Forced to redraw on the first frame of the new event, so a keeper who
+    // happens to be doing what the last one was still gets announced.
+    this.keeperShown = '';
+    this.keeperStrip.classList.toggle('absent', !event.template.goalkeeperInvolved);
     this.shownAt = performance.now();
     this.element.classList.add('setting');
 
@@ -182,8 +228,13 @@ export class EventOverlay {
       }
       this.timerBar.style.width = '100%';
       this.timerBar.classList.remove('critical');
-      this.timerValue.textContent = event.timer.seconds.toFixed(2);
+      // Captioned, because a bare number beside a full bar reads as a countdown
+      // that has jammed. It is not counting anything yet — it is how long this
+      // particular moment is going to give you, which is worth knowing before
+      // it starts.
+      this.showTimer(event.timer.seconds, this.untimed ? 'no limit' : 'your window');
       this.setLabel.textContent = 'Watch it develop…';
+      this.showKeeper(keeperInvolved ? 'set' : null);
       // The keeper has not moved and gives nothing away yet.
       this.renderer.draw({
         context: event.context,
@@ -236,13 +287,19 @@ export class EventOverlay {
       // Show elapsed time rather than a countdown: there is nothing to run out.
       this.timerBar.style.width = '100%';
       this.timerBar.classList.remove('critical');
-      this.timerValue.textContent = '∞';
-      this.setLabel.textContent = `No time limit · ${elapsed.toFixed(1)}s`;
+      this.timerValue.textContent = elapsed.toFixed(1);
+      this.timerCaption.textContent = 'elapsed · no limit';
+      this.setLabel.textContent = '';
     } else {
       this.timerBar.style.width = `${(1 - progress) * 100}%`;
       this.timerBar.classList.toggle('critical', remaining < window_ * 0.3);
-      this.timerValue.textContent = remaining.toFixed(2);
+      // One decimal, not two. Nobody has ever read a hundredth of a second off
+      // a screen, and the extra digit only made the number harder to glance at
+      // in precisely the moment glancing is all there is time for.
+      this.showTimer(remaining, 'seconds left');
     }
+
+    this.showKeeper(keeperInvolved ? keeperAction : null);
 
     this.renderer.draw({
       context: event.context,
@@ -259,6 +316,38 @@ export class EventOverlay {
 
     this.frame = requestAnimationFrame(this.loop);
   };
+
+  /** The clock, and what it is a clock for. */
+  private showTimer(seconds: number, caption: string): void {
+    this.timerValue.textContent = seconds.toFixed(1);
+    this.timerCaption.textContent = caption;
+  }
+
+  /**
+   * What the keeper is doing, written where it can actually be read.
+   *
+   * Only touched when it CHANGES, for two reasons. Rewriting identical text
+   * sixty times a second is wasted work; more importantly the strip is an
+   * `aria-live` region, and rewriting it every frame would have a screen reader
+   * announcing the same sentence until the window ran out. The moment he
+   * commits is the one thing worth interrupting somebody to say.
+   */
+  private showKeeper(action: GoalkeeperAction | null): void {
+    if (action === null) {
+      if (this.keeperShown === 'none') return;
+      this.keeperShown = 'none';
+      this.keeperState.textContent = '';
+      this.keeperTell.textContent = '';
+      return;
+    }
+    if (this.keeperShown === action) return;
+    this.keeperShown = action;
+
+    const status = keeperStatus(action);
+    this.keeperState.textContent = status.label;
+    this.keeperTell.textContent = status.tell;
+    this.keeperStrip.classList.toggle('committed', status.committed);
+  }
 
   private appendBeat(text: string, isSituation = false): void {
     const item = document.createElement('li');
