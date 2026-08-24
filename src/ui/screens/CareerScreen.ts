@@ -554,7 +554,10 @@ export class CareerScreen {
           `<li class="moment moment-${moment.kind}">${moment.text}</li>`,
       )
       .join('');
-    return `<div class="moments-banner"><ul>${lines}</ul></div>`;
+    // A live region, because it appears after a match resolves rather than in
+    // response to anything the player just pressed — the one thing on this hub
+    // that arrives unannounced.
+    return `<div class="moments-banner" role="status" aria-live="polite"><ul>${lines}</ul></div>`;
   }
 
   /**

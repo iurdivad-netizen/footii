@@ -12,7 +12,14 @@ import type { SituationContext } from '../../core/events/types.ts';
  * mechanic is built around. No sprites, no physics.
  */
 
-const COLOURS = {
+/**
+ * The colours the pitch is drawn in.
+ *
+ * Exported because the legend beneath it has to name these dots in exactly
+ * these colours — a key drawn in approximately the right green is worse than
+ * no key at all.
+ */
+export const COLOURS = {
   grass: '#12351f',
   grassAlt: '#164025',
   line: 'rgba(255,255,255,0.55)',
@@ -169,31 +176,14 @@ export class SituationRenderer {
     ctx.arc(playerX + 10, playerY + 8, 3.5, 0, Math.PI * 2);
     ctx.fill();
 
-    // --- keeper status label ---
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.font = '600 11px ui-monospace, SFMono-Regular, Menlo, monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(this.keeperLabel(state), w / 2, h * 0.5);
-  }
-
-  private keeperLabel(state: RenderState): string {
-    if (!state.showGoalkeeper) return '';
-    switch (state.keeperAction) {
-      case 'rushing':
-        return 'KEEPER RUSHING OUT';
-      case 'advancing':
-        return 'KEEPER ADVANCING';
-      case 'divingNear':
-        return 'KEEPER DIVES NEAR POST';
-      case 'divingFar':
-        return 'KEEPER DIVES FAR POST';
-      case 'goingToGround':
-        return 'KEEPER GOES TO GROUND';
-      case 'holdingLine':
-        return 'KEEPER ON HIS LINE';
-      default:
-        return 'KEEPER SET';
-    }
+    // The keeper's state used to be painted here, at eleven pixels, in the
+    // middle of the busiest part of the picture — the quietest element on
+    // screen despite being the read the whole mechanic is about, and invisible
+    // to a screen reader because this canvas is `aria-hidden` and cannot not
+    // be. It is a DOM element beside the timer now. See ui/keeperStatus.ts.
+    //
+    // The picture keeps what a picture is for: where he is, and which way he
+    // has gone. Saying it twice would only make both quieter.
   }
 
   private keeperPosition(
