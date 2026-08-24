@@ -48,6 +48,7 @@ import {
   startingConfidence,
 } from './confidence.ts';
 import type { FormerRival } from './squad.ts';
+import type { SeasonObjective } from './objective.ts';
 import type { Moment } from './moments.ts';
 import { momentsFrom, rememberMoments } from './moments.ts';
 import { STREAKY_FORM, hasTrait, newTraits } from '../player/traits.ts';
@@ -224,6 +225,22 @@ export interface CareerState {
    * ones he was.
    */
   seasonCaps: number;
+  /**
+   * Fixtures this season that passed while he was injured.
+   *
+   * Counted so the season objective can refuse to judge a year lost to the
+   * treatment room — see core/career/objective.ts, where it is the whole of the
+   * no-spiral defence. Reset every summer with the rest of the season ledger.
+   */
+  seasonInjuredMisses: number;
+  /**
+   * What his manager asked of him this season, or null before one was set.
+   *
+   * Nullable because every career that existed before objectives did has no
+   * demand until its next summer, and because a player between clubs is
+   * momentarily answerable to nobody. See core/career/objective.ts.
+   */
+  objective: SeasonObjective | null;
   /**
    * The European competition the player's club is in this season, if any.
    *
@@ -1173,6 +1190,7 @@ export function advanceSeason(
   state.seasonStats = createSeasonStats();
   state.leagueStats = createSeasonStats();
   state.seasonCaps = 0;
+  state.seasonInjuredMisses = 0;
   state.calendarIndex = 0;
   // A run does not span a summer: "eleven in a row" has to mean eleven
   // consecutive matches, not a number that quietly skips three months off.

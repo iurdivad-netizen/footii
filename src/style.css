@@ -4,6 +4,46 @@
  * on screen; everything else is quiet.
  */
 
+/*
+ * WHAT EACH COLOUR MEANS, AND WHY THAT IS WRITTEN DOWN
+ *
+ * The palette had one working hue. `--accent` green was the focus ring, the
+ * primary button, a positive statistic AND a league position, which is four
+ * jobs for one colour — and a colour doing four jobs is a colour saying
+ * nothing. Nothing on the hub could be made to stand out, because everything
+ * already had the loudest colour available.
+ *
+ * So each one now has exactly one meaning, and the list is short enough to
+ * keep:
+ *
+ *   --accent   YOU, and things going well. Focus, primary actions, progress,
+ *              a rating above par. The interface's own voice.
+ *   --goal     A GOAL, and the honours a career of them wins. Nothing else may
+ *              use it — it is the rarest thing on the screen and it is worth
+ *              keeping that way.
+ *   --warn     JEOPARDY that has not happened yet. A keeper committing, a
+ *              contract running down, fitness too low to train.
+ *   --danger   SOMETHING HAS GONE WRONG. An injury, a relegation, a refusal.
+ *   --club     WHICH CLUB THIS IS. Identity, never sentiment — see below.
+ *
+ * THE MATCH ALREADY OWNS RED, ORANGE AND YELLOW for its action families (see
+ * actionFamilyStyle.ts: shot, header, dribble). That is deliberate and it
+ * constrains everything above: the hub cannot casually borrow those hues for
+ * decoration without teaching the eye a second meaning for a colour it has to
+ * read in under a second during a match.
+ *
+ * THE CLUB COLOUR IS THE ONE THAT IS NOT SEMANTIC. Every club in the data has
+ * carried a colour since the world was generated and the interface used it
+ * twice. It is now set as `--club` on the career screen, per club, and used for
+ * identity only — a header band, the crest, the next fixture. It never replaces
+ * `--accent`, because a hub where signing for a red club turned every success
+ * message red is a hub where colour has stopped meaning anything. See
+ * ui/clubColour.ts, which also handles the part a stylesheet cannot: lifting a
+ * colour too dark to see against this background.
+ *
+ * The fallbacks below are what every club token resolves to before a career is
+ * loaded, and on the screens that belong to no club.
+ */
 :root {
   --bg: #0b1a12;
   --bg-raised: #12271b;
@@ -16,6 +56,9 @@
   --danger: #ef4444;
   --warn: #f59e0b;
   --goal: #facc15;
+  --club: var(--accent);
+  --club-ink: #05140b;
+  --club-wash: rgba(74, 222, 128, 0.12);
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
@@ -961,6 +1004,20 @@ kbd {
   color: var(--text-dim);
 }
 
+/*
+ * THE CLUB YOU PLAY FOR, AT THE TOP OF THE SCREEN.
+ *
+ * The hub's header is the one place on the page that is unambiguously about
+ * your club rather than about you or about the league, so it is where the club
+ * colour goes. A bar rather than a fill: a whole panel in a club's colour would
+ * compete with the match for the loudest thing on screen, and the header is not
+ * the loudest thing on screen. This is a label, not a mood.
+ *
+ * Every club in a country has a colour of its own (all sixteen differ — asserted
+ * in tests/clubColour.test.ts), so within the league you actually play in, this
+ * bar identifies the club rather than merely decorating it. Signing somewhere
+ * new changes it, which is the entire point.
+ */
 .career-header {
   display: flex;
   align-items: center;
@@ -969,6 +1026,20 @@ kbd {
   flex-wrap: wrap;
   border-bottom: 1px solid var(--line);
   padding-bottom: 14px;
+  border-left: 4px solid var(--club);
+  padding-left: 12px;
+  background: linear-gradient(to right, var(--club-wash), transparent 55%);
+}
+
+/* The club's mark beside its name, so the colour has something to belong to. */
+.club-mark {
+  display: inline-block;
+  width: 0.62em;
+  height: 0.62em;
+  border-radius: 2px;
+  background: var(--club);
+  margin-right: 0.45em;
+  vertical-align: baseline;
 }
 
 .career-header h1 {
@@ -4278,4 +4349,172 @@ button.week-option:disabled .week-option-note {
 .stat-list .assisted {
   font-size: 0.75rem;
   color: var(--text-dim);
+}
+
+/* ------------------------------------------------ the season objective ---- */
+
+/*
+ * WHAT THE MANAGER ASKED FOR.
+ *
+ * The first card in the Club section, because it is the only thing on that tab
+ * that can change what a player does this week. Everything else there describes
+ * him; this asks something of him.
+ *
+ * The fills are `--accent` and NOT `--club`. Progress is the interface talking
+ * about you, and the club colour is identity — the palette note at the top of
+ * this file is the whole reason that distinction is worth keeping. A bar that
+ * changed colour when you transferred would be saying something about the club
+ * when it is in fact saying something about your season.
+ */
+.objective-brief {
+  margin: 0 0 14px;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.objective-line + .objective-line {
+  margin-top: 12px;
+}
+
+.objective-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 5px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.objective-count {
+  font-family: var(--mono);
+  color: var(--text);
+}
+
+/* The target is context, not the number he is watching. */
+.objective-of {
+  color: var(--text-dim);
+}
+
+.objective-track {
+  height: 7px;
+  border-radius: 4px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.objective-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent-dim);
+  /*
+   * The one animated thing on this card, and it animates on REDRAW rather than
+   * continuously — the hub is rebuilt after every match, so the bar grows by a
+   * match's worth each time it appears. Reduced motion turns it off with
+   * everything else, and nothing is lost when it does: the width is the
+   * information, the growth is only the flourish.
+   */
+  transition: width 320ms ease;
+}
+
+/* Met, and still being added to. */
+.objective-line.met .objective-fill {
+  background: var(--accent);
+}
+
+.objective-card.objective-done {
+  border-color: var(--accent-dim);
+}
+
+.objective-verdict {
+  margin: 12px 0 0;
+  color: var(--accent);
+  font-size: 0.85rem;
+}
+
+/*
+ * THE DIARY ON THE HUB.
+ *
+ * `.moment-log` is shared with the end-of-career screen, which is deliberate —
+ * they are the same list read at two different times, and two stylings would
+ * make them look like two features. Only the ORDER differs, and that is decided
+ * in the screens rather than here.
+ */
+.career-card .moment-log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.career-card .moment-log li {
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  line-height: 1.45;
+  font-size: 0.9rem;
+}
+
+.career-card .moment-log li:last-child {
+  border-bottom: 0;
+}
+
+.career-card .moment-log .moment-season {
+  font-family: var(--mono);
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  margin-right: 8px;
+}
+
+/*
+ * A trait earned is the one diary line that is about becoming something rather
+ * than doing something, so it gets the accent. Goals keep `--goal` and nothing
+ * else may take it — see the palette note at the top of this file.
+ */
+.career-card .moment-log .moment-traitEarned {
+  color: var(--accent);
+}
+
+.career-card .moment-log .moment-goalMilestone,
+.career-card .moment-log .moment-firstGoal {
+  color: var(--goal);
+}
+
+/*
+ * THE MANAGER'S VERDICT ON THE SEASON.
+ *
+ * Bordered by what the verdict was, using the semantic palette and nothing
+ * else: accent for a season he was pleased with, danger for one he was not,
+ * quiet for a season nobody could fairly judge. The club colour deliberately
+ * does not appear — this is an opinion, not an identity.
+ */
+.verdict-panel {
+  border-left: 3px solid var(--line);
+}
+
+.verdict-panel.verdict-exceeded {
+  border-left-color: var(--accent);
+}
+
+.verdict-panel.verdict-met {
+  border-left-color: var(--accent-dim);
+}
+
+.verdict-panel.verdict-missed {
+  border-left-color: var(--danger);
+}
+
+.verdict-shift {
+  display: inline-block;
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.verdict-shift.up {
+  color: var(--accent);
+}
+
+.verdict-shift.down {
+  color: var(--danger);
 }
