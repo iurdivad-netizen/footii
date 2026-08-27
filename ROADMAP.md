@@ -172,6 +172,9 @@ footballer at thirty-one already exists; nothing has ever been wired to move it.
   was coming.
 - **[The most destructive click in the game](README.md#the-most-destructive-click-in-the-game)** — removing a career from the wall took one press
   with no undo, while clearing the entire wall was already guarded.
+- **[Leaving a match that has already started](README.md#leaving-a-match-that-has-already-started)** — a match in progress had no exit at all. It has
+  one now, and it plays the remainder out rather than discarding it, because a discardable fixture
+  on a fixed seed is a fixture you can retry until it goes in.
 
 One thing found while measuring and deliberately not acted on: **auto-play scores far too much.**
 A skipped match resolves at 1.0 goals a match at ability 55 and **2.9 at ability 85**, with an

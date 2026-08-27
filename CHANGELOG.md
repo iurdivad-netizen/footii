@@ -406,3 +406,20 @@ Eight things that were not on either list, found by reading the code against wha
   smaller and likelier mistake was the unguarded one. It takes two presses now, using the same
   arm-then-confirm the clear button already had, disarming when focus leaves and never arming two
   buttons at once. See [The most destructive click in the game](README.md#the-most-destructive-click-in-the-game).
+
+- **A match in progress had no exit.** Ninety simulated minutes is short enough that nobody noticed,
+  until it is a phone and the only ways out are closing the tab or sitting through it. There is a
+  Leave button now, and it is deliberately not an undo: the rest is played out without you and the
+  result stands. Discarding the match instead would have been easier and would have made a save-scum
+  out of the seed — every fixture is deterministic from its calendar slot, so a match you could walk
+  out of and re-enter is one you could retry until the chance went in. Two presses, the first of
+  which pauses, and the armed label states the cost the word "leave" does not. A walked-out fixture
+  folds as skipped; a walked-out trial is judged by the same method as a finished one. See
+  [Leaving a match that has already started](README.md#leaving-a-match-that-has-already-started).
+
+- **One item on that list did not exist.** "Match speed is set on the front door only" was written
+  from reading the front door and not the match screen, which has carried a speed control on the
+  scoreboard all along — it cycles the same presets and saves the change as a preference. Nothing
+  was built for it; it is pinned by tests now, and the manual says the control is there. Worth
+  recording because the mistake is cheap to repeat: a control can exist on the screen that owns it
+  and be invisible from the screen that configures it.

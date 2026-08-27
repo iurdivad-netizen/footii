@@ -5171,3 +5171,24 @@ button.week-option:disabled .week-option-note {
   padding-top: 12px;
   border-top: 1px solid var(--line);
 }
+
+/*
+ * LEAVING A MATCH THAT HAS ALREADY STARTED.
+ *
+ * Quiet until it is armed, and then loud. It sits with the other scoreboard
+ * controls rather than anywhere more prominent, because it is the least likely
+ * of them to be wanted and the worst of them to press by accident.
+ *
+ * The armed label is long on purpose — "Leave" does not say what it costs, and
+ * the button is the only place that can. It is allowed to widen the control row
+ * for the moment it is armed; the row wraps, and nothing below it moves in a
+ * way that matters.
+ */
+.controls .leave {
+  color: var(--text-dim);
+}
+
+.controls .leave.armed {
+  border-color: var(--danger);
+  color: var(--danger);
+}
