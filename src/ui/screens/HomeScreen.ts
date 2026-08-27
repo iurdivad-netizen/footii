@@ -54,6 +54,8 @@ export interface HomeHandlers {
   /** Finished careers, for the wall. */
   hallOfFame?: readonly CareerLegacy[];
   onHallOfFame?: () => void;
+  /** The manual. Always reachable, never a gate. */
+  onHowToPlay?: () => void;
   onExport?: () => void;
   onImport?: (text: string) => void;
   /** The outcome of the last export or import, if there was one. */
@@ -167,18 +169,13 @@ export class HomeScreen {
 
       ${this.renderSaveData()}
 
-      <details class="home-help">
-        <summary>How it works</summary>
-        <ul>
-          <li>The match simulates itself. You are pulled in only when you can change the outcome.</li>
-          <li>Each chance is told as a short build-up, then six options appear and the clock starts.</li>
-          <li>Your decision window comes from your awareness, composure, decision making and
-              experience — minus the pressure you are under.</li>
-          <li><strong>Watch the goalkeeper.</strong> He commits partway through your window.
-              Waiting tells you what he has done, but costs you time.</li>
-          <li>Press <kbd>D</kbd> at any point for the simulation debug panel.</li>
-        </ul>
-      </details>`;
+      <div class="home-help-row">
+        <button class="ghost" id="open-how">How to play</button>
+        <p class="hint">
+          What the screens do, what each setting changes, and the one read the whole match is
+          built around.
+        </p>
+      </div>`;
 
     this.element
       .querySelector<HTMLButtonElement>('#quick-match')!
@@ -186,6 +183,9 @@ export class HomeScreen {
     this.element
       .querySelector<HTMLButtonElement>('#open-hall')
       ?.addEventListener('click', () => handlers.onHallOfFame?.());
+    this.element
+      .querySelector<HTMLButtonElement>('#open-how')
+      ?.addEventListener('click', () => handlers.onHowToPlay?.());
 
     const slotOf = (button: HTMLElement) => Number(button.dataset.slot);
     for (const button of this.element.querySelectorAll<HTMLButtonElement>('[data-continue]')) {

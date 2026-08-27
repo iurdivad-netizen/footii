@@ -350,3 +350,13 @@ Eight things that were not on either list, found by reading the code against wha
   and older entries labelled, a label rather than a rescale for the same reason item 11 settled the
   same way). What is still wrong is stated rather than hidden: the shot MIX, which is the situation
   generator's business. See [What a chance is worth](README.md#what-a-chance-is-worth).
+
+- **The game never explained itself to anybody arriving.** The front door opened on a rack of career
+  slots and a settings panel — a decision pace dropdown shown to somebody who had not yet been told
+  that decisions were timed, and a hub layout dropdown shown before he had seen a hub. The
+  explanation that existed was five bullets inside a collapsed `<details>` at the bottom of that
+  page, below the careers, the wall, the quick match, the settings and the save panel: folded, below
+  the fold, and under five other sections. Fixed with a welcome shown exactly once and a manual
+  reachable at any time, the manual generated from the game's own tables so it cannot drift out of
+  step with the settings it describes. Existing players are marked as having seen the welcome
+  without ever being shown it. See [Arriving for the first time](README.md#arriving-for-the-first-time).

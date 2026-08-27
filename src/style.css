@@ -4534,3 +4534,288 @@ button.week-option:disabled .week-option-note {
   font-size: 0.72rem;
   font-style: italic;
 }
+
+/* --------------------------------------------------- the first screen ---- */
+
+/*
+ * THE WELCOME, AND THE MANUAL.
+ *
+ * Both are reading screens rather than playing ones, so both are narrower than
+ * the rest of the game: a measure of about 62 characters, because the front
+ * door's full 1100px width turns a paragraph into something nobody finishes.
+ * Everything else follows the palette note at the top of this file — accent for
+ * the way forward, dimmed text for the asides, and no club colour anywhere,
+ * since neither screen belongs to a club.
+ */
+.welcome-screen,
+.how-screen {
+  max-width: 62ch;
+  margin: 0 auto;
+}
+
+.welcome-header {
+  text-align: center;
+  padding: clamp(16px, 6vw, 40px) 0 clamp(12px, 4vw, 28px);
+}
+
+.welcome-header h1 {
+  margin: 12px 0 6px;
+  font-size: clamp(2rem, 9vw, 3rem);
+  letter-spacing: 0.14em;
+}
+
+.welcome-tagline {
+  margin: 0;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 0.86rem;
+}
+
+/*
+ * The three beats.
+ *
+ * Numbered, because they are a sequence rather than a list of features — the
+ * whole point is that one leads to the next. The number is decorative and is
+ * hidden from screen readers; the ordered list carries the same information to
+ * anybody not looking at it.
+ */
+.welcome-beats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 18px;
+}
+
+.welcome-beats li {
+  position: relative;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px 16px 16px 54px;
+}
+
+.beat-number {
+  position: absolute;
+  left: 16px;
+  top: 15px;
+  font-family: var(--mono);
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--accent);
+  opacity: 0.75;
+}
+
+.welcome-beats h2 {
+  margin: 0 0 6px;
+  font-size: 1.02rem;
+}
+
+.welcome-beats p {
+  margin: 0;
+  color: var(--text-dim);
+  line-height: 1.5;
+  font-size: 0.92rem;
+}
+
+.welcome-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: 26px 0 0;
+}
+
+.welcome-secondary {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.welcome-note {
+  text-align: center;
+  margin: 18px 0 0;
+}
+
+/* ------------------------------------------------------- how to play ---- */
+
+.how-header {
+  padding: clamp(8px, 3vw, 20px) 0 4px;
+}
+
+.how-header h1 {
+  margin: 0 0 6px;
+  font-size: clamp(1.5rem, 6vw, 2.1rem);
+}
+
+.how-card {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.how-card h2 {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+  color: var(--accent);
+}
+
+.how-card h3 {
+  margin: 18px 0 6px;
+  font-size: 0.92rem;
+}
+
+.how-card h3:first-of-type {
+  margin-top: 0;
+}
+
+.how-card p {
+  margin: 0 0 10px;
+  line-height: 1.55;
+  font-size: 0.92rem;
+}
+
+.how-card p:last-child {
+  margin-bottom: 0;
+}
+
+.how-steps,
+.how-list {
+  margin: 0 0 10px;
+  padding-left: 20px;
+  line-height: 1.55;
+  font-size: 0.92rem;
+}
+
+.how-steps li,
+.how-list li {
+  margin-bottom: 7px;
+}
+
+.how-steps li:last-child,
+.how-list li:last-child {
+  margin-bottom: 0;
+}
+
+.how-keys {
+  list-style: none;
+  padding-left: 0;
+}
+
+/*
+ * The action-family key.
+ *
+ * The same colours the match itself uses, pulled from actionFamilyStyle.ts
+ * rather than restated here — a legend in approximately the right colour is
+ * worse than no legend. The swatch and the tag both appear for the reason the
+ * match shows both: the grouping has to survive colour blindness.
+ */
+.how-families {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.how-families li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.86rem;
+  color: var(--text-dim);
+}
+
+.how-family-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+}
+
+.how-family-tag i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.how-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 24px 0 8px;
+}
+
+/*
+ * The manual's way in, on the front door.
+ *
+ * A button and one line beside it, where there used to be a collapsed
+ * `<details>` below the save panel. Folded, below the fold, and under five
+ * other sections is three different ways of being unread.
+ */
+.home-help-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.home-help-row .hint {
+  margin: 0;
+  flex: 1 1 240px;
+}
+
+/*
+ * The manual's contents.
+ *
+ * Jump links rather than a collapsed accordion: somebody opens this page
+ * because they already have a question, so the fastest version is the one where
+ * every answer is present and reachable rather than one click further away.
+ * The page measures about 4,000px on a phone, which is fine for a document and
+ * hopeless without a way in.
+ */
+.how-contents {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.how-contents ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+
+.how-contents a {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
+.how-contents a:hover {
+  text-decoration: underline;
+}
+
+/*
+ * Anchored sections need room above them, or a jump lands with the heading
+ * jammed against the top of the viewport.
+ */
+.how-card[id] {
+  scroll-margin-top: 16px;
+}

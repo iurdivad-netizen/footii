@@ -500,7 +500,13 @@ describe('save migration', () => {
     const original: SaveData = {
       version: SAVE_VERSION,
       career: { ...emptyCareer(), goals: 4 },
-      settings: { pace: 'relaxed', matchSpeed: 2, hubLayout: 'folds' as const, hubOpen: ['club'] },
+      settings: {
+        pace: 'relaxed',
+        matchSpeed: 2,
+        hubLayout: 'folds' as const,
+        hubOpen: ['club'],
+        seenIntro: true,
+      },
       careers: [career(), null, null],
       activeSlot: 0,
       hallOfFame: [],
@@ -956,6 +962,12 @@ describe('export and import', () => {
       matchSpeed: 2,
       hubLayout: 'folds',
       hubOpen: ['club', 'career'],
+      // Filled from `defaultSettings` on the way through, because this fixture
+      // is built AT the current version and so never meets the migration that
+      // would have marked a save with a career in it as having seen the
+      // welcome. What is being checked here is that import preserves what was
+      // set and defaults what was not — which is exactly what it did.
+      seenIntro: false,
     });
   });
 
@@ -1425,6 +1437,62 @@ describe('asking to leave, and what he will move for', () => {
 
     expect(migrated.version).toBe(SAVE_VERSION);
     expect(activeCareer(migrated)!.formerRivals).toEqual([]);
+  });
+
+  it('does not show the welcome to somebody who already has a career', () => {
+    // The one thing this migration has to get right. Anybody holding a career
+    // has plainly already found out what a decision window is, and an
+    // introduction appearing after an update would be the game forgetting them.
+    const settings = { ...defaultSettings() } as Record<string, unknown>;
+    delete settings.seenIntro;
+
+    const migrated = migrate({
+      version: 28,
+      career: emptyCareer(),
+      settings,
+      careers: [career(), null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(migrated.settings.seenIntro).toBe(true);
+  });
+
+  it('marks a career on the wall as having seen it too', () => {
+    // A finished career counts as much as a live one: the wall only fills up
+    // by playing.
+    const settings = { ...defaultSettings() } as Record<string, unknown>;
+    delete settings.seenIntro;
+
+    const migrated = migrate({
+      version: 28,
+      career: emptyCareer(),
+      settings,
+      careers: [null, null, null],
+      activeSlot: 0,
+      hallOfFame: [legacy({ id: 'done' })],
+    } as never)!;
+
+    expect(migrated.settings.seenIntro).toBe(true);
+  });
+
+  it('does show it to a save that exists but has never held a career', () => {
+    // The right way round: a save file can exist because somebody opened the
+    // page once, changed a setting and left. That person has still never been
+    // told what this game is.
+    const settings = { ...defaultSettings() } as Record<string, unknown>;
+    delete settings.seenIntro;
+
+    const migrated = migrate({
+      version: 28,
+      career: emptyCareer(),
+      settings,
+      careers: [null, null, null],
+      activeSlot: 0,
+      hallOfFame: [],
+    } as never)!;
+
+    expect(migrated.settings.seenIntro).toBe(false);
   });
 
   it('reads a demand it does not recognise as no demand at all', () => {
