@@ -148,6 +148,25 @@ export interface LegacyDetail {
  * Plain data, like everything else that reaches the save: no classes, no
  * functions, nothing that needs reconstructing on load.
  */
+/**
+ * The scoring model careers are played under today.
+ *
+ * Bumped only when a change moves what a career's numbers MEAN — the goal
+ * model, the rating scale — and never for a change that leaves them
+ * comparable. A version nobody can point at a measured shift for is a version
+ * that makes the wall harder to read rather than easier.
+ *
+ * 1. Everything up to and including the sixteen-card hub.
+ * 2. The goal-conversion fix: chance quality separated out of the shot roll, so
+ *    a season returns about a third fewer goals and about a rating point less.
+ */
+export const BALANCE_VERSION = 2;
+
+/** Anything unstamped predates versioning, which makes it version 1. */
+export function balanceVersionOf(legacy: { balanceVersion?: number }): number {
+  return legacy.balanceVersion ?? 1;
+}
+
 export interface CareerLegacy {
   /** Stable id, so an entry can be removed without depending on its position. */
   id: string;
@@ -191,6 +210,31 @@ export interface CareerLegacy {
   score: number;
   /** One line on what kind of footballer this was. */
   verdict: string;
+  /**
+   * Which scoring model the career was played under.
+   *
+   * A career's numbers are only comparable with another career's if the two
+   * were produced by the same simulation, and in one respect they were not: the
+   * goal-conversion model was corrected (see simulation/ActionResolver.ts,
+   * `SHOT_QUALITY`), and a season now returns about a third fewer goals and
+   * roughly a rating point less than it did before. `careerScore` reads both, so
+   * an entry enshrined under the old model outranks an identical career played
+   * under the new one, permanently and through no merit of its own.
+   *
+   * WHY THIS IS A LABEL RATHER THAN A CORRECTION. Rescaling old scores by some
+   * measured factor was the obvious move and it is the wrong one twice over. It
+   * would rewrite a number a player was shown when his career ended, which is
+   * the one thing a record must never do; and the factor itself would be a
+   * fiction, since no single multiplier maps a career that was actually played
+   * onto the career it would have been. This codebase has settled exactly this
+   * argument once before, over how much of a career was played rather than
+   * skipped, and settled it the same way: say which is which, and let the wall
+   * be read rather than silently re-ranked. See CHANGELOG.md, item 11.
+   *
+   * Absent on entries enshrined before this was kept, which is itself the
+   * answer — anything without a version is version 1.
+   */
+  balanceVersion?: number;
   /**
    * How much of the career was actually played rather than skipped, and at
    * what pace. The raw counts, so both screens derive the same summary from one
@@ -465,6 +509,7 @@ export function summariseCareer(
     nationality: state.player.nationality,
     ending,
     endedAt: now,
+    balanceVersion: BALANCE_VERSION,
     seasons: state.history.length,
     finalSeasonNumber: state.seasonNumber,
     ageAtEnd: state.player.age,

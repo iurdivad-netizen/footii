@@ -272,6 +272,35 @@ export interface TraitEvidence {
  * measurement showed exactly that: a middling career became a maverick 100% of
  * the time, on the strength of a good fortnight in its early twenties.
  */
+/**
+ * EVERY THRESHOLD BELOW WAS RE-BASED WHEN THE GOAL CURVE WAS FIXED.
+ *
+ * They are not new judgements about what a trait should be worth. The engine's
+ * conversion model changed (see simulation/ActionResolver.ts, `SHOT_QUALITY`),
+ * which moved every piece of evidence these read — so leaving the numbers alone
+ * would have silently made most of the traits unreachable while claiming to
+ * mean the same thing.
+ *
+ * Measured over fourteen careers of fourteen seasons, before and after, with
+ * `scripts/measureInjuries.ts`:
+ *
+ *                          before    after    ratio
+ *     average rating         8.30     7.38    -0.92
+ *     nines per 100 apps     48.1     26.7    x0.56
+ *     hat-tricks per 100     13.0      7.6    x0.58
+ *     longest scoring run    25.6     11.8    x0.46
+ *     big-match average      8.06     7.07    -0.99
+ *     assists                 140       93    x0.66
+ *     apps per season        35.4     32.0    x0.90
+ *     perfect tens            173       70    x0.41
+ *
+ * Each threshold was moved by its own measured ratio — the counting ones scaled,
+ * the rating ones shifted — so that a career which would have earned a trait
+ * still earns it. INCIDENCE IS PRESERVED, deliberately: re-basing was forced by
+ * the engine change, and using it as cover to also make traits rarer or commoner
+ * would have folded a design decision nobody asked for into a mechanical
+ * correction nobody could then audit.
+ */
 export function earnedTraits(evidence: TraitEvidence): TraitId[] {
   const earned: TraitId[] = [];
   const per100 = (count: number) =>
@@ -279,23 +308,23 @@ export function earnedTraits(evidence: TraitEvidence): TraitId[] {
 
   // Twenty European or international nights, and the average is the part that
   // matters: turning up is not the same as playing.
-  if (evidence.bigMatches >= 20 && evidence.bigMatchAverage >= 7.4) earned.push('bigGame');
+  if (evidence.bigMatches >= 20 && evidence.bigMatchAverage >= 6.4) earned.push('bigGame');
 
-  if (evidence.appearances >= 150 && per100(evidence.nineOrBetter) >= 30) earned.push('coolHead');
+  if (evidence.appearances >= 150 && per100(evidence.nineOrBetter) >= 17) earned.push('coolHead');
 
-  if (evidence.assists >= 100) earned.push('provider');
+  if (evidence.assists >= 66) earned.push('provider');
 
-  if (evidence.hatTricks >= 30 && per100(evidence.hatTricks) >= 11) earned.push('poacher');
+  if (evidence.hatTricks >= 17 && per100(evidence.hatTricks) >= 6.4) earned.push('poacher');
 
   // Availability rather than an injury count, and that is a re-basing rather
   // than a compromise: how many matches a season he actually plays IS what
   // being made of granite means, and unlike an injury tally it was already
   // being written down.
-  if (evidence.seasons >= 6 && evidence.appearances / evidence.seasons >= 33) {
+  if (evidence.seasons >= 6 && evidence.appearances / evidence.seasons >= 30) {
     earned.push('granite');
   }
 
-  if (evidence.longestScoringRun >= 16) earned.push('streaky');
+  if (evidence.longestScoringRun >= 8) earned.push('streaky');
 
   // The variance signal, and the one that took three attempts to state. It
   // cannot be built on the BEST rating a career ever got: a maximum over five
@@ -313,8 +342,8 @@ export function earnedTraits(evidence: TraitEvidence): TraitId[] {
   // He is just good.
   if (
     evidence.appearances >= 300 &&
-    per100(evidence.perfectRatings) >= 4 &&
-    evidence.averageRating < 7
+    per100(evidence.perfectRatings) >= 1.6 &&
+    evidence.averageRating < 6.1
   ) {
     earned.push('maverick');
   }
@@ -322,7 +351,7 @@ export function earnedTraits(evidence: TraitEvidence): TraitId[] {
   // Longevity rather than quality, and deliberately the one trait that asks
   // nothing about how good he was. Retiring at thirty-two is a career that
   // never gets this, however brilliant.
-  if (evidence.age >= 33 && evidence.appearances >= 350) earned.push('oldHead');
+  if (evidence.age >= 33 && evidence.appearances >= 320) earned.push('oldHead');
 
   return earned;
 }

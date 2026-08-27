@@ -134,16 +134,16 @@ export const ROLE_APPEARANCE_SHARE: Record<SquadRole, number> = {
  * an argument about what a full-back ought to get.
  */
 export const POSITION_CONTRIBUTION_RATE: Record<Position, number> = {
-  GK: 0.03,
-  CB: 0.12,
-  LB: 0.21,
-  RB: 0.21,
-  DM: 0.24,
-  CM: 0.44,
-  AM: 0.81,
-  LW: 0.91,
-  RW: 0.91,
-  ST: 1.15,
+  GK: 0.02,
+  CB: 0.07,
+  LB: 0.14,
+  RB: 0.14,
+  DM: 0.16,
+  CM: 0.29,
+  AM: 0.53,
+  LW: 0.60,
+  RW: 0.60,
+  ST: 0.76,
 };
 
 /** How far ability moves the contribution demand, at either extreme. */

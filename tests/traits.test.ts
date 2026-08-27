@@ -100,7 +100,7 @@ describe('earning them', () => {
     earns('poacher', { appearances: 300, hatTricks: 45 });
     earns('granite', { seasons: 10, appearances: 360 });
     earns('streaky', { longestScoringRun: 20 });
-    earns('maverick', { appearances: 400, perfectRatings: 30, averageRating: 6.6 });
+    earns('maverick', { appearances: 400, perfectRatings: 30, averageRating: 5.7 });
     earns('oldHead', { age: 35, appearances: 400 });
   });
 
@@ -116,10 +116,15 @@ describe('earning them', () => {
     // The whole point of the trait: a great player is not capable of anything
     // and not every week. He is capable of it most weeks. That is not a
     // maverick, that is a good footballer.
+    //
+    // The rating figures here sit on the scale the engine produces AFTER the
+    // goal-curve fix — a career now averages about 7.4 where it used to average
+    // 8.3, so a "modest" average is in the fives rather than the sixes. See the
+    // note above `earnedTraits`.
     const great = evidence({ appearances: 500, perfectRatings: 260, averageRating: 8.5 });
     expect(earnedTraits(great)).not.toContain('maverick');
 
-    const spiky = evidence({ appearances: 500, perfectRatings: 30, averageRating: 6.6 });
+    const spiky = evidence({ appearances: 500, perfectRatings: 30, averageRating: 5.7 });
     expect(earnedTraits(spiky)).toContain('maverick');
   });
 
@@ -142,7 +147,7 @@ describe('earning them', () => {
   it('never takes one back once it has been earned', () => {
     // A record that could un-record itself would not be a record. A maverick
     // whose average later climbs does not stop having had those afternoons.
-    const was = evidence({ appearances: 400, perfectRatings: 30, averageRating: 6.6 });
+    const was = evidence({ appearances: 400, perfectRatings: 30, averageRating: 5.7 });
     expect(earnedTraits(was)).toContain('maverick');
     const now = evidence({ appearances: 600, perfectRatings: 30, averageRating: 7.8 });
     expect(newTraits(['maverick'], now)).not.toContain('maverick');

@@ -4518,3 +4518,19 @@ button.week-option:disabled .week-option-note {
 .verdict-shift.down {
   color: var(--danger);
 }
+
+/*
+ * WHICH SCORING MODEL A CAREER ON THE WALL WAS PLAYED UNDER.
+ *
+ * Quiet, and deliberately quieter than the how-played tag beside it. That one
+ * says something about the person at the keyboard; this says only that the
+ * numbers came from an older version of the game, which is context rather than
+ * a verdict. Dimmed text, no colour of its own — nothing on the semantic
+ * palette should be spent on a footnote.
+ */
+.hall-era {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-style: italic;
+}

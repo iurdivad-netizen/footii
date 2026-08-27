@@ -249,7 +249,22 @@ perfect-ten rate), the awards and the golden boot, the objective's contribution 
 which now has a committed measuring tool. A day's careful work, not a one-line change and not a
 fortnight.
 
-Still not done, for the original reason: it moves every career ever played.
+**Now done**, with the re-calibrations it needed. See [What a chance is worth](README.md#what-a-chance-is-worth) — and note that
+the fix that shipped is not the one this section proposed. Lowering the midpoint
+alone was measured and rejected: it drags the one-on-one calibration down with
+everything else. The defect was narrower and stranger than "conversion is too
+high", and it is described there.
+
+**What is still open, and it is the honest remainder.** A hopeless chance still
+converts better than one in five for a world-class striker, against nearer one in
+twenty in real football, and the spread across chance bands is 1.8x against a
+real tenfold. No constant in the resolver closes that: a bigger one either
+inverts the decision model or breaks the set pieces, both measured. What is left
+is the SHOT MIX — the game hands its striker five to six attempts a match, most
+of them decent, because he is the focus of every situation it generates. That is
+`SituationGenerator` and the `qualityRange` bands in `data/situations.ts`, not
+`ActionResolver`, and it is the next place to look if the aggregate still reads
+high.
 
 ### Both of auto-play's own constants are innocent
 
