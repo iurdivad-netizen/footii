@@ -2744,6 +2744,36 @@ anybody who turns up, so a player built badly enough in the creator to be below 
 the game still has somewhere to start. A gate with no floor would put a dead end behind the
 character creator, which is the worst possible place for one.
 
+#### Reading the list, rather than scrolling it
+
+The gate was right and the *screen* was not. Choosing a club was a `<select>` with 192 options in
+it — truncating mid-word on a phone, a scrolling column of names on a desktop — and it withheld
+everything the game already knew. The three bands were compressed into `<optgroup>` headings and a
+`disabled` attribute; the league, the strength of the squad and what kind of football they play were
+all in the data and none of it was on the screen, at the one moment that decides the next fifteen
+years.
+
+**Country is the top level, and that was measured rather than assumed.** The obvious structure is by
+band, and it organises almost nothing: a young prospect has **108 clubs that would sign him and 66
+that would trial him** — 174 of 192 reachable — so the band is one enormous group and two small ones.
+What actually divides the world is the twelve countries, sixteen clubs each. So the country row comes
+first, ordered by the standing of the league, and each chip says how many of its clubs would have
+you. The band became a badge on the card.
+
+Each club now shows its **squad strength**, its **tactical style**, its own **colour**, and either
+*Would sign you* or *Trial — 7.5 rating needed*. They are sorted **strongest first**, which is the
+ladder the dropdown hid completely: clubs were in data-file order, so the gap between the best side
+in a country and its worst was invisible until a season had been played.
+
+**Out-of-reach clubs are still shown**, greyed and unpickable. Hiding them would be tidier and would
+cost the player the thing worth knowing — that the club he has heard of is up there, and what it
+would take. A ladder you cannot see the top of is not a ladder.
+
+One bug worth recording because only a browser found it: the first version built its country row from
+`allCountries()` and offered **forty-eight**. The world carries that many because international
+football needs them, and only twelve have a club competition. The row is built from the clubs
+themselves now, and `tests/clubPicker.test.ts` fails if it ever goes back.
+
 ### What the money looks like
 
 The wage curve was always the right **shape** and the wrong **scale**. An ability-95 player at the

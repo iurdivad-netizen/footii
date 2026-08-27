@@ -127,9 +127,15 @@ so the choice can never become a difficulty level. Measured in a browser at both
 **1,738px** in tabs and 2,255px in folds, no horizontal overflow at 390px. See
 [The shape of the hub](README.md#the-shape-of-the-hub).
 
-What is still open on the interface: **choosing a club at setup is a 192-item dropdown** that
-truncates mid-word and says nothing about any of them, although the game models whether each would
-sign you, trial you or ignore you.
+That interface item is now **closed**: choosing a club was a 192-item dropdown that truncated
+mid-word and said nothing about any of them, although the game models whether each would sign you,
+trial you or ignore you. It is a browsable picker now — see [Where a career may begin](README.md#where-a-career-may-begin).
+
+Worth recording because it changed the design: the obvious structure, grouping by whether a club
+would have you, **organises almost nothing.** Measured, a young prospect has 108 clubs that would
+sign him and 66 that would trial him — 174 of 192 reachable — so the band is one enormous group and
+two small ones. What actually divides the world is the twelve countries with sixteen clubs each, so
+country came first and the band became a badge.
 
 What remains on the RPG side: **tendency and position retraining**, so a thirty-one-year-old can
 become the deep-lying version of himself, **a background at creation**, and a **full squad** — a

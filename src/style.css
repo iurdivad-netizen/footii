@@ -4819,3 +4819,179 @@ button.week-option:disabled .week-option-note {
 .how-card[id] {
   scroll-margin-top: 16px;
 }
+
+/* -------------------------------------------------- choosing your club ---- */
+
+/*
+ * WHERE THE CAREER BEGINS.
+ *
+ * This replaced a `<select>` with 192 options in it — truncating mid-word on a
+ * phone, and withholding everything the game already knew about every one of
+ * them. The layout follows what was measured rather than what was assumed:
+ * banding by whether a club would sign you organises almost nothing (174 of 192
+ * are reachable for a prospect), so COUNTRY is the top level and the band is a
+ * badge. See ui/screens/clubPicker.ts.
+ */
+.field-wide {
+  grid-column: 1 / -1;
+}
+
+.field-label {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+/*
+ * The twelve countries.
+ *
+ * A scrolling row rather than a wrapping grid: twelve chips wrap to three rows
+ * on a phone and push the clubs off the screen entirely, which defeats the
+ * point of putting them side by side. Scrolls horizontally in its own box, so
+ * the PAGE never does.
+ */
+.country-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 8px;
+  scrollbar-width: thin;
+}
+
+.country-chip {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  padding: 8px 12px;
+  min-width: 132px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.country-chip.current {
+  border-color: var(--accent);
+  background: var(--bg-panel);
+}
+
+.country-name {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.country-league,
+.country-open {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.country-chip.current .country-open {
+  color: var(--accent);
+}
+
+/*
+ * The sixteen clubs, strongest first.
+ *
+ * That order is the ladder the dropdown hid: clubs were in data-file order, so
+ * the gap between the best side in a country and its worst was invisible until
+ * a season had been played.
+ */
+.club-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.club-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: stretch;
+  text-align: left;
+  padding: 9px 11px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--club);
+  border-radius: 8px;
+}
+
+.club-card-top {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.club-card-name {
+  flex: 1;
+  font-weight: 600;
+  font-size: 0.88rem;
+  /* Long club names wrap rather than truncating — the dropdown's worst habit. */
+  overflow-wrap: anywhere;
+}
+
+.club-card-level {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.club-card-style,
+.club-card-verdict {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+/*
+ * The verdict, on the semantic palette and nowhere near the club colour.
+ * Whether a club would have you is the interface talking about YOU; the club
+ * colour says only which club it is. See the palette note at the top.
+ */
+.club-card.club-open .club-card-verdict {
+  color: var(--accent);
+}
+
+.club-card.club-trial .club-card-verdict {
+  color: var(--warn);
+}
+
+.club-card.club-closed {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/*
+ * Out-of-reach clubs are shown rather than hidden. Hiding them would be tidier
+ * and would cost the player the thing worth knowing — that the club he has
+ * heard of is up there, and what it would take. A ladder you cannot see the top
+ * of is not a ladder.
+ */
+.club-card.club-closed .club-card-verdict {
+  color: var(--text-dim);
+}
+
+.club-card.selected {
+  border-color: var(--accent);
+  border-left-color: var(--club);
+  background: var(--bg-panel);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/*
+ * The country holding the club you have chosen.
+ *
+ * A dot rather than a border, because the chip already uses its border for
+ * "this is the country you are looking at" and those two are genuinely
+ * different questions — you can browse Spain while your choice sits in England.
+ * Accent, because it is the interface pointing at something of yours.
+ */
+.chosen-dot {
+  color: var(--accent);
+  font-size: 0.6em;
+  vertical-align: middle;
+  margin-left: 5px;
+}
