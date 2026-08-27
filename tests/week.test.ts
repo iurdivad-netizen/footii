@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { Rng } from '../src/core/rng.ts';
 import { createPlayer } from '../src/core/player/player.ts';
@@ -8,6 +9,7 @@ import {
   missMatch,
   planWeek,
   preparationFor,
+  preparationSeconds,
   recordPlayerMatch,
   startCareer,
   weekAhead,
@@ -26,6 +28,7 @@ import {
   planApplies,
   pushChance,
   spendWeek,
+  weekImpact,
   weekOptions,
 } from '../src/core/career/week.ts';
 import type { WeekChoice } from '../src/core/career/week.ts';
@@ -46,6 +49,13 @@ function career(seed = 'week'): CareerState {
 }
 
 const base = { fitness: 80, morale: 50, form: 50, confidence: 50 };
+
+/** The same man, as the hub asks about him rather than as a week is spent. */
+const state = (overrides: Partial<typeof base> & { preparationSeconds?: number } = {}) => ({
+  ...base,
+  preparationSeconds: 0.8,
+  ...overrides,
+});
 
 function outcome(choice: WeekChoice, overrides: Partial<typeof base> = {}, seed = 'w') {
   return spendWeek(new Rng(seed), { choice, ...base, ...overrides });
@@ -104,7 +114,7 @@ describe('resting, and working', () => {
   });
 
   it('is not offered at all to a player in no state for it', () => {
-    const tired = weekOptions(TRAIN_FITNESS_FLOOR - 1);
+    const tired = weekOptions(state({ fitness: TRAIN_FITNESS_FLOOR - 1 }));
     const train = tired.find((option) => option.choice === 'train')!;
     expect(train.available).toBe(false);
     expect(train.reason.length).toBeGreaterThan(0);
@@ -116,7 +126,9 @@ describe('resting, and working', () => {
   });
 
   it('is offered again once he is fresh enough', () => {
-    expect(weekOptions(TRAIN_FITNESS_FLOOR).every((option) => option.available)).toBe(true);
+    expect(
+      weekOptions(state({ fitness: TRAIN_FITNESS_FLOOR })).every((option) => option.available),
+    ).toBe(true);
   });
 
   it('is worth more to a happy footballer than an unhappy one', () => {
@@ -452,5 +464,139 @@ describe('a week changes the season it is in', () => {
     );
     const plan = planWeek(state, 'study');
     expect(plan!.slotIndex).toBe(nextMatch(state)!.slotIndex);
+  });
+});
+
+/**
+ * WHAT THE CARD PROMISES, AGAINST WHAT THE WEEK DELIVERS
+ *
+ * The point of every test here is the same one, and it is why the impact note
+ * is derived rather than written: a promise on a button is a second copy of the
+ * model, and a second copy drifts. So each option is played and the sentence is
+ * checked against what actually happened to the player, rather than against a
+ * string somebody typed.
+ */
+describe('what a week would do to you', () => {
+  const seconds = (text: string) => Number(/([\d.]+)s/.exec(text)?.[1] ?? NaN);
+  const percent = (text: string) => Number(/(\d+)%/.exec(text)?.[1] ?? NaN);
+  const arrow = (text: string) => (/(\d+) → (\d+)/.exec(text) ?? []).slice(1).map(Number);
+
+  it('gives every option a player can take a line of its own', () => {
+    const options = weekOptions(state());
+    expect(options).toHaveLength(WEEK_CHOICES.length);
+    for (const option of options) {
+      expect(option.impact.length).toBeGreaterThan(0);
+      // Never the same sentence twice: four identical notes would be decoration.
+      expect(options.filter((other) => other.impact === option.impact)).toHaveLength(1);
+    }
+  });
+
+  it('says nothing on an option it has already shut', () => {
+    const train = weekOptions(state({ fitness: TRAIN_FITNESS_FLOOR - 1 })).find(
+      (option) => option.choice === 'train',
+    )!;
+    // The reason is the sentence that matters; an impact note beside it would be
+    // promising him a week he cannot have.
+    expect(train.impact).toBe('');
+    expect(train.reason.length).toBeGreaterThan(0);
+  });
+
+  it('promises exactly the fitness a week of rest returns', () => {
+    for (const fitness of [40, 72, 96]) {
+      const [before, after] = arrow(weekImpact('rest', state({ fitness })));
+      expect(before).toBe(fitness);
+      expect(after).toBe(Math.round(outcome('rest', { fitness }).fitness));
+    }
+  });
+
+  it('does not offer a rest to a man who is already fully fit', () => {
+    const note = weekImpact('rest', state({ fitness: 100 }));
+    expect(note).not.toContain('→');
+    expect(outcome('rest', { fitness: 100 }).fitness).toBe(100);
+  });
+
+  it('promises exactly the fitness a hard week costs, floor included', () => {
+    for (const fitness of [82, 90, 100]) {
+      const [before, after] = arrow(weekImpact('train', state({ fitness })));
+      expect(before).toBe(fitness);
+      expect(after).toBe(Math.round(outcome('train', { fitness }).fitness));
+    }
+  });
+
+  it('states the multiplier the week actually applies, at his morale', () => {
+    for (const morale of [5, 50, 95]) {
+      const stated = percent(weekImpact('train', state({ morale })));
+      const delivered = Math.round((outcome('train', { morale }).growth - 1) * 100);
+      expect(stated).toBe(delivered);
+    }
+  });
+
+  it('shows morale changing what a week of work is worth', () => {
+    // The reason the note exists at all: no fixed sentence can say this, and the
+    // player learns what morale is for by reading the same card twice.
+    expect(percent(weekImpact('train', state({ morale: 95 })))).toBeGreaterThan(
+      percent(weekImpact('train', state({ morale: 5 }))),
+    );
+  });
+
+  it('states the odds the manager conversation is actually rolled at', () => {
+    for (const confidence of [20, 50, 80]) {
+      const stated = percent(weekImpact('push', state({ confidence })));
+      expect(stated).toBe(Math.round(pushChance({ ...base, confidence }) * 100));
+    }
+    // And the odds fall as his manager warms to him, which is the whole lever.
+    expect(percent(weekImpact('push', state({ confidence: 20 })))).toBeGreaterThan(
+      percent(weekImpact('push', state({ confidence: 80 }))),
+    );
+  });
+
+  it('says how much time studying buys, in seconds', () => {
+    expect(seconds(weekImpact('study', state({ preparationSeconds: 1.2 })))).toBe(1.2);
+  });
+
+  it('admits that studying buys nothing at a pace with no clock', () => {
+    const note = weekImpact('study', state({ preparationSeconds: 0 }));
+    expect(note).toContain('Nothing');
+    expect(note).not.toMatch(/[\d.]+s/);
+  });
+
+  it('costs no time at the untimed pace, and time at every other', () => {
+    expect(preparationSeconds('untimed')).toBe(0);
+    for (const pace of ['hardcore', 'standard', 'relaxed', 'veryRelaxed'] as const) {
+      expect(preparationSeconds(pace)).toBeGreaterThan(0);
+    }
+    // Longer windows are worth more of them, exactly as the timer scales.
+    expect(preparationSeconds('relaxed')).toBeGreaterThan(preparationSeconds('hardcore'));
+  });
+
+  it('carries the pace the player actually chose onto the hub', () => {
+    const timed = weekAhead(career('pace'), 'standard').options!.find((o) => o.choice === 'study')!;
+    const untimed = weekAhead(career('pace'), 'untimed').options!.find((o) => o.choice === 'study')!;
+    expect(timed.impact).not.toBe(untimed.impact);
+    expect(untimed.impact).toContain('Nothing');
+  });
+});
+
+/**
+ * A note the screen never draws is a note that does not exist. Asserted against
+ * the source in the same way the hub's other layout decisions are — see
+ * tests/hubSections.test.ts — because the alternative is a card whose promise
+ * lives only in a unit test.
+ */
+describe('the week card draws what the model worked out', () => {
+  const screen = readFileSync(new URL('../src/ui/screens/CareerScreen.ts', import.meta.url), 'utf8');
+  const styles = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+
+  it('renders the impact beside the description rather than instead of it', () => {
+    expect(screen).toContain('week-option-impact');
+    expect(screen).toContain('WEEK_DESCRIPTIONS[choice]');
+  });
+
+  it('draws nothing at all when there is no impact to draw', () => {
+    expect(screen).toContain("${impact ? `<span class=\"week-option-impact\">${impact}</span>` : ''}");
+  });
+
+  it('gives the line a style of its own', () => {
+    expect(styles).toContain('.week-option-impact');
   });
 });

@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Generate the world: eight countries, sixteen clubs each, and a goalkeeper for
+Generate the world: twelve countries, sixteen clubs each, and a goalkeeper for
 every one of them.
 
 WHY A GENERATOR RATHER THAN HAND-AUTHORED JSON
 ----------------------------------------------
-Sixteen clubs were worth writing by hand. A hundred and twenty-eight are not:
+Sixteen clubs were worth writing by hand. A hundred and ninety-two are not:
 the ratings have to be internally consistent (a club's attack, midfield and
 defence must agree with its overall standing, and its style ratings must agree
-with its style), and doing that by eye across eight leagues produces a world
+with its style), and doing that by eye across twelve leagues produces a world
 where half the clubs are quietly nonsense.
 
 So the SHAPE is generated and the FLAVOUR is authored. Every club name, place

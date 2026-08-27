@@ -4,7 +4,8 @@ import type { Team } from '../team/team.ts';
 /**
  * COUNTRIES
  *
- * The world is eight countries, each with its own league. A country is the unit
+ * The world is forty-eight countries, twelve of them with leagues of their own
+ * (see `hasLeague` below). A country is the unit
  * that answers three questions the career keeps asking:
  *
  *   HOW GOOD is the football here?   The clubs say that themselves — a league is

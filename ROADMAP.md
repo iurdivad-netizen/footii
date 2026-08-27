@@ -175,6 +175,23 @@ footballer at thirty-one already exists; nothing has ever been wired to move it.
 - **[Leaving a match that has already started](README.md#leaving-a-match-that-has-already-started)** — a match in progress had no exit at all. It has
   one now, and it plays the remainder out rather than discarding it, because a discardable fixture
   on a fixed seed is a fixture you can retry until it goes in.
+- **[What this week would do to you](README.md#what-this-week-would-do-to-you)** — the week is the decision a player makes most often
+  and each of its four cards carried one authored sentence with no number in it, which is the
+  invisible-modifier mistake this file has already recorded twice. Each option now says what it
+  would do to THIS footballer, derived from the constants the week itself will use rather than
+  written beside them, so a test can assert the card promised what the week delivered. It pays for
+  itself twice over: extra work reading +12% at one morale and +28% at another is how a player
+  learns what morale is for, and studying the opponent turns out to be worth **nothing** at the
+  untimed pace — one of the four options switched off by a setting chosen on another screen, which
+  the card now says out loud.
+- **The world stopped being eight countries four countries ago.** Found while reading rather than
+  playing: the README still headed its world section "eight countries" over a body that said
+  twelve, the generator's own docstring described 128 clubs, and `countries.ts` opened by telling
+  the reader the world was eight of them. None of it was load-bearing and all of it was the first
+  thing a new reader met. The coefficient's calibration notes were the one careful case — their
+  eight-country figures are the measurement that set `COEFFICIENT_SWING` and are now dated rather
+  than overwritten, because a note that quietly restates history in today's numbers is worth less
+  than one that says when it was taken.
 
 One thing found while measuring and deliberately not acted on: **auto-play scores far too much.**
 A skipped match resolves at 1.0 goals a match at ability 55 and **2.9 at ability 85**, with an
@@ -284,6 +301,65 @@ of them decent, because he is the focus of every situation it generates. That is
 `SituationGenerator` and the `qualityRange` bands in `data/situations.ts`, not
 `ActionResolver`, and it is the next place to look if the aggregate still reads
 high.
+
+### The shot mix, measured — and the fix it rules out
+
+That paragraph was a diagnosis nobody had checked, which is exactly the kind of
+thing this file has twice recorded and twice found to be wrong. So
+`scripts/measureShotMix.ts` was written to check it: it plays the same fixture
+under auto-play and under a perfect read, and records every attempt with the
+chance it came from, the archetype that produced it and what became of it.
+
+**The claim is confirmed, and it was understated.** At ability 85, auto-played
+over 200 matches:
+
+| band | share of attempts | per match | converts (perfect read) |
+|---|---|---|---|
+| hopeless (<0.35) | **0.8%** | 0.05 | ~25% (n=16) |
+| poor (.35-.45) | 5.2% | 0.31 | 24.1% |
+| decent (.45-.62) | 44.0% | 2.63 | 24.9% |
+| big (>=0.62) | **50.0%** | 2.98 | 40.4% |
+
+94% of a striker's attempts are decent or better, and the game produces one
+genuinely hopeless chance every twenty matches.
+
+**That reframes the defect this file has been recording.** "A hopeless chance
+still converts better than one in five" is measured on a band the game hardly
+generates — sixteen attempts in two hundred matches. The aggregate does not read
+high because bad chances convert too well; it reads high because there are
+almost no bad chances. The 1.8x spread is real but it is a spread between
+*decent* and *big*, which are 94% of everything.
+
+**The aggregate, per ability, which had never been stated:** 9.6% of attempts at
+55, 17.7% at 70, 29.1% at 85, against a real 12-15%. A poor footballer is
+already BELOW real conversion and a great one is double it. It is the slope, not
+the level — the same shape the goal curve turned out to have.
+
+**Two archetypes are 58% of every attempt**: the one-on-one (31%, configured
+0.62-0.90, so its floor is the top band's boundary) and arriving on a cross
+(26%). A fix starts there or it starts nowhere.
+
+**The obvious fix is the wrong one, and the tool is what says so.** Its second
+mode applies a candidate transform to every `qualityRange` and measures it end
+to end. At ability 85: shipped 5.88 attempts, 1.79 goals, 30.5% per attempt;
+bands shifted -0.10 gives 5.72 / 1.23 / 21.4%; bands stretched 1.4x about 0.5
+gives 5.91 / 2.18 / **37.0%**.
+
+Stretching the bands apart RAISES conversion, which nobody would predict from
+reading the data file — almost every template already sits above 0.5, so
+widening around the scale's midpoint pushes the bulk of the game's chances up.
+Shifting them down works but is blunt: it brings 85 to 21.4%, still high, while
+dragging 55 to 6.6%, half the real rate. It moves the level and leaves the slope.
+
+**And neither moves the volume at all.** Attempts per match stay between 5.7 and
+5.9 under every candidate. `qualityRange` decides how good a chance is, never how
+many there are — so "five to six attempts a match" is not a bands problem, and
+the two places this file named as one target are two different levers. The
+volume lives in `SituationGenerator`'s involvement rate and archetype routing.
+
+Recorded rather than acted on, for the reason the goal-curve fix established: it
+moves every career in progress. The difference is that it can now be priced
+before it is chosen.
 
 ### Both of auto-play's own constants are innocent
 

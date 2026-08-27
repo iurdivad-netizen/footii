@@ -58,7 +58,7 @@ export const NATIONAL_LIFT = 10;
  * country cannot buy a national side by having one superclub.
  *
  * Measured on the shipped world it lands near 0.92 for every country, because
- * all eight leagues are generated to a similar shape — so today it is very
+ * all twelve leagues are generated to a similar shape — so today it is very
  * nearly a constant. It earns its place over a career rather than at kick-off:
  * clubs drift by up to twelve rating points across eighteen seasons, and a
  * country whose supporting clubs decline fields a thinner national side for it.

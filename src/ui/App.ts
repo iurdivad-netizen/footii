@@ -939,7 +939,7 @@ export class App {
       new CareerScreen(
         career,
         teamSheet(career),
-        weekAhead(career),
+        weekAhead(career, this.save.settings.pace),
         this.save.settings.hubLayout,
         this.save.settings.hubOpen,
         {
