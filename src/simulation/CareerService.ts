@@ -134,7 +134,7 @@ import {
   stillInCompetition,
 } from '../core/career/groupStage.ts';
 import type { EuropeanEntries, EuropeanState, EuropeanTier } from '../core/career/europe.ts';
-import { createCareerRecords, recordSeason } from '../core/career/records.ts';
+import { createCareerRecords, lifetimeTotals, recordSeason } from '../core/career/records.ts';
 import type { Coefficients } from '../core/career/coefficients.ts';
 import {
   countriesByStanding,
@@ -196,6 +196,7 @@ import {
   tablePosition,
 } from '../core/career/league.ts';
 import { createSeasonStats } from '../core/career/seasonStats.ts';
+import { changesBetween } from '../core/career/matchReport.ts';
 import { judgeObjective, setObjective } from '../core/career/objective.ts';
 import type { ObjectiveOutcome } from '../core/career/objective.ts';
 import type { MatchStats } from '../core/match/matchStats.ts';
@@ -478,6 +479,10 @@ export function startCareer(options: StartCareerOptions): CareerState {
     leagueStats: createSeasonStats(),
     seasonInjuredMisses: 0,
     objective: null,
+    // Nothing has been played, which is the one thing every career has in
+    // common on its first day.
+    seasonResults: [],
+    lastChanges: [],
     development: createDevelopmentState(),
     history: [],
     seed: options.seed,
@@ -1051,6 +1056,9 @@ export function recordPlayerMatch(
         }
       : {}),
   };
+  // The same summary, kept rather than replaced, so the hub can draw the season
+  // as a shape. See `seasonResults`.
+  state.seasonResults = [...(state.seasonResults ?? []), state.lastResult];
 
   const club = clubIn(state, lookup, state.clubId);
   const rng = new Rng(
@@ -1458,6 +1466,17 @@ export function missMatch(state: CareerState, lookup: TeamLookup): MissedMatch {
   // below moves the injury on and the answer would change under it.
   const wasFit = state.injury === null;
 
+  // For the same reason, and at the same moment. A match he did not play still
+  // moves what the strip reports — being frozen out is exactly the case where a
+  // player needs telling — and both numbers are changed further down. See
+  // core/career/matchReport.ts.
+  const changesBefore = {
+    fitness: state.fitness,
+    confidence: state.confidence ?? CONFIDENCE_NEUTRAL,
+    appearances: lifetimeTotals(state.records).matches,
+    goals: lifetimeTotals(state.records).goals,
+  };
+
   const isHome = scheduled.home;
   // His country plays the international, not his club.
   const ownId = isInternational(scheduled.competition) ? playerNation(state) : state.clubId;
@@ -1502,6 +1521,10 @@ export function missMatch(state: CareerState, lookup: TeamLookup): MissedMatch {
     skipped: false,
     missed: true,
   };
+  // A match that happened without him is still part of the season's shape — an
+  // absence is exactly the thing a timeline should show, and dropping it would
+  // draw a season that looks continuous when it was not.
+  state.seasonResults = [...(state.seasonResults ?? []), state.lastResult];
 
   // Everything downstream takes the same shape it takes for a played match, so
   // the settlement below is the settlement that has always run.
@@ -1557,6 +1580,7 @@ export function missMatch(state: CareerState, lookup: TeamLookup): MissedMatch {
   // moved the injury on. See core/career/objective.ts.
   if (!wasFit) state.seasonInjuredMisses = (state.seasonInjuredMisses ?? 0) + 1;
 
+
   // Form drifts back toward neutral rather than staying frozen, and the
   // difference is the whole difference between a hard spell and a trap. Form is
   // only earned by playing, so a player dropped while out of form would keep
@@ -1570,6 +1594,13 @@ export function missMatch(state: CareerState, lookup: TeamLookup): MissedMatch {
     state.confidence ?? CONFIDENCE_NEUTRAL,
     state.injury !== null,
   );
+
+  state.lastChanges = changesBetween(changesBefore, {
+    fitness: state.fitness,
+    confidence: state.confidence,
+    appearances: lifetimeTotals(state.records).matches,
+    goals: lifetimeTotals(state.records).goals,
+  });
 
   // The week is spent whether or not he got on the pitch, and that is the
   // honest cost of planning one: a week of extra work before a match you are

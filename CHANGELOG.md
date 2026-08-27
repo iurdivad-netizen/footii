@@ -375,3 +375,21 @@ Eight things that were not on either list, found by reading the code against wha
   country row from `allCountries()`, which returns forty-eight — the world has that many because
   international football needs them and only twelve have a league. See
   [Where a career may begin](README.md#where-a-career-may-begin).
+
+- **The hub was a readout rather than feedback.** It redrew after every match with a dozen numbers in
+  new positions and nothing saying which had moved — fitness, the manager's opinion, the objective,
+  all of it legible only to somebody who remembered last week's figures. Printing the differences
+  would have been worse than nothing, so the strip speaks only when something crossed a line the
+  player can act on: fitness falling below what extra work needs, the manager's BAND changing, or a
+  milestone within three. Measured at about one match in four.
+
+  One rule came from playing rather than reading. Both milestone lists start at 1, so a player yet to
+  score sits permanently within range of his "1st goal" — for a centre-back that is the same line
+  after every match for twenty matches. The countdown starts at the second milestone now.
+
+- **A season had no shape.** Four straight wins and four straight defeats looked identical from the
+  hub, which is most of what a season feels like. There is a timeline now: one dot per match, oldest
+  first, next fixture marked, reusing the summary `lastResult` already held rather than counting
+  anything new. Each dot carries its letter as well as its colour, so it reads without colour at all;
+  a missed match gets its own mark, because an absence is exactly what a timeline should show. See
+  [What the last match changed](README.md#what-the-last-match-changed) and [The season so far](README.md#the-season-so-far).

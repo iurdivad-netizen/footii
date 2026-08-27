@@ -37,7 +37,7 @@ import { rankLegacies } from '../core/career/legacy.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 29;
+export const SAVE_VERSION = 30;
 
 export interface CareerRecord {
   matches: number;
@@ -924,6 +924,27 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
     const played =
       (save.careers ?? []).some(Boolean) || (save.hallOfFame ?? []).length > 0;
     save.settings = { ...(save.settings ?? {}), seenIntro: played };
+  }
+
+  if (save.version === 29) {
+    // v29 -> v30: the season has a shape, and a match says what it changed.
+    //
+    // Both start empty, and neither can be reconstructed: nothing in an older
+    // save records the matches of the season in progress one by one, and
+    // nothing records what any of them moved. A timeline invented here would be
+    // a season the player never had.
+    //
+    // The cost is bounded to the season already under way, which is the same
+    // trade `seasonInjuredMisses` made and for the same reason: `advanceSeason`
+    // clears both every summer, so a career is whole again the moment the
+    // season it was migrated in finishes.
+    save = { ...save, version: 30 };
+    for (const career of save.careers ?? []) {
+      if (career) {
+        career.seasonResults ??= [];
+        career.lastChanges ??= [];
+      }
+    }
   }
 
   // The flat field is a migration detail and must not survive into the save.

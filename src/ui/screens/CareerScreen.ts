@@ -311,6 +311,8 @@ export class CareerScreen {
 
       ${this.renderLoan()}
       ${this.renderLastResult()}
+      ${this.renderChanges()}
+      ${this.renderTimeline()}
       ${this.renderMoments()}
       ${this.renderDevelopment()}
 
@@ -681,6 +683,84 @@ export class CareerScreen {
     ];
   }
 
+
+  /**
+   * WHAT THE LAST MATCH CHANGED.
+   *
+   * Directly under the scoreline, because it is the rest of the sentence the
+   * scoreline started. The hub used to redraw with a dozen numbers in new
+   * positions and nothing saying which had moved.
+   *
+   * ABSENT MOST WEEKS, and that is the feature rather than a gap in it — the
+   * model only speaks when something crossed a line the player can act on. A
+   * strip that appeared every week would train the eye to skip the week it
+   * mattered. See core/career/matchReport.ts for which lines those are.
+   */
+  private renderChanges(): string {
+    const changes = this.state.lastChanges ?? [];
+    if (changes.length === 0) return '';
+    const items = changes
+      .map((change) => `<li class="change-${change.tone}">${change.text}</li>`)
+      .join('');
+    // A live region for the same reason the moments are one: this appears
+    // because a match resolved, not because anything was pressed.
+    return `<ul class="change-strip" role="status" aria-live="polite">${items}</ul>`;
+  }
+
+  /**
+   * THE SEASON SO FAR, AS A SHAPE.
+   *
+   * The hub could say what happened last Saturday and nothing about the shape
+   * of the year around it — a run of four wins and a run of four defeats looked
+   * identical from here, which is most of what a season feels like.
+   *
+   * One dot per match, oldest first, in the order they were played. Colour
+   * carries the result and a title carries the detail, but neither is the only
+   * channel: the dot's LETTER says the same thing, so the strip works without
+   * colour. That is the rule the action families already follow.
+   *
+   * A missed match gets its own mark rather than being left out. An absence is
+   * exactly the thing a timeline should show — dropping it would draw a season
+   * that looks continuous when it was not.
+   */
+  private renderTimeline(): string {
+    const played = this.state.seasonResults ?? [];
+    if (played.length === 0) return '';
+
+    const dots = played
+      .map((match) => {
+        const won = match.shootout
+          ? match.shootout.won
+          : match.goalsFor > match.goalsAgainst;
+        const lost = match.shootout
+          ? !match.shootout.won
+          : match.goalsFor < match.goalsAgainst;
+        const kind = match.missed ? 'missed' : won ? 'win' : lost ? 'loss' : 'draw';
+        const letter = match.missed ? '·' : won ? 'W' : lost ? 'L' : 'D';
+        const label =
+          `${competitionLabel(match.competition ?? 'league')} ` +
+          `${match.home ? 'v' : 'away to'} ${this.side(match.opponentId).shortName} ` +
+          `${match.goalsFor}–${match.goalsAgainst}` +
+          (match.missed ? ' (missed)' : match.goals > 0 ? ` (${match.goals})` : '');
+        return `<li class="tl-${kind}" title="${label}"><span aria-hidden="true">${letter}</span><span class="visually-hidden">${label}</span>${
+          // A goal is marked on the dot itself: scanning for the afternoons he
+          // scored is the single most likely reason to look at this strip.
+          match.goals > 0 ? `<i class="tl-scored" aria-hidden="true"></i>` : ''
+        }</li>`;
+      })
+      .join('');
+
+    const next = nextMatch(this.state);
+    const upcoming = next
+      ? `<li class="tl-next" title="Next: ${this.side(next.opponentId).shortName}"><span aria-hidden="true">→</span><span class="visually-hidden">Next match</span></li>`
+      : '';
+
+    return `
+      <div class="season-timeline">
+        <h2 class="visually-hidden">Your season so far</h2>
+        <ol class="tl-dots">${dots}${upcoming}</ol>
+      </div>`;
+  }
 
   /**
    * What was worth remarking on about the last match.

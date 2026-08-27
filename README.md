@@ -817,6 +817,55 @@ colours across 192 clubs, and **every country has all sixteen**. So within the l
 play in, every club is a different colour — which is where a player reads colour. Across the world
 they repeat, and that is fine.
 
+### What the last match changed
+
+The hub redrew after every match with a dozen numbers in new positions and nothing anywhere saying
+which of them had moved. Fitness had dropped, the manager had revised his opinion, the objective was
+a match closer — all of it visible if you happened to remember last week's figures, which nobody
+does. The screen was a **readout rather than feedback**.
+
+The obvious fix is to print the differences, and it would be worse than nothing: nine lines every
+week, most of them a point or two of a number you cannot act on, and within a month the eye skips
+the whole strip. That is exactly what happened to morale, and what making the moments rare was for.
+
+So the rule is: **say it only when it changes what he might do next.**
+
+| | reported when |
+|---|---|
+| **Fitness** | it falls below the level extra work needs — the *week's decision changing shape*, not a number changing value |
+| **Confidence** | the manager's **band** changes. Two points of a hidden number is not news; being back in his plans is |
+| **Milestones** | within three. "Two matches from your fiftieth" is a reason to play the next one; "thirty-one from your hundredth" is not |
+
+Measured over seventy matches, it speaks on about **one in four** — rare enough to be worth reading,
+common enough to exist.
+
+One rule came from playing rather than from reading. Both milestone lists start at 1, so a player
+who has not scored yet is *permanently* within range of his "1st goal" — which for a centre-back
+means the strip repeats that line after every match for twenty matches. The countdown starts at the
+**second** milestone now. Nothing is lost: the firsts were never this feature's to report, because
+the moments already announce them properly, at the moment they happen.
+
+### The season so far
+
+The hub could say what happened last Saturday and nothing about the shape of the year around it. A
+run of four wins and a run of four defeats looked identical from here, which is most of what a
+season feels like.
+
+So: **one dot per match**, oldest first, in the order they were played, with the next fixture marked
+at the end. It reuses the summary `lastResult` already held — kept rather than overwritten — so
+nothing new is counted.
+
+**Colour is never the only channel.** Each dot carries its letter — W, D, L, and a middot for a
+match he missed — so the strip reads with no colour at all. That is the same rule the action
+families follow in the match, for the same reason. A goal gets its own mark in `--goal` on the
+corner of the dot, because scanning for the afternoons he scored is the single most likely reason to
+look at the strip.
+
+**A missed match gets a dot of its own** rather than being left out. An absence is exactly the thing
+a timeline should show — dropping it would draw a season that looks continuous when it was not.
+
+The strip scrolls inside its own box, so a fifty-match season never makes the page scroll sideways.
+
 ### Why development is applied per match
 
 Because the payoff has to be felt in the core mechanic, not read on a summary screen.
