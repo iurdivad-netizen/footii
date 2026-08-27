@@ -6,7 +6,7 @@ import type { WeekChoice } from '../../core/career/week.ts';
 import { WEEK_DESCRIPTIONS, WEEK_LABELS } from '../../core/career/week.ts';
 import type { WeekAhead } from '../../simulation/CareerService.ts';
 import type { HubLayout, HubSection } from './hubSections.ts';
-import { HUB_SECTION_LABELS, renderHubFolds, renderHubTabs } from './hubSections.ts';
+import { HUB_SECTION_IDS, HUB_SECTION_LABELS, renderHubFolds, renderHubTabs } from './hubSections.ts';
 import { competitionsPeek } from '../hubPeek.ts';
 import {
   objectiveAchieved,
@@ -575,9 +575,52 @@ export class CareerScreen {
   private renderSections(): string {
     const sections = this.sections().filter((section) => section.html.trim().length > 0);
     if (sections.length === 0) return '';
-    return this.layout === 'folds'
-      ? `<div class="hub-folds">${renderHubFolds(sections, this.open)}</div>`
-      : renderHubTabs(sections, this.open);
+    const laid =
+      this.layout === 'folds'
+        ? `<div class="hub-folds">${renderHubFolds(sections, this.open)}</div>`
+        : renderHubTabs(sections, this.open);
+    return laid + this.renderStillToCome(sections);
+  }
+
+  /**
+   * WHAT IS NOT ON THE HUB YET, AND WILL BE.
+   *
+   * Empty sections are dropped — a first-season career has no honours, no
+   * transfers and no history, and three empty folds would be a worse hub than
+   * the one the sections replaced. That decision is right and this does not
+   * reverse it.
+   *
+   * What it fixes is the consequence nobody had accounted for: a career on its
+   * first day shows THREE sections where the manual describes four, and nothing
+   * anywhere says the fourth is coming. The player cannot tell an empty career
+   * from a broken screen, and the one reading he can make unaided — that this
+   * is all there is — is the wrong one.
+   *
+   * ONE LINE, and it names the sections rather than reassuring in general. "It
+   * fills up as you play" is the sort of sentence that could be written without
+   * looking at the career; naming Career specifically is a fact about this one.
+   *
+   * IT REMOVES ITSELF. Once every section has something in it the line has
+   * nothing left to promise, and a hub that permanently explained itself would
+   * be a hub with a permanent apology on it.
+   */
+  private renderStillToCome(shown: readonly HubSection[]): string {
+    const present = new Set(shown.map((section) => section.id));
+    const missing = HUB_SECTION_IDS.filter((id) => !present.has(id));
+    if (missing.length === 0) return '';
+
+    const names = missing.map((id) => HUB_SECTION_LABELS[id]);
+    const list =
+      names.length === 1
+        ? names[0]!
+        : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]!}`;
+
+    return `
+      <p class="hub-still-to-come">
+        ${list} ${names.length === 1 ? 'appears' : 'appear'} here once there is something to put
+        in ${names.length === 1 ? 'it' : 'them'} — honours you win, clubs you move to, seasons you
+        finish.
+      </p>`;
   }
 
   private sections(): HubSection[] {

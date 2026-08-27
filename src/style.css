@@ -5140,3 +5140,34 @@ button.week-option:disabled .week-option-note {
   border-radius: 50%;
   background: var(--goal);
 }
+
+/*
+ * A destructive button that has been armed.
+ *
+ * `--danger`, which is the one thing on the semantic palette that means
+ * something has gone or is about to go wrong. It is also the only time a button
+ * on this wall is allowed to be loud: the whole point is that the second press
+ * should not look like the first.
+ */
+.hall-card-actions .ghost.armed,
+#hall-clear[data-armed='yes'] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/*
+ * What is still to come on the hub.
+ *
+ * Quiet and temporary. Empty sections are dropped rather than shown, which is
+ * right, and this is the one line that stops the drop reading as "this is all
+ * there is". It removes itself once every section has something in it — a hub
+ * that permanently explained itself would carry a permanent apology.
+ */
+.hub-still-to-come {
+  margin: 14px 0 0;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}

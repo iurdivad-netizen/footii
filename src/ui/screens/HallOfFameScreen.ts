@@ -107,8 +107,51 @@ export class HallOfFameScreen {
       clear.textContent = 'Really clear it? This cannot be undone';
     });
 
-    for (const button of this.element.querySelectorAll<HTMLButtonElement>('[data-remove]')) {
-      button.addEventListener('click', () => handlers.onRemove(button.dataset.remove!));
+    /**
+     * REMOVING ONE CAREER TAKES TWO PRESSES, like clearing the whole wall.
+     *
+     * It used to take one, and it is the most destructive single click in the
+     * game: a finished career is the only thing here that cannot be played
+     * again, there is no undo, and the button sat directly under a card the
+     * player had every reason to be clicking on. Wiping the entire wall was
+     * already guarded and removing one entry was not, which is exactly the
+     * wrong way round if you slip.
+     *
+     * The same arm-then-confirm the clear button uses, rather than a
+     * `confirm()` dialog — for the reason the end-of-career screen gives: the
+     * question "are you sure?" is worse than showing what is about to be lost,
+     * and here the card above the button IS that. It also keeps the guard
+     * inside the page, where a keyboard player meets it in the same tab order
+     * as everything else.
+     *
+     * DISARMED BY LEAVING IT. Moving focus away, or pressing anything else,
+     * puts it back — a button that stayed armed would be a trap laid for the
+     * next visit rather than a guard on this one.
+     */
+    const disarm = (button: HTMLButtonElement) => {
+      if (button.dataset.armed !== 'yes') return;
+      delete button.dataset.armed;
+      button.textContent = 'Remove';
+      button.classList.remove('armed');
+    };
+
+    const removeButtons = [
+      ...this.element.querySelectorAll<HTMLButtonElement>('[data-remove]'),
+    ];
+    for (const button of removeButtons) {
+      button.addEventListener('click', () => {
+        if (button.dataset.armed === 'yes') {
+          handlers.onRemove(button.dataset.remove!);
+          return;
+        }
+        // Only one at a time can be armed. Two armed buttons on one screen is
+        // two traps rather than one guard.
+        for (const other of removeButtons) if (other !== button) disarm(other);
+        button.dataset.armed = 'yes';
+        button.textContent = 'Really remove? This cannot be undone';
+        button.classList.add('armed');
+      });
+      button.addEventListener('blur', () => disarm(button));
     }
 
     for (const button of this.element.querySelectorAll<HTMLButtonElement>('[data-open]')) {

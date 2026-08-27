@@ -167,6 +167,11 @@ footballer at thirty-one already exists; nothing has ever been wired to move it.
   match in four.
 - **[The season so far](README.md#the-season-so-far)** — four straight wins and four straight defeats looked identical from
   the hub. One dot per match, letters as well as colour, absences included.
+- **[A hub that does not look broken on day one](README.md#a-hub-that-does-not-look-broken-on-day-one)** — dropping empty sections is right, and left a
+  first-season career showing three where the manual describes four with nothing saying the fourth
+  was coming.
+- **[The most destructive click in the game](README.md#the-most-destructive-click-in-the-game)** — removing a career from the wall took one press
+  with no undo, while clearing the entire wall was already guarded.
 
 One thing found while measuring and deliberately not acted on: **auto-play scores far too much.**
 A skipped match resolves at 1.0 goals a match at ability 55 and **2.9 at ability 85**, with an

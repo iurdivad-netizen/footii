@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   RETIREMENT_FORCED_AGE,
   RETIREMENT_OFFER_AGE,
@@ -600,5 +601,58 @@ describe('the era a legacy belongs to', () => {
     // If this ever reads 1, every entry is "current" and the wall silently
     // ranks two incompatible scoring models against each other again.
     expect(BALANCE_VERSION).toBeGreaterThan(1);
+  });
+});
+
+/**
+ * THE MOST DESTRUCTIVE CLICK IN THE GAME
+ *
+ * A finished career is the only thing in this game that cannot be played again.
+ * Removing one from the wall took a single press, with no undo, from a button
+ * sitting directly under a card the player had every reason to be clicking on —
+ * while wiping the ENTIRE wall was already guarded by an arm-then-confirm. That
+ * is exactly the wrong way round.
+ *
+ * The wiring needs a DOM and this suite runs on node, so what is pinned here is
+ * that the guard exists in the source and is the same idiom the clear button
+ * uses. The behaviour itself is driven in a browser.
+ */
+describe('removing a career from the wall', () => {
+  const source = readFileSync(
+    new URL('../src/ui/screens/HallOfFameScreen.ts', import.meta.url),
+    'utf8',
+  );
+
+  it('takes two presses rather than one', () => {
+    expect(source).toContain("Really remove? This cannot be undone");
+    expect(source).toContain("button.dataset.armed === 'yes'");
+  });
+
+  it('guards a single removal as well as the whole wall', () => {
+    // Both, or the smaller and likelier mistake is the unguarded one.
+    expect(source).toContain('Really clear it? This cannot be undone');
+  });
+
+  it('disarms itself when focus leaves', () => {
+    // A button that stayed armed would be a trap laid for the next visit
+    // rather than a guard on this one.
+    expect(source).toContain("addEventListener('blur'");
+  });
+
+  it('never arms two buttons at once', () => {
+    // Two armed buttons on one screen is two traps rather than one guard.
+    expect(source).toContain('for (const other of removeButtons)');
+  });
+
+  it('does not fall back to a browser confirm dialog', () => {
+    // The end-of-career screen settled this once: showing what is about to be
+    // lost is a better question than "are you sure?" ever was, and a native
+    // dialog cannot be styled, focused or read consistently.
+    //
+    // Comments are stripped first, because the note above the guard explains
+    // why `confirm()` was NOT used and would otherwise fail this on the
+    // strength of naming the thing it rejected.
+    const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    expect(code).not.toMatch(/\bconfirm\(/);
   });
 });
