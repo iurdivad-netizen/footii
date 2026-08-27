@@ -1,5 +1,5 @@
 import type { CareerLegacy } from '../../core/career/legacy.ts';
-import { rankLegacies } from '../../core/career/legacy.ts';
+import { BALANCE_VERSION, balanceVersionOf, rankLegacies } from '../../core/career/legacy.ts';
 import { positionLabel } from '../../core/player/positions.ts';
 import { describeHowPlayed } from '../../core/career/howPlayed.ts';
 
@@ -152,6 +152,7 @@ function card(entry: CareerLegacy, rank: number, isNew: boolean): string {
 
           <p class="hall-verdict">${entry.verdict}</p>
           ${howPlayedTag(entry)}
+          ${eraTag(entry)}
 
           <div class="hall-figures">
             <span><strong>${entry.appearances}</strong> apps</span>
@@ -191,6 +192,32 @@ function howPlayedTag(entry: CareerLegacy): string {
   if (!summary.reliable) return '';
   const played = Math.round((summary.playedShare ?? 0) * 100);
   return `<p class="hall-how-played" title="${summary.detail}">${summary.label} · ${played}% played</p>`;
+}
+
+/**
+ * Which scoring model this career was played under.
+ *
+ * The wall ranks on `score`, and the goal-conversion fix moved what a score
+ * MEANS: a season after it returns about a third fewer goals and roughly a
+ * rating point less, and `careerScore` reads both. So an entry enshrined before
+ * it sits above an identical career played after it, permanently and on nothing
+ * either footballer did.
+ *
+ * Said rather than corrected, which is the same answer this wall already gives
+ * to how much of a career was skipped. Rescaling the old scores would rewrite a
+ * number a player was shown the day his career ended, and the factor doing the
+ * rescaling would be a fiction — no multiplier turns a career that happened into
+ * the career it would have been. A reader who can see which era an entry
+ * belongs to can rank them himself; a reader shown a silently adjusted number
+ * cannot. See core/career/legacy.ts.
+ *
+ * Only the older entries are tagged. Marking today's careers "current" would put
+ * a label on every card to say nothing, and the tag would stop being a thing the
+ * eye stops on.
+ */
+function eraTag(entry: CareerLegacy): string {
+  if (balanceVersionOf(entry) >= BALANCE_VERSION) return '';
+  return `<p class="hall-era" title="Goals and ratings both ran higher before that change, and the score reads both.">Scored under the older goal model</p>`;
 }
 
 function ordinal(n: number): string {

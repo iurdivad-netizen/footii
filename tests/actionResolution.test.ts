@@ -9,6 +9,8 @@ import {
   resolveAction,
   shotGoalProbability,
   tempoAdjustment,
+  SHOT_QUALITY,
+  SET_PIECE_SITUATIONS,
 } from '../src/simulation/ActionResolver.ts';
 import { createCustomPlayer, suggestedAttributes } from '../src/core/player/playerBuilder.ts';
 import type { SituationContext } from '../src/core/events/types.ts';
@@ -387,5 +389,58 @@ describe('untimed mode', () => {
         untimed: true,
       }),
     ).toBeLessThan(0);
+  });
+});
+
+/**
+ * THE CHANCE ITSELF, AND WHERE IT IS ALLOWED TO COUNT.
+ *
+ * `SHOT_QUALITY` exists because a good footballer's hopeless chance used to
+ * convert almost as well as his best one — measured at 27.6% against 44.5% for
+ * a world-class striker, a spread of 1.5x where real football is nearer
+ * tenfold. These pin the two properties that fix depends on, both of which are
+ * easy to undo by accident.
+ */
+describe('chance quality in the goal roll', () => {
+  it('makes a poor chance convert worse than a good one, all else equal', () => {
+    const poor = shotGoalProbability(0.7, 0.3);
+    const fair = shotGoalProbability(0.7, 0.5);
+    const good = shotGoalProbability(0.7, 0.9);
+    expect(poor).toBeLessThan(fair);
+    expect(fair).toBeLessThan(good);
+    // And by a margin worth having: the whole defect was that this spread was
+    // too narrow to matter.
+    expect(good / poor).toBeGreaterThan(3);
+  });
+
+  it('leaves set pieces entirely alone, at both ends of the quality range', () => {
+    // A penalty sits at 0.88-0.95 quality and a direct free kick at 0.3-0.55.
+    // Both are separately calibrated situations, so neither may be re-graded by
+    // a gradient fitted to open play — and because they sit at opposite ends of
+    // it, including them moves them in opposite directions.
+    for (const situation of SET_PIECE_SITUATIONS) {
+      const high = shotGoalProbability(0.7, 0.92, situation);
+      const low = shotGoalProbability(0.7, 0.42, situation);
+      expect(high).toBe(low);
+    }
+  });
+
+  it('resolves a set piece on the midpoint it was calibrated against', () => {
+    // Exempting them from the gradient is only half of leaving them alone: the
+    // open-play midpoint moved to offset that gradient, and a set piece must
+    // not inherit an offset for something it never received.
+    const openPlay = shotGoalProbability(0.7, 0.5);
+    const setPiece = shotGoalProbability(0.7, 0.5, 'penalty');
+    expect(setPiece).toBeGreaterThan(openPlay);
+  });
+
+  it('treats a missing quality as neutral, so an old caller is unchanged', () => {
+    expect(shotGoalProbability(0.7)).toBe(shotGoalProbability(0.7, 0.5));
+  });
+
+  it('still never reaches certainty or impossibility', () => {
+    expect(shotGoalProbability(5, 1)).toBeLessThanOrEqual(GOAL_CURVE.max);
+    expect(shotGoalProbability(-5, 0)).toBeGreaterThanOrEqual(GOAL_CURVE.min);
+    expect(SHOT_QUALITY).toBeGreaterThan(0);
   });
 });

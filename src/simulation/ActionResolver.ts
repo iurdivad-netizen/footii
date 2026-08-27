@@ -9,6 +9,7 @@ import type {
   EventOutcome,
   OutcomeKind,
   SituationContext,
+  SituationType,
 } from '../core/events/types.ts';
 import { getAction } from '../data/actionCatalogue.ts';
 import { receiverOf } from '../core/career/squad.ts';
@@ -265,11 +266,138 @@ function outcome(
  * far more often) but nothing is ever impossible or certain. Calibrated so a
  * clean one-on-one converts around 40% for a good finisher and around 20% for a
  * raw teenager, which is roughly what real one-on-ones look like.
+ *
+ * THE MIDPOINT MOVED FROM 0.64 TO 0.74 when `SHOT_QUALITY` below was added, and
+ * the two are one change. Its one-on-one numbers were right the day they were
+ * written; what was wrong was that every speculative shot in the game reached
+ * this curve carrying almost a one-on-one's value. Separating the two pushed
+ * the good chances up, and the midpoint puts them back where this note says
+ * they belong. Neither number is meaningful without the other.
+ *
+ * Steepness is deliberately untouched. Measured across five candidate values it
+ * moves the outcome by almost nothing, and — because the mean shot value sits
+ * BELOW the midpoint — flattening it would raise conversion rather than lower
+ * it. See ROADMAP.md.
  */
-export const GOAL_CURVE = { midpoint: 0.64, steepness: 11, min: 0.01, max: 0.88 } as const;
+export const GOAL_CURVE = { midpoint: 0.74, steepness: 11, min: 0.01, max: 0.88 } as const;
 
-export function shotGoalProbability(value: number): number {
-  const raw = 1 / (1 + Math.exp(-(value - GOAL_CURVE.midpoint) * GOAL_CURVE.steepness));
+/**
+ * HOW MUCH THE CHANCE ITSELF DECIDES WHETHER A SHOT GOES IN.
+ *
+ * Applied HERE, at the goal roll, and deliberately nowhere else. That placement
+ * is the whole design of this constant and it was arrived at by measuring the
+ * alternative.
+ *
+ * THE DEFECT IT FIXES. `RESOLUTION_WEIGHTS.quality` is 0.18, half the weight of
+ * the player's own execution, so a good footballer's HOPELESS chance inherited
+ * most of the value of his best one. Measured with a perfect read, by band of
+ * `situationQuality`, a world-class striker converted a genuinely poor chance
+ * 27.6% of the time against 44.5% for a gilt-edged one — a spread of 1.5x where
+ * real football is nearer tenfold. That is what made the aggregate absurd while
+ * every individual number looked defensible.
+ *
+ * WHY NOT SIMPLY RAISE `RESOLUTION_WEIGHTS.quality`. Because it was tried,
+ * measured, and it INVERTED THE GAME. That weight feeds `value`, which every
+ * family shares and which the whole decision model is ordered by — so raising
+ * it makes the situation matter more and the CHOICE matter less. At 0.58,
+ * choosing the worst available option outscored choosing the best at every
+ * ability measured (0.68 goals a match against 0.53 at ability 55; 1.90 against
+ * 1.83 at 85), because a bad shot in a good position now beat a good pass. A
+ * change that makes the decision mechanic the game is built on actively harmful
+ * is not a balance fix, whatever it does to the aggregate.
+ *
+ * So the chance's quality is separated out and applied only where it belongs:
+ * to whether the SHOT goes in. `value` is untouched, so every option is still
+ * ordered exactly as it was, and reading the situation is worth exactly what it
+ * always was.
+ *
+ * WHAT IT ACTUALLY BOUGHT, measured over 150 matches a side and stated plainly
+ * because the honest number is smaller than the intent:
+ *
+ *                        before          after
+ *     poor  (<0.45)      27.6%           21.5%
+ *     big   (>=0.62)     44.5%           39.3%
+ *     goals per shot     0.381           0.312
+ *     goals per match     2.24            1.82
+ *
+ * The big-chance column is the one to check against the note on GOAL_CURVE
+ * below: 39.3% against the 40% that curve was built to produce, and 18.6%
+ * against its 20% for a raw teenager. That calibration is now the one the game
+ * actually has, rather than the one it had for its best chances and lent to all
+ * the others.
+ *
+ * The poor-chance column moved less than it should. A hopeless chance still
+ * converts better than one in five for a world-class striker, where real
+ * football is nearer one in twenty, and the spread across the bands is 1.8x
+ * against a real 10x. Getting the rest of the way is not a bigger constant here
+ * — that was measured, and it either inverts the decision model or breaks the
+ * set pieces. It is the SHOT MIX: the game hands its striker five to six
+ * attempts a match, most of them decent, because he is the focus of every
+ * situation it generates. That is the situation generator's business rather
+ * than the resolver's, and it is recorded in ROADMAP.md rather than half-done
+ * here.
+ */
+export const SHOT_QUALITY = 0.4;
+
+/**
+ * SET PIECES ARE EXEMPT, and this is not a special case bolted on to make tests
+ * pass — it is what the adjustment is FOR.
+ *
+ * This term exists to discriminate between open-play chances, which arrive with
+ * a `situationQuality` drawn from a range and were all being converted at
+ * roughly the same rate. A set piece is not that. Each one is a named,
+ * separately calibrated situation with its own quality range and its own
+ * difficulty: a penalty sits at 0.88-0.95 and a direct free kick at 0.3-0.55,
+ * and those numbers were tuned directly against the conversion rates they were
+ * meant to produce.
+ *
+ * Applying a quality gradient on top of them therefore double-counts the one
+ * thing they already state. Measured: with penalties included, a penalty's
+ * conversion rose past every bound its own tests set, and pushing the midpoint
+ * far enough to bring it back drove direct free kicks below 2% — a specialist's
+ * free kick becoming rarer than a defender's. Two separately calibrated set
+ * pieces cannot both survive a gradient fitted to open play, because they sit at
+ * opposite ends of it.
+ */
+export const SET_PIECE_SITUATIONS: readonly SituationType[] = [
+  'penalty',
+  'freeKickDirect',
+  'cornerAttack',
+];
+
+/**
+ * The midpoint set pieces still use: the one this curve had before the split.
+ *
+ * Exempting them from the quality gradient is only half of leaving them alone.
+ * The midpoint moved from 0.64 to 0.74 to offset that gradient for OPEN PLAY,
+ * and a set piece that skipped the gradient but inherited the offset would be
+ * harder than it was for no reason at all — the offset exists to cancel
+ * something a set piece never received.
+ *
+ * So they keep the old midpoint, which is not a legacy quirk but the precise
+ * statement that set-piece conversion is unchanged by any of this. A penalty
+ * converts today exactly what it converted before, and the tests that pin it
+ * are the same tests, passing on the same numbers.
+ */
+export const SET_PIECE_MIDPOINT = 0.64;
+
+/**
+ * The chance a shot goes in.
+ *
+ * `quality` and `situation` are both optional so the curve can still be
+ * reasoned about and tested on its own, and so that any caller predating the
+ * split behaves exactly as it did — 0.5 is the neutral chance and contributes
+ * nothing.
+ */
+export function shotGoalProbability(
+  value: number,
+  quality = 0.5,
+  situation?: SituationType,
+): number {
+  const exempt = situation !== undefined && SET_PIECE_SITUATIONS.includes(situation);
+  const adjusted = exempt ? value : value + SHOT_QUALITY * (quality - 0.5);
+  const midpoint = exempt ? SET_PIECE_MIDPOINT : GOAL_CURVE.midpoint;
+  const raw = 1 / (1 + Math.exp(-(adjusted - midpoint) * GOAL_CURVE.steepness));
   return clamp01(Math.min(GOAL_CURVE.max, Math.max(GOAL_CURVE.min, raw)));
 }
 
@@ -332,7 +460,7 @@ function resolveShot(
 ): EventOutcome {
   const big = isBigChance(context);
 
-  if (rng.chance(shotGoalProbability(value))) {
+  if (rng.chance(shotGoalProbability(value, context.situationQuality, context.situation))) {
     return outcome('goal', `${player} goes for the ${label} — and it's in! GOAL!`, {
       goalScored: true,
       ratingDelta: 1.6,

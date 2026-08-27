@@ -9,6 +9,8 @@ import {
   rankLegacies,
   retirementProspect,
   summariseCareer,
+  BALANCE_VERSION,
+  balanceVersionOf,
 } from '../src/core/career/legacy.ts';
 import type { CareerLegacy } from '../src/core/career/legacy.ts';
 import { startCareer } from '../src/simulation/CareerService.ts';
@@ -571,5 +573,32 @@ describe('where an honour was won', () => {
     expect(honourPoints([inCountry('title', 'austria')])).toBeGreaterThan(
       honourPoints([inCountry('leagueCup', 'england')]),
     );
+  });
+});
+
+/**
+ * WHICH SCORING MODEL A CAREER WAS PLAYED UNDER.
+ *
+ * The wall ranks on a score that reads goals and average rating, and the
+ * goal-conversion fix moved both — so entries from either side of it are not
+ * comparable on that number. The answer is a label rather than a retroactive
+ * rescale, and these pin the part of it that is code.
+ */
+describe('the era a legacy belongs to', () => {
+  it('treats an unstamped entry as the older model rather than the current one', () => {
+    // Absence IS the answer: nothing enshrined before versioning existed can
+    // have been played under the model that came after it.
+    expect(balanceVersionOf({})).toBe(1);
+    expect(balanceVersionOf({ balanceVersion: undefined })).toBe(1);
+  });
+
+  it('reads back a stamped entry unchanged', () => {
+    expect(balanceVersionOf({ balanceVersion: BALANCE_VERSION })).toBe(BALANCE_VERSION);
+  });
+
+  it('has moved past the unversioned era, or the label means nothing', () => {
+    // If this ever reads 1, every entry is "current" and the wall silently
+    // ranks two incompatible scoring models against each other again.
+    expect(BALANCE_VERSION).toBeGreaterThan(1);
   });
 });

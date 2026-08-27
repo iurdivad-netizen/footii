@@ -345,6 +345,107 @@ value = baseValue
 `value` is then mapped to an outcome through a per-family ladder (goal / woodwork / save / block /
 miss for shots; completed / dangerous / intercepted for passes; and so on).
 
+### What a chance is worth
+
+The roadmap recorded for a long time that "auto-play scores far too much" — 2.9 goals a match at
+ability 85 — and deliberately left it alone. Measuring it took three passes and each one moved the
+blame. The first two are recorded in [ROADMAP.md](ROADMAP.md); this is the one that was real.
+
+**Chance volume was never the problem.** Decomposing goals into
+`involvements × shots/involvement × goals/shot`, a great striker gets barely more chances than a poor
+one — 5.8 shots a match at ability 85 against 5.1 at 55, and an identical 0.65 shots per
+involvement. The entire ability effect ran through **conversion**: 0.11 goals per shot at 55 against
+0.39 at 85.
+
+**The defect was that the chance itself barely counted.** `RESOLUTION_WEIGHTS.quality` was 0.18 —
+half the weight of the player's own execution — so a good footballer's *hopeless* chance inherited
+most of the value of his best one. Measured by band of `situationQuality`, with a perfect read:
+
+| chance | ability 55 | ability 85 |
+|---|---|---|
+| poor (<0.45) | 18.8% | **27.6%** |
+| fair (.45–.62) | 12.7% | 33.3% |
+| big (≥0.62) | 22.6% | **44.5%** |
+
+A world-class striker converted a genuinely poor chance more than a quarter of the time, and the
+spread from hopeless to gilt-edged was **1.5×** where real football is nearer tenfold. That is what
+made the aggregate absurd while every individual number looked defensible: `GOAL_CURVE` was
+calibrated on one-on-ones, where it was right, and every speculative effort in the game came along
+for the ride.
+
+**The obvious fix inverts the game.** Raising `RESOLUTION_WEIGHTS.quality` was tried and measured
+first. That weight feeds `value`, which every action family shares and which the whole decision model
+is ordered by — so raising it makes the situation matter more and the *choice* matter less. At 0.58,
+**choosing the worst available option outscored choosing the best** at every ability measured (0.68
+goals a match against 0.53 at ability 55; 1.90 against 1.83 at 85), because a bad shot in a good
+position now beat a good pass. A change that makes the decision mechanic the game is built on
+actively harmful is not a balance fix, whatever it does to the aggregate.
+
+So the chance's quality is **separated out and applied only at the goal roll**, as `SHOT_QUALITY`.
+`value` is untouched, every option is ordered exactly as before, and reading the situation is worth
+exactly what it always was. What changes is only whether the shot goes in.
+
+**Set pieces are exempt, and that is what the adjustment is for.** A penalty sits at 0.88–0.95
+quality and a direct free kick at 0.3–0.55; each is a named, separately calibrated situation whose
+numbers were tuned against the conversion they were meant to produce. A gradient fitted to open play
+double-counts the one thing they already state — and because they sit at opposite ends of it,
+including them sent penalties past every bound their own tests set while driving specialist free
+kicks below 2%. They keep the pre-split midpoint too, since the midpoint moved only to offset a
+gradient they never receive.
+
+**What it bought**, over 150 matches a side:
+
+| | before | after |
+|---|---|---|
+| poor chance, ability 85 | 27.6% | 21.5% |
+| big chance, ability 85 | 44.5% | **39.3%** |
+| big chance, ability 55 | 22.6% | **18.6%** |
+| goals per shot | 0.381 | 0.312 |
+| goals per match | 2.24 | 1.82 |
+| **goals per season** | **47.0** | **29.0** |
+
+The big-chance row is the one that matters: 39.3% and 18.6% against the **40% and 20%** `GOAL_CURVE`
+was always documented to produce. That calibration is now the one the game actually has, rather than
+the one it had for its best chances and lent to all the others.
+
+**What is still wrong, stated rather than hidden.** A hopeless chance still converts better than one
+in five for a world-class striker, and the spread across bands is 1.8× against a real tenfold. No
+constant in the resolver closes that — a bigger one either inverts the decision model or breaks the
+set pieces, both measured. What is left is the **shot mix**: the game hands its striker five to six
+attempts a match, most of them decent, because he is the focus of every situation it generates. That
+is the situation generator's business, and it is recorded rather than half-done.
+
+#### What had to be re-calibrated with it
+
+Four things read the numbers this changed, and leaving any of them would have made a mechanical
+correction into a silent design change.
+
+**The season objective.** Its contribution rates were explicitly pinned to what a skipped season
+returns, so they were re-measured and rescaled — a striker's rate from 1.15 to 0.76. The verdict
+distribution is back where it was set: 15% exceeded, 50% met, 35% missed.
+
+**The traits.** Every threshold reads evidence that moved. Measured over fourteen careers of fourteen
+seasons, before and after: average rating 8.30 → 7.38, nines per 100 apps 48.1 → 26.7, hat-tricks per
+100 13.0 → 7.6, longest scoring run 25.6 → 11.8, big-match average 8.06 → 7.07, assists 140 → 93,
+perfect tens 173 → 70. Each threshold moved by its own measured ratio — the counting ones scaled, the
+rating ones shifted — so **incidence is preserved**. Re-basing was forced by the engine change, and
+using it as cover to also make traits rarer would have folded a design decision nobody asked for into
+a correction nobody could then audit.
+
+**The awards — deliberately not restored.** The golden boot bar is derived from the AI league table,
+which this change does not touch, so the player now has to compete with his division rather than
+lap it. Individual honours per 100 seasons went from 89 top-scorer and 65 player-of-the-season to
+**70 and 29**. Winning the golden boot nine years in ten *was* the distortion the roadmap complained
+about; restoring it would have undone the fix.
+
+**The wall of fame.** `careerScore` reads goals and average rating, both of which moved, so a career
+enshrined under the old model outranks an identical one played under the new — permanently, and
+through no merit of its own. Each legacy now carries a `balanceVersion`, and older entries are
+labelled on the wall. It is a **label rather than a rescale**, for the reason this game has already
+settled once over skipped matches: rewriting a number somebody was shown the day his career ended is
+the one thing a record must never do, and the factor doing the rescaling would be a fiction — no
+multiplier turns a career that happened into the career it would have been.
+
 ### Goals are a probability, not a threshold
 
 `value` is mapped to an outcome through a per-family ladder — except for the single most important

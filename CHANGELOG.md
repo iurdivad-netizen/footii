@@ -323,3 +323,30 @@ Eight things that were not on either list, found by reading the code against wha
   attributes — was written, measured and **reverted**, because it changed nothing: the term spans
   17.4% to 22.5% across a whole career, a five-point swing that could never have produced the
   effect. Recorded because it is the kind of dead end worth only paying for once. See ROADMAP.md.
+
+- **And then it was fixed, and the fix was not the one that had been scoped.** The plan of record
+  was to lower `GOAL_CURVE`'s midpoint and re-calibrate around it. Measuring first killed that: the
+  curve's one-on-one numbers were right the day they were written, and lowering it drags them down
+  with everything else.
+
+  The real defect was `RESOLUTION_WEIGHTS.quality` at 0.18 — half the weight of the player's own
+  execution — so a good footballer's HOPELESS chance inherited most of the value of his best one.
+  A world-class striker converted a genuinely poor chance 27.6% of the time against 44.5% for a
+  gilt-edged one: a spread of 1.5x where real football is nearer tenfold. That is why the aggregate
+  was absurd while every individual number looked defensible.
+
+  Raising that weight was tried first and **inverted the game** — it feeds `value`, which the whole
+  decision model is ordered by, so at 0.58 choosing the worst available option outscored choosing
+  the best at every ability measured. Recorded because it is exactly the kind of plausible fix that
+  only measurement catches. What shipped instead separates chance quality out and applies it at the
+  goal roll alone, leaving every option ordered as before, with set pieces exempt because each is
+  already calibrated in its own right.
+
+  Season goals fell 47.0 to 29.0 and a season's average rating 7.64 to 6.99. Four things read those
+  numbers and were re-calibrated with them: the season objective's rates (rescaled, verdicts back to
+  15/50/35), the trait thresholds (each moved by its own measured ratio, so incidence is preserved),
+  the individual awards (deliberately NOT restored — top scorer in 89% of seasons was itself the
+  distortion, and it is now 70%), and the wall of fame (each legacy stamped with a `balanceVersion`
+  and older entries labelled, a label rather than a rescale for the same reason item 11 settled the
+  same way). What is still wrong is stated rather than hidden: the shot MIX, which is the situation
+  generator's business. See [What a chance is worth](README.md#what-a-chance-is-worth).
