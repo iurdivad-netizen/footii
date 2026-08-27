@@ -5,8 +5,8 @@ import { TACTICAL_STYLE_LABELS } from '../../core/team/team.ts';
 import type { Team } from '../../core/team/team.ts';
 import { getCountry } from '../../core/career/countries.ts';
 import { clubStanding, describeTrial, reachOf, trialRequirement } from '../../core/career/trial.ts';
-import type { ClubStanding } from '../../core/career/trial.ts';
 import { CUSTOM_PLAYER_ID } from '../../data/gameData.ts';
+import { ClubPicker } from './clubPicker.ts';
 
 export interface SetupSelection {
   /** A preset id, or CUSTOM_PLAYER_ID when using a created player. */
@@ -41,6 +41,8 @@ export interface SetupHandlers {
 /** Team selection, player selection, match seed, and the two entry points. */
 export class SetupScreen {
   readonly element: HTMLElement;
+  /** Assigned in the constructor, before anything reads it. */
+  private picker!: ClubPicker;
 
   /**
    * The player a preset id refers to.
@@ -87,10 +89,10 @@ export class SetupScreen {
           </button>
         </div>
 
-        <div class="field">
-          <label for="team">Your club</label>
-          <select id="team"></select>
+        <div class="field field-wide">
+          <span class="field-label" id="club-label">Your club</span>
           <p class="hint" id="club-note"></p>
+          <div id="club-picker"></div>
         </div>
 
         <div class="field" ${handlers.mode === 'career' ? 'hidden' : ''}>
@@ -153,58 +155,28 @@ export class SetupScreen {
     // player changes: a veteran and a seventeen-year-old are not offered the
     // same clubs, and a list that did not move would be offering one of them a
     // lie. Only in career mode — a quick match is a friendly against anybody.
-    const teamSelect = this.element.querySelector<HTMLSelectElement>('#team')!;
     const clubNote = this.element.querySelector<HTMLElement>('#club-note')!;
 
-    const renderClubs = () => {
-      const previous = teamSelect.value;
-      if (handlers.mode !== 'career') {
-        teamSelect.innerHTML = TEAMS.map(
-          (t) => `<option value="${t.id}">${clubOption(t)}</option>`,
-        ).join('');
-        clubNote.textContent = '';
-        teamSelect.value = previous || 'northport-city';
-        return;
-      }
-
-      const player = this.playerFor(presetSelect.value);
-      const banded: Record<ClubStanding, Team[]> = { open: [], trial: [], closed: [] };
-      for (const team of TEAMS) banded[clubStanding(player, team)].push(team);
-
-      const group = (standing: ClubStanding, label: string) => {
-        const clubs = banded[standing];
-        if (clubs.length === 0) return '';
-        return `<optgroup label="${label} (${clubs.length})">${clubs
-          .map(
-            (t) =>
-              `<option value="${t.id}" ${standing === 'closed' ? 'disabled' : ''}>${clubOption(t)}${
-                standing === 'trial' ? ` — trial, ${trialRequirement(reachOf(player, t))} needed` : ''
-              }</option>`,
-          )
-          .join('')}</optgroup>`;
-      };
-
-      teamSelect.innerHTML =
-        group('open', 'Would sign you') +
-        group('trial', 'Would give you a trial') +
-        group('closed', 'Out of your reach');
-
-      // Keep the choice if it is still available; otherwise fall to the best
-      // club that would simply take him, which is the sensible default.
-      const stillThere = [...banded.open, ...banded.trial].some((t) => t.id === previous);
-      teamSelect.value = stillThere
-        ? previous
-        : (banded.open[0] ?? banded.trial[0] ?? TEAMS[0]!).id;
-      updateClubNote();
-    };
+    // The picker owns the club list; this screen owns the sentence underneath
+    // it. Splitting it that way keeps the note in one place whether the choice
+    // changed because a club was clicked or because the player did.
+    const picker = new ClubPicker(TEAMS, 'northport-city', {
+      banded: handlers.mode === 'career',
+      onSelect: () => updateClubNote(),
+    });
+    this.element.querySelector<HTMLElement>('#club-picker')!.appendChild(picker.element);
+    this.picker = picker;
 
     const updateClubNote = () => {
-      if (handlers.mode !== 'career') return;
-      const team = TEAMS.find((t) => t.id === teamSelect.value);
+      if (handlers.mode !== 'career') {
+        clubNote.textContent = 'Any club in the world. Nothing here is saved to a career.';
+        return;
+      }
+      const team = TEAMS.find((t) => t.id === picker.value);
       if (!team) return;
       const player = this.playerFor(presetSelect.value);
       if (clubStanding(player, team) !== 'trial') {
-        clubNote.textContent = 'They would take you. Pick them and the season starts.';
+        clubNote.textContent = `${team.name} would take you. Pick them and the season starts.`;
         clubNote.classList.remove('trial');
         return;
       }
@@ -213,16 +185,20 @@ export class SetupScreen {
       clubNote.classList.add('trial');
     };
 
-    teamSelect.addEventListener('change', updateClubNote);
+    const refreshForPlayer = () => {
+      picker.setPlayer(handlers.mode === 'career' ? this.playerFor(presetSelect.value) : null);
+      updateClubNote();
+    };
+
     presetSelect.addEventListener('change', () => {
       updateDescription();
-      renderClubs();
+      refreshForPlayer();
     });
     updateDescription();
-    renderClubs();
+    refreshForPlayer();
 
     const collect = (): SetupSelection => {
-      const teamId = this.element.querySelector<HTMLSelectElement>('#team')!.value;
+      const teamId = this.picker.value;
       let opponentId = this.element.querySelector<HTMLSelectElement>('#opponent')!.value;
       if (opponentId === teamId) {
         opponentId = TEAMS.find((t) => t.id !== teamId)!.id;

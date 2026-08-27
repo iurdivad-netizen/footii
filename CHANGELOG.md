@@ -360,3 +360,18 @@ Eight things that were not on either list, found by reading the code against wha
   reachable at any time, the manual generated from the game's own tables so it cannot drift out of
   step with the settings it describes. Existing players are marked as having seen the welcome
   without ever being shown it. See [Arriving for the first time](README.md#arriving-for-the-first-time).
+
+- **Choosing where to start was a 192-item dropdown.** It truncated mid-word on a phone and withheld
+  everything the game already knew: `trial.ts` works out for every club whether it would sign you,
+  trial you or not look at you, and the dropdown compressed that into three headings and a disabled
+  attribute — with the league, the squad strength and the style of football nowhere on screen, at the
+  one moment that decides the next fifteen years. Replaced with a browsable picker.
+
+  The measurement changed the design. Grouping by band is the obvious structure and organises almost
+  nothing — a young prospect has 174 of 192 clubs reachable, so it is one enormous group and two
+  small ones. Country divides the world properly: twelve of them, sixteen clubs each. Clubs are
+  sorted strongest first, which is the ladder the dropdown hid entirely, and out-of-reach clubs are
+  shown greyed rather than filtered out. A bug only a browser found: the first version built its
+  country row from `allCountries()`, which returns forty-eight — the world has that many because
+  international football needs them and only twelve have a league. See
+  [Where a career may begin](README.md#where-a-career-may-begin).
