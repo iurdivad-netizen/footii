@@ -311,3 +311,15 @@ Eight things that were not on either list, found by reading the code against wha
   not the lever either — sweeping it across five candidate ranges moves the average rating by at most
   0.02. Both halves are still recorded rather than changed, because either would move every career
   already played, but they are now recorded accurately and `scripts/measureAutoPlay.ts` is committed.
+
+  **A second pass found where the goals actually come from, and a third found that auto-play has no
+  lever at all.** Decomposing the scoring shows chance VOLUME is flat across ability — 5.1 shots a
+  match at 55 against 5.8 at 85 — while conversion runs 0.11 to 0.39. The amplifier is `GOAL_CURVE`,
+  a logistic steep enough to turn a 0.15 swing in the underlying shot value into a 3.5× swing in
+  conversion, calibrated honestly on one-on-ones and then applied to every shot in the game. Fixing
+  it is one constant plus four re-calibrations, all of which now have tools.
+
+  The obvious contained alternative — stop `autoTimeUsed` scaling its tempo with the player's
+  attributes — was written, measured and **reverted**, because it changed nothing: the term spans
+  17.4% to 22.5% across a whole career, a five-point swing that could never have produced the
+  effect. Recorded because it is the kind of dead end worth only paying for once. See ROADMAP.md.
