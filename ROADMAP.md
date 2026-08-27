@@ -200,6 +200,86 @@ Both halves are recorded rather than changed, for the reason the original note g
 move careers already played — but they are now recorded **accurately**, and the tool that settles the
 question is committed.
 
+### Where the goals actually come from
+
+A second measurement pass decomposed the scoring into the chain that produces it —
+`goals = involvements x (shots / involvement) x (goals / shot)` — because "the engine scores too
+much" is three different bugs wearing one coat. Per match, auto-played, across the ability range:
+
+| | 55 | 70 | 85 | change |
+|---|---|---|---|---|
+| involvements | 7.8 | 8.4 | 8.7 | +12% |
+| shots | 5.1 | 5.5 | 5.8 | +15% |
+| shots per involvement | 0.65 | 0.65 | 0.67 | **flat** |
+| on-target per shot | 0.39 | 0.53 | 0.66 | +69% |
+| **goals per shot** | **0.11** | **0.24** | **0.39** | **+255%** |
+
+**Chance volume is not the problem.** A great striker gets barely more chances than a poor one, and
+turns the same fraction of them into attempts. The whole ability effect on goals runs through
+**conversion** — and it compounds through two stages that both scale with ability, the on-target
+rate and the goals-per-shot-on-target, which multiply.
+
+**The amplifier is `GOAL_CURVE`** in `simulation/ActionResolver.ts` — `{ midpoint: 0.64, steepness: 11 }`.
+Inverting the observed conversion, the mean shot `value` moves only from about **0.45 to 0.60**
+across the whole ability range. A logistic that steep turns that 0.15 swing into 11% → 39%.
+
+**It was calibrated on the right statistic and applied to the wrong population.** The comment above
+the curve says a clean one-on-one converts around 40% for a good finisher and 20% for a raw
+teenager, "roughly what real one-on-ones look like" — and that is accurate. But the curve tuned on
+the BEST chances is applied to EVERY shot, so ability 85 converts 39% of all attempts where real
+football manages 12-15%. Nobody checked the aggregate.
+
+**Steepness is the wrong lever**, which is worth knowing before anyone reaches for it. The mean
+`value` sits BELOW the midpoint at every ability, so flattening the curve pulls conversion UP toward
+50%: dropping steepness to 6 takes ability 55 from 11% to 24%. Any fix has to move the midpoint.
+
+**What a fix would cost**, measured on a candidate (`midpoint 0.72, steepness 9`) and then reverted:
+
+| ability | goals now → after | rating now → after |
+|---|---|---|
+| 55 | 0.54 → 0.42 | 6.05 → 5.78 |
+| 70 | 1.28 → 0.90 | 7.74 → 7.12 |
+| 85 | 2.28 → 1.58 | 9.04 → 8.40 |
+
+Goals fall about 30%; **ratings fall only about 0.6**, because `compressEventDelta`'s square root
+absorbs most of it. That bounds the blast radius, but 0.6 of rating still moves everything keyed to
+a rating threshold: the traits (`bigMatchAverage >= 7.4`, `nineOrBetter >= 30%`, the maverick's
+perfect-ten rate), the awards and the golden boot, the objective's contribution rates, and
+`careerScore` on the wall of fame. So it is **one constant plus four re-calibrations**, each of
+which now has a committed measuring tool. A day's careful work, not a one-line change and not a
+fortnight.
+
+Still not done, for the original reason: it moves every career ever played.
+
+### Both of auto-play's own constants are innocent
+
+Recorded because it was attempted and measured rather than reasoned about, and because the obvious
+next step turned out not to exist.
+
+The narrowing gap above looked like it should be fixable inside `AutoPlay.ts`, by stopping the
+policy's tempo from scaling with the player. `autoTimeUsed` reads
+`0.08 + sharp * 0.17`, where `sharp` is the player's own awareness and anticipation — which looks
+like exactly the wrong thing to scale with ability, since the early-decision bonus is what READING
+the situation buys and reading it is what auto-play stands in for the absence of.
+
+It was flattened to a constant and measured. **It changed nothing**: the auto-play share of a
+perfect read stayed at 76% / 88% / 98% against 76% / 90% / 99%. The arithmetic says why, and it is
+the sort of thing only arithmetic says — `sharp` never approaches either end of its range for a real
+footballer, so across a whole career the term spans **17.4% to 22.5%**, a five-point swing in how
+often one of three tempo bands is hit. It could never have produced the effect.
+
+That is now both of auto-play's candidate levers ruled out by measurement: `AUTO_SHARPNESS` moves
+the rating by at most 0.02, and the tempo term by nothing at all. **The convergence is the engine's
+too** — at high ability the goal curve is saturated enough that most options convert, so the
+decision genuinely stops mattering. The candidate curve above moves auto-play from 99% of a perfect
+read to 92%, which is the same fix arriving from the other direction.
+
+The change was written, measured, and reverted rather than kept. A constant that is right in
+principle and does nothing in practice is not worth the one thing it would have cost: skipped
+matches are deterministic from their seed, and altering how the policy consumes its rng changes the
+result of every future skipped match in every career in progress. That is a real price, and there
+was nothing on the other side of it.
+
 ## Nothing is still open
 
 All fourteen items in [CHANGELOG.md](CHANGELOG.md) are now done — thirteen raised from playing the
