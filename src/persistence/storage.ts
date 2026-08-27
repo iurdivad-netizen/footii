@@ -37,7 +37,7 @@ import { rankLegacies } from '../core/career/legacy.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 28;
+export const SAVE_VERSION = 29;
 
 export interface CareerRecord {
   matches: number;
@@ -88,6 +88,26 @@ export interface GameSettings {
    * footballer — and because it should carry across all three career slots.
    */
   hubOpen: string[];
+  /**
+   * Whether the player has been shown what this game is.
+   *
+   * The front door is a rack of career slots and a settings panel, which is the
+   * right screen for somebody who already knows what a decision window is and
+   * the wrong one for somebody who does not. Somebody arriving for the first
+   * time was being asked to choose a decision pace before anything had told him
+   * that a decision was a thing the game had.
+   *
+   * A setting rather than career state, because it is a fact about the person
+   * rather than about any footballer, and because seeing it once should count
+   * across all three slots.
+   *
+   * Optional, and absent reads as "not yet" — see the migration, which marks
+   * anybody with a career or a career on the wall as having long since found
+   * out. A browser that cannot save will show the welcome every time, which is
+   * the correct failure: the alternative is hiding the explanation from the one
+   * player whose game is not remembering anything.
+   */
+  seenIntro?: boolean;
 }
 
 /**
@@ -105,7 +125,7 @@ export function defaultSettings(): GameSettings {
   // Tabs by default: it is the layout that fixes the problem the restructure
   // was for — a phone hub three and a half thousand pixels tall — and the
   // front door offers the other one to anybody who would rather scroll.
-  return { pace: 'untimed', matchSpeed: 1, hubLayout: 'tabs', hubOpen: ['you'] };
+  return { pace: 'untimed', matchSpeed: 1, hubLayout: 'tabs', hubOpen: ['you'], seenIntro: false };
 }
 
 export interface SaveData {
@@ -886,6 +906,24 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
         career.seasonInjuredMisses ??= 0;
       }
     }
+  }
+
+  if (save.version === 28) {
+    // v28 -> v29: the game explains itself on the first visit.
+    //
+    // The question this has to get right is who counts as new. Anybody holding
+    // a career, or a finished one on the wall, has plainly already found out
+    // what a decision window is, and showing them an introduction after an
+    // update would be the game forgetting them. They are marked as having seen
+    // it without ever being shown it, which is true in every sense that matters.
+    //
+    // A save that exists but has never held a career is left unmarked, so it
+    // gets the welcome. That is the right way round: the file may exist because
+    // somebody opened the page once, changed a setting and left.
+    save = { ...save, version: 29 };
+    const played =
+      (save.careers ?? []).some(Boolean) || (save.hallOfFame ?? []).length > 0;
+    save.settings = { ...(save.settings ?? {}), seenIntro: played };
   }
 
   // The flat field is a migration detail and must not survive into the save.

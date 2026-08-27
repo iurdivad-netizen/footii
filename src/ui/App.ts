@@ -91,6 +91,8 @@ import type { ShootoutSide } from '../core/career/shootout.ts';
 import { simulateShootout } from '../core/career/shootout.ts';
 import { CareerEndScreen } from './screens/CareerEndScreen.ts';
 import { HallOfFameScreen } from './screens/HallOfFameScreen.ts';
+import { WelcomeScreen } from './screens/WelcomeScreen.ts';
+import { HowToPlayScreen } from './screens/HowToPlayScreen.ts';
 import { LegacyScreen } from './screens/LegacyScreen.ts';
 import type { TotalsView } from './screens/FullTimeScreen.ts';
 import { FullTimeScreen } from './screens/FullTimeScreen.ts';
@@ -164,7 +166,77 @@ export class App {
     this.storageWarning.hidden = true;
     this.root.appendChild(this.storageWarning);
     this.root.appendChild(this.debug.element);
-    this.showHome();
+    // The welcome comes before the front door, not instead of it: `showHome`
+    // is still where every other path lands, and this only redirects the very
+    // first arrival. See ui/screens/WelcomeScreen.ts.
+    if (this.save.settings.seenIntro) this.showHome();
+    else this.showWelcome();
+  }
+
+  // ----------------------------------------------------------- welcome ---
+
+  /**
+   * The first visit, and only the first.
+   *
+   * `seenIntro` is written the moment the player leaves by ANY of the three
+   * doors, including the one that goes straight into a career — an
+   * introduction that came back because somebody was in a hurry the first time
+   * would be an obstacle rather than a welcome.
+   */
+  private showWelcome(): void {
+    const leave = (go: () => void) => () => {
+      this.updateSettings({ seenIntro: true });
+      go();
+    };
+
+    this.mount(
+      new WelcomeScreen({
+        onStart: leave(() => {
+          this.save = selectSlot(this.save, this.firstEmptySlot());
+          this.showSetup('career');
+        }),
+        // Reached from the welcome, so the manual offers a way onward as well
+        // as a way back: somebody who reads first should not have to find the
+        // start button again afterwards.
+        onHowToPlay: leave(() => this.showHowToPlay(true)),
+        onSkip: leave(() => this.showHome()),
+      }).element,
+    );
+  }
+
+  /**
+   * The first slot with nothing in it, for the welcome's one-press start.
+   *
+   * Falls back to the first slot when all three are full, which cannot happen
+   * on a first visit and would otherwise be an unhandled -1.
+   */
+  private firstEmptySlot(): number {
+    const empty = this.careerSlots().findIndex((slot) => slot === null);
+    return empty === -1 ? 0 : empty;
+  }
+
+  // -------------------------------------------------------- how to play ---
+
+  /**
+   * The manual. Reachable from the front door at any time.
+   *
+   * `fromWelcome` decides whether it offers a way onward. Arriving from the
+   * welcome, the player has not started anything yet and the useful next step
+   * is to start; arriving from the front door he already has one open, and the
+   * only thing he wants is back.
+   */
+  private showHowToPlay(fromWelcome = false): void {
+    this.mount(
+      new HowToPlayScreen({
+        onBack: () => this.showHome(),
+        onStart: fromWelcome
+          ? () => {
+              this.save = selectSlot(this.save, this.firstEmptySlot());
+              this.showSetup('career');
+            }
+          : undefined,
+      }).element,
+    );
   }
 
   /**
@@ -251,6 +323,7 @@ export class App {
         onQuickMatch: () => this.showSetup('quick'),
         hallOfFame: this.save.hallOfFame,
         onHallOfFame: () => this.showHallOfFame(),
+        onHowToPlay: () => this.showHowToPlay(),
         onExport: () => this.exportSaveFile(),
         onImport: (text) => this.importSaveFile(text),
         status,

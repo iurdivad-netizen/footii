@@ -689,6 +689,43 @@ Beyond the single match, a career follows **one footballer season by season**.
   sits. Then comes the summer — the transfer window and any contract decision, then pre-season
   training — and you age a year and go again.
 
+### Arriving for the first time
+
+The front door is a rack of career slots, a wall of fame, a quick match and three settings. That is
+the right screen for somebody who already knows what a decision window is, and the wrong one for
+somebody who does not — a first-time player was being asked to choose a **decision pace** before
+anything on the page had told him that a decision was a thing this game had.
+
+The explanation did exist. It was five bullets inside a collapsed `<details>` at the very bottom,
+under the careers, the wall, the quick match, the settings and the save panel. **Folded, below the
+fold, and under five other sections is three separate ways of being unread.**
+
+So there are two screens now.
+
+**A welcome, shown once.** Three beats, and deliberately not a tutorial: you are one footballer
+rather than the manager; every moment is six options and a clock, with a goalkeeper who commits
+inside your window; and it runs for fifteen years. Then three doors — start a career, read the
+manual, or just look around. `seenIntro` is written the moment you leave by any of them, because an
+introduction that came back because somebody was in a hurry the first time is an obstacle rather
+than a welcome.
+
+Existing players never see it. The migration marks anybody holding a career, or with one on the
+wall, as having long since found out — showing them an introduction after an update would be the
+game forgetting them. A save that exists but has never held a career *does* get it, which is the
+right way round: the file may exist because somebody opened the page once, changed a setting and
+left.
+
+**A manual, reachable at any time** from the front door. Seven sections with a contents list: the
+match and the keeper's commit, how to read the six options, the hub and its sections, the week, what
+each setting actually changes, the keyboard, and how careers are kept.
+
+**It is generated from the game's own tables rather than transcribed from them.** The pace labels,
+the match speeds, the hub layouts, the action families and their colours, and the four week choices
+are all imported from the modules that define them. Documentation that can drift is documentation
+that will, and the drifted version is worse than none because it is confidently wrong — so
+`tests/howToPlay.test.ts` reads the source and fails if any of those tables is ever hand-copied into
+the page.
+
 ### The shape of the hub
 
 A mature career renders **sixteen cards** on the hub — from the next fixture to the
