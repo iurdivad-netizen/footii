@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import type { HubSection } from '../src/ui/screens/hubSections.ts';
 import {
   HUB_LAYOUTS,
@@ -140,5 +141,46 @@ describe('the two layouts show the same career', () => {
       expect(tabs, section.id).toContain(section.label);
       expect(folds, section.id).toContain(section.label);
     }
+  });
+});
+
+/**
+ * A HUB THAT DOES NOT LOOK BROKEN ON DAY ONE
+ *
+ * Empty sections are dropped, which is right — a first-season career has no
+ * honours, no transfers and no history, and three empty folds would be worse
+ * than the flat hub the sections replaced.
+ *
+ * The consequence nobody accounted for is that a career on its first day shows
+ * THREE sections where the manual describes four, with nothing saying the
+ * fourth is coming. Measured in a browser: day one renders You, Club and
+ * Competitions; Career appears after the first match, holding only the diary.
+ */
+describe('sections that are not there yet', () => {
+  const source = readFileSync(
+    new URL('../src/ui/screens/CareerScreen.ts', import.meta.url),
+    'utf8',
+  );
+
+  it('still drops empty sections rather than rendering them hollow', () => {
+    // The line added for this must not have quietly reversed the decision it
+    // was built on top of.
+    expect(source).toContain("filter((section) => section.html.trim().length > 0)");
+  });
+
+  it('says which sections are still to come', () => {
+    expect(source).toContain('renderStillToCome');
+    expect(source).toContain('HUB_SECTION_IDS.filter');
+  });
+
+  it('names them rather than reassuring in general', () => {
+    // "It fills up as you play" could be written without looking at the career.
+    // Naming the missing section is a fact about this one.
+    expect(source).toContain('HUB_SECTION_LABELS[id]');
+  });
+
+  it('removes itself once every section has something in it', () => {
+    // A hub that permanently explained itself would carry a permanent apology.
+    expect(source).toContain("if (missing.length === 0) return '';");
   });
 });

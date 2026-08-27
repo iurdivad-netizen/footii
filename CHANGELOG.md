@@ -393,3 +393,16 @@ Eight things that were not on either list, found by reading the code against wha
   anything new. Each dot carries its letter as well as its colour, so it reads without colour at all;
   a missed match gets its own mark, because an absence is exactly what a timeline should show. See
   [What the last match changed](README.md#what-the-last-match-changed) and [The season so far](README.md#the-season-so-far).
+
+- **A first-season hub looked broken rather than empty.** Empty sections are dropped, which is right,
+  but the consequence is that day one renders three sections where the manual describes four and
+  nothing says the fourth is coming — so an empty career and a broken screen look identical. One line
+  now names what is missing and removes itself once every section has something in it, measured at
+  four matches in. The drop rule is untouched.
+
+- **Removing a career from the wall took one click.** A finished career is the only thing in this
+  game that cannot be played again, there was no undo, and the button sat directly under a card the
+  player had every reason to be clicking — while wiping the whole wall was already guarded. The
+  smaller and likelier mistake was the unguarded one. It takes two presses now, using the same
+  arm-then-confirm the clear button already had, disarming when focus leaves and never arming two
+  buttons at once. See [The most destructive click in the game](README.md#the-most-destructive-click-in-the-game).

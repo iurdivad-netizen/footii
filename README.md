@@ -866,6 +866,28 @@ a timeline should show — dropping it would draw a season that looks continuous
 
 The strip scrolls inside its own box, so a fifty-match season never makes the page scroll sideways.
 
+### A hub that does not look broken on day one
+
+Empty sections are dropped rather than rendered hollow, and that is right: a first-season career has
+no honours, no transfers and no history, and three empty folds would be worse than the flat hub the
+sections replaced.
+
+The consequence nobody had accounted for is what a career looks like on its **first day**. Measured
+in a browser: three sections — *You*, *Club*, *Competitions* — where the manual describes four, with
+nothing anywhere saying the fourth is coming. A player cannot tell an empty career from a broken
+screen, and the reading he can make unaided is the wrong one.
+
+So one line sits under the sections, and it **names** what is missing:
+
+> *Career appears here once there is something to put in it — honours you win, clubs you move to,
+> seasons you finish.*
+
+Naming the section is a fact about this career. "It fills up as you play" is a sentence that could be
+written without looking at one.
+
+**It removes itself** the moment every section has something in it — measured at four matches into
+the first season. A hub that permanently explained itself would carry a permanent apology.
+
 ### Why development is applied per match
 
 Because the payoff has to be felt in the core mechanic, not read on a summary screen.
@@ -2475,6 +2497,24 @@ hit would take the live career down with it. The entries dropped are always the 
 Enshrining and clearing the career are **one write**, never two. Two writes have a moment between
 them, and a browser that dies in that moment leaves you either with a career you have already said
 goodbye to, or with a wall entry for a career still being played.
+
+### The most destructive click in the game
+
+A finished career is the only thing here that cannot be played again. Removing one from the wall
+took **a single press**, with no undo, from a button sitting directly under a card the player had
+every reason to be clicking on — while wiping the *entire* wall was already guarded by an
+arm-then-confirm. That is exactly the wrong way round: the smaller and likelier mistake was the
+unguarded one.
+
+Removing one entry now takes the same two presses, with the same idiom rather than a new one. It is
+not a `confirm()` dialog, for the reason the end-of-career screen settled once already: showing what
+is about to be lost is a better question than *are you sure?* ever was, and here the card above the
+button is exactly that. Keeping the guard inside the page also means a keyboard player meets it in
+the same tab order as everything else.
+
+Two details that matter more than they look. **Moving focus away disarms it** — a button that stayed
+armed would be a trap laid for the next visit rather than a guard on this one. And **only one can be
+armed at a time**, because two armed buttons on one screen is two traps rather than one guard.
 
 ### Three careers, and taking them with you
 
