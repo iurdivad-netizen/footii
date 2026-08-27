@@ -4995,3 +4995,148 @@ button.week-option:disabled .week-option-note {
   vertical-align: middle;
   margin-left: 5px;
 }
+
+/* ------------------------------------------- what the match changed ------ */
+
+/*
+ * Directly under the scoreline, because it is the rest of the sentence the
+ * scoreline started. Absent most weeks by design — the model only speaks when
+ * something crossed a line the player can act on, so a strip that appeared
+ * every week would train the eye to skip the week it mattered.
+ *
+ * On the semantic palette and nowhere near the club colour: this is the
+ * interface telling you about YOU.
+ */
+.change-strip {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.change-strip li {
+  font-size: 0.86rem;
+  line-height: 1.4;
+  padding-left: 14px;
+  position: relative;
+  color: var(--text-dim);
+}
+
+.change-strip li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.52em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.change-strip .change-good {
+  color: var(--accent);
+}
+
+.change-strip .change-bad {
+  color: var(--warn);
+}
+
+/* ------------------------------------------------- the season so far ----- */
+
+/*
+ * ONE DOT PER MATCH, oldest first.
+ *
+ * The hub could say what happened last Saturday and nothing about the shape of
+ * the year around it — four straight wins and four straight defeats looked
+ * identical from here, which is most of what a season feels like.
+ *
+ * COLOUR IS NEVER THE ONLY CHANNEL. Each dot carries its letter (W/D/L, and a
+ * middot for a match he missed), so the strip reads without colour at all. That
+ * is the same rule the action families follow in the match, and for the same
+ * reason.
+ *
+ * Scrolls inside its own box. A fifty-match season must never make the PAGE
+ * scroll sideways.
+ */
+.season-timeline {
+  margin-top: 12px;
+}
+
+.tl-dots {
+  list-style: none;
+  margin: 0;
+  padding: 2px;
+  display: flex;
+  gap: 3px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.tl-dots li {
+  flex: 0 0 auto;
+  position: relative;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  /*
+   * The floor, not below it. The letter is what makes this strip readable
+   * without colour, so shrinking it to fit more matches on screen would be
+   * trading the accessible channel for density — and a fifty-match season
+   * scrolls perfectly well.
+   */
+  font-size: 0.7rem;
+  line-height: 1;
+  border: 1px solid transparent;
+}
+
+.tl-win {
+  background: var(--accent-dim);
+  color: #05140b;
+}
+
+.tl-draw {
+  background: var(--bg-panel);
+  color: var(--text-dim);
+  border-color: var(--line);
+}
+
+.tl-loss {
+  background: rgba(239, 68, 68, 0.22);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* A match that happened without him. Dimmed, because it is an absence. */
+.tl-missed {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--text-dim);
+}
+
+/* The next fixture, so the strip shows where the season has got to. */
+.tl-next {
+  background: transparent;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/*
+ * An afternoon he scored on.
+ *
+ * `--goal` and nothing else may use it, per the palette note at the top.
+ * Scanning for the matches he scored in is the single most likely reason to
+ * look at this strip at all.
+ */
+.tl-scored {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--goal);
+}

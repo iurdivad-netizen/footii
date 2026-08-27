@@ -49,6 +49,8 @@ import {
 } from './confidence.ts';
 import type { FormerRival } from './squad.ts';
 import type { SeasonObjective } from './objective.ts';
+import type { MatchChange } from './matchReport.ts';
+import { changesBetween } from './matchReport.ts';
 import type { Moment } from './moments.ts';
 import { momentsFrom, rememberMoments } from './moments.ts';
 import { STREAKY_FORM, hasTrait, newTraits } from '../player/traits.ts';
@@ -286,6 +288,22 @@ export interface CareerState {
    * report for each one — so the hub has to be able to say what just happened.
    */
   lastResult: MatchResultSummary | null;
+  /**
+   * Every match of the CURRENT season, oldest first.
+   *
+   * The same summary `lastResult` holds, kept rather than overwritten, so the
+   * hub can draw the season as a shape instead of reporting only its most
+   * recent afternoon. Reset every summer with the rest of the season ledger,
+   * which bounds what a career already in progress loses to exactly one partial
+   * season — see the note on `seasonInjuredMisses` for the same trade.
+   */
+  seasonResults: MatchResultSummary[];
+  /**
+   * What was worth saying about the last match, beyond its scoreline.
+   *
+   * Empty most weeks, deliberately. See core/career/matchReport.ts.
+   */
+  lastChanges: MatchChange[];
   /** How this career was actually played. See `HowItWasPlayed`. */
   howPlayed: HowItWasPlayed;
   /**
@@ -967,6 +985,16 @@ export function applyMatchToCareer(
 ): AttributeChange[] {
   const { stats, rating, result } = input;
 
+  // Taken before anything below moves, for the same reason the record book is
+  // snapshotted a few lines further down: what is worth telling the player is
+  // decided by comparing both sides of this one match. See matchReport.ts.
+  const changesBefore = {
+    fitness: state.fitness,
+    confidence: state.confidence ?? startingConfidence(state.contract?.role ?? 'starter'),
+    appearances: lifetimeTotals(state.records).matches,
+    goals: lifetimeTotals(state.records).goals,
+  };
+
   // Every match feeds the season total; only league matches feed the league
   // ledger the awards are judged on. Accumulating both here rather than at the
   // call site means the two can never drift apart.
@@ -1094,6 +1122,15 @@ export function applyMatchToCareer(
 
   restUntilNextMatch(state, input.slotIndex, input.fitnessAtEnd);
 
+  // After the rest, because the number the player will act on is the one he
+  // takes INTO next week rather than the one he finished the match on.
+  state.lastChanges = changesBetween(changesBefore, {
+    fitness: state.fitness,
+    confidence: state.confidence,
+    appearances: lifetimeTotals(state.records).matches,
+    goals: lifetimeTotals(state.records).goals,
+  });
+
   // Then, and only then, the roll for a new one. AFTER the rest above rather
   // than before it, so a fresh diagnosis keeps its full length: an injury found
   // at this whistle starts serving from here, and must not have the week that
@@ -1191,6 +1228,8 @@ export function advanceSeason(
   state.leagueStats = createSeasonStats();
   state.seasonCaps = 0;
   state.seasonInjuredMisses = 0;
+  state.seasonResults = [];
+  state.lastChanges = [];
   state.calendarIndex = 0;
   // A run does not span a summer: "eleven in a row" has to mean eleven
   // consecutive matches, not a number that quietly skips three months off.

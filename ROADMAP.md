@@ -146,7 +146,7 @@ complete 0-100 blend model that is **set once in the creator and never mutated a
 path, and `player.position` is likewise only ever assigned there. The machinery to be a different
 footballer at thirty-one already exists; nothing has ever been wired to move it.
 
-**Three more have since landed**, all from reading the game rather than from planning it:
+**Five more have since landed**, all from reading the game rather than from planning it:
 
 - **[What he wants this season](README.md#what-he-wants-this-season)** — manager confidence had been a scoreboard with no posted
   score since it was written: the number moved every match and nothing anywhere said what it was
@@ -162,6 +162,11 @@ footballer at thirty-one already exists; nothing has ever been wired to move it.
   could be made to stand out. Each token now has exactly one meaning, and the club colour every one
   of the 192 clubs has carried since the world was generated — and which the interface used twice —
   is now identity throughout, lifted for legibility where the data is too dark to see.
+- **[What the last match changed](README.md#what-the-last-match-changed)** — the hub redrew with a dozen numbers moved and never
+  said which. It speaks now, and only when something crossed a line the player can act on: about one
+  match in four.
+- **[The season so far](README.md#the-season-so-far)** — four straight wins and four straight defeats looked identical from
+  the hub. One dot per match, letters as well as colour, absences included.
 
 One thing found while measuring and deliberately not acted on: **auto-play scores far too much.**
 A skipped match resolves at 1.0 goals a match at ability 55 and **2.9 at ability 85**, with an
