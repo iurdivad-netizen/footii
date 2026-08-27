@@ -100,23 +100,29 @@ export const MAX_CAMPAIGN = 3 * GROUP_WIN + KNOCKOUT_BONUS + FINAL_BONUS + CHAMP
  * How far a coefficient can move a country from its prestige, either way.
  *
  * Calibrated against the gaps it has to bridge. The shipped world runs 1.00,
- * 0.96, 0.92, 0.90, 0.80, 0.68, 0.66, 0.50, so neighbouring countries sit 0.02
- * to 0.16 apart.
+ * 0.96, 0.92, 0.90, 0.80, 0.72, 0.68, 0.66, 0.62, 0.56, 0.50, 0.46, so
+ * neighbouring countries sit 0.02 to 0.10 apart.
  *
- * It was 0.15, and 0.15 was a ceiling disguised as a range. Played out, a
- * Scottish career that won five caps a season for eighteen years drove
- * Scotland's coefficient to 6.0 — the best record in the world by some margin —
- * and Scotland's allocation never moved once, because the 0.16 to the
- * Netherlands is more than the whole swing and no record, however good, could
- * cover it alone. The one country with everything to gain from the mechanic was
- * the one country the mechanic could not reach.
+ * It was 0.15, and 0.15 was a ceiling disguised as a range. This was measured
+ * when the world was EIGHT countries and Scotland, on 0.50, sat 0.16 below the
+ * Netherlands: a Scottish career that won five caps a season for eighteen years
+ * drove Scotland's coefficient to 6.0 — the best record in the world by some
+ * margin — and Scotland's allocation never moved once, because 0.16 is more
+ * than the whole swing and no record, however good, could cover it alone. The
+ * one country with everything to gain from the mechanic was the one country the
+ * mechanic could not reach.
  *
  * At 0.20 the bottom country can climb a place on its own merit rather than
  * having to wait for the country above it to collapse at the same time. It
  * costs nothing at the top: the gaps there are 0.02 to 0.04 and were already
- * crossable, and the 3-3-3-2-2-1-1-1 distribution has plateaus, so reordering
- * the top three changes nobody's allocation anyway. The map bends further; it
- * still does not tear.
+ * crossable, and the places table has plateaus (see europe.ts — ranks six to
+ * nine all take one Champions League place), so reordering the top three
+ * changes nobody's allocation anyway. The map bends further; it still does not
+ * tear.
+ *
+ * The four countries added since only make the swing safer: the widest gap in
+ * the world is now the 0.10 between France and Turkey, where it used to be
+ * 0.16, so every neighbour is within reach of a good enough record.
  */
 export const COEFFICIENT_SWING = 0.2;
 
@@ -128,10 +134,10 @@ export const COEFFICIENT_SWING = 0.2;
  * between 2.0 and 3.3, which suggested a scale of 0.2 — but no country is ever
  * judged on sixty tournaments. Judged on the five in the window, real
  * coefficients ran from 1.7 to 5.3, so deviations reached ±2.4 and every one of
- * them clamped: five countries of eight sat pinned at exactly the maximum swing
- * and the nudge stopped being a gradient at all. It had become "top group up,
- * bottom group down", which reorders on a knife edge and flips an allocation
- * whenever two countries trade places by a hair.
+ * them clamped: five countries of the eight then in the world sat pinned at
+ * exactly the maximum swing and the nudge stopped being a gradient at all. It
+ * had become "top group up, bottom group down", which reorders on a knife edge
+ * and flips an allocation whenever two countries trade places by a hair.
  *
  * At this scale the widest era on record lands just inside the swing, so the
  * clamp is the guard rail it was meant to be and a country half a point clear

@@ -4270,6 +4270,30 @@ button.week-option:disabled .week-option-note {
   white-space: normal;
 }
 
+/*
+ * WHAT THIS WEEK WOULD DO TO YOU, in your own numbers.
+ *
+ * Brighter than the description above it and set in the numeric face, because
+ * it is the line that changes: the description is what the option always is,
+ * this is what it is worth today. No semantic colour — an impact note is a
+ * fact, not a judgement, and the four of them are meant to be compared with
+ * each other rather than ranked by the stylesheet. See core/career/week.ts.
+ */
+.week-option-impact {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+button.week-option:disabled .week-option-impact {
+  color: var(--text-dim);
+}
+
 .week-spent {
   margin: 0;
   font-size: 0.9rem;

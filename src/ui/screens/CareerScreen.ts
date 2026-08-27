@@ -885,14 +885,20 @@ export class CareerScreen {
         </div>`;
     }
 
+    // Two lines under the label, and they answer different questions. The
+    // description is what the week IS and never changes; the impact is what it
+    // would do to THIS footballer this week, and changes with his morale, his
+    // fitness and what his manager currently makes of him. Written as one line
+    // they would read as a single sentence half of which quietly moved.
     const buttons = this.week.options
       .map(
-        ({ choice, available, reason }) => `
+        ({ choice, available, reason, impact }) => `
           <button class="week-option" data-week="${choice}" ${available ? '' : 'disabled'}>
             <span class="week-option-label">${WEEK_LABELS[choice]}</span>
             <span class="week-option-note">
               ${available ? WEEK_DESCRIPTIONS[choice] : reason}
             </span>
+            ${impact ? `<span class="week-option-impact">${impact}</span>` : ''}
           </button>`,
       )
       .join('');

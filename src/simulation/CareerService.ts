@@ -76,7 +76,9 @@ import {
   startingConfidence,
 } from '../core/career/confidence.ts';
 import type { WeekChoice, WeekOption, WeekPlan } from '../core/career/week.ts';
-import { planApplies, spendWeek, weekOptions } from '../core/career/week.ts';
+import { PREPARATION_BONUS, planApplies, spendWeek, weekOptions } from '../core/career/week.ts';
+import type { DecisionPace } from './DecisionTimer.ts';
+import { DECISION_PACE, DECISION_SCALE, UNTIMED_PACE } from './DecisionTimer.ts';
 import type {
   EuropeanDemand,
   MarketReach,
@@ -1314,7 +1316,7 @@ export interface WeekAhead {
  * opposite case and keeps every option — asking for a start is precisely what
  * that week is for.
  */
-export function weekAhead(state: CareerState): WeekAhead {
+export function weekAhead(state: CareerState, pace: DecisionPace = 'standard'): WeekAhead {
   const scheduled = nextMatch(state);
   if (!scheduled) return { options: null, plan: null, reason: 'The season is over.' };
   if (state.injury) {
@@ -1325,7 +1327,35 @@ export function weekAhead(state: CareerState): WeekAhead {
     };
   }
   const plan = planApplies(state.week ?? null, scheduled.slotIndex) ? state.week! : null;
-  return { options: weekOptions(state.fitness), plan, reason: '' };
+  return {
+    options: weekOptions({
+      fitness: state.fitness,
+      morale: state.player.morale,
+      form: state.player.form,
+      confidence: state.confidence ?? CONFIDENCE_NEUTRAL,
+      preparationSeconds: preparationSeconds(pace),
+    }),
+    plan,
+    reason: '',
+  };
+}
+
+/**
+ * What a week of studying buys, in seconds, at a given pace.
+ *
+ * Answered here rather than in `core/career/week.ts` because it is the timer's
+ * arithmetic and the timer lives in this layer — `core/` imports nothing from
+ * `simulation/`, and a week card is not a reason to break that.
+ *
+ * Zero at the untimed pace, and that is the number rather than an omission: the
+ * clock never expires there, so a wider window is a wider window on a match
+ * nobody is being timed in. It is the one option of the four that a setting on
+ * another screen can render worthless, which is exactly why the card has to say
+ * so instead of promising him a second and a half.
+ */
+export function preparationSeconds(pace: DecisionPace): number {
+  if (pace === UNTIMED_PACE) return 0;
+  return round(PREPARATION_BONUS * DECISION_SCALE * DECISION_PACE[pace], 1);
 }
 
 /**
@@ -1347,6 +1377,10 @@ export function weekAhead(state: CareerState): WeekAhead {
  * the answer is not a decision.
  */
 export function planWeek(state: CareerState, choice: WeekChoice): WeekPlan | null {
+  // The pace is left at its default here on purpose: this call is asking WHICH
+  // options are open, and that is decided by fitness alone. Only the impact
+  // notes read the pace, and nobody is being shown one at the moment a week is
+  // spent.
   const ahead = weekAhead(state);
   if (!ahead.options || ahead.plan) return null;
   // Checked here as well as rendered as a shut button, because a screen is not
@@ -2339,7 +2373,7 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   });
 
   // Clubs are only as good as their last season — everywhere, not just where
-  // the player happens to be, or seven of the eight leagues would be frozen in
+  // the player happens to be, or eleven of the twelve leagues would be frozen in
   // the shape the data file shipped with. Drift anchors to the BASE ratings, so
   // this takes the raw lookup rather than the drifted one.
   state.clubStrengths = driftSeason(new Rng(`${state.seed}:s${state.seasonNumber}:drift`), {

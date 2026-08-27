@@ -123,7 +123,60 @@ export function canTrain(fitness: number): boolean {
 }
 
 /**
- * The four options, and which of them he is in a state to take.
+ * Where a week of rest leaves him.
+ *
+ * Its own function only because two callers need the answer — the week itself,
+ * and the card that promises it before he presses. A promise computed from a
+ * second copy of the arithmetic is a promise that drifts, and this is the one
+ * place in the file where that could happen quietly.
+ */
+export function fitnessAfterRest(fitness: number): number {
+  return clamp(fitness + REST_FITNESS, 0, 100);
+}
+
+/**
+ * Where a hard week leaves him. Never below the floor, and never ABOVE where he
+ * started: the gate stops the cost compounding, and must not become a way to
+ * recover by training. `min` is what says so, and it is not redundant — without
+ * it a player at 60 fitness would come out of a hard week on 80.
+ */
+export function fitnessAfterTraining(fitness: number): number {
+  return Math.min(fitness, Math.max(TRAIN_FITNESS_FLOOR, clamp(fitness - TRAIN_FITNESS, 0, 100)));
+}
+
+/** What a week of extra work multiplies the next match's development by. */
+export function trainingGrowth(morale: number): number {
+  return round(1 + TRAIN_GROWTH * effortFactor(morale), 3);
+}
+
+/**
+ * Everything about the man that decides what a week would be worth to him.
+ *
+ * The same four numbers `spendWeek` reads, plus one the career layer has to
+ * supply because this file cannot know it: how much a wider decision window is
+ * worth in SECONDS at the pace he plays at. `PREPARATION_BONUS` is in the
+ * timer's model units, and the timer lives in `simulation/` — which nothing in
+ * `core/` imports, and this note is not the place to start.
+ */
+export interface WeekState {
+  fitness: number;
+  morale: number;
+  form: number;
+  confidence: number;
+  /**
+   * What studying is worth on every decision window, in seconds, at his pace.
+   *
+   * ZERO IS MEANINGFUL rather than missing: at the untimed pace the clock never
+   * binds, so a wider window buys precisely nothing, and the option is the only
+   * one of the four that can be worthless for a reason the player chose himself
+   * on another screen. Saying so is the whole job of an impact note.
+   */
+  preparationSeconds: number;
+}
+
+/**
+ * The four options, which of them he is in a state to take, and what each
+ * would actually do to him.
  *
  * Returned with the unavailable one still IN the list rather than filtered out
  * of it, so the screen can grey it out and say why. A choice that silently
@@ -135,19 +188,99 @@ export interface WeekOption {
   available: boolean;
   /** Why not, when it is not. Empty when it is. */
   reason: string;
+  /**
+   * What this week would do, in this player's own numbers. Empty when the
+   * option is shut, because `reason` is already the sentence that matters.
+   */
+  impact: string;
 }
 
-export function weekOptions(fitness: number): WeekOption[] {
+export function weekOptions(state: WeekState): WeekOption[] {
   return WEEK_CHOICES.map((choice) => {
-    if (choice === 'train' && !canTrain(fitness)) {
+    if (choice === 'train' && !canTrain(state.fitness)) {
       return {
         choice,
         available: false,
         reason: 'You are in no state for it. Rest first.',
+        impact: '',
       };
     }
-    return { choice, available: true, reason: '' };
+    return { choice, available: true, reason: '', impact: weekImpact(choice, state) };
   });
+}
+
+/**
+ * WHAT THIS WEEK WOULD ACTUALLY DO
+ *
+ * The four cards used to carry one authored sentence each — "you will take more
+ * from the next match, and turn up to it tired" — and every one of them was
+ * true and none of them was a number. That is the exact mistake this codebase
+ * has now made twice and written up twice: morale was a stat with one consumer
+ * worth half a second, and a trait announced only in a stats table is an
+ * invisible modifier. The week was the same shape. It is the one decision a
+ * player makes every seven days, its effects are all multiplied by morale, and
+ * the screen described it in prose that never changed.
+ *
+ * So each option now says what it would do TO HIM, this week, computed from the
+ * same constants `spendWeek` will use when he presses it. Three consequences of
+ * deriving it rather than writing it, and they are the reason it is done this
+ * way:
+ *
+ *   IT CANNOT DRIFT. The card and the week call the SAME functions —
+ *   `fitnessAfterRest`, `fitnessAfterTraining`, `trainingGrowth`, `pushChance` —
+ *   so there is no second copy of the arithmetic to fall out of step, and
+ *   `tests/week.test.ts` plays each choice and asserts the card promised what
+ *   the week delivered.
+ *   IT TEACHES THE MULTIPLIER. Extra work is worth +12% to a miserable
+ *   footballer and +28% to a happy one, which is `effortFactor` and which no
+ *   fixed sentence can say. A player who reads the card twice at different
+ *   morale has learned what morale is for.
+ *   IT EXPOSES A DEAD OPTION. At the untimed pace studying buys nothing, and
+ *   the card now says so rather than selling him a week for it.
+ *
+ * WHAT IT DELIBERATELY DOES NOT SAY is what the week is worth in the end. Extra
+ * work is a multiplier on a match's development, and how much development that
+ * match produces depends on the match; asking for a start moves two numbers that
+ * feed selection, wages and the renewal. Promising an outcome would be a lie
+ * with a decimal point on it. Every line here is the mechanism and its odds,
+ * which is what a decision needs and all of it that is honestly knowable
+ * beforehand.
+ */
+export function weekImpact(choice: WeekChoice, state: WeekState): string {
+  switch (choice) {
+    case 'rest': {
+      const after = fitnessAfterRest(state.fitness);
+      const gain = Math.round(after) - Math.round(state.fitness);
+      return gain <= 0
+        ? 'You are already as fresh as you are going to get.'
+        : `Fitness ${Math.round(state.fitness)} → ${Math.round(after)}.`;
+    }
+
+    case 'train': {
+      const after = fitnessAfterTraining(state.fitness);
+      const percent = Math.round((trainingGrowth(state.morale) - 1) * 100);
+      return (
+        `+${percent}% from what the next match teaches you, at your morale. ` +
+        `Fitness ${Math.round(state.fitness)} → ${Math.round(after)}.`
+      );
+    }
+
+    case 'study':
+      // Naming the setting rather than only reporting the consequence: the
+      // player did not necessarily know that the pace he chose on the home
+      // screen had switched one of his four weekly options off.
+      return state.preparationSeconds <= 0
+        ? 'Nothing: you play with no time limit. Decision pace is on the home screen.'
+        : `About ${state.preparationSeconds.toFixed(1)}s more on every decision in the match.`;
+
+    case 'push': {
+      const chance = pushChance(state);
+      return (
+        `About a ${Math.round(chance * 100)}% chance he takes the point. ` +
+        `If not, it costs you morale and his confidence in you.`
+      );
+    }
+  }
 }
 
 /**
@@ -206,6 +339,7 @@ export interface WeekInput {
   confidence: number;
 }
 
+
 export interface WeekOutcome {
   fitness: number;
   morale: number;
@@ -263,28 +397,20 @@ export function spendWeek(rng: Rng, input: WeekInput): WeekOutcome {
     preparation: 0,
     note: '',
   };
-  const effort = effortFactor(input.morale);
 
   switch (input.choice) {
     case 'rest':
       return {
         ...base,
-        fitness: clamp(input.fitness + REST_FITNESS, 0, 100),
+        fitness: fitnessAfterRest(input.fitness),
         note: 'A quiet week. You will be fresh for this one.',
       };
 
     case 'train':
       return {
         ...base,
-        // Never below the floor, and never ABOVE where he started: the gate
-        // stops the cost compounding, and must not become a way to recover by
-        // training. `min` is what says so, and it is not redundant — without it
-        // a player at 60 fitness would come out of a hard week on 80.
-        fitness: Math.min(
-          input.fitness,
-          Math.max(TRAIN_FITNESS_FLOOR, clamp(input.fitness - TRAIN_FITNESS, 0, 100)),
-        ),
-        growth: round(1 + TRAIN_GROWTH * effort, 3),
+        fitness: fitnessAfterTraining(input.fitness),
+        growth: trainingGrowth(input.morale),
         note:
           input.morale >= 60
             ? 'You stayed out after every session, and you enjoyed it.'

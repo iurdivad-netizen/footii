@@ -437,7 +437,59 @@ in five for a world-class striker, and the spread across bands is 1.8× against 
 constant in the resolver closes that — a bigger one either inverts the decision model or breaks the
 set pieces, both measured. What is left is the **shot mix**: the game hands its striker five to six
 attempts a match, most of them decent, because he is the focus of every situation it generates. That
-is the situation generator's business, and it is recorded rather than half-done.
+is the situation generator's business.
+
+#### The shot mix, now measured
+
+That last paragraph was a diagnosis nobody had checked, so `scripts/measureShotMix.ts` was written to
+check it. Over 200 matches a policy at each ability, auto-played:
+
+| band of `situationQuality` | share of attempts | per match | converts (perfect read) |
+|---|---|---|---|
+| hopeless (<0.35) | **0.8%** | 0.05 | ~25% (16 attempts in 200 matches) |
+| poor (.35–.45) | 5.2% | 0.31 | 24.1% |
+| decent (.45–.62) | 44.0% | 2.63 | 24.9% |
+| big (≥0.62) | **50.0%** | 2.98 | 40.4% |
+
+**"Most of them decent" understates it: 94% of a striker's attempts are decent or better, and the
+game generates one genuinely hopeless chance every twenty matches.** That reframes the open defect.
+The complaint had been that a hopeless chance converts too well — but the honest reason the
+aggregate reads high is that the game hardly ever *produces* one. There is no tail to convert badly.
+
+It also settles the aggregate, which had never been stated per ability: **9.6% of attempts at ability
+55, 17.7% at 70, 29.1% at 85**, against a real-football 12–15%. The level is not uniformly too high.
+A poor footballer is already *below* real conversion and a great one is double it — it is the slope
+that is wrong, which is the same shape the goal-curve fix had.
+
+**Two archetypes supply 58% of every attempt**: the one-on-one (31%, configured 0.62–0.90, so its
+*floor* is the top band's boundary) and arriving on a cross (26%). Any fix to the mix is a fix to
+those two before it is anything else.
+
+#### And the obvious fix is the wrong one
+
+The tool's second mode applies a candidate transform to every template's `qualityRange` and measures
+it end to end. Both theories were tried at ability 85:
+
+| candidate | attempts | goals | per attempt |
+|---|---|---|---|
+| shipped | 5.88 | 1.79 | 30.5% |
+| bands shifted −0.10 | 5.72 | 1.23 | 21.4% |
+| bands stretched 1.4× about 0.5 | 5.91 | 2.18 | **37.0%** |
+
+**Stretching the bands apart makes it worse**, which is not what anybody would predict from reading
+the data file. Almost every template already sits above 0.5, so widening the spread around the
+scale's midpoint pushes the bulk of the game's chances *up* rather than fanning them out.
+
+**Shifting them down works but is blunt.** −0.10 brings ability 85 to 21.4%, still above real
+football, while dragging ability 55 down to 6.6% — half the real rate. It moves the level and leaves
+the slope, which was the defect.
+
+**And neither touches the volume.** Attempts per match stay between 5.7 and 5.9 under every
+candidate: `qualityRange` decides how good a chance is, never how many there are. So "five to six
+attempts a match" is not a bands problem at all — it lives in `SituationGenerator`'s involvement
+rate and archetype routing, which is a different lever from the one the roadmap named. Recorded
+rather than acted on, for the reason the goal-curve fix already established: it moves every career
+in progress, and it now has a tool that can price it.
 
 #### What had to be re-calibrated with it
 
@@ -565,10 +617,14 @@ src/
 └── main.ts
 
 scripts/
-└── generateWorld.py       regenerates the eight leagues, their clubs and keepers
+├── generateWorld.py       regenerates the twelve leagues, their clubs and keepers
+├── measureAutoPlay.ts     what a skipped match is worth, against a perfect read
+├── measureInjuries.ts     how much football a career actually misses
+├── measureObjectives.ts   whether the manager's target is one a season can hit
+└── measureShotMix.ts      which chances the game generates, and what each is worth
 ```
 
-The world data is generated rather than hand-authored: 128 clubs need ratings that agree with their
+The world data is generated rather than hand-authored: 192 clubs need ratings that agree with their
 standing and their style, and doing that by eye produces a world where half the clubs are quietly
 nonsense. The *flavour* is still authored — every club name, place name and goalkeeper name is
 written by hand, country by country, and all of them are invented. Re-run with
@@ -1030,7 +1086,7 @@ would ask, each of them answerable from state the career layer already keeps:
 They are **multiplied, not averaged**, so any one of them can veto a move: a club that has never
 heard of you does not care how well you would fit, and one that cannot pay does not bid at all.
 
-The 128 clubs therefore form a ladder that runs across countries as well as up them, and climbing
+The 192 clubs therefore form a ladder that runs across countries as well as up them, and climbing
 it is the point of a career. A club expects less of a signing when it plays in a league fewer
 people watch, which is what makes the quiet corners of the map a reachable starting point rather
 than a dead end. The English league, for reference:
@@ -1102,7 +1158,7 @@ Market value is a pure function of the player — ability (exponentially: the ga
 the young command, a hard age cliff after 30, and reputation and form at the margins. Because it is
 pure, the hub can show it at any moment and the market can never disagree with the screen.
 
-### The world: eight countries
+### The world: twelve countries
 
 The game is a map, not a ladder: **twelve countries, sixteen clubs each, 192 clubs in all**. Every
 country has its own league, and every league is playing at the same time as yours.
@@ -1200,7 +1256,8 @@ March rather than only in May.
 ### European competitions
 
 Three of them, in a strict order of standing: the **Champions League**, the **Europa League**, and
-the **Conference League** below both. Sixteen clubs apiece, drawn from all eight countries.
+the **Conference League** below both. Sixteen clubs apiece, drawn from all twelve countries — four
+from each, whatever its standing.
 
 This is what gives the country ladder a reason to exist beyond wages. Before it, climbing the ladder
 was purely a transfer decision — nothing that happened on a Saturday moved you between leagues.
@@ -1945,6 +2002,46 @@ is [manager confidence](#what-the-manager-makes-of-you)): a number that only eve
 decoration. What a footballer takes from a week of work is multiplied by whether he wants to be
 there — 0.6 at rock bottom, 1.4 at the top — and it is most of what decides whether asking for a
 start lands, because the conversation is going to be had by whichever version of him turns up to it.
+
+#### What this week would do to you
+
+The table above is what the four options **are**. It is not what any of them is worth to *you* this
+week, and for a long time nothing on the screen was. Each card carried one authored sentence —
+*"you will take more from the next match, and turn up to it tired"* — true, unchanging, and without
+a number in it. That is the same mistake this codebase has now made twice and written up twice:
+[morale](#what-the-manager-makes-of-you) was a stat with one consumer worth half a second, and a
+trait announced only in a stats table is an invisible modifier. The week was the same shape, and it
+is the decision a player makes most often.
+
+So every option now carries a second line saying what it would do to **this** footballer, computed
+from the same constants the week itself will use:
+
+| | what the card says today |
+|---|---|
+| **Rest up** | `Fitness 74 → 82.` — or that he is already as fresh as he is going to get |
+| **Extra work** | `+24% from what the next match teaches you, at your morale. Fitness 92 → 86.` |
+| **Study the opponent** | `About 0.8s more on every decision in the match.` |
+| **Ask for a start** | `About a 46% chance he takes the point. If not, it costs you morale and his confidence in you.` |
+
+**It is derived, not written.** There is no second copy of the arithmetic to drift out of step with
+the model — the tests play each choice and assert the card promised exactly what the week delivered.
+That matters more than it sounds: a promise on a button that quietly stops being true is worse than
+no promise at all.
+
+**It is also how you learn what morale is for.** Extra work is +12% to a footballer who wants out
+and +28% to one who is happy where he is, and no fixed sentence can say that. A player who reads the
+same card twice at different morale has been taught the multiplier without a tooltip explaining it.
+
+**And it exposes a dead option.** At the *no time limit* pace there is no clock, so a wider decision
+window buys precisely nothing — one of the four options is worth zero because of a setting chosen on
+another screen. The card now says so, and says where to change it, instead of selling him a week for
+it.
+
+What it deliberately does **not** promise is an outcome. Extra work multiplies what a match teaches
+you and how much that is depends on the match; asking for a start moves two numbers that feed
+selection, wages and the renewal. A figure for either would be a lie with a decimal point on it.
+Every line is the mechanism and its odds, which is what a decision needs and all of it that is
+honestly knowable beforehand.
 
 #### Two halves land immediately, and two wait for the match
 
