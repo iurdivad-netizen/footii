@@ -153,6 +153,30 @@ phase exists to withhold. The palette lives in `ui/actionFamilyStyle.ts` — it 
 presentation only, which is why it sits in `ui/` rather than beside the action
 catalogue.
 
+### Leaving a match that has already started
+
+Once a match began there was no visible way out of it. Ninety simulated minutes is not long, which
+is why nobody noticed — until it is a phone and somebody has to be somewhere, and then the only exits
+are closing the tab or sitting through it.
+
+**It is not an undo, and that is the whole design.** The rest of the match is *played out without
+you* and the result stands. Abandoning back to the hub would have been easier to build and would
+have made a save-scum out of the seed: every fixture is deterministic from its calendar slot, so a
+match you could walk out of and re-enter is one you could retry until the chance went in. Leaving
+costs you control of the remainder, which is a real price and the honest one.
+
+It takes **two presses**, and the first one **pauses**. The word "leave" does not say what it costs,
+so the armed label does — and stopping the clock while somebody reads it is the least the screen can
+do, given that the reason they reached for the button is usually that they are out of time. Focus
+leaving disarms it, like every other guarded button in the game.
+
+A walked-out fixture is folded as **skipped**. "How much of this career did you actually play" must
+never be flattered by a match somebody left, and counting conservatively is the only honest direction
+for a label about your own attention. A walked-out **trial** is judged by exactly the same arithmetic
+as a finished one, through the same method — the moment those drift is the moment leaving becomes a
+way of getting a different answer. A **quick match** simply ends, because it touches no career and
+there is nothing there to retry.
+
 ### Settings
 
 **Decision pace**, **match speed** and **career hub** live on the home screen and are **saved

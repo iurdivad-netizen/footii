@@ -129,6 +129,11 @@ export class HowToPlayScreen {
              screen shows it. Waiting tells you what he has done; it also spends the time you
              were given. That trade is the game.</li>
        </ol>
+       <p>
+         The scoreboard carries <strong>Pause</strong>, the <strong>speed</strong>, and
+         <strong>Leave</strong>. Leaving is not an undo — the rest of the match is played out
+         without you and the result stands — so it takes two presses and the second one says so.
+       </p>
        <p class="hint">
          Letting the clock run out is not a free pass — an instinctive action is played for you,
          and it is worse than any deliberate choice. Deciding badly beats not deciding.
@@ -235,7 +240,8 @@ export class HowToPlayScreen {
 
        <h3>Match speed</h3>
        <p>How fast the simulated minutes tick by between your moments. It never changes how long
-          you get to decide.</p>
+          you get to decide, and it can be changed <strong>during a match</strong> — the button on
+          the scoreboard cycles through these, and the change is remembered.</p>
        <ul class="how-list">${speeds}</ul>
 
        <h3>Career hub</h3>

@@ -701,18 +701,43 @@ export class App {
           }).element,
         );
       },
+      // A quick match is on its own ledger and touches no career, so walking
+      // out of one simply ends it. There is nothing to protect from a retry
+      // here — that is the entire difference between this and a fixture.
+      () => this.showHome(),
     );
   }
 
+  /**
+   * `onLeave` is what happens when somebody walks out partway through.
+   *
+   * The remainder is PLAYED OUT rather than discarded, and it is the same
+   * `runMatchAutomatically` a skipped match uses — driven on the engine as it
+   * already stands, so it continues from the minute reached rather than
+   * restarting. Then the ordinary finish runs, so a match left in the
+   * seventieth minute folds into the career exactly like any other.
+   *
+   * Discarding it instead would have been easier and would have made a
+   * save-scum out of the seed: every fixture is deterministic from its calendar
+   * slot, so a match you could walk out of and re-enter is one you could retry
+   * until the chance went in. See MatchScreen.
+   */
   private runMatch(
     engine: MatchEngine,
     seed: string,
     onFinished: (engine: MatchEngine) => void,
+    onLeave?: (engine: MatchEngine) => void,
   ): void {
     this.debug.setSeed(seed);
     const screen = new MatchScreen(engine, this.overlay, this.debug, () => onFinished(engine), {
       speedIndex: this.save.settings.matchSpeed,
       onSpeedChange: (index) => this.updateSettings({ matchSpeed: index }),
+      onLeave: onLeave
+        ? () => {
+            runMatchAutomatically(engine, `${seed}:left`);
+            onLeave(engine);
+          }
+        : undefined,
     });
     this.matchScreen = screen;
     this.mount(screen.element);
@@ -777,27 +802,49 @@ export class App {
         `${selection.seed}:trial`,
       ),
       `${selection.seed}:trial`,
-      (engine) => {
-        const rating = engine.rating();
-        const passed = trialPassed(rating, required);
-        this.mount(
-          new TrialResultScreen(
-            {
-              club,
-              player,
-              rating,
-              required,
-              passed,
-              // Where he goes instead: the best club that would simply take him.
-              fallback: passed ? null : this.bestOpenClub(player),
-            },
-            {
-              onAccept: (clubId: string) => this.startCareerAt({ ...selection, teamId: clubId }),
-              onBack: () => this.showSetup('career'),
-            },
-          ).element,
-        );
-      },
+      (engine) => this.showTrialResult(engine, selection, player, club, required),
+      // A trial can be walked out of too, and it is JUDGED on what the rest of
+      // it produced rather than voided — the same screen, from the same engine.
+      // Voiding it would put the player back at a setup screen offering the
+      // identical trial again, on the identical seed, which is precisely the
+      // retry loop the career path is careful to refuse.
+      (engine) => this.showTrialResult(engine, selection, player, club, required),
+    );
+  }
+
+  /**
+   * The verdict on a trial, however the ninety minutes ended.
+   *
+   * One method rather than two identical blocks, because a trial that was
+   * played out and one that was walked out of must be judged by the same
+   * arithmetic — the moment those drift is the moment leaving becomes a way of
+   * getting a different answer.
+   */
+  private showTrialResult(
+    engine: MatchEngine,
+    selection: SetupSelection,
+    player: Player,
+    club: Team,
+    required: number,
+  ): void {
+    const rating = engine.rating();
+    const passed = trialPassed(rating, required);
+    this.mount(
+      new TrialResultScreen(
+        {
+          club,
+          player,
+          rating,
+          required,
+          passed,
+          // Where he goes instead: the best club that would simply take him.
+          fallback: passed ? null : this.bestOpenClub(player),
+        },
+        {
+          onAccept: (clubId: string) => this.startCareerAt({ ...selection, teamId: clubId }),
+          onBack: () => this.showSetup('career'),
+        },
+      ).element,
     );
   }
 
@@ -1065,7 +1112,25 @@ export class App {
     const next = this.nextMatchEngine(career);
     if (!next) return;
 
-    this.runMatch(next.engine, next.seed, (engine) => this.finishCareerMatch(engine, career));
+    this.runMatch(
+      next.engine,
+      next.seed,
+      (engine) => this.finishCareerMatch(engine, career),
+      // Folded as SKIPPED, and deliberately: "how much of this career did you
+      // actually play" must never be flattered by a match somebody walked out
+      // of. It counts the conservative way, which is the only honest direction
+      // for a label about your own attention. See core/career/howPlayed.ts.
+      (engine) => {
+        const tie = this.levelKnockout(engine, career);
+        this.recordCareerMatch(
+          engine,
+          career,
+          true,
+          tie ? this.autoShootout(career, tie) : undefined,
+        );
+        this.showCareerHub();
+      },
+    );
   }
 
   /**

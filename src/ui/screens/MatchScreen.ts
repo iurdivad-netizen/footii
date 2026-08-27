@@ -27,7 +27,17 @@ export class MatchScreen {
     private readonly overlay: EventOverlay,
     private readonly debug: DebugPanel,
     private readonly onFinished: () => void,
-    options: { speedIndex?: number; onSpeedChange?: (index: number) => void } = {},
+    options: {
+      speedIndex?: number;
+      onSpeedChange?: (index: number) => void;
+      /**
+       * Walk out of the match.
+       *
+       * Optional because not every caller has somewhere to walk out TO, and a
+       * button that led nowhere would be worse than none.
+       */
+      onLeave?: () => void;
+    } = {},
   ) {
     this.speedIndex = clampSpeedIndex(options.speedIndex ?? 1);
     this.onSpeedChange = options.onSpeedChange;
@@ -41,6 +51,7 @@ export class MatchScreen {
           <button type="button" id="pause">Pause</button>
           <button type="button" id="speed"></button>
           <button type="button" id="debug-toggle" title="Toggle debug (D)">Debug</button>
+          <button type="button" id="leave" class="leave">Leave</button>
         </div>
       </div>
 
@@ -78,6 +89,58 @@ export class MatchScreen {
     this.element.querySelector<HTMLButtonElement>('#debug-toggle')!.addEventListener('click', () => {
       this.debug.toggle();
     });
+
+    /**
+     * LEAVING A MATCH THAT HAS ALREADY STARTED.
+     *
+     * Once a match began there was no visible way out of it. Ninety simulated
+     * minutes is not long, which is why nobody noticed — until it is a phone
+     * and somebody has to be somewhere, and then the only exits are closing the
+     * tab or sitting through it.
+     *
+     * IT IS NOT AN UNDO, and that is the whole design. The rest of the match is
+     * PLAYED OUT WITHOUT YOU rather than discarded, and the result stands.
+     * Abandoning to the hub would have been easier to build and would have made
+     * a save-scum out of the seed: every fixture is deterministic from its
+     * calendar slot, so a match you could walk out of and re-enter is a match
+     * you could retry until the chance went in. Leaving costs you control of
+     * the remainder, which is a real price and the honest one.
+     *
+     * TWO PRESSES, and the first one PAUSES. The cost is not obvious from the
+     * word "leave", so the armed label states it — and stopping the clock while
+     * somebody reads it is the least the screen can do, given that the reason
+     * they reached for the button is usually that they are out of time.
+     */
+    const leaveButton = this.element.querySelector<HTMLButtonElement>('#leave')!;
+    if (!options.onLeave) {
+      leaveButton.hidden = true;
+    } else {
+      leaveButton.addEventListener('click', () => {
+        // A decision is on screen behind a fixed overlay covering this button,
+        // so this cannot normally be reached mid-decision. Guarded anyway:
+        // walking out from under an awaited promise would strand it.
+        if (this.busy) return;
+
+        if (leaveButton.dataset.armed === 'yes') {
+          this.stop();
+          options.onLeave!();
+          return;
+        }
+        if (!this.paused) this.togglePause();
+        leaveButton.dataset.armed = 'yes';
+        leaveButton.classList.add('armed');
+        leaveButton.textContent = 'Leave — the rest is played out without you';
+      });
+
+      // Disarmed by looking away, like every other guarded button here: one
+      // that stayed armed would be a trap laid for later rather than a guard now.
+      leaveButton.addEventListener('blur', () => {
+        if (leaveButton.dataset.armed !== 'yes') return;
+        delete leaveButton.dataset.armed;
+        leaveButton.classList.remove('armed');
+        leaveButton.textContent = 'Leave';
+      });
+    }
 
     this.element.querySelector<HTMLElement>('#player-name')!.textContent =
       `${engine.setup.player.name} · ${engine.setup.player.position}`;
