@@ -2458,6 +2458,62 @@ Individual awards require having played at least 60% of the season. Nobody is pl
 on nine appearances. Team honours carry no such condition — a cup belongs to the club, not to your
 form, and you do not have to have been good to have won it.
 
+#### The afternoon it was won
+
+That table was, for a long time, the whole of it. You won the cup final in March and the screen said
+**2-1** and offered a button marked *Back to career*; the trophy itself turned up four months later
+as a row on the season review, between a promotion and a cap count. This codebase has now written up
+the same defect three times in different clothes — morale was a stat with one consumer, a trait
+announced only in a stats table is an invisible modifier, a week described in prose that never
+changed said nothing — and this was the fourth. **A trophy recorded only in a list is a trophy that
+never happened to you.**
+
+So there are two ceremonies now, and the line between them is the calendar.
+
+**In season, the moment a final ends.** The two domestic cups, the three European competitions, the
+super cup and the international tournament are all settled by a match, so each is presented the
+moment that match is over: what was won, the scoreline, who it was against, and what you did in it.
+
+**In June, everything a match cannot settle.** The league title, which is a table rather than a
+fixture; the doubles and trebles, which are a season's shape rather than an afternoon; promotion;
+and every individual award, which needs the whole season's evidence before anybody can hand one
+over. They come one at a time, club before player — being the division's top scorer in a side that
+won the title reads differently from being its top scorer in a side that went down, and putting the
+club's night first is what makes the second one land.
+
+The June list **skips the trophies that already had their afternoon**. A cup celebrated in March and
+celebrated again in June is a game that does not remember what it told you. The season review still
+lists all of it: the review is the record, the ceremony is the moment, and they are allowed to
+disagree about how often a thing is worth saying.
+
+Four decisions inside it are worth stating, because each could have gone the other way:
+
+**A final lost gets a screen too.** The alternative is a game that goes quiet on the one afternoon a
+season can turn on — you reach a European final, lose it, and the screen says *1-2, back to career*.
+Reaching a final is already on the honours list above, so refusing to mention it here would
+contradict the record book two screens later. It is a different screen, not a consolation one: no
+gold, no congratulations, just what happened.
+
+**A trophy won while you were injured is still your trophy**, and the screen says which it was.
+*You watched from the treatment room. They won it without you.* Being hurt for the final does not
+un-win the cup — you are in the squad and the medal is real — but printing "you played" over that
+would be the game flattering you about your own career, which is the one thing the
+[how much of it you actually played](#how-much-of-it-you-actually-played) label exists to stop.
+
+**It survives the tab being closed on it.** The final is written to the career when the tie settles
+and cleared by the screen that shows it, the same way an open transfer window and a forced
+retirement are stored rather than left living in a mount call. It also goes into
+[the diary](#the-diary-while-the-career-is-still-being-played), which is the thing that remembers
+after the screen is gone — and is the only record of a final *lost* in a season the club won nothing
+in.
+
+**It cannot fire twice.** Whether a final has just been played is answered by comparing the
+competition's winner before the match with its winner after, rather than by working out which round
+is the last one. Every competition answers that the same way — a domestic cup, a European bracket
+hanging off a group stage, an international tournament of eight and a super cup that is one fixture
+have four different notions of "the final" and one notion of "somebody has won it now" — and the
+transition from nobody to somebody happens exactly once per competition per season.
+
 ### Ending a career, and what survives it
 
 A career used to have exactly one ending: **Abandon** on the home screen, a browser dialog, and
@@ -3268,7 +3324,8 @@ your club offers to keep you and what it calls you when it does**, **a rival wit
 own, who is sold when you take his shirt and turns up against you years later**, **a week between matches you
 spend on one of four things, each of which costs what the other three would have given you**,
 **eight traits earned from what you actually did, each one changing how a match plays**, **a diary of
-the moments a career is made of**, **a keeper you can read at a glance rather than in nine-pixel
+the moments a career is made of**, **a trophy presented on the afternoon it is won and a season's
+awards handed over one at a time in June**, **a keeper you can read at a glance rather than in nine-pixel
 type**, **a visible keyboard focus ring, reduced-motion support and live regions for what the match
 says**, **named teammates who get on the end of your passes**,
 **loans for a young player who cannot get a game**, promotion and relegation machinery

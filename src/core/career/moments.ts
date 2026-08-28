@@ -50,7 +50,17 @@ export type MomentKind =
   | 'oldClub'
   | 'oldRival'
   | 'rivalGone'
-  | 'traitEarned';
+  | 'traitEarned'
+  /**
+   * A final his side played, won or lost.
+   *
+   * In the diary as well as on the ceremony screen, because a screen is
+   * something you close and the diary is the thing that remembers. It is also
+   * the only record of a final LOST that survives a season a club won nothing
+   * in — the honours list keeps the European and international runners-up and
+   * nothing else.
+   */
+  | 'trophy';
 
 export interface Moment {
   kind: MomentKind;

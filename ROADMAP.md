@@ -209,7 +209,7 @@ complete 0-100 blend model that is **set once in the creator and never mutated a
 path, and `player.position` is likewise only ever assigned there. The machinery to be a different
 footballer at thirty-one already exists; nothing has ever been wired to move it.
 
-**Ten more have since landed**, all from reading the game rather than from planning it — and the
+**Eleven more have since landed**, all from reading the game rather than from planning it — and the
 count in this line has been wrong twice, which is its own small lesson about a list that grows by
 one item at a time:
 
@@ -249,6 +249,19 @@ one item at a time:
   learns what morale is for, and studying the opponent turns out to be worth **nothing** at the
   untimed pace — one of the four options switched off by a setting chosen on another screen, which
   the card now says out loud.
+- **[The afternoon it was won](README.md#the-afternoon-it-was-won)** — winning the cup produced a full-time screen reading "2-1"
+  and a button marked *Back to career*; the trophy appeared four months later as a row on the season
+  review, between a promotion and a cap count. That is this file's own recurring defect for the
+  fourth time — a thing recorded only in a list is a thing that never happened to you. Trophies
+  settled by a match are now presented the moment the match ends, and everything a match cannot
+  settle — the title, the doubles, promotion, and every individual award — is handed over one at a
+  time in June, club before player. Three of the decisions inside it are the interesting part: a
+  final LOST gets a screen too, because a game that goes quiet on the one afternoon a season turns
+  on would contradict its own honours list two screens later; a trophy won from the treatment room
+  is still presented and says so rather than claiming he played; and whether a final has just
+  happened is answered by comparing a competition's winner before the match with its winner after,
+  which is the one question a domestic cup, a European bracket, a tournament of eight and a
+  one-off super cup all answer the same way.
 - **The world stopped being eight countries four countries ago.** Found while reading rather than
   playing: the README still headed its world section "eight countries" over a body that said
   twelve, the generator's own docstring described 128 clubs, and `countries.ts` opened by telling

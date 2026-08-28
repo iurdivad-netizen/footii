@@ -2146,6 +2146,97 @@ button.ghost {
   color: var(--warn);
 }
 
+/* -------------------------------------------------------- ceremony ----- */
+
+/*
+ * THE ONE PLACE `--goal` IS ALLOWED OUTSIDE A GOAL.
+ *
+ * The palette note at the top of this file reserves `--goal` for a goal "and
+ * the honours a career of them wins", and this is the second half of that
+ * sentence finally being used. It is the rarest colour on the screen and this
+ * is the rarest screen in the game — a career of eighteen seasons might reach
+ * it a dozen times — so the two are worth spending on each other.
+ *
+ * A final LOST uses `--text-dim` rather than `--danger`. Losing a final is not
+ * something going wrong, which is what red means here; it is the second-best
+ * team in the country having its night looked at squarely.
+ */
+.ceremony-screen {
+  display: grid;
+  gap: 20px;
+  justify-items: center;
+  align-content: center;
+  /* Enough of the page to feel like a stop rather than a card that happens to
+     be first. Not 100vh: on a short landscape phone that would push the button
+     off the bottom, and the one thing this screen must always have is its way
+     out. */
+  min-height: 60vh;
+  text-align: center;
+}
+
+.ceremony {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  padding: 28px 20px;
+  width: 100%;
+  max-width: 32rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-panel);
+}
+
+.ceremony-standing {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.ceremony-title {
+  margin: 0;
+  font-size: 1.7rem;
+  line-height: 1.2;
+}
+
+.ceremony-trophy {
+  border-color: var(--goal);
+}
+
+.ceremony-trophy .ceremony-title,
+.ceremony-trophy .ceremony-standing {
+  color: var(--goal);
+}
+
+.ceremony-award .ceremony-title,
+.ceremony-award .ceremony-standing {
+  color: var(--accent);
+}
+
+.ceremony-runnerUp .ceremony-title {
+  color: var(--text);
+}
+
+.ceremony-lines {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.ceremony-count {
+  margin: 0;
+}
+
+.ceremony-screen .primary {
+  min-width: 12rem;
+}
+
 /* ------------------------------------------------------- contracts ----- */
 
 .career-card.contract-final {
@@ -4499,7 +4590,10 @@ button.week-option:disabled .week-option-impact {
 }
 
 .career-card .moment-log .moment-goalMilestone,
-.career-card .moment-log .moment-firstGoal {
+.career-card .moment-log .moment-firstGoal,
+/* The palette note reserves `--goal` for a goal AND the honours a career of
+   them wins, so a trophy in the diary belongs here rather than on the accent. */
+.career-card .moment-log .moment-trophy {
   color: var(--goal);
 }
 
