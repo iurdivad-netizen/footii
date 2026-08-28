@@ -441,8 +441,9 @@ is the situation generator's business.
 
 #### The shot mix, now measured
 
-That last paragraph was a diagnosis nobody had checked, so `scripts/measureShotMix.ts` was written to
-check it. Over 200 matches a policy at each ability, auto-played:
+That last paragraph was a diagnosis nobody had checked, so `scripts/measureShotMix.ts` was written
+to check it. It records **every moment the player is in**, not only the ones that produce a shot,
+which turned out to be the whole point. Over 200 matches a policy at each ability, auto-played:
 
 | band of `situationQuality` | share of attempts | per match | converts (perfect read) |
 |---|---|---|---|
@@ -451,45 +452,58 @@ check it. Over 200 matches a policy at each ability, auto-played:
 | decent (.45–.62) | 44.0% | 2.63 | 24.9% |
 | big (≥0.62) | **50.0%** | 2.98 | 40.4% |
 
-**"Most of them decent" understates it: 94% of a striker's attempts are decent or better, and the
-game generates one genuinely hopeless chance every twenty matches.** That reframes the open defect.
-The complaint had been that a hopeless chance converts too well — but the honest reason the
-aggregate reads high is that the game hardly ever *produces* one. There is no tail to convert badly.
+**94% of a striker's attempts are decent or better** — worse than "most of them", which is what the
+paragraph above had guessed.
 
-It also settles the aggregate, which had never been stated per ability: **9.6% of attempts at ability
-55, 17.7% at 70, 29.1% at 85**, against a real-football 12–15%. The level is not uniformly too high.
-A poor footballer is already *below* real conversion and a great one is double it — it is the slope
-that is wrong, which is the same shape the goal-curve fix had.
+**But the reason is not that the game withholds bad chances.** It generates them freely, about two a
+match at ability 85. What the player does with them is the thing:
 
-**Two archetypes supply 58% of every attempt**: the one-on-one (31%, configured 0.62–0.90, so its
-*floor* is the top band's boundary) and arriving on a cross (26%). Any fix to the mix is a fix to
-those two before it is anything else.
+| | becomes a shot |
+|---|---|
+| a poor or hopeless moment | **17.7%** |
+| a big chance | **87.2%** |
 
-#### And the obvious fix is the wrong one
+Midfield possession, the pressing trap, the aerial duel and the wide attack produce a shot **0%** of
+the time; the edge of the box manages 32% and the side of the penalty area 41%. The population of
+attempts is filtered by the decision model before it is anything else — a striker who squares the
+ball rather than shooting from a hopeless angle has not taken a bad shot, he has taken **no** shot.
+That is football rather than a defect, and it means the top-heavy mix is substantially a description
+of somebody playing well.
 
-The tool's second mode applies a candidate transform to every template's `qualityRange` and measures
-it end to end. Both theories were tried at ability 85:
+**What is genuinely wrong is the slope**, and it can now be stated per ability: **9.6% of attempts at
+ability 55, 17.7% at 70, 29.1% at 85**, against a real-football 12–15%. A poor footballer is already
+*below* real conversion and a great one is double it.
 
-| candidate | attempts | goals | per attempt |
-|---|---|---|---|
-| shipped | 5.88 | 1.79 | 30.5% |
-| bands shifted −0.10 | 5.72 | 1.23 | 21.4% |
-| bands stretched 1.4× about 0.5 | 5.91 | 2.18 | **37.0%** |
+#### Three ways to change the mix, and all three miss
+
+The tool's other two modes change the world, measure what comes out, and put it back.
+
+**Shifting the bands down works but is blunt.** Every `qualityRange` lowered by 0.10 takes ability 85
+from 30.5% to 21.4% — still above real football — while dragging ability 55 to 6.6%, half of it.
 
 **Stretching the bands apart makes it worse**, which is not what anybody would predict from reading
-the data file. Almost every template already sits above 0.5, so widening the spread around the
-scale's midpoint pushes the bulk of the game's chances *up* rather than fanning them out.
+the data file: 30.5% → **37.0%**. Almost every template already sits above 0.5, so widening the
+spread around the scale's midpoint pushes the bulk of the game's chances *up*.
 
-**Shifting them down works but is blunt.** −0.10 brings ability 85 to 21.4%, still above real
-football, while dragging ability 55 down to 6.6% — half the real rate. It moves the level and leaves
-the slope, which was the defect.
+**Reweighting the archetypes moves volume, not slope.** `positionWeights` and `qualityRange` are
+correlated — for a striker the three likeliest moments are the three best ones (one-on-one at weight
+6 over 0.62–0.90, the through ball at 5 over 0.50–0.82, the cross at 5 over 0.45–0.78) while midfield
+possession sits at 0.6 over 0.12–0.40. Lifting the poor archetypes fourfold and halving the
+one-on-one, with every band untouched:
 
-**And neither touches the volume.** Attempts per match stay between 5.7 and 5.9 under every
-candidate: `qualityRange` decides how good a chance is, never how many there are. So "five to six
-attempts a match" is not a bands problem at all — it lives in `SituationGenerator`'s involvement
-rate and archetype routing, which is a different lever from the one the roadmap named. Recorded
-rather than acted on, for the reason the goal-curve fix already established: it moves every career
-in progress, and it now has a tool that can price it.
+| ability | attempts | goals | per attempt |
+|---|---|---|---|
+| 55 | 5.03 → 3.41 | 0.49 → 0.22 | 9.7% → **6.5%** |
+| 85 | 6.01 → 4.25 | 1.79 → 0.91 | 29.7% → **21.5%** |
+
+It fixes the *volume* — 4.25 attempts a match is a real striker's game rather than six — and does
+nothing to the slope: **3.1× from 55 to 85 before, 3.3× after**.
+
+**So the slope is not in the mix.** Three independent ways of changing which chances a footballer
+gets all move the level and leave the ratio between a poor player and a great one alone, because that
+ratio is the goal curve's response to `value` and nothing upstream of it can flatten a curve. Four
+levers are now priced and none is free, which is why this is recorded rather than changed: any of
+them moves every career in progress.
 
 #### What had to be re-calibrated with it
 

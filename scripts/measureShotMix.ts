@@ -97,11 +97,21 @@ function bandOf(quality: number): BandName {
 
 type Policy = 'auto' | 'best';
 
-/** One shot, and everything about the chance it came from. */
-interface Attempt {
+/**
+ * One moment the player was in, and what became of it.
+ *
+ * EVERY event is recorded, not only the ones that produced a shot, because
+ * whether a chance becomes an attempt at all is half the answer. A striker who
+ * squares the ball rather than shooting from a hopeless angle has not had a bad
+ * shot; he has had no shot — so the population of ATTEMPTS is already filtered
+ * by the decision model, and a mix that looks top-heavy may be top-heavy for
+ * the most footballing reason there is.
+ */
+interface Moment {
   quality: number;
   band: BandName;
   type: SituationType;
+  shot: boolean;
   onTarget: boolean;
   goal: boolean;
 }
@@ -110,8 +120,13 @@ interface Run {
   matches: number;
   /** Every interactive event, shot or not. The denominator for "shots/involvement". */
   involvements: number;
-  attempts: Attempt[];
+  moments: Moment[];
   goals: number;
+}
+
+/** The subset that became a shot. Everything about the mix is measured on these. */
+function attemptsOf(run: Run): Moment[] {
+  return run.moments.filter((m) => m.shot);
 }
 
 /**
@@ -184,15 +199,14 @@ function play(player: Player, policy: Policy, seed: string, into: Run): void {
           });
 
     const outcome = resolution.result.outcome;
-    if ((outcome.stats.shots ?? 0) > 0) {
-      into.attempts.push({
-        quality: event.context.situationQuality,
-        band: bandOf(event.context.situationQuality),
-        type: event.template.type,
-        onTarget: (outcome.stats.shotsOnTarget ?? 0) > 0,
-        goal: outcome.goalScored,
-      });
-    }
+    into.moments.push({
+      quality: event.context.situationQuality,
+      band: bandOf(event.context.situationQuality),
+      type: event.template.type,
+      shot: (outcome.stats.shots ?? 0) > 0,
+      onTarget: (outcome.stats.shotsOnTarget ?? 0) > 0,
+      goal: outcome.goalScored,
+    });
   }
 
   into.matches += 1;
@@ -200,7 +214,7 @@ function play(player: Player, policy: Policy, seed: string, into: Run): void {
 }
 
 function measure(player: Player, policy: Policy): Run {
-  const run: Run = { matches: 0, involvements: 0, attempts: [], goals: 0 };
+  const run: Run = { matches: 0, involvements: 0, moments: [], goals: 0 };
   for (let i = 0; i < MATCHES; i++) play(player, policy, `m${i}`, run);
   return run;
 }
@@ -210,17 +224,18 @@ const num = (value: number, places = 2) => value.toFixed(places).padStart(6);
 const pct = (value: number) => `${(value * 100).toFixed(1)}%`.padStart(7);
 
 function share(run: Run, band: BandName): number {
-  if (run.attempts.length === 0) return 0;
-  return run.attempts.filter((a) => a.band === band).length / run.attempts.length;
+  const attempts = attemptsOf(run);
+  if (attempts.length === 0) return 0;
+  return attempts.filter((a) => a.band === band).length / attempts.length;
 }
 
-function conversion(attempts: readonly Attempt[]): number {
+function conversion(attempts: readonly Moment[]): number {
   if (attempts.length === 0) return 0;
   return attempts.filter((a) => a.goal).length / attempts.length;
 }
 
-function inBand(run: Run, band: BandName): Attempt[] {
-  return run.attempts.filter((a) => a.band === band);
+function inBand(run: Run, band: BandName): Moment[] {
+  return attemptsOf(run).filter((a) => a.band === band);
 }
 
 /**
@@ -235,7 +250,7 @@ function inBand(run: Run, band: BandName): Attempt[] {
  */
 const MIN_SAMPLE = 25;
 
-function enough(attempts: readonly Attempt[]): boolean {
+function enough(attempts: readonly Moment[]): boolean {
   return attempts.length >= MIN_SAMPLE;
 }
 
@@ -246,7 +261,7 @@ function enough(attempts: readonly Attempt[]): boolean {
  * than hidden, because "the game produced four of these in thirty matches" is
  * information and a blank row is not.
  */
-function rate(attempts: readonly Attempt[]): string {
+function rate(attempts: readonly Moment[]): string {
   if (attempts.length === 0) return '-';
   const text = `${(conversion(attempts) * 100).toFixed(1)}% (${attempts.length})`;
   return enough(attempts) ? text : `~${text}`;
@@ -258,9 +273,9 @@ function report(ability: number): void {
   const auto = measure(player, 'auto');
   const best = measure(player, 'best');
 
-  const perMatch = auto.attempts.length / auto.matches;
-  const meanQuality =
-    auto.attempts.reduce((sum, a) => sum + a.quality, 0) / Math.max(1, auto.attempts.length);
+  const shots = attemptsOf(auto);
+  const perMatch = shots.length / auto.matches;
+  const meanQuality = shots.reduce((sum, a) => sum + a.quality, 0) / Math.max(1, shots.length);
 
   console.log(`\nABILITY ${actual}`);
   console.log(
@@ -269,8 +284,8 @@ function report(ability: number): void {
   );
   console.log(
     `             ${num(auto.goals / auto.matches)} goals a match, ` +
-      `${pct(conversion(auto.attempts))} of attempts, ` +
-      `${pct(auto.attempts.filter((a) => a.onTarget).length / Math.max(1, auto.attempts.length))} on target`,
+      `${pct(conversion(shots))} of attempts, ` +
+      `${pct(shots.filter((a) => a.onTarget).length / Math.max(1, shots.length))} on target`,
   );
 
   console.log('\n  THE MIX, and what each band is worth');
@@ -314,33 +329,50 @@ function report(ability: number): void {
   console.log(
     '  ' +
       pad('archetype', 28) +
-      pad('per match', 11) +
+      pad('events', 9) +
+      pad('shoots', 9) +
+      pad('shots/match', 13) +
       pad('share', 9) +
-      pad('mean q', 9) +
       pad('configured', 13) +
       'converts',
   );
-  console.log('  ' + '-'.repeat(84));
-  const byType = new Map<SituationType, Attempt[]>();
-  for (const attempt of auto.attempts) {
-    const list = byType.get(attempt.type) ?? [];
-    list.push(attempt);
-    byType.set(attempt.type, list);
+  console.log('  ' + '-'.repeat(100));
+  const byType = new Map<SituationType, Moment[]>();
+  for (const moment of auto.moments) {
+    const list = byType.get(moment.type) ?? [];
+    list.push(moment);
+    byType.set(moment.type, list);
   }
-  const ordered = [...byType.entries()].sort((a, b) => b[1].length - a[1].length);
-  for (const [type, attempts] of ordered) {
+  const ordered = [...byType.entries()].sort(
+    (a, b) => b[1].filter((m) => m.shot).length - a[1].filter((m) => m.shot).length,
+  );
+  for (const [type, moments] of ordered) {
     const [qMin, qMax] = SITUATION_TEMPLATES[type].qualityRange;
-    const mean = attempts.reduce((sum, a) => sum + a.quality, 0) / attempts.length;
+    const attempts = moments.filter((m) => m.shot);
     console.log(
       '  ' +
         pad(SITUATION_LABELS[type], 28) +
-        pad(num(attempts.length / auto.matches).trim(), 11) +
-        pad(pct(attempts.length / auto.attempts.length).trim(), 9) +
-        pad(mean.toFixed(2), 9) +
+        pad(num(moments.length / auto.matches).trim(), 9) +
+        // How often this kind of moment becomes a shot at all. A low number is
+        // not a suppressed chance: it is the decision model declining to shoot.
+        pad(pct(attempts.length / moments.length).trim(), 9) +
+        pad(num(attempts.length / auto.matches).trim(), 13) +
+        pad(attempts.length === 0 ? '-' : pct(attempts.length / shots.length).trim(), 9) +
         pad(`${qMin.toFixed(2)}-${qMax.toFixed(2)}`, 13) +
         rate(attempts),
     );
   }
+
+  // The selection effect, stated as one number: how much of the gap between the
+  // events the game generates and the shots it records is the decision model
+  // declining to shoot from a poor position.
+  const poorMoments = auto.moments.filter((m) => m.band === 'hopeless' || m.band === 'poor');
+  const goodMoments = auto.moments.filter((m) => m.band === 'big');
+  console.log(
+    `\n  a poor moment becomes a shot ${pct(poorMoments.filter((m) => m.shot).length / Math.max(1, poorMoments.length)).trim()} of the time, ` +
+      `a big one ${pct(goodMoments.filter((m) => m.shot).length / Math.max(1, goodMoments.length)).trim()}` +
+      ` — the attempt mix is filtered by the decision, not only generated.`,
+  );
 }
 
 console.log(`The shot mix, measured over ${MATCHES} matches per policy per ability.`);
@@ -410,6 +442,111 @@ function shift([lo, hi]: [number, number], by: number): [number, number] {
   return [Math.max(0, lo + by), Math.min(1, hi + by)];
 }
 
+/**
+ * CANDIDATE WEIGHTS
+ *
+ * Third mode, run as: npx vite-node scripts/measureShotMix.ts [matches] [abilities] weights
+ *
+ * The candidate-bands mode above rules out `qualityRange` as the lever, and
+ * this is what is left. Read the two columns of `data/situations.ts` together
+ * and the mix stops being mysterious: for a striker the three LIKELIEST
+ * archetypes are the three BEST ones — one-on-one at weight 6 over a 0.62-0.90
+ * band, the through ball at 5 over 0.50-0.82, arriving on a cross at 5 over
+ * 0.45-0.78 — while the poor ones carry the lowest weights of all, midfield
+ * possession at 0.6 over 0.12-0.40 and the wide attack at 1 over 0.25-0.55.
+ *
+ * `positionWeights` and `qualityRange` are correlated, and that correlation IS
+ * the shot mix. Nothing about any individual number is wrong; a striker really
+ * is in more one-on-ones than a midfielder. What it produces in aggregate is a
+ * footballer whose every moment is one of his best ones.
+ *
+ * So this mode leaves every band exactly as it shipped — the one-on-one stays
+ * the 40% chance `GOAL_CURVE` was calibrated to produce — and moves only how
+ * OFTEN each archetype comes up, by lifting the poor ones toward the good ones
+ * for the position being measured. If the aggregate falls toward real football
+ * without any single chance changing value, the defect was never in what a
+ * chance is worth.
+ */
+interface WeightCandidate {
+  label: string;
+  /** Multiplier on this archetype's weight for the measured position. */
+  scale: Partial<Record<SituationType, number>>;
+}
+
+const WEIGHT_CANDIDATES: WeightCandidate[] = [
+  { label: 'shipped', scale: {} },
+  {
+    label: 'poor moments x2',
+    scale: { midfieldProgression: 2, wideAttack: 2, edgeOfBox: 2, freeKickDirect: 2 },
+  },
+  {
+    label: 'poor moments x4',
+    scale: { midfieldProgression: 4, wideAttack: 4, edgeOfBox: 4, freeKickDirect: 4 },
+  },
+  {
+    label: 'poor x4, one-on-one halved',
+    scale: {
+      midfieldProgression: 4,
+      wideAttack: 4,
+      edgeOfBox: 4,
+      freeKickDirect: 4,
+      oneOnOne: 0.5,
+    },
+  },
+];
+
+if (MODE === 'weights') {
+  console.log('\n\nCANDIDATE WEIGHTS — every band left exactly as it shipped.\n');
+  const shipped = new Map<SituationType, number | undefined>();
+  for (const [type, template] of Object.entries(SITUATION_TEMPLATES)) {
+    shipped.set(type as SituationType, template.positionWeights.ST);
+  }
+
+  for (const ability of ABILITIES) {
+    const player = playerAt(ability);
+    console.log(`ability ${currentAbility(player)}`);
+    console.log(
+      '  ' +
+        pad('candidate', 28) +
+        pad('shots', 8) +
+        pad('goals', 8) +
+        pad('per shot', 10) +
+        pad('decent+big', 12) +
+        'mean q',
+    );
+    console.log('  ' + '-'.repeat(74));
+
+    for (const candidate of WEIGHT_CANDIDATES) {
+      for (const [type, weight] of shipped) {
+        if (weight === undefined) continue;
+        SITUATION_TEMPLATES[type].positionWeights.ST = weight * (candidate.scale[type] ?? 1);
+      }
+
+      const auto = measure(player, 'auto');
+      const topHeavy = share(auto, 'decent') + share(auto, 'big');
+      const meanQuality =
+        attemptsOf(auto).reduce((sum, a) => sum + a.quality, 0) /
+        Math.max(1, attemptsOf(auto).length);
+
+      console.log(
+        '  ' +
+          pad(candidate.label, 28) +
+          pad(num(attemptsOf(auto).length / auto.matches).trim(), 8) +
+          pad(num(auto.goals / auto.matches).trim(), 8) +
+          pad(pct(conversion(attemptsOf(auto))).trim(), 10) +
+          pad(pct(topHeavy).trim(), 12) +
+          meanQuality.toFixed(2),
+      );
+    }
+    console.log('');
+  }
+
+  for (const [type, weight] of shipped) {
+    if (weight === undefined) continue;
+    SITUATION_TEMPLATES[type].positionWeights.ST = weight;
+  }
+}
+
 if (MODE === 'candidates') {
   console.log('\n\nCANDIDATE BANDS — measured end to end, then reverted.\n');
   const shipped = new Map<SituationType, [number, number]>();
@@ -446,9 +583,9 @@ if (MODE === 'candidates') {
       console.log(
         '  ' +
           pad(candidate.label, 26) +
-          pad(num(auto.attempts.length / auto.matches).trim(), 8) +
+          pad(num(attemptsOf(auto).length / auto.matches).trim(), 8) +
           pad(num(auto.goals / auto.matches).trim(), 8) +
-          pad(pct(conversion(auto.attempts)).trim(), 10) +
+          pad(pct(conversion(attemptsOf(auto))).trim(), 10) +
           pad(rate(low), 14) +
           pad(rate(high), 14) +
           (divisible ? `${(conversion(high) / conversion(low)).toFixed(1)}x` : '-'),
