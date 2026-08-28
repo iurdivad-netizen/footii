@@ -92,6 +92,7 @@ import {
   nextSuperCup,
   playsInSuperCup,
   resolveSuperCup,
+  superCupName,
 } from '../core/career/superCup.ts';
 import type { NegotiationAsk, NegotiationResult } from '../core/career/negotiation.ts';
 import { movementFor, resolveDivisions, simulateDivisionThrough } from '../core/career/divisions.ts';
@@ -102,6 +103,7 @@ import {
   backgroundCupWinner,
   closeRound,
   createCup,
+  cupName,
   finishCup,
   openRound,
   stillIn,
@@ -114,6 +116,7 @@ import {
   advanceEuropeanSeason,
   championsLeaguePlaces,
   createEuropeanSeason,
+  europeanCompetition,
   europeanTierOf,
   europeanWinner,
   fieldFor,
@@ -154,6 +157,7 @@ import {
   GROUP_ROUNDS,
   INTERNATIONAL,
   championNation,
+  tournamentName,
   closeGroupRound,
   createInternational,
   eraFor,
@@ -170,6 +174,7 @@ import type { DivisionMovement } from '../core/career/divisions.ts';
 import {
   allClubIds,
   allConfederations,
+  confederationOf,
   countriesIn,
   countryPrestige,
   initialLeagues,
@@ -186,7 +191,14 @@ import {
 import { evaluateHonours, leagueBenchmark } from '../core/career/awards.ts';
 import type { Honour, LeagueBenchmark } from '../core/career/awards.ts';
 import type { CompetitionKind } from '../core/career/calendar.ts';
-import { isEuropean, isInternational, knockoutRoundsPlayed } from '../core/career/calendar.ts';
+import {
+  isEuropean,
+  isInternational,
+  isSuperCup,
+  knockoutRoundsPlayed,
+} from '../core/career/calendar.ts';
+import type { FinalPlayed, Presence } from '../core/career/ceremony.ts';
+import { seasonPresentations } from '../core/career/ceremony.ts';
 import type { Fixture, FixtureResult, TableRow } from '../core/career/league.ts';
 import {
   applyResult,
@@ -1093,6 +1105,9 @@ export function recordPlayerMatch(
   // The player was in the side, so the man he beat to it was not.
   advanceRival(state, scheduled.slotIndex, true);
 
+  // Read BEFORE the settlement below, which is the only thing that can change
+  // it. See `noteFinal`.
+  const winnerBefore = competitionWinner(state, scheduled.competition);
 
   if (leagueFixture) {
     simulateRound(state, leagueFixture.round, lookup);
@@ -1112,6 +1127,8 @@ export function recordPlayerMatch(
   } else {
     settlePlayerTie(state, scheduled.competition, input, lookup);
   }
+
+  noteFinal(state, scheduled, input, input.skipped ? 'skipped' : 'played', winnerBefore, lookup);
 
   return changes;
 }
@@ -1573,6 +1590,8 @@ export function missMatch(state: CareerState, lookup: TeamLookup): MissedMatch {
   if (leagueFixture) state.nextFixtureIndex += 1;
   state.calendarIndex = scheduled.slotIndex + 1;
 
+  const winnerBefore = competitionWinner(state, scheduled.competition);
+
   if (leagueFixture) {
     simulateRound(state, leagueFixture.round, lookup);
   } else if (scheduled.competition === SUPER_CUP) {
@@ -1596,6 +1615,11 @@ export function missMatch(state: CareerState, lookup: TeamLookup): MissedMatch {
   } else {
     settlePlayerTie(state, scheduled.competition, asPlayed, lookup);
   }
+
+  // A trophy won while he was hurt is still his trophy — he is in the squad and
+  // the medal is real. `wasFit` separates the two absences the ceremony has
+  // different sentences for: left out, or in the treatment room.
+  noteFinal(state, scheduled, asPlayed, wasFit ? 'skipped' : 'absent', winnerBefore, lookup);
 
   // A week in the treatment room is still a week: fitness comes back, and the
   // injury moves one step closer to over. This is the only thing that ever
@@ -1793,6 +1817,114 @@ function settlePlayerTie(
     shootoutWinnerId: input.shootout?.winnerId,
   });
   closeRound(cup, state.clubId);
+}
+
+/**
+ * Who has won this competition, if anybody has yet.
+ *
+ * One accessor for all four shapes, because the caller is asking one question
+ * and should not have to know that Europe keeps its bracket on a group stage
+ * and the super cup has no bracket at all.
+ */
+function competitionWinner(state: CareerState, competition: CompetitionKind): string | null {
+  if (isSuperCup(competition)) return state.superCup?.winnerId ?? null;
+  return knockoutFor(state, competition)?.winnerId ?? null;
+}
+
+/** The side he turns out for in this competition. His country, or his club. */
+function ownSideIn(state: CareerState, competition: CompetitionKind): string {
+  return isInternational(competition) ? playerNation(state) : state.clubId;
+}
+
+/** What this competition is called, in the words the rest of the game uses. */
+function competitionTitle(state: CareerState, competition: CompetitionKind): string {
+  if (isSuperCup(competition)) return superCupName(state.countryId);
+  if (isInternational(competition)) {
+    return tournamentName(
+      state.international?.kind ?? 'continental',
+      confederationOf(state.player.nationality),
+    );
+  }
+  if (isEuropean(competition)) return europeanCompetition(competition).name;
+  return cupName(competition as CupKind, state.countryId);
+}
+
+/**
+ * A FINAL HAS JUST BEEN PLAYED, OR IT HAS NOT.
+ *
+ * Asked by comparing the competition's winner before the settlement with its
+ * winner after, rather than by working out which round is the last one. Two
+ * reasons, and the second is the one that decided it:
+ *
+ *   Every competition answers it the same way. A domestic cup, a European
+ *   bracket hanging off a group stage, an international tournament of eight and
+ *   a super cup that is one fixture have four different notions of "the final",
+ *   and exactly one notion of "somebody has won it now".
+ *
+ *   It cannot fire twice. The transition from nobody to somebody happens once
+ *   per competition per season, so a screen driven by it cannot congratulate
+ *   him for the same cup in consecutive weeks however the fixtures are walked.
+ *
+ * A final LOST is recorded too — the winner appears either way, and the
+ * ceremony has something to say about both. See core/career/ceremony.ts.
+ */
+function noteFinal(
+  state: CareerState,
+  scheduled: ScheduledMatch,
+  input: PlayedMatchInput,
+  presence: Presence,
+  winnerBefore: string | null,
+  lookup: TeamLookup,
+): void {
+  if (scheduled.competition === 'league') return;
+  const winnerAfter = competitionWinner(state, scheduled.competition);
+  if (!winnerAfter || winnerAfter === winnerBefore) return;
+
+  const own = ownSideIn(state, scheduled.competition);
+  // DEFENSIVE, and worth saying so rather than implying it is load-bearing: a
+  // competition only acquires a winner mid-season on the afternoon its final is
+  // played, and the player only ever plays ties he is in, so a semi-final
+  // defeat cannot reach here today — the cups he went out of are finished in
+  // June, by `endSeason`, long after this. It stays because that is a fact
+  // about WHERE the background rounds are run rather than about this function,
+  // and the day somebody moves them is the day a defeat would otherwise be
+  // presented as a final.
+  const inTheFinal = winnerAfter === own || scheduled.opponentId === winnerAfter;
+  if (!inTheFinal) return;
+
+  const final: FinalPlayed = {
+    season: state.seasonNumber,
+    label: competitionTitle(state, scheduled.competition),
+    opponentName: opponentNameFor(state, scheduled.opponentId, lookup),
+    goalsFor: input.playerTeamScore,
+    goalsAgainst: input.opponentScore,
+    presence,
+    won: winnerAfter === own,
+    goals: input.stats.goals,
+    assists: input.stats.assists,
+    rating: input.rating,
+    ...(input.shootout
+      ? {
+          shootout: {
+            won: input.shootout.winnerId === own,
+            scored: input.shootout.scored,
+            conceded: input.shootout.conceded,
+          },
+        }
+      : {}),
+  };
+
+  state.pendingFinal = final;
+  state.moments = [
+    ...(state.moments ?? []),
+    summerMoment(
+      'trophy',
+      final.won
+        ? `You won ${final.label}.`
+        : `You lost ${final.label} final, ${final.goalsFor}-${final.goalsAgainst}.`,
+      state.seasonNumber,
+    ),
+  ];
 }
 
 /**
@@ -2336,6 +2468,12 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   });
   state.honours.push(...honoursResult.honours);
   state.player.caps += honoursResult.capsGained;
+
+  // Built here, where the season is still the season these honours belong to.
+  // A moment later `state.seasonNumber` moves on and the club, the division and
+  // the country could all move with it — see the note on `pendingCeremony`.
+  const presentations = seasonPresentations(honoursResult.honours, state.seasonNumber);
+  state.pendingCeremony = presentations.length > 0 ? presentations : null;
 
   // Wages for the season just played are banked, then the clock runs down one.
   const earnings = advanceContract(state.contract);

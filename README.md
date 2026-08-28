@@ -441,8 +441,9 @@ is the situation generator's business.
 
 #### The shot mix, now measured
 
-That last paragraph was a diagnosis nobody had checked, so `scripts/measureShotMix.ts` was written to
-check it. Over 200 matches a policy at each ability, auto-played:
+That last paragraph was a diagnosis nobody had checked, so `scripts/measureShotMix.ts` was written
+to check it. It records **every moment the player is in**, not only the ones that produce a shot,
+which turned out to be the whole point. Over 200 matches a policy at each ability, auto-played:
 
 | band of `situationQuality` | share of attempts | per match | converts (perfect read) |
 |---|---|---|---|
@@ -451,45 +452,58 @@ check it. Over 200 matches a policy at each ability, auto-played:
 | decent (.45–.62) | 44.0% | 2.63 | 24.9% |
 | big (≥0.62) | **50.0%** | 2.98 | 40.4% |
 
-**"Most of them decent" understates it: 94% of a striker's attempts are decent or better, and the
-game generates one genuinely hopeless chance every twenty matches.** That reframes the open defect.
-The complaint had been that a hopeless chance converts too well — but the honest reason the
-aggregate reads high is that the game hardly ever *produces* one. There is no tail to convert badly.
+**94% of a striker's attempts are decent or better** — worse than "most of them", which is what the
+paragraph above had guessed.
 
-It also settles the aggregate, which had never been stated per ability: **9.6% of attempts at ability
-55, 17.7% at 70, 29.1% at 85**, against a real-football 12–15%. The level is not uniformly too high.
-A poor footballer is already *below* real conversion and a great one is double it — it is the slope
-that is wrong, which is the same shape the goal-curve fix had.
+**But the reason is not that the game withholds bad chances.** It generates them freely, about two a
+match at ability 85. What the player does with them is the thing:
 
-**Two archetypes supply 58% of every attempt**: the one-on-one (31%, configured 0.62–0.90, so its
-*floor* is the top band's boundary) and arriving on a cross (26%). Any fix to the mix is a fix to
-those two before it is anything else.
+| | becomes a shot |
+|---|---|
+| a poor or hopeless moment | **17.7%** |
+| a big chance | **87.2%** |
 
-#### And the obvious fix is the wrong one
+Midfield possession, the pressing trap, the aerial duel and the wide attack produce a shot **0%** of
+the time; the edge of the box manages 32% and the side of the penalty area 41%. The population of
+attempts is filtered by the decision model before it is anything else — a striker who squares the
+ball rather than shooting from a hopeless angle has not taken a bad shot, he has taken **no** shot.
+That is football rather than a defect, and it means the top-heavy mix is substantially a description
+of somebody playing well.
 
-The tool's second mode applies a candidate transform to every template's `qualityRange` and measures
-it end to end. Both theories were tried at ability 85:
+**What is genuinely wrong is the slope**, and it can now be stated per ability: **9.6% of attempts at
+ability 55, 17.7% at 70, 29.1% at 85**, against a real-football 12–15%. A poor footballer is already
+*below* real conversion and a great one is double it.
 
-| candidate | attempts | goals | per attempt |
-|---|---|---|---|
-| shipped | 5.88 | 1.79 | 30.5% |
-| bands shifted −0.10 | 5.72 | 1.23 | 21.4% |
-| bands stretched 1.4× about 0.5 | 5.91 | 2.18 | **37.0%** |
+#### Three ways to change the mix, and all three miss
+
+The tool's other two modes change the world, measure what comes out, and put it back.
+
+**Shifting the bands down works but is blunt.** Every `qualityRange` lowered by 0.10 takes ability 85
+from 30.5% to 21.4% — still above real football — while dragging ability 55 to 6.6%, half of it.
 
 **Stretching the bands apart makes it worse**, which is not what anybody would predict from reading
-the data file. Almost every template already sits above 0.5, so widening the spread around the
-scale's midpoint pushes the bulk of the game's chances *up* rather than fanning them out.
+the data file: 30.5% → **37.0%**. Almost every template already sits above 0.5, so widening the
+spread around the scale's midpoint pushes the bulk of the game's chances *up*.
 
-**Shifting them down works but is blunt.** −0.10 brings ability 85 to 21.4%, still above real
-football, while dragging ability 55 down to 6.6% — half the real rate. It moves the level and leaves
-the slope, which was the defect.
+**Reweighting the archetypes moves volume, not slope.** `positionWeights` and `qualityRange` are
+correlated — for a striker the three likeliest moments are the three best ones (one-on-one at weight
+6 over 0.62–0.90, the through ball at 5 over 0.50–0.82, the cross at 5 over 0.45–0.78) while midfield
+possession sits at 0.6 over 0.12–0.40. Lifting the poor archetypes fourfold and halving the
+one-on-one, with every band untouched:
 
-**And neither touches the volume.** Attempts per match stay between 5.7 and 5.9 under every
-candidate: `qualityRange` decides how good a chance is, never how many there are. So "five to six
-attempts a match" is not a bands problem at all — it lives in `SituationGenerator`'s involvement
-rate and archetype routing, which is a different lever from the one the roadmap named. Recorded
-rather than acted on, for the reason the goal-curve fix already established: it moves every career
-in progress, and it now has a tool that can price it.
+| ability | attempts | goals | per attempt |
+|---|---|---|---|
+| 55 | 5.03 → 3.41 | 0.49 → 0.22 | 9.7% → **6.5%** |
+| 85 | 6.01 → 4.25 | 1.79 → 0.91 | 29.7% → **21.5%** |
+
+It fixes the *volume* — 4.25 attempts a match is a real striker's game rather than six — and does
+nothing to the slope: **3.1× from 55 to 85 before, 3.3× after**.
+
+**So the slope is not in the mix.** Three independent ways of changing which chances a footballer
+gets all move the level and leave the ratio between a poor player and a great one alone, because that
+ratio is the goal curve's response to `value` and nothing upstream of it can flatten a curve. Four
+levers are now priced and none is free, which is why this is recorded rather than changed: any of
+them moves every career in progress.
 
 #### What had to be re-calibrated with it
 
@@ -2444,6 +2458,62 @@ Individual awards require having played at least 60% of the season. Nobody is pl
 on nine appearances. Team honours carry no such condition — a cup belongs to the club, not to your
 form, and you do not have to have been good to have won it.
 
+#### The afternoon it was won
+
+That table was, for a long time, the whole of it. You won the cup final in March and the screen said
+**2-1** and offered a button marked *Back to career*; the trophy itself turned up four months later
+as a row on the season review, between a promotion and a cap count. This codebase has now written up
+the same defect three times in different clothes — morale was a stat with one consumer, a trait
+announced only in a stats table is an invisible modifier, a week described in prose that never
+changed said nothing — and this was the fourth. **A trophy recorded only in a list is a trophy that
+never happened to you.**
+
+So there are two ceremonies now, and the line between them is the calendar.
+
+**In season, the moment a final ends.** The two domestic cups, the three European competitions, the
+super cup and the international tournament are all settled by a match, so each is presented the
+moment that match is over: what was won, the scoreline, who it was against, and what you did in it.
+
+**In June, everything a match cannot settle.** The league title, which is a table rather than a
+fixture; the doubles and trebles, which are a season's shape rather than an afternoon; promotion;
+and every individual award, which needs the whole season's evidence before anybody can hand one
+over. They come one at a time, club before player — being the division's top scorer in a side that
+won the title reads differently from being its top scorer in a side that went down, and putting the
+club's night first is what makes the second one land.
+
+The June list **skips the trophies that already had their afternoon**. A cup celebrated in March and
+celebrated again in June is a game that does not remember what it told you. The season review still
+lists all of it: the review is the record, the ceremony is the moment, and they are allowed to
+disagree about how often a thing is worth saying.
+
+Four decisions inside it are worth stating, because each could have gone the other way:
+
+**A final lost gets a screen too.** The alternative is a game that goes quiet on the one afternoon a
+season can turn on — you reach a European final, lose it, and the screen says *1-2, back to career*.
+Reaching a final is already on the honours list above, so refusing to mention it here would
+contradict the record book two screens later. It is a different screen, not a consolation one: no
+gold, no congratulations, just what happened.
+
+**A trophy won while you were injured is still your trophy**, and the screen says which it was.
+*You watched from the treatment room. They won it without you.* Being hurt for the final does not
+un-win the cup — you are in the squad and the medal is real — but printing "you played" over that
+would be the game flattering you about your own career, which is the one thing the
+[how much of it you actually played](#how-much-of-it-you-actually-played) label exists to stop.
+
+**It survives the tab being closed on it.** The final is written to the career when the tie settles
+and cleared by the screen that shows it, the same way an open transfer window and a forced
+retirement are stored rather than left living in a mount call. It also goes into
+[the diary](#the-diary-while-the-career-is-still-being-played), which is the thing that remembers
+after the screen is gone — and is the only record of a final *lost* in a season the club won nothing
+in.
+
+**It cannot fire twice.** Whether a final has just been played is answered by comparing the
+competition's winner before the match with its winner after, rather than by working out which round
+is the last one. Every competition answers that the same way — a domestic cup, a European bracket
+hanging off a group stage, an international tournament of eight and a super cup that is one fixture
+have four different notions of "the final" and one notion of "somebody has won it now" — and the
+transition from nobody to somebody happens exactly once per competition per season.
+
 ### Ending a career, and what survives it
 
 A career used to have exactly one ending: **Abandon** on the home screen, a browser dialog, and
@@ -3254,7 +3324,8 @@ your club offers to keep you and what it calls you when it does**, **a rival wit
 own, who is sold when you take his shirt and turns up against you years later**, **a week between matches you
 spend on one of four things, each of which costs what the other three would have given you**,
 **eight traits earned from what you actually did, each one changing how a match plays**, **a diary of
-the moments a career is made of**, **a keeper you can read at a glance rather than in nine-pixel
+the moments a career is made of**, **a trophy presented on the afternoon it is won and a season's
+awards handed over one at a time in June**, **a keeper you can read at a glance rather than in nine-pixel
 type**, **a visible keyboard focus ring, reduced-motion support and live regions for what the match
 says**, **named teammates who get on the end of your passes**,
 **loans for a young player who cannot get a game**, promotion and relegation machinery

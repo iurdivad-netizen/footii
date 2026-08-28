@@ -57,6 +57,7 @@ import { STREAKY_FORM, hasTrait, newTraits } from '../player/traits.ts';
 import type { TraitEvidence } from '../player/traits.ts';
 import type { WeekPlan } from './week.ts';
 import { planApplies } from './week.ts';
+import type { FinalPlayed, Presentation } from './ceremony.ts';
 import type { SuperCupTie } from './superCup.ts';
 import { playsInSuperCup, superCupOpponent } from './superCup.ts';
 
@@ -288,6 +289,25 @@ export interface CareerState {
    * report for each one — so the hub has to be able to say what just happened.
    */
   lastResult: MatchResultSummary | null;
+  /**
+   * A final his side has just played, waiting to be presented.
+   *
+   * Written when the tie settles and cleared by the screen that shows it, so a
+   * trophy survives the tab being closed on the celebration — the same reason
+   * an open transfer window and a forced retirement are both stored rather than
+   * left living in a mount call. Null the rest of the time, which is almost
+   * always. See core/career/ceremony.ts.
+   */
+  pendingFinal?: FinalPlayed | null;
+  /**
+   * The season's own honours, waiting for the same treatment in June.
+   *
+   * Kept as the finished presentations rather than as the honours they were
+   * built from, because by the time this is read the career has moved on to the
+   * next season and the club, the division and the country it was won in may
+   * all have changed under it.
+   */
+  pendingCeremony?: Presentation[] | null;
   /**
    * Every match of the CURRENT season, oldest first.
    *

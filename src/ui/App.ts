@@ -101,6 +101,8 @@ import type { CareerSummary } from './screens/HomeScreen.ts';
 import { MatchScreen } from './screens/MatchScreen.ts';
 import { PlayerCreatorScreen } from './screens/PlayerCreatorScreen.ts';
 import { SeasonReviewScreen } from './screens/SeasonReviewScreen.ts';
+import { CeremonyScreen } from './screens/CeremonyScreen.ts';
+import { finalPresentation } from '../core/career/ceremony.ts';
 import { TrainingScreen } from './screens/TrainingScreen.ts';
 import { WorldScreen } from './screens/WorldScreen.ts';
 import { TransferScreen } from './screens/TransferScreen.ts';
@@ -919,6 +921,21 @@ export class App {
       return;
     }
 
+    // A trophy is presented before anything else on the way back to the hub,
+    // and it is checked HERE rather than at each of the three places a final can
+    // be settled — played, skipped, or missed through injury — because all three
+    // come back through this door. It also makes the celebration survive the tab
+    // being closed on it, exactly as the transfer window below does.
+    if (career.pendingFinal) {
+      const final = career.pendingFinal;
+      career.pendingFinal = null;
+      this.save = saveCareer(this.save, career);
+      this.mount(
+        new CeremonyScreen([finalPresentation(final)], () => this.showCareerHub()).element,
+      );
+      return;
+    }
+
     // An open transfer window is resumed rather than lost. Closing the tab on
     // the offer screen used to leave the offers sitting in the save with no
     // route back to them, so a summer's work simply vanished.
@@ -1391,9 +1408,42 @@ export class App {
 
     const potentialBefore = career.player.potentialAbility;
     const outcome = endSeason(career, getTeam);
-    const { record, champion } = outcome;
     this.save = saveCareer(this.save, career);
 
+    // The season's honours are handed over BEFORE the review, because that is
+    // the order they happen in: you are given the trophy, and then you read the
+    // report. The review still lists all of it — the review is the record and
+    // this is the occasion, and they are allowed to say the same thing twice
+    // because they are not saying it for the same reason.
+    const ceremony = career.pendingCeremony;
+    if (ceremony && ceremony.length > 0) {
+      career.pendingCeremony = null;
+      this.save = saveCareer(this.save, career);
+      this.mount(
+        new CeremonyScreen(ceremony, () => this.showSeasonReview(career, potentialBefore, outcome))
+          .element,
+      );
+      return;
+    }
+
+    this.showSeasonReview(career, potentialBefore, outcome);
+  }
+
+  /**
+   * The season's report, once anything it had to hand over has been handed
+   * over.
+   *
+   * Split from `reviewSeason` so the ceremony can sit between closing the season
+   * and reading it without the close running twice: `endSeason` archives the
+   * season, pays the wages and ages the player, and calling it again on the way
+   * back from a screen would do all of that a second time.
+   */
+  private showSeasonReview(
+    career: CareerState,
+    potentialBefore: number,
+    outcome: ReturnType<typeof endSeason>,
+  ): void {
+    const { record, champion } = outcome;
     // Asked AFTER the season has been closed, so the age it reads is the age he
     // starts next season at. "You are 34, there is another season in you" has to
     // mean the season he would actually be playing.

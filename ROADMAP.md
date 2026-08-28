@@ -1,16 +1,63 @@
 # Roadmap
 
-What is still to build, and why in this order.
+What is still to build, and what was decided against building. Everything already done is in
+[CHANGELOG.md](CHANGELOG.md); how the game works and why it is built the way it is stays in
+[README.md](README.md).
 
-Everything already built is in [CHANGELOG.md](CHANGELOG.md); how the game works and why it is
-built the way it is stays in [README.md](README.md).
+This file is also a record of things that were measured and then NOT changed, which is most of its
+length. Those live under [The record](#the-record) below. What is actually outstanding is the short
+list first, because a roadmap you have to read to the end of to find the open items is a history
+book.
+
+## What is still open
+
+Three build items, three smaller RPG ones, and one balance question.
+
+**The build items, in the order they are worth doing.** Nothing is waiting on any of them any
+more — the dependency chain the first version of this list was ordered by has been fully paid off —
+so this is ordered by value against cost.
+
+| | what it is | why this order |
+|---|---|---|
+| **A second division per country** | promotion and relegation exist, are tested, and swap nobody: all 192 clubs in `teams.json` are tier 1 | the machinery is already written, so it is the most game for the least new simulation |
+| **A playable goalkeeper** | `GK` is a position the career layer already answers for; what it has no version of is the MATCH | the largest single piece of new simulation left, and nothing depends on it |
+| **A richer location model** | zones are designed to be swapped for 2D coordinates behind the same `Zone` interface | deliberately last: nothing is waiting on it |
+
+All three are described in full, with what they reach into, under
+[The five items this list started with](#the-five-items-this-list-started-with).
+
+**The RPG remainder**, all three smaller than they look:
+
+- **Tendency and position retraining**, so a thirty-one-year-old can become the deep-lying version
+  of himself. `Tendencies` is a complete 0-100 blend model **set once in the creator and never
+  mutated again** by any career path, and `player.position` is likewise only ever assigned there.
+  The machinery already exists; nothing has ever been wired to move it.
+- **A background at creation** — where he came from, before the first contract.
+- **A full squad** — a readable XI and squad numbers. Flavour rather than mechanism, and it blocks
+  nothing: the six footballers the game can actually see (a rival, five receivers) are the six it
+  interacts with.
+
+**And one balance question, measured to a standstill.** The engine's conversion slope is too steep:
+9.6% of attempts at ability 55, 17.7% at 70 and 29.1% at 85, against a real 12-15%. A poor
+footballer is already BELOW real football and a great one is double it. Four candidate levers have
+now been measured and every one of them moves the LEVEL and leaves the SLOPE — the goal curve's
+midpoint, the situation bands, the archetype weights, and both of auto-play's own constants. It is
+recorded rather than acted on because any fix moves every career in progress, and it is the one
+item on this page that nobody should start without reading
+[the record of what has already been tried](#the-shot-mix-is-a-decision-before-it-is-a-distribution).
+
+## The record
+
+Everything below is what happened, in the order it happened. It is kept because several items
+turned out to be a different problem from the one they looked like, and that is the part you cannot
+reconstruct from a diff.
+
+### The five items this list started with
 
 The four agreed stages — a world of countries, domestic cups, European competitions and
 international football — are all done, and so is the end of the loop: a career can now finish, and
-finishing one leaves something behind.
-
-What remains, **ordered by what it unblocks rather than by size**. The first item is the one every
-other item on this list is waiting for.
+finishing one leaves something behind. Of the five items that followed them, two are closed and
+three are the open list above.
 
 1. **Squad context** — ✅ **Done**, in the shape the game actually needed rather than the one the
    list first imagined.
@@ -64,9 +111,25 @@ other item on this list is waiting for.
    tactical-style weighting is an outfield profile. Independent of the three above, and the largest
    single piece of new simulation left.
 
+   Worth being exact about what already exists, because "GK is only a string in a union" is the
+   easy version and it is not true. The career layer answers for a keeper everywhere a position has
+   to be exhaustive — his cover positions in `squad.ts`, a contribution rate of 0.02 in
+   `objective.ts`, a department in `transfers.ts` — and `POSITION_PROFILES` has a full entry for
+   him. What has never been written is the ninety minutes: no creator preset offers him, no
+   situation archetype carries a `GK` weight, so a career started as a goalkeeper would reach the
+   first fixture and have nothing to do in it. The missing piece is the match, not the career.
+
 5. **Richer location model** — the tactical zone model is designed to be swapped for 2D coordinates
    behind the same `Zone` interface. Deliberately last: nothing else is waiting on it, and it is
    worth more once there are teammates to have positions.
+
+   Half of that precondition has since been met and it is worth being precise about which half. The
+   five named receivers are people to pass TO, not people standing somewhere — a teammate is a name
+   and a set of ratings, and there is no position on him to be richer about. So this is still last,
+   and what would move it up the list is the full squad in the RPG remainder rather than anything
+   in the match engine.
+
+### What landed that was never on the list
 
 Done since this list was last written, and worth recording because both were listed here as
 obvious next steps: **three career slots**, so ending a career is no longer the price of starting
@@ -146,7 +209,9 @@ complete 0-100 blend model that is **set once in the creator and never mutated a
 path, and `player.position` is likewise only ever assigned there. The machinery to be a different
 footballer at thirty-one already exists; nothing has ever been wired to move it.
 
-**Five more have since landed**, all from reading the game rather than from planning it:
+**Eleven more have since landed**, all from reading the game rather than from planning it — and the
+count in this line has been wrong twice, which is its own small lesson about a list that grows by
+one item at a time:
 
 - **[What he wants this season](README.md#what-he-wants-this-season)** — manager confidence had been a scoreboard with no posted
   score since it was written: the number moved every match and nothing anywhere said what it was
@@ -184,6 +249,19 @@ footballer at thirty-one already exists; nothing has ever been wired to move it.
   learns what morale is for, and studying the opponent turns out to be worth **nothing** at the
   untimed pace — one of the four options switched off by a setting chosen on another screen, which
   the card now says out loud.
+- **[The afternoon it was won](README.md#the-afternoon-it-was-won)** — winning the cup produced a full-time screen reading "2-1"
+  and a button marked *Back to career*; the trophy appeared four months later as a row on the season
+  review, between a promotion and a cap count. That is this file's own recurring defect for the
+  fourth time — a thing recorded only in a list is a thing that never happened to you. Trophies
+  settled by a match are now presented the moment the match ends, and everything a match cannot
+  settle — the title, the doubles, promotion, and every individual award — is handed over one at a
+  time in June, club before player. Three of the decisions inside it are the interesting part: a
+  final LOST gets a screen too, because a game that goes quiet on the one afternoon a season turns
+  on would contradict its own honours list two screens later; a trophy won from the treatment room
+  is still presented and says so rather than claiming he played; and whether a final has just
+  happened is answered by comparing a competition's winner before the match with its winner after,
+  which is the one question a domestic cup, a European bracket, a tournament of eight and a
+  one-off super cup all answer the same way.
 - **The world stopped being eight countries four countries ago.** Found while reading rather than
   playing: the README still headed its world section "eight countries" over a body that said
   twelve, the generator's own docstring described 128 clubs, and `countries.ts` opened by telling
@@ -193,11 +271,21 @@ footballer at thirty-one already exists; nothing has ever been wired to move it.
   than overwritten, because a note that quietly restates history in today's numbers is worth less
   than one that says when it was taken.
 
-One thing found while measuring and deliberately not acted on: **auto-play scores far too much.**
-A skipped match resolves at 1.0 goals a match at ability 55 and **2.9 at ability 85**, with an
-average rating of 9.4 — so "let him play it" produces a superhuman career, and it distorts the
-golden boot, the record book and the wall of fame. Retuning it would move every career already
-played, so it is recorded here rather than changed.
+### Balance, measured four times over
+
+This is the part of the file worth reading before touching a constant. It is one question asked
+four times, and the answer moved every time — so the sections below are left in the order they were
+written rather than tidied into the conclusion, because the wrong turns are the useful part.
+
+**The original observation, and every number in it is now historical** — it was taken before the
+chance-quality fix, which cut scoring by about a third. It is left standing because the two sections
+after it are corrections OF it, and a correction with its subject deleted is not a record.
+
+> One thing found while measuring and deliberately not acted on: **auto-play scores far too much.**
+> A skipped match resolves at 1.0 goals a match at ability 55 and **2.9 at ability 85**, with an
+> average rating of 9.4 — so "let him play it" produces a superhuman career, and it distorts the
+> golden boot, the record book and the wall of fame. Retuning it would move every career already
+> played, so it is recorded here rather than changed.
 
 **That attribution has since been measured, and it was wrong.** `scripts/measureAutoPlay.ts` plays
 the same fixture under four policies — worst option, random, auto-play, best option — on the same
@@ -302,16 +390,15 @@ of them decent, because he is the focus of every situation it generates. That is
 `ActionResolver`, and it is the next place to look if the aggregate still reads
 high.
 
-### The shot mix, measured — and the fix it rules out
+### The shot mix is a decision before it is a distribution
 
-That paragraph was a diagnosis nobody had checked, which is exactly the kind of
-thing this file has twice recorded and twice found to be wrong. So
-`scripts/measureShotMix.ts` was written to check it: it plays the same fixture
-under auto-play and under a perfect read, and records every attempt with the
-chance it came from, the archetype that produced it and what became of it.
+That paragraph was a diagnosis nobody had checked, which is exactly the kind of thing this file has
+twice recorded and twice found to be wrong. So `scripts/measureShotMix.ts` was written to check it.
+It plays the same fixture under auto-play and under a perfect read and records EVERY moment the
+player was in — not only the ones that produced a shot, which turned out to be the whole point.
 
-**The claim is confirmed, and it was understated.** At ability 85, auto-played
-over 200 matches:
+**The mix is top-heavy, and by more than the claim said.** At ability 85, auto-played over 200
+matches:
 
 | band | share of attempts | per match | converts (perfect read) |
 |---|---|---|---|
@@ -320,46 +407,72 @@ over 200 matches:
 | decent (.45-.62) | 44.0% | 2.63 | 24.9% |
 | big (>=0.62) | **50.0%** | 2.98 | 40.4% |
 
-94% of a striker's attempts are decent or better, and the game produces one
-genuinely hopeless chance every twenty matches.
+94% of a striker's attempts are decent or better, and the game records one shot from a genuinely
+hopeless position every twenty matches.
 
-**That reframes the defect this file has been recording.** "A hopeless chance
-still converts better than one in five" is measured on a band the game hardly
-generates — sixteen attempts in two hundred matches. The aggregate does not read
-high because bad chances convert too well; it reads high because there are
-almost no bad chances. The 1.8x spread is real but it is a spread between
-*decent* and *big*, which are 94% of everything.
+**But the reason is not the one anybody assumed, and this is the finding that reframes the item.**
+The game generates poor moments perfectly happily — about two a match at ability 85, across midfield
+possession, the pressing trap, the wide attack and the edge of the box. What it does not do is
+SHOOT from them:
 
-**The aggregate, per ability, which had never been stated:** 9.6% of attempts at
-55, 17.7% at 70, 29.1% at 85, against a real 12-15%. A poor footballer is
-already BELOW real conversion and a great one is double it. It is the slope, not
-the level — the same shape the goal curve turned out to have.
+| | becomes a shot |
+|---|---|
+| a poor or hopeless moment | **17.7%** |
+| a big chance | **87.2%** |
 
-**Two archetypes are 58% of every attempt**: the one-on-one (31%, configured
-0.62-0.90, so its floor is the top band's boundary) and arriving on a cross
-(26%). A fix starts there or it starts nowhere.
+Midfield possession, the pressing trap, the aerial duel and the wide attack produce a shot 0% of the
+time. The edge of the box manages 32%, the side of the penalty area 41%. The population of ATTEMPTS
+is filtered by the decision model before it is anything else — and a striker who squares the ball
+rather than shooting from a hopeless angle has not taken a bad shot, he has taken no shot. That is
+football, not a defect, and it means "most of them are decent" is substantially a description of
+somebody playing well.
 
-**The obvious fix is the wrong one, and the tool is what says so.** Its second
-mode applies a candidate transform to every `qualityRange` and measures it end
-to end. At ability 85: shipped 5.88 attempts, 1.79 goals, 30.5% per attempt;
-bands shifted -0.10 gives 5.72 / 1.23 / 21.4%; bands stretched 1.4x about 0.5
-gives 5.91 / 2.18 / **37.0%**.
+**The aggregate, per ability, which had never been stated:** 9.6% of attempts at 55, 17.7% at 70,
+29.1% at 85, against a real 12-15%. A poor footballer is already BELOW real conversion and a great
+one is double it. It is the slope, not the level — the same shape the goal curve turned out to have.
 
-Stretching the bands apart RAISES conversion, which nobody would predict from
-reading the data file — almost every template already sits above 0.5, so
-widening around the scale's midpoint pushes the bulk of the game's chances up.
-Shifting them down works but is blunt: it brings 85 to 21.4%, still high, while
-dragging 55 to 6.6%, half the real rate. It moves the level and leaves the slope.
+#### Both mix levers, measured and both rejected
 
-**And neither moves the volume at all.** Attempts per match stay between 5.7 and
-5.9 under every candidate. `qualityRange` decides how good a chance is, never how
-many there are — so "five to six attempts a match" is not a bands problem, and
-the two places this file named as one target are two different levers. The
-volume lives in `SituationGenerator`'s involvement rate and archetype routing.
+The tool's other two modes change the world and measure what comes out, then put it back.
 
-Recorded rather than acted on, for the reason the goal-curve fix established: it
-moves every career in progress. The difference is that it can now be priced
-before it is chosen.
+**The bands cannot do it, and the intuitive direction is backwards.** At ability 85: shipped 5.88
+attempts, 1.79 goals, 30.5% per attempt; every `qualityRange` shifted down 0.10 gives 5.72 / 1.23 /
+21.4%; every band stretched 1.4x about 0.5 gives 5.91 / 2.18 / **37.0%**. Stretching the bands apart
+RAISES conversion, because almost every template already sits above 0.5 — widening around the
+scale's midpoint pushes the bulk of the game's chances up rather than fanning them out. And shifting
+down drags ability 55 to 6.6%, half the real rate, to bring 85 to 21.4%, still above it.
+
+**The archetype weights move volume, not slope.** Read the two columns of `data/situations.ts`
+together and the mix stops being mysterious: for a striker the three LIKELIEST archetypes are the
+three BEST ones — the one-on-one at weight 6 over a 0.62-0.90 band, the through ball at 5 over
+0.50-0.82, arriving on a cross at 5 over 0.45-0.78 — while the poor ones carry the lowest weights in
+the table, midfield possession at 0.6 over 0.12-0.40 and the wide attack at 1 over 0.25-0.55.
+`positionWeights` and `qualityRange` are correlated, and that correlation IS the shot mix. Nothing
+about any individual number is wrong; what it produces in aggregate is a footballer whose every
+moment is one of his best ones.
+
+Lifting the poor archetypes fourfold and halving the one-on-one, with every band left exactly as it
+shipped:
+
+| ability | attempts | goals | per attempt |
+|---|---|---|---|
+| 55 | 5.03 → 3.41 | 0.49 → 0.22 | 9.7% → **6.5%** |
+| 85 | 6.01 → 4.25 | 1.79 → 0.91 | 29.7% → **21.5%** |
+
+It does exactly what it should to VOLUME — 4.25 attempts a match is a real striker's game rather
+than six — and nothing at all to the slope: 3.1x from 55 to 85 before, 3.3x after. The same shape as
+the bands, and the same shape as the goal-curve midpoint before them.
+
+**So the slope is not in the mix at all.** Three independent ways of changing which chances a
+footballer gets all move the level and leave the ratio between a poor player and a great one
+untouched, because that ratio is the goal curve's response to `value` and nothing upstream of it can
+flatten a curve. The remaining honest options are a curve whose steepness varies with the chance
+rather than with the player, or accepting the slope as the game's own exaggeration — and this file
+is not the place to decide that on a hunch. What it can now say is that four levers have been priced
+and none of them is free.
+
+Recorded rather than acted on, for the reason the goal-curve fix established: it moves every career
+in progress. The difference is that it can now be priced before it is chosen.
 
 ### Both of auto-play's own constants are innocent
 
@@ -390,7 +503,7 @@ matches are deterministic from their seed, and altering how the policy consumes 
 result of every future skipped match in every career in progress. That is a real price, and there
 was nothing on the other side of it.
 
-## Nothing is still open
+### Every item anybody reported is closed
 
 All fourteen items in [CHANGELOG.md](CHANGELOG.md) are now done — thirteen raised from playing the
 game and one found while measuring another.
@@ -403,7 +516,3 @@ somebody's attention and a point on a wall. It is settled as a **label** instead
 such number and was all the request actually wanted: for a career played out at Hardcore and one
 skipped from start to finish not to look identical. See
 [How much of it you actually played](README.md#how-much-of-it-you-actually-played).
-
-What is left is the three roadmap items above — a second division, a playable goalkeeper, a richer
-location model — plus the RPG work listed with them, and one balance question recorded but
-deliberately untouched.
