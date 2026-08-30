@@ -596,6 +596,28 @@ The entire simulation is deterministic given a seed. Nothing in `core/` or `simu
 the same match, event for event and commentary line for commentary line (asserted in tests). This
 is what makes the engine debuggable and balanceable.
 
+**Somebody still has to choose the seed**, and that happens in `ui/careerSeed.ts` — the one layer
+allowed to be non-deterministic, because it is the one with the buttons on it. A career takes a
+fresh seed the moment its setup screen opens.
+
+It used to be a text field on that screen, defaulting to the constant `footii-1` and restored from
+the previous selection afterwards. **So the three careers this game advertises as independent lives
+were three copies of one world**: measured at the same club on the default, an identical fixture
+list, identical cup draws and an identically named rival. Anybody who never touched the box — which
+is anybody who did not already know what a seed was — played the same fifteen years three times.
+
+Nothing about determinism was given up with the field. The seed is still printed on every event in
+[debug mode](#debug-mode), and an exported save carries whole worlds. What went is being asked to
+invent one before the game has started, on the only control on that screen with no better or worse
+answer. **A quick match keeps it**, where it means what it says: play the same fixture twice, decide
+differently, and see what that was worth.
+
+One property it had by accident is kept on purpose. The seed is minted when the career setup opens
+and spent when a career begins, so failing a [trial](#where-a-career-may-begin) and going back gets
+you the same trial rather than a fresh roll. That used to hold because the seed was a constant; it
+now holds because it is deliberately not re-rolled — and it is stricter than before, since the
+visible field was itself the reroll, one keystroke away.
+
 ---
 
 ## Architecture
@@ -844,11 +866,13 @@ The settings screen is the clearest case. The menu had an entry called Settings 
 The save panel came with it: export and import are about the **browser**, not about any one career,
 and importing replaces all three at once.
 
-One label was wrong in the same family and is fixed with them. The setup screen offers a **seed**,
-and in a quick match it seeds one afternoon — but in a career it becomes the career's own seed and
-settles every fixture, every draw and every summer for fifteen years. It read *"Match seed — the
-same seed always produces the same match"* on both. It now says *career seed* on one of them, and
-what that actually buys.
+One field was wrong in the same family, and looking at it properly turned up a defect rather than a
+label. The setup screen offered a **seed** on both screens, described as a match seed — but in a
+career it became the career's own seed and settled every fixture, every draw and every summer for
+fifteen years. Renaming it was the first fix and the wrong one: it should not have been on a career
+at all, its default was a constant, and the result was three "independent" careers sharing one
+world. It is a quick-match field now, and a career takes a fresh seed of its own — see
+[Determinism](#determinism).
 
 #### The mark
 

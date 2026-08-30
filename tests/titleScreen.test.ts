@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { titleMenu } from '../src/ui/titleMenu.ts';
 import { gameLogo } from '../src/ui/logo.ts';
+import { newCareerSeed } from '../src/ui/careerSeed.ts';
 import type { CareerSummary } from '../src/ui/screens/HomeScreen.ts';
 
 const career = (overrides: Partial<CareerSummary> = {}): CareerSummary => ({
@@ -129,5 +130,46 @@ describe('the door the game opens on', () => {
     expect(home).not.toContain('hall-mini');
     expect(settings).not.toContain('slot-rack');
     expect(settings).not.toContain('data-continue');
+  });
+});
+
+/**
+ * THE WORLD A CAREER IS PLAYED IN
+ *
+ * The career setup screen used to ask for a seed, defaulting to the constant
+ * "footii-1" and restoring the previous value after that — so three careers
+ * that the game calls independent lives were three copies of one world.
+ */
+describe('choosing a world', () => {
+  const setup = readFileSync(new URL('../src/ui/screens/SetupScreen.ts', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('../src/ui/App.ts', import.meta.url), 'utf8');
+
+  it('never hands the same world to two careers', () => {
+    const seeds = new Set(Array.from({ length: 200 }, () => newCareerSeed()));
+    expect(seeds.size).toBe(200);
+  });
+
+  it('does not ask a first-time player to invent one', () => {
+    // Hidden on a career, kept on a quick match, where repeating a fixture and
+    // deciding differently is the whole point of the field.
+    expect(setup).toContain(
+      `<div class="field" \${handlers.mode === 'career' ? 'hidden' : ''}>\n          <label for="seed">Match seed</label>`,
+    );
+  });
+
+  it('seeds a career out of the player\'s hands', () => {
+    expect(app).toContain('seed: this.pendingCareerSeed ??= newCareerSeed()');
+  });
+
+  it('holds one world across a failed trial, so retrying is not a reroll', () => {
+    // The seed is minted when setup opens and spent when a career begins, so
+    // going back and trying the same club again gets the same trial.
+    expect(app).toContain("if (mode === 'career') this.pendingCareerSeed ??= newCareerSeed();");
+    expect(app).toContain('this.pendingCareerSeed = null;');
+  });
+
+  it('does not remember a career world into the next career', () => {
+    expect(app).toContain("lastSelection: { ...selection, seed: '' }");
+    expect(app).toContain("if (last.seed) set('seed', last.seed);");
   });
 });

@@ -99,6 +99,7 @@ import { FullTimeScreen } from './screens/FullTimeScreen.ts';
 import { HomeScreen } from './screens/HomeScreen.ts';
 import { TitleScreen } from './screens/TitleScreen.ts';
 import { SettingsScreen } from './screens/SettingsScreen.ts';
+import { newCareerSeed } from './careerSeed.ts';
 import type { CareerSummary } from './screens/HomeScreen.ts';
 import { MatchScreen } from './screens/MatchScreen.ts';
 import { PlayerCreatorScreen } from './screens/PlayerCreatorScreen.ts';
@@ -124,6 +125,18 @@ type Mode = 'career' | 'quick';
 /** Screen routing and the wiring between UI and simulation. */
 export class App {
   private readonly input = new InputController();
+  /**
+   * The world the next career will be played in.
+   *
+   * Minted when the career setup screen opens and held until a career actually
+   * starts, which is what keeps a FAILED TRIAL from being a reroll: going back
+   * and trying the same club again gets the same trial, on the same seed,
+   * rather than a fresh roll of the dice. The old visible seed box was itself
+   * the reroll — a text field you could nudge by one character to be offered a
+   * different afternoon — so this is stricter than what it replaces, not
+   * looser. Cleared the moment a career begins, so the next one is a new world.
+   */
+  private pendingCareerSeed: string | null = null;
   private readonly debug = new DebugPanel();
   private readonly overlay: EventOverlay;
   private save: SaveData;
@@ -619,6 +632,8 @@ export class App {
   // ------------------------------------------------------------- setup ---
 
   private showSetup(mode: Mode): void {
+    if (mode === 'career') this.pendingCareerSeed ??= newCareerSeed();
+
     const screen = new SetupScreen({
       mode,
       onStart: (selection) =>
@@ -649,7 +664,10 @@ export class App {
       if (desired !== CUSTOM_PLAYER_ID || this.customPlayer) set('preset', desired);
       set('team', last.teamId);
       set('opponent', last.opponentId);
-      set('seed', last.seed);
+      // Restored only when there is one to restore. A career no longer records
+      // its seed here — see `startCareerAt` — so this is the quick match's,
+      // where repeating a fixture is the point of the field.
+      if (last.seed) set('seed', last.seed);
       set('length', String(last.length));
       screen.element.querySelector<HTMLSelectElement>('#preset')?.dispatchEvent(new Event('change'));
     }
@@ -828,6 +846,9 @@ export class App {
    * begins if he was good enough in it. See core/career/trial.ts.
    */
   private beginCareer(selection: SetupSelection): void {
+    // The seed the SCREEN reports is the quick-match one and is never the
+    // career's: a career is seeded here, out of the player's hands.
+    selection = { ...selection, seed: this.pendingCareerSeed ??= newCareerSeed() };
     const player = this.resolvePlayer(selection.presetId);
     const club = getTeam(selection.teamId);
     if (clubStanding(player, club) === 'trial') {
@@ -944,7 +965,13 @@ export class App {
     }
 
     this.selectedPresetId = selection.presetId;
-    this.save = { ...this.save, lastSelection: selection };
+    // The seed is deliberately NOT carried into `lastSelection`: it is restored
+    // into the setup screen next time, and restoring a career's world would
+    // make the second career a copy of the first — which is exactly what the
+    // constant default used to do.
+    this.save = { ...this.save, lastSelection: { ...selection, seed: '' } };
+    // Spent. The next career is a new world.
+    this.pendingCareerSeed = null;
 
     const career = startCareer({
       player: this.resolvePlayer(selection.presetId),

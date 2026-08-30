@@ -264,9 +264,16 @@ one item at a time:
   three settings, the save panel and a link to the manual, every one of which had become a menu
   entry as well. Five things on screen twice. Each went where it belongs — the careers page is
   careers, settings and the save file got the screen the menu was already pretending to open, and
-  the wall stayed the screen it already had. One label went with them: the setup screen's "match
-  seed" is a CAREER seed in career mode, settling fifteen years rather than an afternoon, and had
-  said otherwise since it was written.
+  the wall stayed the screen it already had.
+
+  One field went with them and turned out to be a defect rather than a label. The setup screen
+  offered a "match seed" in both modes; in a career it was the CAREER's seed, settling fifteen
+  years rather than an afternoon. Renaming it was the first fix and the wrong one — it should not
+  have been on a career at all. Its default was the constant `footii-1` and the saved selection
+  re-filled it, so the three careers this game advertises as independent lives were three copies of
+  one world: measured at the same club, an identical fixture list, identical draws and an
+  identically named rival. Careers take a fresh seed now; the quick match keeps the field, where
+  replaying a fixture to decide differently is the point of it.
 - **[The afternoon it was won](README.md#the-afternoon-it-was-won)** — winning the cup produced a full-time screen reading "2-1"
   and a button marked *Back to career*; the trophy appeared four months later as a row on the season
   review, between a promotion and a cap count. That is this file's own recurring defect for the
