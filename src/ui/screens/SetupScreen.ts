@@ -105,23 +105,39 @@ export class SetupScreen {
           </select>
         </div>
 
-        <div class="field">
-          <!--
-            The same input, and deliberately NOT the same thing. In a quick
-            match it seeds one afternoon. In a career it becomes the career's
-            own seed and seeds the whole of it — every fixture, every draw, every summer,
-            for fifteen years — so calling it a match seed there was describing
-            the smallest thing it does.
-          -->
-          <label for="seed">${handlers.mode === 'career' ? 'Career seed' : 'Match seed'}</label>
+        <!--
+          A QUICK MATCH ONLY, and it took a hard look to see why.
+
+          It was on both screens, labelled "match seed", and in a career that
+          was the smallest thing it did: the value became the career's own seed
+          and settled every fixture, every cup draw and every summer for fifteen
+          years. Renaming it was the first fix and the wrong one. The field
+          should not be on a career at all:
+
+          NOBODY CAN HAVE AN OPINION ABOUT IT. Every other control here is a
+          choice with consequences a player can weigh — who he is, where he
+          starts. A seed has no better or worse value, and asking a first-time
+          player to fill one in is the mistake the welcome screen exists to
+          undo, where the front door asked him to choose a decision pace before
+          anything had told him a decision was a thing this game had.
+
+          AND ITS DEFAULT WAS A CONSTANT, which is the part that actually broke
+          something. Every career started without touching the box used
+          "footii-1", and the saved selection re-filled the previous value into
+          the next one — so the three careers this game advertises as
+          independent lives were three copies of one world: the same fixture
+          list, the same cup draws, the same rival, down to his name. A career
+          takes a random seed now and does not ask. See App.ts.
+
+          It stays here, on a quick match, where it is exactly what it says:
+          play the same fixture twice, decide differently, and see what that
+          was worth. That is the game's own demonstration of its determinism,
+          and the one place the field is worth a player's attention.
+        -->
+        <div class="field" ${handlers.mode === 'career' ? 'hidden' : ''}>
+          <label for="seed">Match seed</label>
           <input id="seed" type="text" value="footii-1" spellcheck="false" />
-          <p class="hint">
-            ${
-              handlers.mode === 'career'
-                ? 'Seeds the whole career: the same seed always produces the same fifteen years.'
-                : 'The same seed always produces the same match.'
-            }
-          </p>
+          <p class="hint">The same seed always produces the same match.</p>
         </div>
 
         <div class="field" ${handlers.mode === 'career' ? 'hidden' : ''}>
