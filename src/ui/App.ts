@@ -97,6 +97,7 @@ import { LegacyScreen } from './screens/LegacyScreen.ts';
 import type { TotalsView } from './screens/FullTimeScreen.ts';
 import { FullTimeScreen } from './screens/FullTimeScreen.ts';
 import { HomeScreen } from './screens/HomeScreen.ts';
+import { TitleScreen } from './screens/TitleScreen.ts';
 import type { CareerSummary } from './screens/HomeScreen.ts';
 import { MatchScreen } from './screens/MatchScreen.ts';
 import { PlayerCreatorScreen } from './screens/PlayerCreatorScreen.ts';
@@ -171,7 +172,7 @@ export class App {
     // The welcome comes before the front door, not instead of it: `showHome`
     // is still where every other path lands, and this only redirects the very
     // first arrival. See ui/screens/WelcomeScreen.ts.
-    if (this.save.settings.seenIntro) this.showHome();
+    if (this.save.settings.seenIntro) this.showTitle();
     else this.showWelcome();
   }
 
@@ -201,7 +202,7 @@ export class App {
         // as a way back: somebody who reads first should not have to find the
         // start button again afterwards.
         onHowToPlay: leave(() => this.showHowToPlay(true)),
-        onSkip: leave(() => this.showHome()),
+        onSkip: leave(() => this.showTitle()),
       }).element,
     );
   }
@@ -230,7 +231,7 @@ export class App {
   private showHowToPlay(fromWelcome = false): void {
     this.mount(
       new HowToPlayScreen({
-        onBack: () => this.showHome(),
+        onBack: () => this.showTitle(),
         onStart: fromWelcome
           ? () => {
               this.save = selectSlot(this.save, this.firstEmptySlot());
@@ -299,7 +300,52 @@ export class App {
 
   // -------------------------------------------------------------- home ---
 
-  private showHome(status?: string): void {
+  /**
+   * The front door.
+   *
+   * A menu rather than a page, and the careers rack it used to be is now one of
+   * its entries — see ui/screens/TitleScreen.ts for why the order is what it is.
+   *
+   * The career it offers to continue is the ACTIVE slot, which is the one last
+   * played rather than the first one filled: somebody with three going wants the
+   * one he was in the middle of, and the save has always known which that was.
+   */
+  private showTitle(): void {
+    this.matchScreen?.stop();
+    this.matchScreen = null;
+
+    const slots = this.careerSlots();
+    const current = slots[this.save.activeSlot] ?? null;
+    const careerCount = slots.filter(Boolean).length;
+
+    this.mount(
+      new TitleScreen({
+        current,
+        careerCount,
+        hallOfFameCount: this.save.hallOfFame?.length ?? 0,
+        onContinue: () => {
+          this.save = selectSlot(this.save, this.save.activeSlot);
+          this.showCareerHub();
+        },
+        // With nothing saved there is no rack worth showing — three empty slots
+        // and a heading — so the first career skips it and goes straight to the
+        // creator. The rack earns its place the moment there is a career on it.
+        onCareers: () =>
+          careerCount > 0
+            ? this.showHome()
+            : (() => {
+                this.save = selectSlot(this.save, this.firstEmptySlot());
+                this.showSetup('career');
+              })(),
+        onQuickMatch: () => this.showSetup('quick'),
+        onHowToPlay: () => this.showHowToPlay(),
+        onHallOfFame: () => this.showHallOfFame(),
+        onSettings: () => this.showHome(undefined, 'settings'),
+      }).element,
+    );
+  }
+
+  private showHome(status?: string, focus?: 'settings'): void {
     this.matchScreen?.stop();
     this.matchScreen = null;
 
@@ -331,8 +377,18 @@ export class App {
         status,
         settings: this.save.settings,
         onSettingsChange: (settings) => this.updateSettings(settings),
+        onBack: () => this.showTitle(),
       }).element,
     );
+
+    // Opened from the menu's Settings entry, which is a promise about where the
+    // page will be when it arrives. Without this it lands at the top and the
+    // player has to go looking for the thing he just asked for.
+    if (focus === 'settings') {
+      this.root
+        .querySelector<HTMLElement>('.home-settings')
+        ?.scrollIntoView({ block: 'start', behavior: 'auto' });
+    }
   }
 
   /**
@@ -470,7 +526,7 @@ export class App {
       // it. Fall back to simply clearing it, which is what the old Abandon did.
       console.error('Career could not be summarised; ending it without a record', error);
       this.save = clearCareer(this.save);
-      this.showHome();
+      this.showTitle();
       return;
     }
 
@@ -485,11 +541,11 @@ export class App {
               ? enshrineCareer(this.save, legacy)
               : clearCareer(this.save);
             if (isWorthRemembering(legacy)) this.showHallOfFame(legacy.id);
-            else this.showHome();
+            else this.showTitle();
           },
           onCancel: forced
             ? undefined
-            : (onCancel ?? (ending === 'retired' ? () => this.showCareerHub() : () => this.showHome())),
+            : (onCancel ?? (ending === 'retired' ? () => this.showCareerHub() : () => this.showTitle())),
         },
       ).element,
     );
@@ -507,7 +563,7 @@ export class App {
       new HallOfFameScreen(
         this.save.hallOfFame,
         {
-          onBack: () => this.showHome(),
+          onBack: () => this.showTitle(),
           onClear: () => {
             this.save = clearHallOfFame(this.save);
             this.showHallOfFame();
@@ -561,7 +617,7 @@ export class App {
       onStart: (selection) =>
         mode === 'career' ? this.beginCareer(selection) : this.startQuickMatch(selection),
       onCreatePlayer: (selection) => this.showCreator(mode, selection),
-      onBack: () => this.showHome(),
+      onBack: () => this.showTitle(),
       customLabel: this.customPlayer
         ? `${this.customPlayer.name} — ${this.customPlayer.position}, ${this.customPlayer.age} (yours)`
         : undefined,
@@ -680,7 +736,7 @@ export class App {
         this.save = recordMatch(this.save, engine.state.stats, rating, matchResult(engine.state));
         const c = this.save.career;
         this.mount(
-          new FullTimeScreen(engine, () => this.showHome(), {
+          new FullTimeScreen(engine, () => this.showTitle(), {
             continueLabel: 'Back to menu',
             totals: {
               // Quick-match totals only. These are a SEPARATE ledger from the
@@ -706,7 +762,7 @@ export class App {
       // A quick match is on its own ledger and touches no career, so walking
       // out of one simply ends it. There is nothing to protect from a retry
       // here — that is the entire difference between this and a fixture.
-      () => this.showHome(),
+      () => this.showTitle(),
     );
   }
 
@@ -896,14 +952,14 @@ export class App {
   private showCareerHub(): void {
     const career = activeCareer(this.save);
     if (!career) {
-      this.showHome();
+      this.showTitle();
       return;
     }
     // Same reasoning as careerSummary(): a career that cannot be rendered must
     // drop the player back to a working menu, not a blank screen.
     if (!this.canRenderCareer(career)) {
       this.save = clearCareer(this.save);
-      this.showHome();
+      this.showTitle();
       return;
     }
     this.matchScreen?.stop();
@@ -965,7 +1021,7 @@ export class App {
           onMiss: () => this.missCareerMatch(),
           onWorld: () => this.showWorld(),
           onEndSeason: () => this.reviewSeason(),
-          onQuit: () => this.showHome(),
+          onQuit: () => this.showTitle(),
           onPreferences: () => this.showPreferences(career),
           // Re-entering the hub rather than re-rendering in place, because a
           // week can change the team sheet: resting up or arguing your way back
