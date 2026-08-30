@@ -97,17 +97,23 @@ describe('what the manual has to cover', () => {
 });
 
 describe('the front door', () => {
-  const home = readFileSync(
-    new URL('../src/ui/screens/HomeScreen.ts', import.meta.url),
-    'utf8',
-  );
+  const menu = readFileSync(new URL('../src/ui/titleMenu.ts', import.meta.url), 'utf8');
+  const home = readFileSync(new URL('../src/ui/screens/HomeScreen.ts', import.meta.url), 'utf8');
 
-  it('offers the manual as a button rather than burying it in a fold', () => {
+  it('offers the manual as a menu entry rather than burying it in a fold', () => {
     // What this replaced: five bullets inside a collapsed <details>, below the
     // careers, the wall, the quick match, the settings and the save panel.
     // Folded, below the fold, and under five other sections is three separate
-    // ways of being unread.
-    expect(home).toContain('open-how');
+    // ways of being unread. It is one of four entries on the front door now.
+    expect(menu).toContain("id: 'how'");
+    expect(menu).toContain("label: 'How to play'");
+  });
+
+  it('does not offer it a second time from the careers page', () => {
+    // The same guarantee from the other side: one route to the manual, not one
+    // per screen. See ui/screens/HomeScreen.ts on why that page is careers
+    // only.
+    expect(home).not.toContain('open-how');
     expect(home).not.toContain('home-help"');
   });
 });

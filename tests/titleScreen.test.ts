@@ -107,8 +107,27 @@ describe('the door the game opens on', () => {
     expect(app).toContain("careerCount > 0\n            ? this.showHome()");
   });
 
-  it('lands on the settings when the menu asked for the settings', () => {
-    expect(app).toContain("this.showHome(undefined, 'settings')");
-    expect(app).toContain(".querySelector<HTMLElement>('.home-settings')");
+  it('opens a settings screen rather than scrolling another page to it', () => {
+    // A menu entry that opens something else and scrolls is a link that lands
+    // somewhere and hopes.
+    expect(app).toContain('onSettings: () => this.showSettings()');
+    expect(app).toContain('private showSettings(status?: string)');
+  });
+
+  it('keeps each page to one question', () => {
+    const home = readFileSync(new URL('../src/ui/screens/HomeScreen.ts', import.meta.url), 'utf8');
+    const settings = readFileSync(
+      new URL('../src/ui/screens/SettingsScreen.ts', import.meta.url),
+      'utf8',
+    );
+    // The careers page carries no quick match, no settings and no save panel;
+    // the settings screen carries no careers. Each of those was on screen twice
+    // the moment the menu started offering them.
+    expect(home).not.toContain('quick-match');
+    expect(home).not.toContain('home-pace');
+    expect(home).not.toContain('export-save');
+    expect(home).not.toContain('hall-mini');
+    expect(settings).not.toContain('slot-rack');
+    expect(settings).not.toContain('data-continue');
   });
 });
