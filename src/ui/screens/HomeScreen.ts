@@ -1,29 +1,25 @@
-import { DECISION_PACE_LABELS } from '../../simulation/DecisionTimer.ts';
-import type { DecisionPace } from '../../simulation/DecisionTimer.ts';
-import type { GameSettings } from '../../persistence/storage.ts';
-import { MATCH_SPEEDS } from '../screens/matchSpeeds.ts';
-import { HUB_LAYOUTS, HUB_LAYOUT_LABELS } from './hubSections.ts';
-import type { HubLayout } from './hubSections.ts';
-import type { CareerLegacy } from '../../core/career/legacy.ts';
-import { rankLegacies } from '../../core/career/legacy.ts';
 import { gameLogo } from '../logo.ts';
 
 /**
- * HOME SCREEN
+ * THE CAREERS PAGE
  *
- * The front door: pick a career, and set how you want to play, before
- * configuring anything about a specific match.
+ * Every career you have going, side by side, with the empty slots as real
+ * places to start rather than an absence. It used to hold exactly one career,
+ * because the save did — which is what made starting a second cost you the
+ * first, and why the button for it said "Abandon".
  *
- * It used to offer exactly one career, because the save held exactly one. That
- * is what made starting a second career cost you the first, and it is why the
- * button for it said "Abandon". The front door is now a rack of slots: every
- * career you have going, side by side, with the empty ones as real places to
- * start rather than an absence.
+ * IT USED TO BE THE FRONT DOOR, and carried what a front door carries: a
+ * summary of the wall, a quick match, three settings, the save panel and a link
+ * to the manual. Every one of those is now an entry on the menu that opens this
+ * page, so every one of them was on screen twice — and a page that offers
+ * everything is a page with no answer to "where do I go".
  *
- * Decision pace lives here rather than on the setup screen because it is a
- * global preference about difficulty, not a property of one match — and because
- * passing it per match meant it was never saved, so reloading silently reverted
- * a deliberately relaxed game to Standard.
+ * So this page is careers and nothing else. The rule it is now held to, and the
+ * one the menu exists to make possible: EVERY SCREEN IS ONE QUESTION, or it is
+ * the menu. A quick match is not a career and does not appear here; settings
+ * are not a career and have a page of their own; the wall is careers that have
+ * ENDED, which is a different question from the three still being played, and
+ * it had a screen of its own already.
  */
 export interface CareerSummary {
   name: string;
@@ -47,22 +43,12 @@ export interface HomeHandlers {
    *
    * Named for what it now does. This used to be `onAbandonCareer` and used to
    * mean it — a `confirm()` here, and the career was gone. Ending one is a
-   * screen of its own now, so the home screen only opens it.
+   * screen of its own now, so this page only opens it.
    */
   onEndCareer: (slot: number) => void;
   onStartCareer: (slot: number) => void;
-  onQuickMatch: () => void;
-  /** Finished careers, for the wall. */
-  hallOfFame?: readonly CareerLegacy[];
-  onHallOfFame?: () => void;
-  /** The manual. Always reachable, never a gate. */
-  onHowToPlay?: () => void;
-  onExport?: () => void;
-  onImport?: (text: string) => void;
-  /** The outcome of the last export or import, if there was one. */
+  /** Anything this page needs to report, such as every slot being full. */
   status?: string;
-  settings: GameSettings;
-  onSettingsChange: (settings: Partial<GameSettings>) => void;
   /**
    * Back to the menu.
    *
@@ -77,7 +63,7 @@ export class HomeScreen {
   readonly element: HTMLElement;
 
   constructor(handlers: HomeHandlers) {
-    const { settings, slots } = handlers;
+    const { slots } = handlers;
     const anyCareer = slots.some(Boolean);
 
     this.element = document.createElement('section');
@@ -120,85 +106,11 @@ export class HomeScreen {
         </div>
       </div>
 
-      ${this.renderHallOfFame(handlers.hallOfFame ?? [])}
-
-      <div class="home-modes single">
-        <button class="home-mode" id="quick-match">
-          <span class="mode-icon" aria-hidden="true">▶</span>
-          <span class="mode-title">Quick match</span>
-          <span class="mode-desc">
-            A single game, any player against any opponent. Kept on a separate record — nothing
-            here touches a career.
-          </span>
-          <span class="mode-cta">Play one match →</span>
-        </button>
-      </div>
-
-      <div class="home-settings">
-        <h2>How you want to play</h2>
-        <p class="hint">Saved between sessions and applied to every match.</p>
-        <div class="settings-row">
-          <div class="field">
-            <label for="home-pace">Decision pace</label>
-            <select id="home-pace">
-              ${(Object.keys(DECISION_PACE_LABELS) as DecisionPace[])
-                .map(
-                  (key) =>
-                    `<option value="${key}" ${key === settings.pace ? 'selected' : ''}>${DECISION_PACE_LABELS[key]}</option>`,
-                )
-                .join('')}
-            </select>
-            <p class="hint" id="pace-note"></p>
-          </div>
-          <div class="field">
-            <label for="home-speed">Match speed</label>
-            <select id="home-speed">
-              ${MATCH_SPEEDS.map(
-                (speed, index) =>
-                  `<option value="${index}" ${index === settings.matchSpeed ? 'selected' : ''}>${speed.label} — ${speed.description}</option>`,
-              ).join('')}
-            </select>
-            <p class="hint">How fast the simulated minutes tick by between your moments.</p>
-          </div>
-          <div class="field">
-            <label for="home-hub">Career hub</label>
-            <select id="home-hub">
-              ${HUB_LAYOUTS.map(
-                (key) =>
-                  `<option value="${key}" ${key === settings.hubLayout ? 'selected' : ''}>${HUB_LAYOUT_LABELS[key]}</option>`,
-              ).join('')}
-            </select>
-            <p class="hint">
-              Where the cards you do not need every week go. The next match and the week are
-              pinned either way.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      ${this.renderSaveData()}
-
-      <div class="home-help-row">
-        <button class="ghost" id="open-how">How to play</button>
-        <p class="hint">
-          What the screens do, what each setting changes, and the one read the whole match is
-          built around.
-        </p>
       </div>`;
 
     this.element
       .querySelector<HTMLButtonElement>('#home-back')
       ?.addEventListener('click', () => handlers.onBack?.());
-    this.element
-      .querySelector<HTMLButtonElement>('#quick-match')!
-      .addEventListener('click', handlers.onQuickMatch);
-    this.element
-      .querySelector<HTMLButtonElement>('#open-hall')
-      ?.addEventListener('click', () => handlers.onHallOfFame?.());
-    this.element
-      .querySelector<HTMLButtonElement>('#open-how')
-      ?.addEventListener('click', () => handlers.onHowToPlay?.());
-
     const slotOf = (button: HTMLElement) => Number(button.dataset.slot);
     for (const button of this.element.querySelectorAll<HTMLButtonElement>('[data-continue]')) {
       button.addEventListener('click', () => handlers.onContinueCareer(slotOf(button)));
@@ -212,89 +124,6 @@ export class HomeScreen {
       button.addEventListener('click', () => handlers.onStartCareer(slotOf(button)));
     }
 
-    this.element
-      .querySelector<HTMLButtonElement>('#export-save')
-      ?.addEventListener('click', () => handlers.onExport?.());
-
-    // The file input does the picking; the button in front of it does the
-    // asking, because a bare <input type="file"> cannot be styled and reads as
-    // a form control on a screen that has none.
-    const file = this.element.querySelector<HTMLInputElement>('#import-file');
-    this.element
-      .querySelector<HTMLButtonElement>('#import-save')
-      ?.addEventListener('click', () => file?.click());
-    file?.addEventListener('change', async () => {
-      const chosen = file.files?.[0];
-      if (!chosen) return;
-      const text = await chosen.text();
-      // Cleared so that picking the SAME file twice fires `change` both times.
-      file.value = '';
-      handlers.onImport?.(text);
-    });
-
-    const paceSelect = this.element.querySelector<HTMLSelectElement>('#home-pace')!;
-    const paceNote = this.element.querySelector<HTMLElement>('#pace-note')!;
-    const updatePaceNote = () => {
-      paceNote.textContent =
-        paceSelect.value === 'untimed'
-          ? 'The keeper still commits on schedule, so the read is unchanged — you just are not rushed.'
-          : 'Stretches every decision window equally, keeping the gap between players intact.';
-    };
-    paceSelect.addEventListener('change', () => {
-      updatePaceNote();
-      handlers.onSettingsChange({ pace: paceSelect.value as DecisionPace });
-    });
-    updatePaceNote();
-
-    const hubSelect = this.element.querySelector<HTMLSelectElement>('#home-hub')!;
-    hubSelect.addEventListener('change', () => {
-      handlers.onSettingsChange({ hubLayout: hubSelect.value as HubLayout });
-    });
-
-    const speedSelect = this.element.querySelector<HTMLSelectElement>('#home-speed')!;
-    speedSelect.addEventListener('change', () => {
-      handlers.onSettingsChange({ matchSpeed: Number(speedSelect.value) });
-    });
-  }
-
-  /**
-   * The wall, in miniature.
-   *
-   * Three entries and a way in. The home screen's job is to say that finished
-   * careers are kept and that these ones will be too — the full list is a
-   * screen of its own, and putting it here would bury the rack above it.
-   *
-   * Nothing is rendered until a career has actually finished. An empty wall
-   * with an explanation would be a panel about a feature rather than a feature,
-   * and the front door already has enough to read.
-   */
-  private renderHallOfFame(entries: readonly CareerLegacy[]): string {
-    if (entries.length === 0) return '';
-    const top = rankLegacies(entries).slice(0, 3);
-    const rows = top
-      .map(
-        (entry, index) =>
-          `<li>
-            <span class="hall-mini-rank">${index + 1}</span>
-            <span class="hall-mini-name">${entry.name}</span>
-            <span class="hall-mini-note">
-              ${entry.goals} goals · ${entry.seasons} ${entry.seasons === 1 ? 'season' : 'seasons'}
-            </span>
-            <span class="hall-mini-score">${entry.score}</span>
-          </li>`,
-      )
-      .join('');
-
-    return `
-      <div class="home-card hall-mini">
-        <div class="hall-mini-head">
-          <h2>Wall of fame</h2>
-          <button class="ghost small" id="open-hall">
-            ${entries.length} finished ${entries.length === 1 ? 'career' : 'careers'} →
-          </button>
-        </div>
-        <ol class="hall-mini-list">${rows}</ol>
-      </div>`;
   }
 
   private renderCareerSlot(career: CareerSummary, slot: number, active: boolean): string {
@@ -351,25 +180,4 @@ export class HomeScreen {
    * moment it matters — a browser about to be cleared, a machine about to be
    * replaced — is a moment when nobody wants to go looking.
    */
-  private renderSaveData(): string {
-    return `
-      <details class="home-help save-data">
-        <summary>Your save</summary>
-        <p class="hint">
-          Everything — every career, the wall of fame and your preferences — lives in this
-          browser's storage, and nowhere else. Clearing site data deletes it, and another browser
-          or another machine will not have it. Exporting writes the lot to a file you keep.
-        </p>
-        <div class="save-actions">
-          <button class="ghost" id="export-save">Export to a file</button>
-          <button class="ghost" id="import-save">Import from a file</button>
-          <input type="file" id="import-file" accept="application/json,.json" hidden />
-        </div>
-        <p class="hint">
-          Importing <strong>replaces</strong> everything in this browser with the contents of the
-          file. It is not a merge — a half-imported save would have careers from one machine and a
-          wall from another. Export first if what is here is worth keeping.
-        </p>
-      </details>`;
-  }
 }

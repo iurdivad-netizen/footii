@@ -823,6 +823,33 @@ Which entries appear and in what order is decided in `ui/titleMenu.ts` rather th
 for the same reason the hub's sections are: it is a decision about the save, and a decision you
 cannot read without a browser is a decision nobody will check.
 
+#### One screen, one question
+
+Putting a menu in front of the careers page exposed what the careers page had been carrying. It held
+a summary of the wall, a quick match, three settings, the save panel and a link to the manual —
+every one of which is now an entry on the menu that opens it. **All five were on screen twice**, and
+a page that offers everything has no answer to "where do I go".
+
+So each of them went where it belongs:
+
+| | |
+|---|---|
+| **Careers** | The three slots. Nothing else — no quick match, no settings, no save panel |
+| **Settings** | Decision pace, match speed, hub layout, and the save file they all live in |
+| **Wall of fame** | Careers that have *ended*, which is a different question from the three being played, and had a screen already |
+| **Quick match** | Its own setup, straight from the menu |
+
+The settings screen is the clearest case. The menu had an entry called Settings that opened the
+*careers* page and scrolled it two thirds of the way down — a link that lands somewhere and hopes.
+The save panel came with it: export and import are about the **browser**, not about any one career,
+and importing replaces all three at once.
+
+One label was wrong in the same family and is fixed with them. The setup screen offers a **seed**,
+and in a quick match it seeds one afternoon — but in a career it becomes the career's own seed and
+settles every fixture, every draw and every summer for fifteen years. It read *"Match seed — the
+same seed always produces the same match"* on both. It now says *career seed* on one of them, and
+what that actually buys.
+
 #### The mark
 
 A game with a front door needs something on it that is not a word, and the first question is what

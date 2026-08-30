@@ -259,6 +259,14 @@ one item at a time:
   manual is a document you read once and continuing is what you do every session. Two labels are
   facts about the save rather than fixed strings — the first entry, and whether the second says
   "Careers" or "New career".
+
+  The menu then exposed what the careers page had been carrying: a wall summary, a quick match,
+  three settings, the save panel and a link to the manual, every one of which had become a menu
+  entry as well. Five things on screen twice. Each went where it belongs — the careers page is
+  careers, settings and the save file got the screen the menu was already pretending to open, and
+  the wall stayed the screen it already had. One label went with them: the setup screen's "match
+  seed" is a CAREER seed in career mode, settling fifteen years rather than an afternoon, and had
+  said otherwise since it was written.
 - **[The afternoon it was won](README.md#the-afternoon-it-was-won)** — winning the cup produced a full-time screen reading "2-1"
   and a button marked *Back to career*; the trophy appeared four months later as a row on the season
   review, between a promotion and a cap count. That is this file's own recurring defect for the

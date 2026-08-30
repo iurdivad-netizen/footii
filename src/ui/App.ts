@@ -98,6 +98,7 @@ import type { TotalsView } from './screens/FullTimeScreen.ts';
 import { FullTimeScreen } from './screens/FullTimeScreen.ts';
 import { HomeScreen } from './screens/HomeScreen.ts';
 import { TitleScreen } from './screens/TitleScreen.ts';
+import { SettingsScreen } from './screens/SettingsScreen.ts';
 import type { CareerSummary } from './screens/HomeScreen.ts';
 import { MatchScreen } from './screens/MatchScreen.ts';
 import { PlayerCreatorScreen } from './screens/PlayerCreatorScreen.ts';
@@ -340,12 +341,12 @@ export class App {
         onQuickMatch: () => this.showSetup('quick'),
         onHowToPlay: () => this.showHowToPlay(),
         onHallOfFame: () => this.showHallOfFame(),
-        onSettings: () => this.showHome(undefined, 'settings'),
+        onSettings: () => this.showSettings(),
       }).element,
     );
   }
 
-  private showHome(status?: string, focus?: 'settings'): void {
+  private showHome(status?: string): void {
     this.matchScreen?.stop();
     this.matchScreen = null;
 
@@ -368,27 +369,30 @@ export class App {
           this.save = selectSlot(this.save, slot);
           this.showSetup('career');
         },
-        onQuickMatch: () => this.showSetup('quick'),
-        hallOfFame: this.save.hallOfFame,
-        onHallOfFame: () => this.showHallOfFame(),
-        onHowToPlay: () => this.showHowToPlay(),
-        onExport: () => this.exportSaveFile(),
-        onImport: (text) => this.importSaveFile(text),
         status,
-        settings: this.save.settings,
-        onSettingsChange: (settings) => this.updateSettings(settings),
         onBack: () => this.showTitle(),
       }).element,
     );
+  }
 
-    // Opened from the menu's Settings entry, which is a promise about where the
-    // page will be when it arrives. Without this it lands at the top and the
-    // player has to go looking for the thing he just asked for.
-    if (focus === 'settings') {
-      this.root
-        .querySelector<HTMLElement>('.home-settings')
-        ?.scrollIntoView({ block: 'start', behavior: 'auto' });
-    }
+  /**
+   * How you want to play, and the file it all lives in.
+   *
+   * Its own screen rather than a block two thirds of the way down the careers
+   * page. The menu has an entry called Settings, and an entry that opens
+   * something else and scrolls is a link that lands somewhere and hopes.
+   */
+  private showSettings(status?: string): void {
+    this.mount(
+      new SettingsScreen({
+        settings: this.save.settings,
+        onSettingsChange: (settings) => this.updateSettings(settings),
+        onExport: () => this.exportSaveFile(),
+        onImport: (text) => this.importSaveFile(text),
+        onBack: () => this.showTitle(),
+        status,
+      }).element,
+    );
   }
 
   /**
@@ -452,10 +456,10 @@ export class App {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      this.showHome(`Saved to ${exportFilename()}. Keep it somewhere that is not this browser.`);
+      this.showSettings(`Saved to ${exportFilename()}. Keep it somewhere that is not this browser.`);
     } catch (error) {
       console.error('Export failed', error);
-      this.showHome('The save could not be exported. Nothing has changed.');
+      this.showSettings('The save could not be exported. Nothing has changed.');
     }
   }
 
@@ -464,13 +468,16 @@ export class App {
    *
    * The file is parsed and migrated BEFORE anything is written, so a bad import
    * costs nothing — the worst case is a message and the save you already had.
-   * The screen the player lands on is the front door, rebuilt from the imported
-   * save, which is the shortest way to see that it worked.
+   *
+   * A FAILURE STAYS ON THE SETTINGS SCREEN, where the button is, because
+   * nothing happened and moving him would suggest otherwise. A SUCCESS lands on
+   * the careers page, rebuilt from the imported file, because the shortest way
+   * to show somebody that his three careers arrived is his three careers.
    */
   private importSaveFile(text: string): void {
     const imported = importSave(text);
     if (!imported) {
-      this.showHome('That file could not be read as a Footii save. Nothing has changed.');
+      this.showSettings('That file could not be read as a Footii save. Nothing has changed.');
       return;
     }
     this.save = replaceSave(imported);

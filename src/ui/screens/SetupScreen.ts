@@ -106,9 +106,22 @@ export class SetupScreen {
         </div>
 
         <div class="field">
-          <label for="seed">Match seed</label>
+          <!--
+            The same input, and deliberately NOT the same thing. In a quick
+            match it seeds one afternoon. In a career it becomes the career's
+            own seed and seeds the whole of it — every fixture, every draw, every summer,
+            for fifteen years — so calling it a match seed there was describing
+            the smallest thing it does.
+          -->
+          <label for="seed">${handlers.mode === 'career' ? 'Career seed' : 'Match seed'}</label>
           <input id="seed" type="text" value="footii-1" spellcheck="false" />
-          <p class="hint">The same seed always produces the same match.</p>
+          <p class="hint">
+            ${
+              handlers.mode === 'career'
+                ? 'Seeds the whole career: the same seed always produces the same fifteen years.'
+                : 'The same seed always produces the same match.'
+            }
+          </p>
         </div>
 
         <div class="field" ${handlers.mode === 'career' ? 'hidden' : ''}>
