@@ -6,6 +6,7 @@ import { HUB_LAYOUTS, HUB_LAYOUT_LABELS } from './hubSections.ts';
 import type { HubLayout } from './hubSections.ts';
 import type { CareerLegacy } from '../../core/career/legacy.ts';
 import { rankLegacies } from '../../core/career/legacy.ts';
+import { gameLogo } from '../logo.ts';
 
 /**
  * HOME SCREEN
@@ -62,6 +63,14 @@ export interface HomeHandlers {
   status?: string;
   settings: GameSettings;
   onSettingsChange: (settings: Partial<GameSettings>) => void;
+  /**
+   * Back to the menu.
+   *
+   * This page used to BE the front door, so it had nowhere to go back to. Now
+   * that it is one entry on a menu it needs a way out, and a page you can only
+   * leave by starting something is a trap.
+   */
+  onBack?: () => void;
 }
 
 export class HomeScreen {
@@ -75,28 +84,28 @@ export class HomeScreen {
     this.element.className = 'screen home-screen';
     this.element.innerHTML = `
       <header class="home-header">
-        <div class="home-crest" aria-hidden="true">
-          <span class="crest-ring"></span>
-          <span class="crest-dot"></span>
-        </div>
-        <h1>FOOTII</h1>
-        <p class="tagline">One player. Ninety minutes. Six choices at a time.</p>
+        ${gameLogo(52)}
+        <h1>Careers</h1>
+        <p class="tagline">Three at once, kept apart. Playing one never touches another.</p>
+        ${handlers.onBack ? `<button class="ghost" id="home-back">Back to menu</button>` : ''}
       </header>
 
       ${handlers.status ? `<p class="home-status">${handlers.status}</p>` : ''}
 
       <div class="home-careers">
-        <h2>Careers</h2>
-        <p class="hint">
-          ${
-            anyCareer
-              ? `Every career you have going. They are kept apart — playing one never touches
-                 another.`
-              : `Build or pick a footballer and follow him season by season. Your ratings drive
+        ${
+          // The page is called Careers and says what they are in its own header
+          // now, so repeating it here would be the same sentence twice on one
+          // screen. The empty state still needs its line: a rack of three
+          // blanks explains nothing on its own.
+          anyCareer
+            ? ''
+            : `<p class="hint">
+                 Build or pick a footballer and follow him season by season. Your ratings drive
                  development — and as your awareness and composure grow, you get measurably more
-                 time on the ball. You can keep three careers going at once.`
-          }
-        </p>
+                 time on the ball. You can keep three careers going at once.
+               </p>`
+        }
         <div class="slot-rack">
           ${slots
             .map((career, slot) =>
@@ -177,6 +186,9 @@ export class HomeScreen {
         </p>
       </div>`;
 
+    this.element
+      .querySelector<HTMLButtonElement>('#home-back')
+      ?.addEventListener('click', () => handlers.onBack?.());
     this.element
       .querySelector<HTMLButtonElement>('#quick-match')!
       .addEventListener('click', handlers.onQuickMatch);

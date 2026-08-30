@@ -33,6 +33,8 @@
  * manual. An introduction that reappeared would be an obstacle rather than a
  * welcome.
  */
+import { gameLogo } from '../logo.ts';
+
 export interface WelcomeHandlers {
   /** Straight into starting a career — the thing this screen is selling. */
   onStart: () => void;
@@ -50,10 +52,7 @@ export class WelcomeScreen {
     this.element.className = 'screen welcome-screen';
     this.element.innerHTML = `
       <header class="welcome-header">
-        <div class="home-crest" aria-hidden="true">
-          <span class="crest-ring"></span>
-          <span class="crest-dot"></span>
-        </div>
+        ${gameLogo(72)}
         <h1>FOOTII</h1>
         <p class="welcome-tagline">One player. Ninety minutes. Six choices at a time.</p>
       </header>
@@ -93,7 +92,7 @@ export class WelcomeScreen {
         <button class="primary" id="welcome-start">Start a career</button>
         <div class="welcome-secondary">
           <button class="ghost" id="welcome-how">How to play</button>
-          <button class="ghost" id="welcome-skip">Just look around</button>
+          <button class="ghost" id="welcome-skip">Main menu</button>
         </div>
       </div>
 

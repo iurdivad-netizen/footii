@@ -1246,6 +1246,168 @@ button.ghost {
   color: var(--accent);
 }
 
+/*
+ * The careers page keeps its header but stops being the title. It is a page
+ * you arrived at from a menu now, so it names itself and offers a way back,
+ * and the wordmark it used to carry has moved to the screen that IS the door.
+ */
+.home-header h1 {
+  font-size: clamp(1.6rem, 6vw, 2.2rem);
+  letter-spacing: 0.12em;
+}
+
+.home-header .game-logo,
+.welcome-header .game-logo {
+  margin: 0 auto 4px;
+  display: block;
+}
+
+.home-header .ghost {
+  margin-top: 12px;
+}
+
+/* ----------------------------------------------------------- the mark ----- */
+
+/*
+ * A decision window, the six options in it, the one you took, and the ball.
+ * See ui/logo.ts for why the mark is the mechanic rather than a football.
+ */
+.game-logo {
+  display: block;
+  color: var(--accent);
+}
+
+.logo-ring {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  opacity: 0.55;
+}
+
+.logo-tick {
+  stroke: currentColor;
+  stroke-width: 4;
+  stroke-linecap: round;
+  opacity: 0.45;
+}
+
+/* The option you actually took. The only lit thing on the mark. */
+.logo-tick-lit {
+  stroke: var(--goal);
+  stroke-width: 5;
+  opacity: 1;
+}
+
+.logo-ball {
+  fill: currentColor;
+}
+
+/* ---------------------------------------------------------- the title ----- */
+
+/*
+ * THE FRONT DOOR.
+ *
+ * Centred, short, and with nothing on it that scrolls: the menu is the one
+ * screen where everything has to be reachable without a decision about where to
+ * look. Entries are full-width buttons rather than a row, because on a phone a
+ * row of four is four things too small to read and the game is played on a
+ * phone.
+ */
+.title-screen {
+  display: grid;
+  gap: 22px;
+  max-width: 30rem;
+  margin: 0 auto;
+  padding: clamp(12px, 4vh, 40px) 0;
+  /* Centred in the viewport rather than pinned to the top, because a menu of
+     four items on a tall phone otherwise sits in the upper third with a third
+     of a screen of nothing under it. It still grows past this and scrolls when
+     a save with a career in it adds the fifth entry. */
+  min-height: 82vh;
+  align-content: center;
+}
+
+.title-header {
+  text-align: center;
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+}
+
+.title-wordmark {
+  font-family: var(--mono);
+  font-size: clamp(2.4rem, 11vw, 3.6rem);
+  letter-spacing: 0.22em;
+  /* The letter-spacing pads the right of the last glyph, so the word sits
+     visibly left of centre unless the same amount is given back. */
+  text-indent: 0.22em;
+  margin: 6px 0 0;
+  color: var(--accent);
+}
+
+.title-tagline {
+  margin: 0;
+  color: var(--text-dim);
+  /* Three sentences that read as one line each or not at all: without this the
+     last one breaks after "at a" and leaves an orphan under the mark. */
+  text-wrap: balance;
+}
+
+.title-menu {
+  display: grid;
+  gap: 10px;
+}
+
+.title-entry {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  padding: 14px 16px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-raised);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.title-entry:hover {
+  border-color: var(--accent);
+}
+
+/*
+ * The one thing he came here to do. Bordered rather than filled: a solid accent
+ * block would outshout the mark above it, and on a save with three careers the
+ * detail line inside it is the part actually worth reading.
+ */
+.title-primary {
+  border-color: var(--accent);
+  background: var(--bg-panel);
+}
+
+.title-entry-label {
+  font-size: 1.02rem;
+  font-weight: 600;
+}
+
+.title-primary .title-entry-label {
+  color: var(--accent);
+}
+
+.title-entry-detail {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.title-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
 .home-modes {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

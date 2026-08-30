@@ -209,7 +209,7 @@ complete 0-100 blend model that is **set once in the creator and never mutated a
 path, and `player.position` is likewise only ever assigned there. The machinery to be a different
 footballer at thirty-one already exists; nothing has ever been wired to move it.
 
-**Eleven more have since landed**, all from reading the game rather than from planning it — and the
+**Twelve more have since landed**, all from reading the game rather than from planning it — and the
 count in this line has been wrong twice, which is its own small lesson about a list that grows by
 one item at a time:
 
@@ -249,6 +249,16 @@ one item at a time:
   learns what morale is for, and studying the opponent turns out to be worth **nothing** at the
   untimed pace — one of the four options switched off by a setting chosen on another screen, which
   the card now says out loud.
+- **[The front door](README.md#the-front-door)** — the game opened on the careers page: a rack of three slots, the
+  wall, a quick match, three settings and the save panel, in one scrolling column. Everything was on
+  it, which is why the one thing a player wants every session — carry on with the career he was
+  playing — was a card among six other things and below a heading. It is a menu now, with the
+  careers page as one of its entries, and a mark that is the mechanic rather than a football: a
+  ring, six ticks, one of them lit, and a ball. The order is deliberately NOT the one asked for, and
+  the note in the README says so: continue leads when there is something to continue, because the
+  manual is a document you read once and continuing is what you do every session. Two labels are
+  facts about the save rather than fixed strings — the first entry, and whether the second says
+  "Careers" or "New career".
 - **[The afternoon it was won](README.md#the-afternoon-it-was-won)** — winning the cup produced a full-time screen reading "2-1"
   and a button marked *Back to career*; the trophy appeared four months later as a row on the season
   review, between a promotion and a cap count. That is this file's own recurring defect for the

@@ -783,18 +783,69 @@ Beyond the single match, a career follows **one footballer season by season**.
   sits. Then comes the summer — the transfer window and any contract decision, then pre-season
   training — and you age a year and go again.
 
+### The front door
+
+The front door **was** the careers page: a rack of three slots, the wall of fame, a quick match,
+three settings and the save panel, in one scrolling column. Everything a player could want was on
+it, which is exactly the problem — the one thing he wants every time he opens the game, *carry on
+with the career I was playing*, was a card among six other things and below a heading.
+
+So the door is a menu now, and the careers page is what one of its entries opens. Nothing was taken
+away; it was put in an order.
+
+| | |
+|---|---|
+| **Continue career** | Named: the footballer, his club, the season, and how far into it he is |
+| **Careers** / **New career** | The rack — start another, switch between them, end one |
+| **Quick match** | One game, on its own ledger |
+| **How to play** | The manual |
+| *Wall of fame · Settings* | Underneath, in smaller type, and only offered once there is a wall |
+
+**The order is not the order it was asked for**, and that is worth saying plainly. The request read:
+how to play, continue, new game, quick game. That is the right order exactly once — on a first
+visit, when there is nothing to continue and the manual is the only thing that can help. Every
+visit after that it puts a document you read once above the action you take every session. So the
+first entry is whatever the save says you are likeliest to have come for: **Continue** when there is
+a career, **New career** when there is not. The manual is always one press away and never in the
+way.
+
+**A continue button that says who.** *Continue career* is a verb with no object, and this game keeps
+three of them. The entry names the footballer, his club and his season, so pressing it is a decision
+rather than a guess about which of the three is behind it.
+
+**A label that is a fact about the save.** The second entry opens the careers page, and what that
+page is *for* depends on what is in it. With careers on it, it is where you start another, switch
+between them or end one. With nothing on it, it is not a page at all — three blank slots under a
+heading is not worth a press — so on an empty save it reads **New career** and goes straight to the
+creator.
+
+Which entries appear and in what order is decided in `ui/titleMenu.ts` rather than in the markup,
+for the same reason the hub's sections are: it is a decision about the save, and a decision you
+cannot read without a browser is a decision nobody will check.
+
+#### The mark
+
+A game with a front door needs something on it that is not a word, and the first question is what
+the mark should be *of*. A football is the obvious answer and the wrong one: every football game has
+one, it says "football" and nothing else, and what makes this one different is not that it contains
+a ball.
+
+So the mark is the mechanic — a ring, six ticks around it, one of them longer and lit, and a ball at
+the centre. That is a decision window, the six options in it, the one you took, and the thing you
+took it with. It reads at 24px and at 240px, and somebody who has played for an hour recognises it
+as a picture of what they were doing. It is drawn once in `ui/logo.ts` and used at three sizes, so
+the title, the welcome and the careers page cannot drift apart.
+
 ### Arriving for the first time
 
-The front door is a rack of career slots, a wall of fame, a quick match and three settings. That is
-the right screen for somebody who already knows what a decision window is, and the wrong one for
-somebody who does not — a first-time player was being asked to choose a **decision pace** before
+Before any of that, a first-time player was being asked to choose a **decision pace** before
 anything on the page had told him that a decision was a thing this game had.
 
 The explanation did exist. It was five bullets inside a collapsed `<details>` at the very bottom,
 under the careers, the wall, the quick match, the settings and the save panel. **Folded, below the
 fold, and under five other sections is three separate ways of being unread.**
 
-So there are two screens now.
+So there are two screens before the menu.
 
 **A welcome, shown once.** Three beats, and deliberately not a tutorial: you are one footballer
 rather than the manager; every moment is six options and a clock, with a goalkeeper who commits
@@ -809,7 +860,7 @@ game forgetting them. A save that exists but has never held a career *does* get 
 right way round: the file may exist because somebody opened the page once, changed a setting and
 left.
 
-**A manual, reachable at any time** from the front door. Seven sections with a contents list: the
+**A manual, reachable at any time** from the menu. Seven sections with a contents list: the
 match and the keeper's commit, how to read the six options, the hub and its sections, the week, what
 each setting actually changes, the keyboard, and how careers are kept.
 
@@ -3289,7 +3340,7 @@ are again.
 
 The core mechanic and a playable career loop.
 
-Implemented: home screen with career and quick-match modes, custom player creation with a chosen
+Implemented: a title screen with a menu that leads with whatever the save says you came for, career and quick-match modes, custom player creation with a chosen
 nationality, seeded match engine, thirteen situation archetypes (including penalties, direct free
 kicks, corners, aerial duels and pressing traps), ~60 contextual actions, dynamic decision timer,
 build-up narration, goalkeeper commit mechanic, action resolution with separated choice/execution,
