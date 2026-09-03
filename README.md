@@ -116,8 +116,14 @@ on** — the banner behind the overlay cannot be read until the overlay is gone.
 Nothing about it is new information (the outcome is decided before the first
 frame), but the read the whole mechanic asks for is "which way has he gone, and
 did I beat him?", and that question deserves to be answered in the picture that
-asked it. It is skipped when the browser asks for reduced motion; the outcome
-banner and sound cue carry the same fact either way. See
+asked it. Whether it plays is the **Replays** setting — *Follow my browser*, *Always* or
+*Never* — and the outcome banner and the sound cue carry the same fact either
+way, so turning it off loses movement and nothing else. It defaults to
+following `prefers-reduced-motion`, which used to be the only rule: a player
+whose system asked for less movement got no replay, no way to turn it on, and
+nothing on screen saying why — a working feature and a broken one look
+identical when the reason is invisible. The settings note now reports which way
+*Follow my browser* has currently gone. See `ui/replay.ts`,
 `SituationRenderer.animateResolution` and `EventOverlay.playResolution`.
 
 #### Why the scan beat exists
@@ -206,7 +212,8 @@ reloading and continuing a career silently reverted a deliberately relaxed game 
 game got harder without saying so. The third picks the hub's layout; see
 [The shape of the hub](#the-shape-of-the-hub).
 
-**Sound** is one switch, on by default. Everything audible — the crowd, the
+**Replays** and **Sound** are the two presentation settings, saved with the rest.
+Sound is one switch, on by default. Everything audible — the crowd, the
 build-up beats, the decision clock, the keeper's commit, the outcome — is
 synthesized in the browser by the Web Audio API (`audio/SoundEngine.ts`), so
 nothing is downloaded and nothing can 404. Every cue restates something that is
