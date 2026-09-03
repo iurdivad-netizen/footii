@@ -36,6 +36,42 @@ export interface PositionProfile {
   keyAttributes: readonly AttributeKey[];
 }
 
+/**
+ * The three attributes that set the decision window, whoever you are.
+ *
+ * They are key for EVERY position — the timer reads them directly (see
+ * simulation/DecisionTimer.ts) — but only the goalkeeper profile happens to
+ * list any of them, so a screen that showed a position's `keyAttributes` alone
+ * would drop the three that the whole game is played through.
+ */
+export const WINDOW_ATTRIBUTES: readonly AttributeKey[] = [
+  'awareness',
+  'decisionMaking',
+  'composure',
+];
+
+/**
+ * What matters most for a footballer in this position.
+ *
+ * One answer, in one place, because four screens ask the question — the
+ * creator, the training grid, the hub's "Key attributes" card and the season
+ * review — and two of them used to answer it with a hardcoded list that was
+ * the same for a centre back as for a striker.
+ */
+export function keyAttributesFor(position: Position): Set<AttributeKey> {
+  return new Set(POSITION_PROFILES[position].keyAttributes);
+}
+
+/**
+ * What a summary of this position should show: what the role needs, plus the
+ * three the decision window is made of. Ordered role-first, since that is what
+ * differs between two players looking at the same card.
+ */
+export function summaryAttributesFor(position: Position): AttributeKey[] {
+  const keys = POSITION_PROFILES[position].keyAttributes;
+  return [...keys, ...WINDOW_ATTRIBUTES.filter((key) => !keys.includes(key))];
+}
+
 export const POSITION_PROFILES: Record<Position, PositionProfile> = {
   GK: {
     position: 'GK',

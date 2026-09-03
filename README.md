@@ -886,6 +886,12 @@ So each of them went where it belongs:
 |---|---|
 | **Careers** | The three slots. Nothing else — no quick match, no settings, no save panel |
 | **Settings** | Decision pace, match speed, sound, hub layout, and the save file they all live in |
+
+**Key attributes** are the position's, everywhere they are shown. `keyAttributesFor` and
+`summaryAttributesFor` in `core/player/positions.ts` are the single answer the creator, the training
+grid, the hub card and the season review all read, so a centre back is measured on tackling and a
+striker on finishing. Awareness, Decision Making and Composure are shown for every position — the
+decision timer reads them whoever you are — but marked *key* only where the role asks for them too.
 | **Wall of fame** | Careers that have *ended*, which is a different question from the three being played, and had a screen already |
 | **Quick match** | Its own setup, straight from the menu |
 

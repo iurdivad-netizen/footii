@@ -14,10 +14,14 @@ import {
   objectiveSummary,
 } from '../../core/career/objective.ts';
 import { applyClubPalette } from '../clubColour.ts';
-import type { AttributeKey } from '../../core/player/attributes.ts';
 import type { CompetitionKind } from '../../core/career/calendar.ts';
 import { currentAbility } from '../../core/player/player.ts';
-import { positionLabel } from '../../core/player/positions.ts';
+import {
+  POSITION_PROFILES,
+  keyAttributesFor,
+  positionLabel,
+  summaryAttributesFor,
+} from '../../core/player/positions.ts';
 import type { CareerState } from '../../core/career/career.ts';
 import {
   calendarFor,
@@ -492,29 +496,43 @@ export class CareerScreen {
       </table>`;
   }
 
+  /**
+   * KEY ATTRIBUTES, FOR THE POSITION HE ACTUALLY PLAYS.
+   *
+   * This card is titled "Key attributes" and showed the same eight for
+   * everybody: a centre back was shown Finishing and Dribbling and never
+   * Tackling or Defensive Awareness, which is not a summary of him, it is a
+   * summary of a forward. The creator and the training grid had asked the
+   * position all along; this card and the season review were the two that did
+   * not, so all four now read one answer — see core/player/positions.ts.
+   *
+   * The three decision-window attributes are appended for every position
+   * rather than only where a profile happens to list them, because the timer
+   * reads them whoever you are and the hint below has always said so. They are
+   * not marked key unless the ROLE also asks for them: the mark means "this is
+   * what your position needs", and a mark on every row would mean nothing.
+   */
   private renderAttributes(): string {
-    const keys: AttributeKey[] = [
-      'awareness',
-      'decisionMaking',
-      'composure',
-      'finishing',
-      'technique',
-      'passing',
-      'dribbling',
-      'pace',
-    ];
-    const rows = keys
-      .map((key) => {
-        const value = this.state.player.attributes[key];
-        return `<div class="attr-row">
-            <span class="attr-name">${ATTRIBUTE_LABELS[key]}</span>
+    const { position } = this.state.player;
+    const key = keyAttributesFor(position);
+    const rows = summaryAttributesFor(position)
+      .map((attribute) => {
+        const value = this.state.player.attributes[attribute];
+        const isKey = key.has(attribute);
+        return `<div class="attr-row${isKey ? ' key-attr' : ''}">
+            <span class="attr-name">${ATTRIBUTE_LABELS[attribute]}${
+              isKey ? ' <em>key</em>' : ''
+            }</span>
             <span class="attr-bar"><i style="width:${value}%"></i></span>
             <span class="attr-value">${value}</span>
           </div>`;
       })
       .join('');
     return `<div class="attr-list">${rows}</div>
-      <p class="hint">Awareness, Composure and Decision Making set your decision window.</p>`;
+      <p class="hint">
+        Marked <em>key</em> for a ${POSITION_PROFILES[position].label.toLowerCase()}. Awareness,
+        Composure and Decision Making set your decision window whoever you are.
+      </p>`;
   }
 
   /**

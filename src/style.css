@@ -1228,6 +1228,30 @@ kbd {
   text-align: right;
 }
 
+/*
+ * WHAT THIS POSITION ACTUALLY NEEDS.
+ *
+ * Same idiom as the creator and the training grid — a lit name and a small
+ * `key` tag in the honours colour — because they are answering the same
+ * question and a third visual language for it would only be a third thing to
+ * learn. See core/player/positions.ts for the one list all four read.
+ */
+.attr-row.key-attr .attr-name,
+.progress-changes li.key-attr {
+  color: var(--text);
+}
+
+.attr-name em,
+.progress-changes em {
+  font-style: normal;
+  font-size: 0.7rem;
+  color: var(--goal);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-left: 4px;
+  vertical-align: 0.1em;
+}
+
 .development-banner {
   border: 1px solid var(--goal);
   background: rgba(250, 204, 21, 0.08);

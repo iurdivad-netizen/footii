@@ -46,7 +46,7 @@ describe('recognising the style a build was made with', () => {
 
   it('falls back to the first style rather than failing on tendencies no style set', () => {
     const styles = stylesForPosition('ST');
-    expect(matchStyle(styles, { shootOnSight: 0.123 }).id).toBe(styles[0]!.id);
+    expect(matchStyle(styles, { runsBehind: 0.123 }).id).toBe(styles[0]!.id);
   });
 
   it('does not confuse two different styles for the same position', () => {

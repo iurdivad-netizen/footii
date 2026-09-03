@@ -1575,6 +1575,7 @@ export class App {
           newAge: career.player.age,
           potentialHint,
           progress: outcome.progress,
+          playerPosition: career.player.position,
           moments: outcome.moments,
           objective: outcome.objective,
           // history holds the season just archived last, so the one before it
