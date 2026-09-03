@@ -701,6 +701,51 @@ kbd {
   margin: -6px 0 8px;
 }
 
+/*
+ * THE OUTCOME, WHERE THE DECISION WAS MADE.
+ *
+ * The set label spends the moment urging ("watch it develop", "now!"), so it is
+ * the honest place to say how it ended: the same line, in the same spot the eye
+ * is already on, landing on the frame the ball arrives. The match screen's
+ * banner still says it afterwards — this is the beat between the decision and
+ * the overlay coming down, which used to be silent.
+ */
+.set-label.resolved {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  animation: outcome-land 0.28s ease-out;
+}
+
+.set-label.resolved.tone-goal {
+  color: var(--goal);
+}
+
+.set-label.resolved.tone-good {
+  color: var(--accent);
+}
+
+.set-label.resolved.tone-bad {
+  color: var(--danger);
+}
+
+@keyframes outcome-land {
+  from {
+    transform: scale(0.82);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .set-label.resolved {
+    animation: none;
+  }
+}
+
 .event-overlay.setting .timer-bar span {
   background: var(--warn);
   opacity: 0.55;

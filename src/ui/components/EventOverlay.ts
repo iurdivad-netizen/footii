@@ -1,3 +1,4 @@
+import { OUTCOME_LABELS } from '../../core/events/types.ts';
 import type { ActionOption, OutcomeKind } from '../../core/events/types.ts';
 import type { InteractiveEvent } from '../../simulation/MatchEngine.ts';
 import { SituationRenderer } from '../../rendering/events/SituationRenderer.ts';
@@ -212,6 +213,9 @@ export class EventOverlay {
     this.scanTime = calculateScanTime(this.paceScale);
     this.countdownStarted = false;
     this.lastTickIndex = -1;
+    // Cleared, or the last moment's outcome greets the next one.
+    this.setLabel.className = 'set-label';
+    this.setLabel.textContent = '';
     // The crowd notices something is on before the player is asked anything.
     sound.crowd(0.4);
     // Forced to redraw on the first frame of the new event, so a keeper who
@@ -453,6 +457,7 @@ export class EventOverlay {
       typeof window.matchMedia === 'function' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!scene || reducedMotion) {
+      this.showOutcomeLabel(outcome);
       sound.outcome(outcome);
       return;
     }
@@ -467,8 +472,36 @@ export class EventOverlay {
         actionKind: option?.kind ?? 'shootCentre',
         family: option?.family ?? 'shot',
       },
-      () => sound.outcome(outcome),
+      () => {
+        this.showOutcomeLabel(outcome);
+        sound.outcome(outcome);
+      },
     );
+  }
+
+  /**
+   * How it ended, on the line that spent the moment urging you on.
+   *
+   * The match screen's banner says the same thing a beat later, behind an
+   * overlay that has not come down yet — so between the ball arriving and the
+   * panel closing there was nothing in words at all. This fills exactly that
+   * gap, in the same place the eye already is.
+   */
+  private showOutcomeLabel(outcome: OutcomeKind): void {
+    const tone =
+      outcome === 'goal'
+        ? 'goal'
+        : outcome === 'saved' ||
+            outcome === 'chanceCreated' ||
+            outcome === 'passCompleted' ||
+            outcome === 'crossCompleted' ||
+            outcome === 'dribbleSuccess' ||
+            outcome === 'ballWon' ||
+            outcome === 'held'
+          ? 'good'
+          : 'bad';
+    this.setLabel.className = `set-label resolved tone-${tone}`;
+    this.setLabel.textContent = OUTCOME_LABELS[outcome];
   }
 
   hide(): void {

@@ -19,6 +19,7 @@ import {
   startingExperience,
   stylesForPosition,
   suggestedAttributes,
+  matchStyle,
   validateSpec,
 } from '../../core/player/playerBuilder.ts';
 import { createPlayer } from '../../core/player/player.ts';
@@ -44,6 +45,13 @@ const GROUPS: { title: string; keys: AttributeKey[] }[] = [
  * here is presentation over `core/player/playerBuilder.ts`, which owns the
  * rules — the pool, the caps and the hidden potential roll.
  */
+/** Quotes and angle brackets, so a name with one in it cannot break the field. */
+function escapeAttribute(value: string): string {
+  return value.replace(/[&<>"']/g, (c) =>
+    c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;',
+  );
+}
+
 export class PlayerCreatorScreen {
   readonly element: HTMLElement;
   private position: Position = 'ST';
@@ -56,16 +64,30 @@ export class PlayerCreatorScreen {
     private readonly forCareer: boolean,
     /** What finishing the creator will start, e.g. "Northport City". */
     private readonly destination: string = '',
+    /**
+     * The build to open on, when there is one to edit.
+     *
+     * The setup screen relabels its button to "Edit your custom player" as soon
+     * as a creation exists, and an edit that opens on a blank striker is not an
+     * edit — it is the same create it was before, with a different word on it.
+     * The SPEC is what is reopened rather than the built player, deliberately:
+     * the spec is what somebody typed, while the player carries a rolled
+     * potential and, later in a career, attributes that training moved. Editing
+     * re-rolls potential, which is the honest consequence of building a
+     * different footballer.
+     */
+    private readonly initial?: CustomPlayerSpec,
   ) {
-    this.attributes = suggestedAttributes(this.position);
+    this.position = initial?.position ?? this.position;
+    this.attributes = initial ? { ...initial.attributes } : suggestedAttributes(this.position);
     this.styles = stylesForPosition(this.position);
-    this.styleId = this.styles[0]!.id;
+    this.styleId = (initial ? matchStyle(this.styles, initial.tendencies) : this.styles[0])!.id;
 
     this.element = document.createElement('section');
     this.element.className = 'screen creator-screen';
     this.element.innerHTML = `
       <header class="creator-header">
-        <h1>Create your player</h1>
+        <h1>${this.initial ? 'Edit your player' : 'Create your player'}</h1>
         <p class="hint">
           Spend ${CREATION_POINTS} points across the attributes. Nothing may start above
           ${CREATION_CAP} — the rest is what a career is for.
@@ -77,7 +99,8 @@ export class PlayerCreatorScreen {
       <div class="creator-identity">
         <div class="field">
           <label for="cp-name">Name</label>
-          <input id="cp-name" type="text" maxlength="30" placeholder="Your footballer" />
+          <input id="cp-name" type="text" maxlength="30" placeholder="Your footballer"
+            value="${escapeAttribute(this.initial?.name ?? '')}" />
         </div>
         <div class="field">
           <label for="cp-position">Position</label>
@@ -97,7 +120,7 @@ export class PlayerCreatorScreen {
                   ${countriesIn(confederation)
                     .map(
                       (c) =>
-                        `<option value="${c.id}" ${c.id === 'england' ? 'selected' : ''}>${c.name}</option>`,
+                        `<option value="${c.id}" ${c.id === (this.initial?.nationality ?? 'england') ? 'selected' : ''}>${c.name}</option>`,
                     )
                     .join('')}
                 </optgroup>`,
@@ -111,8 +134,8 @@ export class PlayerCreatorScreen {
           </p>
         </div>
         <div class="field">
-          <label for="cp-age">Age <span id="cp-age-value">${this.forCareer ? 17 : 24}</span></label>
-          <input id="cp-age" type="range" min="${MIN_CREATION_AGE}" max="${MAX_CREATION_AGE}" value="${this.forCareer ? 17 : 24}" />
+          <label for="cp-age">Age <span id="cp-age-value">${this.startingAge()}</span></label>
+          <input id="cp-age" type="range" min="${MIN_CREATION_AGE}" max="${MAX_CREATION_AGE}" value="${this.startingAge()}" />
           <p class="hint" id="cp-age-note"></p>
         </div>
         <div class="field">
@@ -213,6 +236,11 @@ export class PlayerCreatorScreen {
     this.attributes[key] = next;
     this.renderAttributeRow(key);
     this.renderSummary();
+  }
+
+  /** The age to open on: the one being edited, or the mode's default. */
+  private startingAge(): number {
+    return this.initial?.age ?? (this.forCareer ? 17 : 24);
   }
 
   private spec(): CustomPlayerSpec {
