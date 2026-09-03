@@ -466,3 +466,15 @@ Eight things that were not on either list, found by reading the code against wha
   the player carries a rolled potential and, in a career, attributes training has moved, while the
   spec is what somebody actually typed. Editing re-rolls potential, which is the honest consequence
   of building a different footballer.
+
+- **"Key attributes" were not this footballer's.** Reported as the colouring not tracking position.
+  The creator and the training grid had asked the position all along and were correct; the hub card
+  that is literally titled **Key attributes** was a hardcoded list of the same eight for everybody,
+  with no marking at all — a centre back was shown Finishing and Dribbling and never Tackling or
+  Defensive Awareness, which is not a summary of him but a summary of a forward. The season review's
+  development list had the same blindness: three points of finishing and three of tackling read
+  identically whoever you were. Both now read the position, from one answer in
+  `core/player/positions.ts` that all four screens share, marked in the idiom the creator already
+  used. The three decision-window attributes are appended for every position, because the timer
+  reads them whoever you are and the card's hint always said so — but they are only marked *key*
+  where the role also asks for them, since a mark on every row would mean nothing.

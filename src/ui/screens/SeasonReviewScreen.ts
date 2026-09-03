@@ -1,6 +1,8 @@
 import type { SeasonRecord } from '../../core/career/career.ts';
 import type { Moment } from '../../core/career/moments.ts';
 import type { SeasonProgress } from '../../core/career/training.ts';
+import type { Position } from '../../core/player/positions.ts';
+import { keyAttributesFor } from '../../core/player/positions.ts';
 import { averageRating, goalContributions } from '../../core/career/seasonStats.ts';
 import type { ObjectiveOutcome } from '../../core/career/objective.ts';
 import type { ReputationSettlement } from '../../core/career/reputation.ts';
@@ -42,6 +44,12 @@ export class SeasonReviewScreen {
       newAge: number;
       potentialHint: string;
       progress: SeasonProgress;
+      /**
+       * The position he plays, so the development list can say which of the
+       * summer's gains the ROLE actually asked for. Passed in rather than read
+       * off the record, whose own `position` is where the club finished.
+       */
+      playerPosition: Position;
       /**
        * Anything the summer itself produced — a rival sold, a rival retired.
        *
@@ -192,7 +200,7 @@ export class SeasonReviewScreen {
       ${renderHonours(context.honours, context.capsGained)}
       ${renderSummerNews(context.moments ?? [])}
       ${renderObjectiveVerdict(context.objective)}
-      ${renderProgress(context.progress)}
+      ${renderProgress(context.progress, context.playerPosition)}
       ${renderReputation(context.reputation)}
       ${renderContractNews(context)}
       ${renderComparison(record, context.previous)}
@@ -588,16 +596,23 @@ function renderSummerNews(moments: Moment[]): string {
     </div>`;
 }
 
-function renderProgress(progress: SeasonProgress): string {
+function renderProgress(progress: SeasonProgress, position: Position): string {
   const windowDelta = progress.windowAfter - progress.windowBefore;
   const abilityDelta = progress.abilityAfter - progress.abilityBefore;
   const experienceDelta = Math.round(progress.experienceAfter - progress.experienceBefore);
 
+  // Growth in what the role needs is not the same news as growth in something
+  // it does not, and the list read identically either way: a striker gaining
+  // three finishing and a striker gaining three tackling looked like the same
+  // season. Marked from the same source every other screen reads — see
+  // core/player/positions.ts.
+  const key = keyAttributesFor(position);
   const changes = progress.changes
     .map((c) => {
       const delta = c.to - c.from;
-      return `<li class="${delta > 0 ? 'up' : 'down'}">
-          ${c.label} ${c.from} → <strong>${c.to}</strong>
+      const isKey = key.has(c.attribute);
+      return `<li class="${delta > 0 ? 'up' : 'down'}${isKey ? ' key-attr' : ''}">
+          ${c.label}${isKey ? ' <em>key</em>' : ''} ${c.from} → <strong>${c.to}</strong>
           <span class="delta">${delta > 0 ? '+' : ''}${delta}</span>
         </li>`;
     })
