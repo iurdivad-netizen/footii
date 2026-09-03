@@ -22,6 +22,8 @@ import { startingConfidence } from '../core/career/confidence.ts';
 import { isEuropeanTier } from '../core/career/europe.ts';
 import { contractYears, offeredWage, squadRole } from '../core/career/transfers.ts';
 import type { DecisionPace } from '../simulation/DecisionTimer.ts';
+import type { ReplaySetting } from '../ui/replay.ts';
+import { isReplaySetting } from '../ui/replay.ts';
 import type { CareerLegacy } from '../core/career/legacy.ts';
 import { rankLegacies } from '../core/career/legacy.ts';
 
@@ -99,6 +101,16 @@ export interface GameSettings {
    */
   sound: boolean;
   /**
+   * Whether the ball's flight is animated when a decision resolves.
+   *
+   * Three values rather than a switch, because the browser's reduced-motion
+   * preference deserves to be honoured by DEFAULT and overridden by anyone who
+   * wants to: it used to be the only rule, silently, so a player whose system
+   * asked for less movement saw no replay and had nothing on screen telling him
+   * why. See ui/replay.ts.
+   */
+  replay: ReplaySetting;
+  /**
    * Whether the player has been shown what this game is.
    *
    * The front door is a rack of career slots and a settings panel, which is the
@@ -141,6 +153,7 @@ export function defaultSettings(): GameSettings {
     hubLayout: 'tabs',
     hubOpen: ['you'],
     sound: true,
+    replay: 'system',
     seenIntro: false,
   };
 }
@@ -990,6 +1003,12 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
   // Anything that is not literally `false` means on — including the absence an
   // older save has, which the spread above already filled with the default.
   save.settings.sound = save.settings.sound !== false;
+  // Same guard the hub layout gets, for the same reason: a hand-edited or
+  // downgraded save can carry a value this version has never heard of, and a
+  // replay setting that matches nothing would skip the animation for ever.
+  if (!isReplaySetting(save.settings.replay)) {
+    save.settings.replay = defaultSettings().replay;
+  }
 
   // A career that predates a field must not crash the game. Applied to every
   // slot, not just the active one: a slot you are not currently playing is

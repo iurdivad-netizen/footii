@@ -4,6 +4,8 @@ import type { InteractiveEvent } from '../../simulation/MatchEngine.ts';
 import { SituationRenderer } from '../../rendering/events/SituationRenderer.ts';
 import type { RenderState } from '../../rendering/events/SituationRenderer.ts';
 import { sound } from '../../audio/SoundEngine.ts';
+import { shouldReplay } from '../replay.ts';
+import type { ReplaySetting } from '../replay.ts';
 import type { InputController } from '../interaction/InputController.ts';
 import { LEGEND_ORDER, familyStyle } from '../actionFamilyStyle.ts';
 import { keeperStatus } from '../keeperStatus.ts';
@@ -93,6 +95,12 @@ export class EventOverlay {
    * the read is unchanged — you simply get to take your time over it.
    */
   untimed = false;
+  /**
+   * Whether the resolution is replayed on the pitch. Held as the SETTING rather
+   * than as a resolved boolean so that "follow my browser" keeps following it:
+   * somebody can turn reduced motion on mid-session and the next chance obeys.
+   */
+  replay: ReplaySetting = 'system';
 
   constructor(private readonly input: InputController) {
     this.element = document.createElement('div');
@@ -445,18 +453,15 @@ export class EventOverlay {
    * in the picture that asked the question. The outcome cue sounds on the
    * impact frame, so what is heard lands when what is seen does.
    *
-   * Skipped (sound intact) when the browser asks for reduced motion, or when
-   * there is no scene to animate over — a resolution with no picture is the
-   * banner's job, exactly as before.
+   * Skipped (sound and outcome text intact) when the Replays setting says so —
+   * see ui/replay.ts — or when there is no scene to animate over. A resolution
+   * with no picture is the banner's job, exactly as before.
    */
   async playResolution(outcome: OutcomeKind, option: ActionOption | null): Promise<void> {
     const scene = this.resolutionScene;
     this.resolutionScene = null;
     sound.crowd(0);
-    const reducedMotion =
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (!scene || reducedMotion) {
+    if (!scene || !shouldReplay(this.replay)) {
       this.showOutcomeLabel(outcome);
       sound.outcome(outcome);
       return;

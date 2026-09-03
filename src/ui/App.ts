@@ -739,6 +739,7 @@ export class App {
     this.paceScale = DECISION_PACE[pace] ?? 1;
     this.overlay.paceScale = this.paceScale;
     this.overlay.untimed = pace === UNTIMED_PACE;
+    this.overlay.replay = this.save.settings.replay;
     sound.enabled = this.save.settings.sound;
     // Muting mid-match must actually silence the ground, not just future cues.
     if (!sound.enabled) sound.stopAmbience();

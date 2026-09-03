@@ -478,3 +478,16 @@ Eight things that were not on either list, found by reading the code against wha
   used. The three decision-window attributes are appended for every position, because the timer
   reads them whoever you are and the card's hint always said so — but they are only marked *key*
   where the role also asks for them, since a mark on every row would mean nothing.
+
+- **The replay's off-switch was the operating system, and it was invisible.** Whether the resolution
+  animated was decided entirely by `prefers-reduced-motion` — the right default, the wrong only
+  option. A player whose system asked for less movement got no replay, no way to turn one on, and
+  nothing anywhere saying why, which is indistinguishable from a feature that does not work; that is
+  how it was reported. It is a **Replays** setting now — *Follow my browser* (the default, so
+  accessibility still wins untouched), *Always*, *Never* — saved like every other preference and
+  validated on the way in, so a hand-edited save cannot land on a value that matches no branch and
+  silently never replays. The note under the control reads the media query and says which way
+  *Follow my browser* has actually gone, because a three-way select that still would not report the
+  system's answer moves the mystery rather than solving it. *Never* remains a real choice: the
+  outcome is still stated in words on the panel and in sound, so what is lost is movement, never
+  information.

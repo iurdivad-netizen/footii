@@ -3,6 +3,8 @@ import type { DecisionPace } from '../../simulation/DecisionTimer.ts';
 import type { GameSettings } from '../../persistence/storage.ts';
 import { MATCH_SPEEDS } from '../screens/matchSpeeds.ts';
 import { HUB_LAYOUTS, HUB_LAYOUT_LABELS } from './hubSections.ts';
+import { REPLAY_LABELS, REPLAY_SETTINGS, prefersReducedMotion } from '../replay.ts';
+import type { ReplaySetting } from '../replay.ts';
 import type { HubLayout } from './hubSections.ts';
 
 /**
@@ -91,6 +93,16 @@ export class SettingsScreen {
             </p>
           </div>
           <div class="field">
+            <label for="home-replay">Replays</label>
+            <select id="home-replay">
+              ${REPLAY_SETTINGS.map(
+                (key) =>
+                  `<option value="${key}" ${key === settings.replay ? 'selected' : ''}>${REPLAY_LABELS[key]}</option>`,
+              ).join('')}
+            </select>
+            <p class="hint" id="replay-note"></p>
+          </div>
+          <div class="field">
             <label for="home-hub">Career hub</label>
             <select id="home-hub">
               ${HUB_LAYOUTS.map(
@@ -162,6 +174,34 @@ export class SettingsScreen {
       handlers.onSettingsChange({ pace: paceSelect.value as DecisionPace });
     });
     updatePaceNote();
+
+    /*
+     * WHAT "FOLLOW MY BROWSER" IS CURRENTLY DOING.
+     *
+     * The whole reason this control exists is that the reduced-motion rule was
+     * invisible: the replay silently did not happen and nothing said why, which
+     * is indistinguishable from a broken feature. A three-way select that still
+     * did not say which way the system had gone would have moved the mystery
+     * rather than solved it, so the note reads the media query and reports it.
+     */
+    const replaySelect = this.element.querySelector<HTMLSelectElement>('#home-replay')!;
+    const replayNote = this.element.querySelector<HTMLElement>('#replay-note')!;
+    const updateReplayNote = () => {
+      const reduced = prefersReducedMotion();
+      replayNote.textContent =
+        replaySelect.value === 'system'
+          ? reduced
+            ? 'Your browser asks for reduced motion, so replays are OFF. Choose Always to override.'
+            : 'Your browser has no preference set, so replays are ON.'
+          : replaySelect.value === 'on'
+            ? 'The ball, the keeper and the outcome are replayed on the pitch after every decision.'
+            : 'The outcome is still shown in words and sound — only the movement is gone.';
+    };
+    replaySelect.addEventListener('change', () => {
+      updateReplayNote();
+      handlers.onSettingsChange({ replay: replaySelect.value as ReplaySetting });
+    });
+    updateReplayNote();
 
     const soundSelect = this.element.querySelector<HTMLSelectElement>('#home-sound')!;
     soundSelect.addEventListener('change', () => {

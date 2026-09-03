@@ -506,6 +506,7 @@ describe('save migration', () => {
         hubLayout: 'folds' as const,
         hubOpen: ['club'],
         sound: false,
+        replay: 'off',
         seenIntro: true,
       },
       careers: [career(), null, null],
@@ -952,6 +953,7 @@ describe('export and import', () => {
         hubLayout: 'folds',
         hubOpen: ['club', 'career'],
         sound: false,
+        replay: 'off',
       },
     });
     original = saveCareer(selectSlot(original, 1), career());
@@ -972,6 +974,9 @@ describe('export and import', () => {
       // Off survives the trip: the migration reads anything that is not
       // literally `false` as on, so an explicit mute must come back muted.
       sound: false,
+      // Likewise an explicit replay choice, which is validated rather than
+      // coerced — see isReplaySetting.
+      replay: 'off',
       // Filled from `defaultSettings` on the way through, because this fixture
       // is built AT the current version and so never meets the migration that
       // would have marked a save with a career in it as having seen the
