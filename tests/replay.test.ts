@@ -43,14 +43,17 @@ describe('resolving the setting', () => {
 });
 
 describe('what a save carries', () => {
-  it('defaults to following the browser, so accessibility still wins untouched', () => {
-    expect(defaultSettings().replay).toBe('system');
+  it('defaults to Always, because the replay is where the mechanic pays off', () => {
+    // A first-time player who never sees one has been shown a worse game than
+    // the one that was built. Follow-my-browser is one selection away and the
+    // control says what it is doing, which is the part that was missing.
+    expect(defaultSettings().replay).toBe('on');
   });
 
   it('gives a save written before the setting existed the default', () => {
     const migrated = migrate({ version: 1, career: emptyCareer() } as never)!;
     expect(migrated.version).toBe(SAVE_VERSION);
-    expect(migrated.settings.replay).toBe('system');
+    expect(migrated.settings.replay).toBe('on');
   });
 
   it('falls back rather than trusting a value this version has never heard of', () => {
@@ -61,6 +64,18 @@ describe('what a save carries', () => {
       career: emptyCareer(),
       careers: [null, null, null],
       settings: { ...defaultSettings(), replay: 'sometimes' },
+    } as never)!;
+    expect(migrated.settings.replay).toBe(defaultSettings().replay);
+  });
+
+  it('keeps a deliberate Follow-my-browser rather than overwriting it with the default', () => {
+    // The default changed to Always; somebody who chose the browser's
+    // preference must not be quietly opted back out of it.
+    const migrated = migrate({
+      version: SAVE_VERSION,
+      career: emptyCareer(),
+      careers: [null, null, null],
+      settings: { ...defaultSettings(), replay: 'system' },
     } as never)!;
     expect(migrated.settings.replay).toBe('system');
   });

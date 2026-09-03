@@ -491,3 +491,32 @@ Eight things that were not on either list, found by reading the code against wha
   system's answer moves the mystery rather than solving it. *Never* remains a real choice: the
   outcome is still stated in words on the panel and in sound, so what is lost is movement, never
   information.
+
+- **Replays now default to Always.** `Follow my browser` was the safe default and the wrong one for
+  what this animation is: the replay is where the mechanic pays off — the answer to the question the
+  whole decision was — and a player who never sees one has been shown a worse game than the one that
+  was built. The browser's preference is one selection away and the control says what it is doing,
+  which was the part actually missing; the animation is under a second, with no flashing and no
+  large-area motion, so it is a poor match for what reduced motion exists to prevent. A save that
+  deliberately chose `Follow my browser` keeps it — the new default applies to new saves, not over
+  somebody's decision.
+
+- **You could be asked to pass to men the pitch never showed.** "Square ball across", "hang it up to
+  the far post", "roll it sideways for the shot" — the labels named receivers and the picture drew
+  nobody, so choosing between them was a decision about people who existed only as text. Team-mates
+  are drawn now, as hollow rings in a lighter shade of the player's own blue (same side, not you),
+  on the moments where a pass or a cross is among the six and not otherwise — the same rule that
+  hides the keeper where he takes no part. Where each man stands is read off the `zoneWeights` the
+  situation generator already uses for where a position receives the ball, so the picture agrees
+  with the model rather than inventing a second one, spread and staggered by index because four
+  attacking roles share a `third` profile and an honest centroid alone lines them up into what looks
+  like a defensive wall. A pass or a cross in the replay now flies to one of these men; a cross is
+  met in the box rather than on the wing.
+
+- **The ball was drawn behind the player, always.** Pinned ten pixels right and eight DOWN of him in
+  every situation — which is the far side of him from the goal, in a picture whose entire subject is
+  what he can do towards that goal. It sits on the goal-facing side now, on the line between him and
+  the mouth and clear of his own disc, so a man wide on the right has it angled infield, a man in the
+  middle has it dead in front, and the replay's flight starts from where the ball actually was
+  instead of jumping first. The geometry is pure functions with tests rather than maths buried in a
+  canvas call: see `ballAtFeet` and `teammateSpot`.

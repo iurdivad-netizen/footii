@@ -5,6 +5,9 @@ import type {
   OutcomeKind,
   SituationContext,
 } from '../../core/events/types.ts';
+import type { Channel, Third } from '../../core/events/zones.ts';
+import { POSITION_PROFILES } from '../../core/player/positions.ts';
+import type { Position } from '../../core/player/positions.ts';
 
 /**
  * SITUATION RENDERER
@@ -32,6 +35,15 @@ export const COLOURS = {
   keeper: '#ffd166',
   keeperCommitted: '#ff7b54',
   player: '#4aa3ff',
+  /*
+   * A team-mate: the player's own blue, lightened.
+   *
+   * Deliberately the SAME HUE as the player rather than a sixth colour — they
+   * are on his side, and the picture should say so at a glance. Told apart by
+   * being drawn hollow, which is a difference that survives both a small canvas
+   * and colour blindness in a way a second blue would not.
+   */
+  teammate: '#a9d4ff',
   defender: '#e2574c',
   ball: '#ffffff',
 };
@@ -49,6 +61,16 @@ export interface RenderState {
    * bearing on the decision, which is worse than drawing nothing.
    */
   showGoalkeeper: boolean;
+  /**
+   * Whether to draw the men he could actually give it to.
+   *
+   * True only when a pass or a cross is among the six, for the same reason the
+   * keeper is hidden when he takes no part: a receiver drawn on a moment with
+   * nobody to pass to is information about nothing. When it is true, the
+   * options include "find someone" and the picture has to answer WHO — the
+   * labels name them, and until now the pitch did not show them.
+   */
+  showTeammates?: boolean;
 }
 
 /**
@@ -76,6 +98,83 @@ interface ResolutionPlan {
   netFlash: boolean;
   /** True moves the player's own dot with the ball — a carry, not a strike. */
   movePlayer: boolean;
+}
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
+/**
+ * WHERE THE BALL SITS AT HIS FEET.
+ *
+ * It used to be pinned ten pixels right and eight DOWN of him, always — which
+ * put it on the far side of him from the goal in every single situation, so a
+ * picture whose whole subject is "what can he do towards that goal" showed him
+ * with the ball behind him. It is placed on the goal-facing side now, on the
+ * line between him and the mouth, so a man out on the right wing has it angled
+ * infield and a man in the middle has it dead in front.
+ *
+ * The reach clears the player's own nine-pixel disc, or the ball reads as a
+ * highlight on him rather than as a ball in front of him.
+ */
+export function ballAtFeet(player: Point, goal: Point, reach = 14): Point {
+  const dx = goal.x - player.x;
+  const dy = goal.y - player.y;
+  const distance = Math.hypot(dx, dy) || 1;
+  return { x: player.x + (dx / distance) * reach, y: player.y + (dy / distance) * reach };
+}
+
+/** Weighted centroid of a zone-weight map over the places those zones sit. */
+function centroid<K extends string>(
+  map: Partial<Record<K, number>>,
+  places: Record<K, number>,
+  fallback: number,
+): number {
+  let total = 0;
+  let sum = 0;
+  for (const [key, weight] of Object.entries(map) as [K, number][]) {
+    total += weight;
+    sum += weight * places[key];
+  }
+  return total > 0 ? sum / total : fallback;
+}
+
+/**
+ * Where a team-mate is standing, from the position he plays.
+ *
+ * Read off the same `zoneWeights` the situation generator uses to decide where
+ * a position receives the ball — so a winger is wide and high, a centre back
+ * is central and deep, and the picture agrees with the model rather than
+ * inventing a second one.
+ *
+ * Most attacking roles share a `third` profile, so an honest centroid alone
+ * puts four of them on one horizontal line, which reads as a defensive wall
+ * rather than as options. They are spread sideways by index and staggered a
+ * little in depth, which breaks the row up without moving any man out of the
+ * band his position actually belongs in.
+ */
+export function teammateSpot(
+  position: Position,
+  index: number,
+  count: number,
+  w: number,
+  h: number,
+): Point {
+  const weights = POSITION_PROFILES[position].zoneWeights;
+  const x = centroid<Channel>(
+    weights.channel,
+    { left: 0.16, leftHalf: 0.34, central: 0.5, rightHalf: 0.66, right: 0.84 },
+    0.5,
+  );
+  // Nearer the goal is nearer the TOP, so the attacking third is the small y.
+  const y = centroid<Third>(weights.third, { attacking: 0.42, middle: 0.72, defensive: 0.94 }, 0.7);
+  const spread = count > 1 ? (index - (count - 1) / 2) * (w * 0.055) : 0;
+  const stagger = count > 1 ? (index % 2 === 0 ? -1 : 1) * (h * 0.045) : 0;
+  return {
+    x: Math.min(w - 12, Math.max(12, x * w + spread)),
+    y: Math.min(h - 12, Math.max(14, y * h + stagger)),
+  };
 }
 
 export class SituationRenderer {
@@ -124,6 +223,25 @@ export class SituationRenderer {
     if (zone.box === 'inside') return 0.55;
     if (zone.box === 'edge') return 0.7;
     return zone.third === 'attacking' ? 0.8 : 0.9;
+  }
+
+  /** Where the goal is aimed at: the centre of the mouth, on the goal line. */
+  private goalMouth(): Point {
+    return { x: this.width / 2, y: 6 };
+  }
+
+  /** Every named receiver, in the order the options name them. */
+  private teammateSpots(state: RenderState): { spot: Point; name: string }[] {
+    const mates = state.context.teammates;
+    return mates.map((mate, index) => ({
+      spot: teammateSpot(mate.position, index, mates.length, this.width, this.height),
+      name: mate.name,
+    }));
+  }
+
+  /** The ball at this player's feet, on the side facing the goal. */
+  private ballAtFeet(playerX: number, playerY: number): Point {
+    return ballAtFeet({ x: playerX, y: playerY }, this.goalMouth());
   }
 
   draw(
@@ -203,6 +321,21 @@ export class SituationRenderer {
       ctx.fill();
     }
 
+    // --- team-mates ---
+    //
+    // Hollow rather than filled, so they read as "on your side, not you" at a
+    // glance and stay distinguishable from the player without a sixth hue.
+    // Drawn BEFORE him, so a receiver standing close by never covers him up.
+    if (state.showTeammates) {
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = COLOURS.teammate;
+      for (const { spot } of this.teammateSpots(state)) {
+        ctx.beginPath();
+        ctx.arc(spot.x, spot.y, 7, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
     // --- player ---
     if (!hidden.player) {
       ctx.fillStyle = COLOURS.player;
@@ -211,9 +344,10 @@ export class SituationRenderer {
       ctx.fill();
     }
     if (!hidden.ball) {
+      const ball = this.ballAtFeet(playerX, playerY);
       ctx.fillStyle = COLOURS.ball;
       ctx.beginPath();
-      ctx.arc(playerX + 10, playerY + 8, 3.5, 0, Math.PI * 2);
+      ctx.arc(ball.x, ball.y, 3.5, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -314,7 +448,9 @@ export class SituationRenderer {
     const { width: w, height: h } = this;
     const playerX = this.channelX(state) * w;
     const playerY = this.depthY(state) * h;
-    const from = { x: playerX + 10, y: playerY + 8 };
+    // The ball leaves from where it was drawn at his feet, not from a corner of
+    // him: a flight that starts somewhere the ball never was reads as a jump.
+    const from = this.ballAtFeet(playerX, playerY);
     const goalW = w * 0.34;
     const goalCentre = w / 2;
     const dir = this.aimDirection(state, cue.actionKind);
@@ -367,14 +503,14 @@ export class SituationRenderer {
         return plan(this.nearestDefender(state, w, h), COLOURS.defender, { flight: 0.6 });
       case 'chanceCreated':
       case 'passCompleted':
-        return plan(
-          { x: Math.min(w * 0.9, Math.max(w * 0.1, w * (0.5 - side * 0.32))), y: playerY - h * 0.24 },
-          '#4ade80',
-        );
+        // To an actual man, and the same man the pitch has been showing for the
+        // whole decision: a pass that lands on empty grass answers "did it
+        // reach anybody" with a picture that says no.
+        return plan(this.receiver(state, playerY), '#4ade80');
       case 'crossCompleted':
-        return plan({ x: goalCentre - side * goalW * 0.3, y: h * 0.3 }, '#4ade80');
+        return plan(this.receiver(state, playerY, true), '#4ade80');
       case 'crossCleared':
-        return plan({ x: goalCentre - side * goalW * 0.3, y: h * 0.3 }, COLOURS.defender);
+        return plan(this.receiver(state, playerY, true), COLOURS.defender);
       case 'dribbleSuccess':
         return plan({ x: playerX + side * w * 0.08 + 10, y: playerY - h * 0.2 + 8 }, '#4ade80', {
           movePlayer: true,
@@ -389,6 +525,35 @@ export class SituationRenderer {
       case 'held':
         return plan({ x: playerX - 12, y: playerY + 6 }, '#4ade80', { flight: 0.45 });
     }
+  }
+
+  /**
+   * Who the ball is going to.
+   *
+   * The most advanced team-mate on screen, because that is what a pass into a
+   * chance means and it is the one the option labels are usually naming; for a
+   * cross, the most advanced man in or near the box. Falls back to a point
+   * ahead of the player when nobody is named — a defensive duel has no
+   * receivers, and the flight still has to go somewhere.
+   */
+  private receiver(state: RenderState, playerY: number, intoBox = false): { x: number; y: number } {
+    const spots = this.teammateSpots(state).map((entry) => entry.spot);
+    if (spots.length > 0) {
+      const furthestForward = spots.reduce((best, spot) => (spot.y < best.y ? spot : best));
+      if (!intoBox) return furthestForward;
+      // A cross ends IN THE BOX. The man is still the target, but he attacks
+      // it rather than standing where he was: pulled most of the way to the
+      // penalty spot, which is where a delivery is actually met.
+      return {
+        x: furthestForward.x + (this.width / 2 - furthestForward.x) * 0.7,
+        y: Math.min(furthestForward.y, this.height * 0.3),
+      };
+    }
+    const side = Math.sign(this.channelX(state) - 0.5) || 1;
+    return {
+      x: Math.min(this.width * 0.9, Math.max(this.width * 0.1, this.width * (0.5 - side * 0.32))),
+      y: Math.max(14, playerY - this.height * 0.24),
+    };
   }
 
   /**
