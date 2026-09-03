@@ -186,6 +186,35 @@ function spend(rng: Rng, attributes: Attributes, weights: Map<AttributeKey, numb
   return rng.weighted(entries);
 }
 
+/**
+ * HOW MUCH A MATCH'S QUALITY CHANGES WHAT IT TEACHES.
+ *
+ * Experience used to be a pure function of MINUTES, which meant ninety minutes
+ * of drifting through a game taught exactly as much as ninety minutes of
+ * running it — and, because a skipped match is a real match played by the
+ * auto-play policy, that turning up and deciding for yourself was worth nothing
+ * at all in experience terms. Attribute growth already read the rating; this is
+ * the term that was missing beside it.
+ *
+ * DELIBERATELY SMALLER THAN THE GROWTH TERM, and floored well above zero, for
+ * three reasons. Ninety minutes is ninety minutes: a bad match is still a match
+ * played, and a game that taught you nothing for a poor rating would punish a
+ * young player twice for the thing he is young enough to be bad at. Experience
+ * has no potential ceiling — unlike attributes it never stops accruing — so a
+ * multiplier that ran wide would compound over a career in a way growth cannot.
+ * And it feeds the decision window directly, which is the one number the player
+ * feels every single match.
+ *
+ * The result is a band of roughly 0.8x to 1.4x: a real reason to play your own
+ * matches, never a reason to fear a bad one.
+ */
+export const EXPERIENCE_PERFORMANCE = 0.32;
+
+/** The experience multiplier for a performance term, floored so it is never punitive. */
+export function experienceQuality(performance: number): number {
+  return Math.max(0.75, 1 + performance * EXPERIENCE_PERFORMANCE);
+}
+
 export function developAfterMatch(
   rng: Rng,
   state: DevelopmentState,
@@ -253,8 +282,12 @@ export function developAfterMatch(
   }
 
   // Experience accrues fastest in the first seasons, matching the sqrt-shaped
-  // experienceFactor used by the decision timer.
-  const experienceGained = round((minutes / 90) * 1.6 * (1 - unit(player.experience) * 0.6), 3);
+  // experienceFactor used by the decision timer — and is worth more from a
+  // match he was good in. See EXPERIENCE_PERFORMANCE.
+  const experienceGained = round(
+    (minutes / 90) * 1.6 * (1 - unit(player.experience) * 0.6) * experienceQuality(performance),
+    3,
+  );
   player.experience = clamp(player.experience + experienceGained, 0, 100);
 
   return { changes, growth: round(growth, 3), decline: round(decline, 3), experienceGained };

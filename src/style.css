@@ -757,6 +757,12 @@ kbd {
  * ui/crowdReaction.ts. A crowd that says something about every completed pass
  * has nothing left to say about a goal.
  */
+/* Sits under the skip button, so the cost is read where the choice is made. */
+.skip-note {
+  margin: 6px 2px 0;
+  line-height: 1.45;
+}
+
 .crowd-line {
   margin: 2px 0 8px;
   min-height: 1em;

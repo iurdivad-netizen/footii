@@ -25,6 +25,7 @@ import {
   ageFactor,
   createDevelopmentState,
   developAfterMatch,
+  experienceQuality,
   driftPotential,
 } from '../src/core/career/development.ts';
 import {
@@ -673,5 +674,91 @@ describe('fitness across a congested week', () => {
       expect(played[i]!.week).toBeGreaterThanOrEqual(played[i - 1]!.week);
     }
     expect(played[played.length - 1]!.week).toBeGreaterThan(played[0]!.week);
+  });
+});
+
+/**
+ * WHAT NINETY MINUTES TEACHES YOU.
+ *
+ * Experience was a pure function of MINUTES, so drifting through a game taught
+ * exactly as much as running it — and, because a skipped match is a real match
+ * played by the auto-play policy, deciding for yourself was worth nothing at
+ * all in experience terms. Attribute growth already read the rating; this was
+ * the term missing beside it.
+ *
+ * It matters more than growth does for an established player: attributes stop
+ * at his potential, and experience never stops, so for a veteran at his ceiling
+ * this is the ONLY thing playing his own matches still earns.
+ */
+describe('experience follows the performance, not just the clock', () => {
+  const experienceFrom = (rating: number, minutes = 90): number => {
+    const state = createDevelopmentState();
+    return developAfterMatch(new Rng('xp'), state, {
+      player: prospect(),
+      rating,
+      minutes,
+      coaching: 0.5,
+    }).experienceGained;
+  };
+
+  it('is worth more from a match he was good in', () => {
+    expect(experienceFrom(8.5)).toBeGreaterThan(experienceFrom(5.5));
+  });
+
+  it('is unchanged at a par performance, so this is a spread and not a buff', () => {
+    // 6.5 is the performance term's own zero. A change that quietly moved every
+    // career's experience curve would be a balance change wearing a feature's
+    // clothes; this one pays above par and charges below it, and leaves the
+    // middle exactly where it was.
+    // Asserted on the multiplier itself rather than by re-deriving the accrual
+    // formula in the test: a test that restates the implementation only proves
+    // it was copied correctly, and breaks every time the curve is tuned.
+    expect(experienceQuality(0)).toBe(1);
+    // And par really is the hinge: strictly more above it, strictly less below.
+    expect(experienceFrom(7.5)).toBeGreaterThan(experienceFrom(6.5));
+    expect(experienceFrom(5.5)).toBeLessThan(experienceFrom(6.5));
+  });
+
+  it('never stops teaching him, however badly it went', () => {
+    // A bad match is still a match played. A young player is precisely the one
+    // who will have poor ratings, and he must not be punished twice for the
+    // thing he is young enough to be bad at.
+    expect(experienceFrom(1)).toBeGreaterThan(0);
+    expect(experienceQuality(-5)).toBe(0.75);
+  });
+
+  it('stays inside a narrow band, because experience has no ceiling', () => {
+    // Unlike attributes, which stop at potential, experience accrues for ever —
+    // so a multiplier that ran wide would compound across a fifteen-year career.
+    for (const performance of [-0.8, -0.4, 0, 0.6, 1.2]) {
+      expect(experienceQuality(performance)).toBeGreaterThanOrEqual(0.75);
+      expect(experienceQuality(performance)).toBeLessThanOrEqual(1.4);
+    }
+  });
+
+  it('still scales with minutes, so a substitute learns less than a starter', () => {
+    expect(experienceFrom(7.5, 30)).toBeLessThan(experienceFrom(7.5, 90));
+  });
+
+  it('gives a player at his ceiling a reason to play his own matches', () => {
+    // He gains no attributes — headroom is spent, and at 30 the age factor has
+    // turned — so if experience ignored the rating too, playing would earn him
+    // literally nothing over skipping. Measured at the ratings auto-play and a
+    // good read actually produce for a strong striker.
+    const atCeiling = () =>
+      prospect({ age: 30, experience: 70, potentialAbility: 40 });
+    const run = (rating: number) => {
+      const state = createDevelopmentState();
+      return developAfterMatch(new Rng('vet'), state, {
+        player: atCeiling(),
+        rating,
+        minutes: 90,
+        coaching: 0.5,
+      });
+    };
+    const skipped = run(7.9);
+    const played = run(8.7);
+    expect(played.growth).toBe(skipped.growth);
+    expect(played.experienceGained).toBeGreaterThan(skipped.experienceGained);
   });
 });

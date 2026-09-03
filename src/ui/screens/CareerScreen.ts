@@ -365,7 +365,24 @@ export class CareerScreen {
                           <button class="primary" id="miss-match">Watch from the bench</button>`
                        : `${sheet.note ? `<p class="team-sheet">${sheet.note}</p>` : ''}
                           <button class="primary" id="play-match">Play match</button>
-                          <button class="ghost skip-match" id="skip-match">Skip — let him play it</button>`
+                          <button class="ghost skip-match" id="skip-match">Skip — let him play it</button>
+                          <!--
+                            WHAT SKIPPING COSTS, SAID OUT LOUD.
+
+                            It is not a penalty and the line must not pretend it
+                            is: a skipped match is a real match through the same
+                            engine, and the result stands either way. But he
+                            decides worse than a human who reads the situation,
+                            and both his growth and his experience follow how
+                            the match went — so the cost is real, indirect, and
+                            was invisible. The same rule the Leave button
+                            follows: state the price the word does not.
+                          -->
+                          <p class="hint skip-note">
+                            He plays it properly and the result stands — but he reads the game less
+                            well than you do, and both what he learns and how fast he improves
+                            follow how it went.
+                          </p>`
                  }`
           }
         </div>
