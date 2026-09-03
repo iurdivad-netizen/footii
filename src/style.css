@@ -749,6 +749,75 @@ kbd {
   }
 }
 
+/*
+ * THE GROUND'S VERDICT.
+ *
+ * One line, under the outcome, in the crowd's voice rather than the game's —
+ * and absent entirely on the routine moments, which is the whole design: see
+ * ui/crowdReaction.ts. A crowd that says something about every completed pass
+ * has nothing left to say about a goal.
+ */
+.crowd-line {
+  margin: 2px 0 8px;
+  min-height: 1em;
+  text-align: center;
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--text-dim);
+  animation: crowd-in 0.3s ease-out;
+}
+
+.crowd-line.tone-ovation {
+  color: var(--goal);
+  font-style: normal;
+  font-weight: 600;
+}
+
+.crowd-line.tone-cheer {
+  color: var(--accent);
+}
+
+.crowd-line.tone-jeer {
+  color: var(--danger);
+}
+
+@keyframes crowd-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * The panel takes the mood too, as a wash on its border and a glow. Kept to the
+ * EDGE rather than the fill, because the pitch has to stay readable underneath
+ * it — the replay is still running while this lands.
+ */
+.event-overlay.mood-ovation .event-panel {
+  border-color: var(--goal);
+  box-shadow: 0 0 0 1px var(--goal), 0 0 42px rgba(250, 204, 21, 0.28);
+}
+
+.event-overlay.mood-cheer .event-panel {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 28px rgba(74, 222, 128, 0.18);
+}
+
+.event-overlay.mood-jeer .event-panel {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 1px var(--danger), 0 0 28px rgba(239, 68, 68, 0.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crowd-line {
+    animation: none;
+  }
+}
+
 .event-overlay.setting .timer-bar span {
   background: var(--warn);
   opacity: 0.55;

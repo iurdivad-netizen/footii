@@ -5,6 +5,8 @@ import { SituationRenderer } from '../../rendering/events/SituationRenderer.ts';
 import type { RenderState } from '../../rendering/events/SituationRenderer.ts';
 import { sound } from '../../audio/SoundEngine.ts';
 import { shouldReplay } from '../replay.ts';
+import { celebrationSize, crowdReaction } from '../crowdReaction.ts';
+import type { CrowdMood } from '../crowdReaction.ts';
 import type { ReplaySetting } from '../replay.ts';
 import type { InputController } from '../interaction/InputController.ts';
 import { LEGEND_ORDER, familyStyle } from '../actionFamilyStyle.ts';
@@ -67,6 +69,7 @@ export class EventOverlay {
   private readonly subline: HTMLElement;
   private readonly grid: HTMLElement;
   private readonly setLabel: HTMLElement;
+  private readonly crowdLine: HTMLElement;
   private readonly timerCaption: HTMLElement;
   private readonly keeperStrip: HTMLElement;
   private readonly keeperState: HTMLElement;
@@ -93,6 +96,14 @@ export class EventOverlay {
   private lastTickIndex = -1;
   /** Whether this moment has anybody to give it to. See hasReceiverOption. */
   private showTeammates = false;
+  /**
+   * How promising the moment was BEFORE he touched it, kept for the crowd.
+   *
+   * Read at decision time rather than after, because the resolver can move the
+   * context — and because a crowd judges what it saw develop, not what the
+   * engine concluded.
+   */
+  private resolutionQuality = 0;
   /**
    * The scene as it stood when the decision was made, kept so the resolution
    * can be animated after the engine has resolved it. The event itself is
@@ -137,6 +148,7 @@ export class EventOverlay {
           </div>
         </div>
         <div class="set-label" aria-live="polite"></div>
+        <p class="crowd-line" aria-live="polite"></p>
         <div class="option-grid" role="group" aria-label="Choose an action"></div>
         <p class="family-legend" id="family-legend"></p>
         <p class="event-hint">Press <kbd>1</kbd>-<kbd>6</kbd> or tap an option</p>
@@ -150,6 +162,7 @@ export class EventOverlay {
     this.subline = this.element.querySelector('.event-subline')!;
     this.grid = this.element.querySelector('.option-grid')!;
     this.setLabel = this.element.querySelector('.set-label')!;
+    this.crowdLine = this.element.querySelector('.crowd-line')!;
     this.timerCaption = this.element.querySelector('.timer-caption')!;
     this.keeperStrip = this.element.querySelector('.keeper-strip')!;
     this.keeperState = this.element.querySelector('.keeper-state')!;
@@ -235,6 +248,8 @@ export class EventOverlay {
     // Cleared, or the last moment's outcome greets the next one.
     this.setLabel.className = 'set-label';
     this.setLabel.textContent = '';
+    this.crowdLine.textContent = '';
+    this.element.classList.remove('mood-ovation', 'mood-cheer', 'mood-jeer', 'mood-sigh');
     // The crowd notices something is on before the player is asked anything.
     sound.crowd(0.4);
     // Forced to redraw on the first frame of the new event, so a keeper who
@@ -478,6 +493,7 @@ export class EventOverlay {
         // the pitch when it gets there.
         showTeammates: this.showTeammates,
       };
+      this.resolutionQuality = event.context.situationQuality;
     }
     const settle = this.settle;
     this.settle = null;
@@ -502,9 +518,11 @@ export class EventOverlay {
     const scene = this.resolutionScene;
     this.resolutionScene = null;
     sound.crowd(0);
+    const reaction = crowdReaction(outcome, this.resolutionQuality);
     if (!scene || !shouldReplay(this.replay)) {
       this.showOutcomeLabel(outcome);
       sound.outcome(outcome);
+      this.showCrowd(reaction.mood, reaction.caption);
       return;
     }
     // The strip must agree with the picture: the canvas is about to show the
@@ -517,12 +535,32 @@ export class EventOverlay {
         outcome,
         actionKind: option?.kind ?? 'shootCentre',
         family: option?.family ?? 'shot',
+        celebration: celebrationSize(reaction.mood),
       },
       () => {
         this.showOutcomeLabel(outcome);
         sound.outcome(outcome);
+        // A BEAT LATER than the ball landing, because a crowd takes a moment to
+        // decide what it has just seen — and because the two arriving together
+        // made the strike and the reaction one indistinguishable noise.
+        window.setTimeout(() => this.showCrowd(reaction.mood, reaction.caption), 160);
       },
     );
+  }
+
+  /**
+   * The ground's verdict: a line of prose, a colour on the panel, and a noise.
+   *
+   * Silence is a real answer and the most common one — see ui/crowdReaction.ts.
+   * When it comes back silent nothing is written, nothing is tinted and nothing
+   * is played, which is what keeps the goal worth something.
+   */
+  private showCrowd(mood: CrowdMood, caption: string): void {
+    sound.reaction(mood);
+    if (mood === 'silent') return;
+    this.element.classList.add(`mood-${mood}`);
+    this.crowdLine.textContent = caption;
+    this.crowdLine.className = `crowd-line tone-${mood}`;
   }
 
   /**

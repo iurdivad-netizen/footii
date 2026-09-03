@@ -82,7 +82,28 @@ export interface ResolutionCue {
   outcome: OutcomeKind;
   actionKind: ActionKind;
   family: ActionFamily;
+  /**
+   * How much of a party to throw once the ball lands.
+   *
+   * A SIZE rather than a mood, deliberately: the renderer draws particles or it
+   * does not, and how many. What the crowd thinks is decided in
+   * ui/crowdReaction.ts, which is where the football judgement belongs — this
+   * file has no business knowing what a jeer is.
+   */
+  celebration?: 'big' | 'small' | 'none';
 }
+
+/** One piece of confetti, in flight. */
+interface Spark {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  colour: string;
+}
+
+/** The colours a celebration is thrown in: the goal's own yellow, and joy. */
+const SPARK_COLOURS = ['#facc15', '#4ade80', '#ffffff'];
 
 /** One computed flight: where the ball goes, how, and what marks the arrival. */
 interface ResolutionPlan {
@@ -557,6 +578,38 @@ export class SituationRenderer {
   }
 
   /**
+   * A burst of confetti, thrown upward and outward from a point.
+   *
+   * Upward first and then falling, because that is what a thing thrown in
+   * celebration does, and because a burst that only expands reads as an
+   * explosion rather than as a party.
+   */
+  private throwSparks(from: Point, size: 'big' | 'small' | 'none'): Spark[] {
+    if (size === 'none') return [];
+    const count = size === 'big' ? 34 : 12;
+    const speed = size === 'big' ? 165 : 110;
+    // A goal lands ON the goal line, which is the top edge — so a burst thrown
+    // from exactly there spends half of itself off-screen. Pushed down into the
+    // frame far enough that the whole celebration is actually watchable.
+    const origin = { x: from.x, y: Math.max(from.y, 26) };
+    return Array.from({ length: count }, () => {
+      // A full circle rather than an upward fan, for the same reason: gravity
+      // then rains the whole burst back down across the pitch instead of
+      // launching it out of the picture.
+      const angle = Math.random() * Math.PI * 2;
+      const power = speed * (0.35 + Math.random() * 0.8);
+      return {
+        x: origin.x,
+        y: origin.y,
+        vx: Math.cos(angle) * power,
+        // Halved on the way up: it still reads as thrown, but it comes back.
+        vy: Math.sin(angle) * power * 0.6,
+        colour: SPARK_COLOURS[Math.floor(Math.random() * SPARK_COLOURS.length)]!,
+      };
+    });
+  }
+
+  /**
    * THE FOURTH PHASE: the resolution, animated.
    *
    * The three phases before a decision build tension a beat at a time — and
@@ -577,9 +630,13 @@ export class SituationRenderer {
   animateResolution(state: RenderState, cue: ResolutionCue, onImpact?: () => void): Promise<void> {
     const token = ++this.animationToken;
     const planned = this.resolutionPlan(state, cue);
-    const hold = 0.45;
+    const celebration = cue.celebration ?? 'none';
+    // A goal is held longer than anything else, because a goal is the only
+    // thing in this game worth standing still for.
+    const hold = celebration === 'big' ? 1.1 : celebration === 'small' ? 0.7 : 0.45;
     const started = performance.now();
     let impactFired = false;
+    let sparks: Spark[] = [];
 
     // The keeper DIVES rather than teleporting. He used to be painted at his
     // committed position from the first frame, which is the one thing the
@@ -681,6 +738,9 @@ export class SituationRenderer {
           if (!impactFired) {
             impactFired = true;
             onImpact?.();
+            // Thrown from where the ball finished, so the celebration comes out
+            // of the moment rather than being pasted over it.
+            sparks = this.throwSparks(planned.to, celebration);
           }
           const after = Math.min(1, (t - planned.flight) / hold);
           if (planned.ringColour) {
@@ -699,6 +759,22 @@ export class SituationRenderer {
             ctx.fillRect((this.width - goalW) / 2, 0, goalW, 10);
             ctx.globalAlpha = 1;
           }
+          // The confetti, integrated per frame at a fixed step so it behaves
+          // the same on a 60Hz screen and a 144Hz one.
+          if (sparks.length > 0) {
+            ctx.globalAlpha = Math.max(0, 1 - after);
+            for (const spark of sparks) {
+              spark.x += spark.vx * 0.016;
+              spark.y += spark.vy * 0.016;
+              spark.vy += 260 * 0.016;
+              ctx.fillStyle = spark.colour;
+              ctx.beginPath();
+              ctx.arc(spark.x, spark.y, 2.4, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+          }
+
           if (after >= 1) {
             resolve();
             return;
