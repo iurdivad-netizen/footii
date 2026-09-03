@@ -2526,6 +2526,24 @@ becomes the parent's before the fixture list is built, and he actually moves bac
 year at Club Espinela to Castleford Royals — which is exactly what the test that caught it now
 guards.
 
+### What a match teaches
+
+Experience is a term in the decision window — the thing you feel every match — and it used to be a
+pure function of **minutes**: ninety minutes of drifting through a game taught exactly as much as
+ninety minutes of running it. Attribute growth already read the rating; experience did not, so a
+skipped match and a played one were worth identical experience however differently they went.
+
+It now carries a performance multiplier, `experienceQuality`, and the shape of it is the argument:
+
+- **1.0x at a par rating (6.5).** The hinge is exactly where the growth term's own zero is, so this
+  pays above par and charges below it and leaves the middle where it was. It is a spread, not a buff.
+- **Floored at 0.75x, never zero.** Ninety minutes is ninety minutes, and a bad match is still a
+  match played. A young player is precisely the one who will have poor ratings; a curve that taught
+  him nothing would punish him twice for the thing he is young enough to be bad at.
+- **Capped near 1.4x — much narrower than the growth term.** Attributes stop at potential;
+  experience never stops accruing, so a multiplier that ran wide would compound across fifteen years
+  in a way growth structurally cannot.
+
 ### Skipping a match
 
 A season is up to forty-seven matches across five competitions. Playing every one of them is a
@@ -2555,6 +2573,19 @@ choosing at random is already close to choosing well and the room your reading b
 band at the top. And **letting the timer expire is not the floor for choosing badly** — expiry
 carries its own execution and tempo penalties on top of a poor choice, so it sits below even the
 deliberately worst decision.
+
+**What that rating gap is worth, in a career.** Development reads the rating twice: attribute
+growth scales with it, and so does experience — see [What a match teaches](#what-a-match-teaches).
+Measured over three full 38-match seasons per policy:
+
+| | Skipped (auto-play) | Played (best read) |
+| --- | --- | --- |
+| Young prospect | rating 5.7-6.2, **+4 to +5 ability**, 44-46 experience | rating 6.5-6.9, **+6 ability**, 48-49 experience |
+| Player at his ceiling | rating 7.9-8.1, +0 ability, 29 experience | rating 8.4-9.0, +0 ability, 31-32 experience |
+
+The second row is why experience has to read the rating at all. A player at his potential gains no
+attributes whatever he does, so if experience followed only the clock — as it did until this was
+measured — playing his own matches would have been worth **literally nothing** to him.
 
 Auto-play is driven by the player's own Decision Making, Composure and Awareness, so it improves as
 he develops — and skipping costs a raw teenager far more than a seasoned professional. Measured:

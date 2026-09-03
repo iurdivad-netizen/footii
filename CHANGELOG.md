@@ -541,3 +541,30 @@ Eight things that were not on either list, found by reading the code against wha
   own impact and the crowd's verdict are now separate cues a beat apart; they used to be one, which
   meant a goal roared at the instant of contact and a save groaned before the ball had finished
   travelling.
+
+- **Playing your own matches was worth nothing in experience.** Raised as a question — does turning
+  up beat skipping? — and the answer was half yes. A skipped match is a real match through the same
+  engine, decided by the auto-play policy, which reads the game worse than a human does; attribute
+  growth scales with the rating, so playing already earned more. Experience did not: it was a pure
+  function of MINUTES, so ninety minutes of drifting taught exactly as much as ninety minutes of
+  running the game. Measured over three 38-match seasons per policy, a prospect gained +4 to +5
+  ability skipped against +6 played — and **identical** experience either way.
+
+  Worse at the top end: a player at his potential gains no attributes whatever he does, so for him
+  playing his own matches was worth literally nothing. Experience now carries a performance
+  multiplier hinged at exactly the growth term's own zero (a par 6.5 rating is 1.0x, unchanged), so
+  the change is a spread rather than a buff. Floored at 0.75x because a bad match is still a match
+  played and a young player is precisely the one who will have poor ratings; capped near 1.4x —
+  far narrower than the growth term — because attributes stop at potential and experience never
+  does, so a wide multiplier would compound across a fifteen-year career in a way growth cannot.
+  Re-measured after the change: 44-46 experience skipped against 48-49 played for the prospect, and
+  29 against 31-32 for the man at his ceiling, who now has a reason to play.
+
+  A flat "you clicked Play" bonus was considered and rejected: it would pay for clicking rather than
+  for deciding, and it would break the property the skip system is built on — that a skipped season
+  and a played season are comparable because both ran the same engine.
+
+  **And the cost is now stated where the choice is made.** The skip button said nothing about what
+  it cost, which is the same hole the Leave button had; one line under it now says he plays it
+  properly and the result stands, but that he reads the game less well and both what he learns and
+  how fast he improves follow how it went.
