@@ -1,4 +1,5 @@
 import { MatchEngine } from '../simulation/MatchEngine.ts';
+import { sound } from '../audio/SoundEngine.ts';
 import { runMatchAutomatically } from '../simulation/AutoPlay.ts';
 import { DECISION_PACE, UNTIMED_PACE } from '../simulation/DecisionTimer.ts';
 import {
@@ -723,6 +724,9 @@ export class App {
     this.paceScale = DECISION_PACE[pace] ?? 1;
     this.overlay.paceScale = this.paceScale;
     this.overlay.untimed = pace === UNTIMED_PACE;
+    sound.enabled = this.save.settings.sound;
+    // Muting mid-match must actually silence the ground, not just future cues.
+    if (!sound.enabled) sound.stopAmbience();
   }
 
   private updateSettings(settings: Partial<GameSettings>): void {

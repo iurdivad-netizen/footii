@@ -505,6 +505,7 @@ describe('save migration', () => {
         matchSpeed: 2,
         hubLayout: 'folds' as const,
         hubOpen: ['club'],
+        sound: false,
         seenIntro: true,
       },
       careers: [career(), null, null],
@@ -945,7 +946,13 @@ describe('slots across versions', () => {
 describe('export and import', () => {
   it('round-trips everything: careers, the wall, and preferences', () => {
     let original = save({
-      settings: { pace: 'relaxed', matchSpeed: 2, hubLayout: 'folds', hubOpen: ['club', 'career'] },
+      settings: {
+        pace: 'relaxed',
+        matchSpeed: 2,
+        hubLayout: 'folds',
+        hubOpen: ['club', 'career'],
+        sound: false,
+      },
     });
     original = saveCareer(selectSlot(original, 1), career());
     original = { ...original, hallOfFame: [legacy({ id: 'kept' })] };
@@ -962,6 +969,9 @@ describe('export and import', () => {
       matchSpeed: 2,
       hubLayout: 'folds',
       hubOpen: ['club', 'career'],
+      // Off survives the trip: the migration reads anything that is not
+      // literally `false` as on, so an explicit mute must come back muted.
+      sound: false,
       // Filled from `defaultSettings` on the way through, because this fixture
       // is built AT the current version and so never meets the migration that
       // would have marked a save with a career in it as having seen the

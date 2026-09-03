@@ -5,6 +5,7 @@ import type { EventOverlay } from '../components/EventOverlay.ts';
 import type { DebugPanel } from '../components/DebugPanel.ts';
 
 import { MATCH_SPEEDS, clampSpeedIndex } from './matchSpeeds.ts';
+import { sound } from '../../audio/SoundEngine.ts';
 
 /**
  * The match screen. Drives the engine loop, renders the running state, and
@@ -123,6 +124,7 @@ export class MatchScreen {
 
         if (leaveButton.dataset.armed === 'yes') {
           this.stop();
+          sound.stopAmbience();
           options.onLeave!();
           return;
         }
@@ -150,6 +152,9 @@ export class MatchScreen {
   }
 
   start(): void {
+    // The crowd is there before the first minute ticks, and one peep starts it.
+    sound.startAmbience();
+    sound.whistle(1);
     this.scheduleTick(400);
   }
 
@@ -192,6 +197,8 @@ export class MatchScreen {
 
     if (update.kind === 'finished') {
       this.stop();
+      sound.whistle(3);
+      sound.stopAmbience();
       this.onFinished();
       return;
     }
@@ -208,6 +215,9 @@ export class MatchScreen {
         untimed: decision.untimed,
       });
       this.debug.recordResolution(resolution);
+      // The ending, shown where the question was asked, before the overlay
+      // comes down. See EventOverlay.playResolution.
+      await this.overlay.playResolution(resolution.result.outcome.kind, resolution.option);
       this.overlay.hide();
 
       this.showOutcome(resolution.result.outcome.kind, resolution.instinctReason);
@@ -251,6 +261,12 @@ export class MatchScreen {
       this.announced = latest.text;
       this.element.querySelector<HTMLElement>('#commentary-live')!.textContent =
         `${latest.minute} minutes. ${latest.text}`;
+      // The crowd reacts to the match, not just to the player's own moments: a
+      // background goal roars, one at the wrong end groans. A goal the player
+      // just scored has already roared from the resolution — the engine
+      // debounces, so the same goal never sounds twice.
+      if (latest.tone === 'goal') sound.roar();
+      else if (latest.tone === 'danger' && /score|punish/i.test(latest.text)) sound.groan();
     }
 
     const s = state.stats;

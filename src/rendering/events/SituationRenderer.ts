@@ -1,5 +1,10 @@
 import type { GoalkeeperAction } from '../../core/goalkeeper/goalkeeper.ts';
-import type { SituationContext } from '../../core/events/types.ts';
+import type {
+  ActionFamily,
+  ActionKind,
+  OutcomeKind,
+  SituationContext,
+} from '../../core/events/types.ts';
 
 /**
  * SITUATION RENDERER
@@ -46,10 +51,39 @@ export interface RenderState {
   showGoalkeeper: boolean;
 }
 
+/**
+ * What the animation needs to know about how the moment resolved. The kind and
+ * family shape the ball's flight (a chip is lofted, a low shot is not, a pass
+ * goes to a man rather than the goal); the outcome decides where it ends.
+ */
+export interface ResolutionCue {
+  outcome: OutcomeKind;
+  actionKind: ActionKind;
+  family: ActionFamily;
+}
+
+/** One computed flight: where the ball goes, how, and what marks the arrival. */
+interface ResolutionPlan {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  /** Fraction of extra arc height, 0 for a flat ball. */
+  loft: number;
+  /** Seconds of flight before the impact frame. */
+  flight: number;
+  /** Ring colour drawn at the impact, or null for a ball that just runs away. */
+  ringColour: string | null;
+  /** True lights the goal band up as well — reserved for a goal, like the hue. */
+  netFlash: boolean;
+  /** True moves the player's own dot with the ball — a carry, not a strike. */
+  movePlayer: boolean;
+}
+
 export class SituationRenderer {
   private readonly ctx: CanvasRenderingContext2D;
   private width = 0;
   private height = 0;
+  /** Bumped by every new animation so a superseded one stops drawing. */
+  private animationToken = 0;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d');
@@ -92,7 +126,7 @@ export class SituationRenderer {
     return zone.third === 'attacking' ? 0.8 : 0.9;
   }
 
-  draw(state: RenderState): void {
+  draw(state: RenderState, hidden: { ball?: boolean; player?: boolean } = {}): void {
     const { ctx, width: w, height: h } = this;
     ctx.clearRect(0, 0, w, h);
 
@@ -167,14 +201,18 @@ export class SituationRenderer {
     }
 
     // --- player ---
-    ctx.fillStyle = COLOURS.player;
-    ctx.beginPath();
-    ctx.arc(playerX, playerY, 9, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = COLOURS.ball;
-    ctx.beginPath();
-    ctx.arc(playerX + 10, playerY + 8, 3.5, 0, Math.PI * 2);
-    ctx.fill();
+    if (!hidden.player) {
+      ctx.fillStyle = COLOURS.player;
+      ctx.beginPath();
+      ctx.arc(playerX, playerY, 9, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (!hidden.ball) {
+      ctx.fillStyle = COLOURS.ball;
+      ctx.beginPath();
+      ctx.arc(playerX + 10, playerY + 8, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     // The keeper's state used to be painted here, at eleven pixels, in the
     // middle of the busiest part of the picture — the quietest element on
@@ -234,5 +272,212 @@ export class SituationRenderer {
     // Drift the keeper toward the ball's channel so angles read correctly.
     const bias = (this.channelX(state) - 0.5) * w * 0.25;
     return { x: x + bias, y, rx, ry };
+  }
+
+  // ------------------------------------------------------------ resolution ---
+
+  /**
+   * Which side of the goal the action aims at: -1 left, +1 right, 0 centre.
+   * Near and far post are relative to where the player is standing, which is
+   * why this needs the state and not just the action's name.
+   */
+  private aimDirection(state: RenderState, kind: ActionKind): number {
+    const side = Math.sign(this.channelX(state) - 0.5);
+    if (kind.includes('NearPost')) return side || -1;
+    if (kind.includes('FarPost') || kind.includes('AcrossGoal')) return -(side || 1);
+    if (kind.includes('Left')) return -1;
+    if (kind.includes('Right')) return 1;
+    return 0;
+  }
+
+  /** Where the defender nearest the ball is drawn — the same maths as draw(). */
+  private nearestDefender(state: RenderState, w: number, h: number): { x: number; y: number } {
+    const playerX = this.channelX(state) * w;
+    const playerY = this.depthY(state) * h;
+    const n = state.context.nearbyDefenders;
+    if (n === 0) return { x: playerX, y: playerY - h * 0.18 };
+    const i = Math.floor((n - 1) / 2);
+    const spread = (i - (n - 1) / 2) * (w * 0.13);
+    return { x: playerX + spread * 0.9, y: playerY - h * (0.1 + (i % 2) * 0.07) };
+  }
+
+  /**
+   * Where the ball ends up, and what marks its arrival. The outcome decides
+   * the destination; the action decides the flight. Nothing here is
+   * information the player has not already been told — the outcome is chosen
+   * before the first frame — it is the same fact, shown instead of stated.
+   */
+  private resolutionPlan(state: RenderState, cue: ResolutionCue): ResolutionPlan {
+    const { width: w, height: h } = this;
+    const playerX = this.channelX(state) * w;
+    const playerY = this.depthY(state) * h;
+    const from = { x: playerX + 10, y: playerY + 8 };
+    const goalW = w * 0.34;
+    const goalCentre = w / 2;
+    const dir = this.aimDirection(state, cue.actionKind);
+    const side = Math.sign(this.channelX(state) - 0.5) || 1;
+    const lofted =
+      cue.actionKind === 'chip' ||
+      cue.family === 'cross' ||
+      cue.family === 'header' ||
+      cue.actionKind.includes('Whipped') ||
+      cue.actionKind.includes('Curl');
+    const loft = lofted ? 0.5 : 0.12;
+
+    const plan = (
+      to: { x: number; y: number },
+      ringColour: string | null,
+      extra: Partial<ResolutionPlan> = {},
+    ): ResolutionPlan => ({
+      from,
+      to,
+      loft,
+      flight: 0.5,
+      ringColour,
+      netFlash: false,
+      movePlayer: false,
+      ...extra,
+    });
+
+    switch (cue.outcome) {
+      case 'goal':
+        return plan({ x: goalCentre + dir * goalW * 0.33, y: 6 }, '#facc15', {
+          netFlash: true,
+          flight: 0.45,
+        });
+      case 'saved': {
+        const keeper = this.keeperPosition(state, w, h, goalCentre - goalW / 2, goalW);
+        return plan({ x: keeper.x, y: keeper.y }, COLOURS.keeperCommitted, { flight: 0.45 });
+      }
+      case 'post':
+        return plan({ x: goalCentre + (dir || side) * (goalW / 2), y: 6 }, COLOURS.goal, {
+          flight: 0.45,
+        });
+      case 'missed':
+        return plan({ x: goalCentre + (dir || side) * goalW * 0.85, y: -8 }, null, { flight: 0.5 });
+      case 'blocked':
+      case 'deflected':
+      case 'dribbleFailed':
+      case 'turnover':
+      case 'foulCommitted':
+      case 'passIntercepted':
+        return plan(this.nearestDefender(state, w, h), COLOURS.defender, { flight: 0.35 });
+      case 'chanceCreated':
+      case 'passCompleted':
+        return plan(
+          { x: Math.min(w * 0.9, Math.max(w * 0.1, w * (0.5 - side * 0.32))), y: playerY - h * 0.24 },
+          '#4ade80',
+        );
+      case 'crossCompleted':
+        return plan({ x: goalCentre - side * goalW * 0.3, y: h * 0.3 }, '#4ade80');
+      case 'crossCleared':
+        return plan({ x: goalCentre - side * goalW * 0.3, y: h * 0.3 }, COLOURS.defender);
+      case 'dribbleSuccess':
+        return plan({ x: playerX + side * w * 0.08 + 10, y: playerY - h * 0.2 + 8 }, '#4ade80', {
+          movePlayer: true,
+        });
+      case 'ballWon': {
+        const defender = this.nearestDefender(state, w, h);
+        return plan({ x: playerX + 10, y: playerY + 8 }, '#4ade80', {
+          from: defender,
+          flight: 0.35,
+        });
+      }
+      case 'held':
+        return plan({ x: playerX - 12, y: playerY + 6 }, '#4ade80', { flight: 0.25 });
+    }
+  }
+
+  /**
+   * THE FOURTH PHASE: the resolution, animated.
+   *
+   * The three phases before a decision build tension a beat at a time — and
+   * then the outcome used to arrive as a line of text. The read the whole
+   * mechanic asks for is "which way has the keeper gone, and did I beat him?",
+   * and that question deserves to be ANSWERED in the same picture it was asked
+   * in: the ball flies, the keeper holds his dive, and it either goes past him
+   * or it does not.
+   *
+   * Under a second, deliberately: the flight, an impact frame, and out. The
+   * pause the match screen already takes after a decision absorbs it, so the
+   * rhythm of a match is unchanged — this spends time that was already being
+   * spent, on the one moment that earned it.
+   *
+   * `onImpact` fires the frame the ball arrives, so a caller can land a sound
+   * on it. The promise resolves when the animation is done or superseded.
+   */
+  animateResolution(state: RenderState, cue: ResolutionCue, onImpact?: () => void): Promise<void> {
+    const token = ++this.animationToken;
+    const planned = this.resolutionPlan(state, cue);
+    const hold = 0.3;
+    const started = performance.now();
+    let impactFired = false;
+
+    return new Promise((resolve) => {
+      const frame = (): void => {
+        if (token !== this.animationToken) {
+          resolve();
+          return;
+        }
+        const t = (performance.now() - started) / 1000;
+        const progress = Math.min(1, t / planned.flight);
+        // Ease-out: struck hard, arriving spent — the way a ball actually moves.
+        const eased = 1 - (1 - progress) * (1 - progress);
+
+        const x = planned.from.x + (planned.to.x - planned.from.x) * eased;
+        const y = planned.from.y + (planned.to.y - planned.from.y) * eased;
+        // Loft is faked with size: a ball above the turf reads bigger.
+        const rise = Math.sin(eased * Math.PI) * planned.loft;
+        const radius = 3.5 * (1 + rise * 1.6);
+
+        this.draw(
+          { ...state, progress: 1 },
+          { ball: true, player: planned.movePlayer },
+        );
+
+        const ctx = this.ctx;
+        if (planned.movePlayer) {
+          ctx.fillStyle = COLOURS.player;
+          ctx.beginPath();
+          ctx.arc(x - 10, y - 8, 9, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = COLOURS.ball;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (progress >= 1) {
+          if (!impactFired) {
+            impactFired = true;
+            onImpact?.();
+          }
+          const after = Math.min(1, (t - planned.flight) / hold);
+          if (planned.ringColour) {
+            ctx.strokeStyle = planned.ringColour;
+            ctx.globalAlpha = 1 - after;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(planned.to.x, planned.to.y, 8 + after * 20, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+          }
+          if (planned.netFlash) {
+            const goalW = this.width * 0.34;
+            ctx.fillStyle = '#facc15';
+            ctx.globalAlpha = (1 - after) * 0.8;
+            ctx.fillRect((this.width - goalW) / 2, 0, goalW, 10);
+            ctx.globalAlpha = 1;
+          }
+          if (after >= 1) {
+            resolve();
+            return;
+          }
+        }
+
+        requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);
+    });
   }
 }

@@ -100,6 +100,19 @@ being unfair; it manufactures tension, because a chance you watch develop has
 more weight than one that simply appears; and it makes a team's tactical style
 legible in play rather than only in the ratings.
 
+#### The resolution is animated
+
+The decision has a fourth beat: once the engine has resolved it, the ball
+**flies on the same pitch the moment was read on** — to the net, into the
+keeper's committed dive, off the post, out to the man the pass picked — for
+under a second before the overlay comes down and the text banner takes over.
+Nothing about it is new information (the outcome is decided before the first
+frame), but the read the whole mechanic asks for is "which way has he gone, and
+did I beat him?", and that question deserves to be answered in the picture that
+asked it. It is skipped when the browser asks for reduced motion; the outcome
+banner and sound cue carry the same fact either way. See
+`SituationRenderer.animateResolution` and `EventOverlay.playResolution`.
+
 #### Why the scan beat exists
 
 The decision timer models how long the *footballer* has to act. The human is
@@ -185,6 +198,14 @@ particular match. The first two were previously chosen per match and never persi
 reloading and continuing a career silently reverted a deliberately relaxed game to Standard — the
 game got harder without saying so. The third picks the hub's layout; see
 [The shape of the hub](#the-shape-of-the-hub).
+
+**Sound** is one switch, on by default. Everything audible — the crowd, the
+build-up beats, the decision clock, the keeper's commit, the outcome — is
+synthesized in the browser by the Web Audio API (`audio/SoundEngine.ts`), so
+nothing is downloaded and nothing can 404. Every cue restates something that is
+already on screen, which is what makes the switch genuinely binary: muting
+loses atmosphere, never information. The clock is never audible at the untimed
+pace — a clock you can hear is exactly the pressure that setting removes.
 
 ### Decision pace
 
@@ -857,7 +878,7 @@ So each of them went where it belongs:
 | | |
 |---|---|
 | **Careers** | The three slots. Nothing else — no quick match, no settings, no save panel |
-| **Settings** | Decision pace, match speed, hub layout, and the save file they all live in |
+| **Settings** | Decision pace, match speed, sound, hub layout, and the save file they all live in |
 | **Wall of fame** | Careers that have *ended*, which is a different question from the three being played, and had a screen already |
 | **Quick match** | Its own setup, straight from the menu |
 
