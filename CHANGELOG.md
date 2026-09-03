@@ -520,3 +520,24 @@ Eight things that were not on either list, found by reading the code against wha
   middle has it dead in front, and the replay's flight starts from where the ball actually was
   instead of jumping first. The geometry is pure functions with tests rather than maths buried in a
   canvas call: see `ballAtFeet` and `teammateSpot`.
+
+- **The ground had no opinion on anything.** The crowd swelled while a chance built and settled
+  afterwards, but a tap-in and a hopeless shank were met by the same room — the cheapest emotional
+  feedback a football game has, spent entirely on atmosphere. It reacts now: an ovation and gold
+  confetti for a goal, a cheer for a tackle won or a man beaten, a sigh for a chance gone, and
+  whistles — the way a European ground actually boos — for a sitter put wide or the ball given away
+  when something was on. The panel takes the mood on its edge and a line underneath says what the
+  ground is doing.
+
+  **The design is the silence, not the noise.** A completed pass gets nothing; so does a cross
+  cleared from a half-chance. A crowd that cheers the four hundredth sideways ball has nothing left
+  for a goal, and the goal is what this whole game is pointed at — so most outcomes at a middling
+  chance produce no reaction at all, and the tests that matter most are the ones asserting that.
+  The same threshold separates sympathy from hostility, which is what keeps the booing fair: a
+  speculative effort from twenty-five yards is not jeered and a one-on-one put wide is.
+
+  The crowd is allowed to know only what the player already saw — the outcome, and how promising
+  the chance was before he touched it — so it cannot leak anything the decision withheld. The ball's
+  own impact and the crowd's verdict are now separate cues a beat apart; they used to be one, which
+  meant a goal roared at the instant of contact and a save groaned before the ball had finished
+  travelling.

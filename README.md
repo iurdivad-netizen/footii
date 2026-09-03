@@ -119,6 +119,28 @@ central and deep, spread and staggered by index so four attackers do not line up
 into what looks like a defensive wall. A pass or cross in the replay flies to one
 of these men rather than to empty grass.
 
+#### The crowd has an opinion
+
+The ground reacts to how the moment ended: a **goal** brings an ovation, gold
+confetti across the box and the panel lit in the honours colour; a tackle won or
+a man beaten gets a **cheer**; a chance spurned gets a **sigh**; and a sitter put
+wide or the ball given away when something was on gets **jeered** — whistles,
+the way a European ground actually boos, with the panel in the danger colour and
+a line saying so.
+
+**The rule that makes it work is silence.** A completed pass gets nothing, and
+neither does a cross cleared from a half-chance: a crowd that cheers the four
+hundredth sideways ball has nothing left for a goal. Most outcomes at a middling
+chance produce no reaction at all, which is what buys the reactions that remain.
+
+What the crowd is allowed to know is exactly what the player already saw — the
+outcome, and how promising the chance was *before* he touched it — so it can
+never leak anything the decision withheld. The same threshold decides sympathy
+from hostility: a speculative effort from twenty-five yards is not booed, and a
+one-on-one put wide is. See `ui/crowdReaction.ts`, and `SoundEngine.reaction`
+for the noises. The ball's own impact and the crowd's verdict are separate cues,
+a beat apart, because a crowd takes a moment to decide what it has seen.
+
 #### The resolution is animated
 
 The decision has a fourth beat: once the engine has resolved it, the ball

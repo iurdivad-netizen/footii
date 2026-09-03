@@ -265,22 +265,24 @@ class SoundEngine {
   }
 
   /**
-   * How the moment resolved. Fired at the animation's impact frame, so what
-   * you hear lands when what you see does.
+   * How the moment resolved — the BALL'S own noise, not the crowd's.
+   *
+   * The two used to be one cue, which meant a goal roared at the instant of
+   * contact and a save groaned before the ball had finished travelling. They
+   * are separate now: this fires on the impact frame, and `reaction` follows a
+   * beat later, because a crowd takes a moment to decide what it has seen. See
+   * ui/crowdReaction.ts for who decides which reaction.
    */
   outcome(kind: OutcomeKind): void {
     switch (outcomeVoice(kind)) {
       case 'goal':
-        this.roar();
         this.tone(523, { type: 'triangle', duration: 0.12, gain: 0.12 });
         this.tone(659, { type: 'triangle', at: 0.11, duration: 0.12, gain: 0.12 });
         this.tone(784, { type: 'triangle', at: 0.22, duration: 0.3, gain: 0.14 });
         return;
       case 'woodwork':
-        // The knock, then the crowd's collective wince.
         this.tone(160, { type: 'square', duration: 0.09, gain: 0.16 });
         this.noiseBurst({ duration: 0.06, gain: 0.1, frequency: 2500 });
-        this.groan();
         return;
       case 'good':
         this.tone(523, { type: 'triangle', duration: 0.09, gain: 0.09 });
@@ -288,7 +290,6 @@ class SoundEngine {
         return;
       case 'stopped':
         this.noiseBurst({ duration: 0.12, gain: 0.14, frequency: 250 });
-        this.groan();
         return;
       case 'lost':
         this.noiseBurst({ duration: 0.15, gain: 0.12, frequency: 200 });
@@ -296,6 +297,73 @@ class SoundEngine {
         return;
       case 'quiet':
         this.tone(392, { type: 'triangle', duration: 0.08, gain: 0.05 });
+        return;
+    }
+  }
+
+  /** Applause: many short, bright noise bursts, unevenly spaced. */
+  private applause(duration: number, gain: number): void {
+    for (let i = 0; i < Math.round(duration * 22); i++) {
+      this.noiseBurst({
+        at: i * 0.045 + Math.random() * 0.03,
+        duration: 0.05,
+        gain: gain * (0.5 + Math.random() * 0.5),
+        frequency: 1800 + Math.random() * 1800,
+        rise: 0.004,
+      });
+    }
+  }
+
+  /**
+   * BOOING, THE WAY A EUROPEAN GROUND ACTUALLY DOES IT — whistles.
+   *
+   * Not a cartoon "boo": a dozen shrill, detuned, badly-timed whistles over a
+   * low rumble of discontent, which is what a crowd that has just watched a
+   * sitter go wide actually sounds like.
+   */
+  private whistles(): void {
+    for (let i = 0; i < 11; i++) {
+      const at = Math.random() * 0.5;
+      const pitch = 2000 + Math.random() * 900;
+      this.tone(pitch, {
+        type: 'square',
+        at,
+        duration: 0.16 + Math.random() * 0.22,
+        gain: 0.018 + Math.random() * 0.016,
+        to: pitch * (0.9 + Math.random() * 0.25),
+      });
+    }
+    this.noiseBurst({ duration: 1.1, gain: 0.1, frequency: 260, rise: 0.1 });
+  }
+
+  /**
+   * WHAT THE GROUND MAKES OF IT.
+   *
+   * Fired a beat after the impact, and only for the moments that earn one —
+   * `crowdReaction` returns silence for routine football, and silence here is
+   * a feature: a crowd that cheers a sideways pass has nothing left for a goal.
+   */
+  reaction(mood: 'ovation' | 'cheer' | 'sigh' | 'jeer' | 'silent'): void {
+    switch (mood) {
+      case 'ovation':
+        this.roar();
+        this.applause(1.8, 0.05);
+        // The swell underneath it: a rising filtered wash, the sound of a
+        // stand getting to its feet.
+        this.noiseBurst({ at: 0.1, duration: 2.2, gain: 0.16, frequency: 700, rise: 0.5 });
+        return;
+      case 'cheer':
+        this.noiseBurst({ duration: 0.8, gain: 0.16, frequency: 420, rise: 0.09 });
+        this.applause(0.7, 0.035);
+        return;
+      case 'sigh':
+        this.groan();
+        return;
+      case 'jeer':
+        this.groan();
+        this.whistles();
+        return;
+      case 'silent':
         return;
     }
   }
