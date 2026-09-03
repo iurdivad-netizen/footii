@@ -106,6 +106,13 @@ The decision has a fourth beat: once the engine has resolved it, the ball
 **flies on the same pitch the moment was read on** — to the net, into the
 keeper's committed dive, off the post, out to the man the pass picked — for
 under a second before the overlay comes down and the text banner takes over.
+The **keeper dives across that flight** rather than appearing in his new
+position, which is the part worth watching: he commits faster than the ball
+travels, so by the time it reaches him he has already gone one way or the
+other. The ball carries a short **trail**, because a four-pixel dot crossing a
+small pitch is a thing you have to already be looking at to see, and the
+outcome lands **in words on the same line that spent the moment urging you
+on** — the banner behind the overlay cannot be read until the overlay is gone.
 Nothing about it is new information (the outcome is decided before the first
 frame), but the read the whole mechanic asks for is "which way has he gone, and
 did I beat him?", and that question deserves to be answered in the picture that

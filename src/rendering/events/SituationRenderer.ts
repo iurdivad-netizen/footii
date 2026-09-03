@@ -126,7 +126,10 @@ export class SituationRenderer {
     return zone.third === 'attacking' ? 0.8 : 0.9;
   }
 
-  draw(state: RenderState, hidden: { ball?: boolean; player?: boolean } = {}): void {
+  draw(
+    state: RenderState,
+    hidden: { ball?: boolean; player?: boolean; keeper?: boolean } = {},
+  ): void {
     const { ctx, width: w, height: h } = this;
     ctx.clearRect(0, 0, w, h);
 
@@ -169,7 +172,7 @@ export class SituationRenderer {
     }
 
     // --- goalkeeper ---
-    if (state.showGoalkeeper) {
+    if (state.showGoalkeeper && !hidden.keeper) {
       const keeper = this.keeperPosition(state, w, h, goalX, goalW);
       ctx.fillStyle = state.committed ? COLOURS.keeperCommitted : COLOURS.keeper;
       ctx.beginPath();
@@ -332,7 +335,7 @@ export class SituationRenderer {
       from,
       to,
       loft,
-      flight: 0.5,
+      flight: 0.8,
       ringColour,
       netFlash: false,
       movePlayer: false,
@@ -343,25 +346,25 @@ export class SituationRenderer {
       case 'goal':
         return plan({ x: goalCentre + dir * goalW * 0.33, y: 6 }, '#facc15', {
           netFlash: true,
-          flight: 0.45,
+          flight: 0.75,
         });
       case 'saved': {
         const keeper = this.keeperPosition(state, w, h, goalCentre - goalW / 2, goalW);
-        return plan({ x: keeper.x, y: keeper.y }, COLOURS.keeperCommitted, { flight: 0.45 });
+        return plan({ x: keeper.x, y: keeper.y }, COLOURS.keeperCommitted, { flight: 0.75 });
       }
       case 'post':
         return plan({ x: goalCentre + (dir || side) * (goalW / 2), y: 6 }, COLOURS.goal, {
-          flight: 0.45,
+          flight: 0.75,
         });
       case 'missed':
-        return plan({ x: goalCentre + (dir || side) * goalW * 0.85, y: -8 }, null, { flight: 0.5 });
+        return plan({ x: goalCentre + (dir || side) * goalW * 0.85, y: -8 }, null, { flight: 0.8 });
       case 'blocked':
       case 'deflected':
       case 'dribbleFailed':
       case 'turnover':
       case 'foulCommitted':
       case 'passIntercepted':
-        return plan(this.nearestDefender(state, w, h), COLOURS.defender, { flight: 0.35 });
+        return plan(this.nearestDefender(state, w, h), COLOURS.defender, { flight: 0.6 });
       case 'chanceCreated':
       case 'passCompleted':
         return plan(
@@ -380,11 +383,11 @@ export class SituationRenderer {
         const defender = this.nearestDefender(state, w, h);
         return plan({ x: playerX + 10, y: playerY + 8 }, '#4ade80', {
           from: defender,
-          flight: 0.35,
+          flight: 0.6,
         });
       }
       case 'held':
-        return plan({ x: playerX - 12, y: playerY + 6 }, '#4ade80', { flight: 0.25 });
+        return plan({ x: playerX - 12, y: playerY + 6 }, '#4ade80', { flight: 0.45 });
     }
   }
 
@@ -409,9 +412,30 @@ export class SituationRenderer {
   animateResolution(state: RenderState, cue: ResolutionCue, onImpact?: () => void): Promise<void> {
     const token = ++this.animationToken;
     const planned = this.resolutionPlan(state, cue);
-    const hold = 0.3;
+    const hold = 0.45;
     const started = performance.now();
     let impactFired = false;
+
+    // The keeper DIVES rather than teleporting. He used to be painted at his
+    // committed position from the first frame, which is the one thing the
+    // animation exists to show and the one thing it was not showing: a player
+    // who decided before the commit saw him simply appear somewhere else. So
+    // the base scene is drawn without him and he is interpolated here, from
+    // where he was standing to where he ends up.
+    const keeperFrom = this.keeperPosition(
+      { ...state, keeperAction: 'set' },
+      this.width,
+      this.height,
+      (this.width - this.width * 0.34) / 2,
+      this.width * 0.34,
+    );
+    const keeperTo = this.keeperPosition(
+      state,
+      this.width,
+      this.height,
+      (this.width - this.width * 0.34) / 2,
+      this.width * 0.34,
+    );
 
     return new Promise((resolve) => {
       const frame = (): void => {
@@ -428,20 +452,61 @@ export class SituationRenderer {
         const y = planned.from.y + (planned.to.y - planned.from.y) * eased;
         // Loft is faked with size: a ball above the turf reads bigger.
         const rise = Math.sin(eased * Math.PI) * planned.loft;
-        const radius = 3.5 * (1 + rise * 1.6);
+        const radius = 4.5 * (1 + rise * 1.6);
 
         this.draw(
           { ...state, progress: 1 },
-          { ball: true, player: planned.movePlayer },
+          { ball: true, player: planned.movePlayer, keeper: true },
         );
 
         const ctx = this.ctx;
+
+        // The keeper, mid-dive. He commits FASTER than the ball travels, which
+        // is what makes the read worth having: by the time it reaches him he
+        // has already gone one way or the other.
+        if (state.showGoalkeeper) {
+          const k = Math.min(1, eased * 1.6);
+          ctx.fillStyle = state.committed ? COLOURS.keeperCommitted : COLOURS.keeper;
+          ctx.beginPath();
+          ctx.ellipse(
+            keeperFrom.x + (keeperTo.x - keeperFrom.x) * k,
+            keeperFrom.y + (keeperTo.y - keeperFrom.y) * k,
+            keeperFrom.rx + (keeperTo.rx - keeperFrom.rx) * k,
+            keeperFrom.ry + (keeperTo.ry - keeperFrom.ry) * k,
+            0,
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
+        }
+
         if (planned.movePlayer) {
           ctx.fillStyle = COLOURS.player;
           ctx.beginPath();
           ctx.arc(x - 10, y - 8, 9, 0, Math.PI * 2);
           ctx.fill();
         }
+
+        // A TRAIL, because a four-pixel dot crossing a small pitch in under a
+        // second is a thing you have to already be looking at to see. Five
+        // fading ghosts along the path it has taken turn it into a line, which
+        // is legible at a glance and reads as speed rather than decoration.
+        for (let i = 1; i <= 5; i++) {
+          const back = Math.max(0, eased - i * 0.055);
+          ctx.globalAlpha = (1 - i / 6) * 0.4 * (progress < 1 ? 1 : 1 - Math.min(1, (t - planned.flight) / 0.2));
+          ctx.fillStyle = COLOURS.ball;
+          ctx.beginPath();
+          ctx.arc(
+            planned.from.x + (planned.to.x - planned.from.x) * back,
+            planned.from.y + (planned.to.y - planned.from.y) * back,
+            radius * (1 - i / 8),
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
         ctx.fillStyle = COLOURS.ball;
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);
@@ -456,9 +521,9 @@ export class SituationRenderer {
           if (planned.ringColour) {
             ctx.strokeStyle = planned.ringColour;
             ctx.globalAlpha = 1 - after;
-            ctx.lineWidth = 3;
+            ctx.lineWidth = 4;
             ctx.beginPath();
-            ctx.arc(planned.to.x, planned.to.y, 8 + after * 20, 0, Math.PI * 2);
+            ctx.arc(planned.to.x, planned.to.y, 8 + after * 34, 0, Math.PI * 2);
             ctx.stroke();
             ctx.globalAlpha = 1;
           }

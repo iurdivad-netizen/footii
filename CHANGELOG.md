@@ -443,3 +443,26 @@ Eight things that were not on either list, found by reading the code against wha
   goal roars once however many code paths notice it, because the engine debounces the crowd. Every
   cue restates something already on screen, so the new Sound switch in settings (on by default,
   saved like the rest) is genuinely binary: off loses atmosphere, never information.
+
+- **The animated resolution was there and nobody could see it.** Reported as "no animations besides
+  the keeper", and it was neither a missing feature nor imagination: the ball flew for 450ms as a
+  3.5-pixel dot while the keeper — the one thing the animation exists to show — was painted at his
+  committed position from the first frame, so he did not dive, he teleported. Three fixes, all
+  legibility rather than new behaviour: the keeper is now interpolated into his dive across the
+  flight (faster than the ball, so the read stays true), the ball is bigger, slower and carries a
+  five-ghost trail that reads as a line rather than a dot, and the outcome arrives **in words** on
+  the set label at the impact frame — the match screen's banner sits behind an overlay that has not
+  come down yet, so between the ball landing and the panel closing there had been nothing said at
+  all.
+
+- **"Edit your custom player" did not edit your custom player.** The setup screen has relabelled its
+  creator button the moment a creation exists for as long as the creator has existed, and it opened
+  a blank 17-year-old striker every time — so building a footballer, playing a match with him and
+  going back to adjust him meant typing the whole thing again. The bug was invisible from either
+  file alone: the screen said "edit", and the creator was simply never told what to edit. The app
+  now keeps the **spec** alongside the built player and reopens on it — name, position, age,
+  nationality, every attribute and the playing style, recovered from its tendencies because a spec
+  records what a style did rather than which one it was. The spec rather than the player on purpose:
+  the player carries a rolled potential and, in a career, attributes training has moved, while the
+  spec is what somebody actually typed. Editing re-rolls potential, which is the honest consequence
+  of building a different footballer.

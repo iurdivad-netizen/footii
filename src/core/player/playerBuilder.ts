@@ -198,6 +198,24 @@ export function suggestedAttributes(position: Position): Attributes {
   return attributes;
 }
 
+/**
+ * Which style produced these tendencies.
+ *
+ * A spec records the TENDENCIES a style set, never the style itself, so
+ * reopening a build in the creator has to recognise it by what it did.
+ * Compared by value rather than by reference because a spec may have been
+ * through JSON since it was written: every style object in a restored spec is
+ * a copy, never the catalogue's own. Falls back to the first style for the
+ * position, which is what a build with hand-written tendencies gets.
+ */
+export function matchStyle(styles: PlayingStyle[], tendencies: Partial<Tendencies>): PlayingStyle {
+  const same = (a: Partial<Tendencies>, b: Partial<Tendencies>): boolean => {
+    const keys = new Set([...Object.keys(a), ...Object.keys(b)] as (keyof Tendencies)[]);
+    return [...keys].every((key) => a[key] === b[key]);
+  };
+  return styles.find((style) => same(style.tendencies, tendencies)) ?? styles[0]!;
+}
+
 export interface CustomPlayerSpec {
   name: string;
   age: number;

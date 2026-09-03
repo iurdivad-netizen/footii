@@ -154,6 +154,18 @@ export class App {
   /** A player built in the creator this session, if any. */
   private customPlayer: Player | null = null;
   /**
+   * The BUILD that produced him, kept so the creator can be reopened on it.
+   *
+   * The setup screen's button becomes "Edit your custom player" the moment a
+   * creation exists, and it was handing back a blank striker every time — so
+   * building a footballer, playing a match with him and then going back to
+   * adjust him meant typing the whole thing again. The spec is kept rather
+   * than reconstructed from the player because the player carries a rolled
+   * potential and, in a career, attributes that training has moved; the spec
+   * is what somebody actually typed.
+   */
+  private customSpec: CustomPlayerSpec | null = null;
+  /**
    * The player choice to preselect on the setup screen.
    * Held here rather than read back from `lastSelection`, because returning
    * from the creator would otherwise be overwritten by the previously saved
@@ -690,6 +702,7 @@ export class App {
           onConfirm: (spec: CustomPlayerSpec) => {
             // Potential is rolled once, here, and never shown.
             this.customPlayer = createCustomPlayer(new Rng(`${spec.name}:${Date.now()}`), spec);
+            this.customSpec = spec;
             this.selectedPresetId = CUSTOM_PLAYER_ID;
             const withCustom: SetupSelection = { ...selection, presetId: CUSTOM_PLAYER_ID };
             if (mode === 'career') this.beginCareer(withCustom);
@@ -699,6 +712,8 @@ export class App {
         },
         mode === 'career',
         getTeam(selection.teamId).name,
+        // Reopened on the build in hand, so "Edit your custom player" edits one.
+        this.customSpec ?? undefined,
       ).element,
     );
   }
