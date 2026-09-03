@@ -89,6 +89,16 @@ export interface GameSettings {
    */
   hubOpen: string[];
   /**
+   * Whether the game makes any sound.
+   *
+   * One switch rather than sliders, because everything audible is synthesized
+   * commentary on things that are ALSO on screen — the crowd, the clock, the
+   * keeper's commit, the outcome. Muting loses comfort, never information, so
+   * the choice is genuinely binary. Defaults to on: sound is part of the game,
+   * and the browser will not let any of it play before the first click anyway.
+   */
+  sound: boolean;
+  /**
    * Whether the player has been shown what this game is.
    *
    * The front door is a rack of career slots and a settings panel, which is the
@@ -125,7 +135,14 @@ export function defaultSettings(): GameSettings {
   // Tabs by default: it is the layout that fixes the problem the restructure
   // was for — a phone hub three and a half thousand pixels tall — and the
   // front door offers the other one to anybody who would rather scroll.
-  return { pace: 'untimed', matchSpeed: 1, hubLayout: 'tabs', hubOpen: ['you'], seenIntro: false };
+  return {
+    pace: 'untimed',
+    matchSpeed: 1,
+    hubLayout: 'tabs',
+    hubOpen: ['you'],
+    sound: true,
+    seenIntro: false,
+  };
 }
 
 export interface SaveData {
@@ -970,6 +987,9 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
   save.settings.hubOpen = Array.isArray(save.settings.hubOpen)
     ? save.settings.hubOpen.filter(isHubSectionId)
     : defaultSettings().hubOpen;
+  // Anything that is not literally `false` means on — including the absence an
+  // older save has, which the spread above already filled with the default.
+  save.settings.sound = save.settings.sound !== false;
 
   // A career that predates a field must not crash the game. Applied to every
   // slot, not just the active one: a slot you are not currently playing is

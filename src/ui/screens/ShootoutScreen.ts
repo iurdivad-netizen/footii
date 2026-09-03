@@ -135,6 +135,9 @@ export class ShootoutScreen {
         timeUsed: decision.timeUsed,
         untimed: decision.untimed,
       });
+      // A kick either goes in or it does not; the engine's richer outcome is
+      // not surfaced here, and the animation only needs which of the two it was.
+      await this.overlay.playResolution(outcome.scored ? 'goal' : 'saved', decision.option);
       this.overlay.hide();
       this.status.classList.remove('yours');
 

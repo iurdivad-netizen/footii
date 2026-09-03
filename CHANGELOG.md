@@ -423,3 +423,23 @@ Eight things that were not on either list, found by reading the code against wha
   was built for it; it is pinned by tests now, and the manual says the control is there. Worth
   recording because the mistake is cheap to repeat: a control can exist on the screen that owns it
   and be invisible from the screen that configures it.
+
+- **The resolution was a line of text.** Three phases build a moment a beat at a time — the story,
+  the scan, the clock and the keeper's commit — and then the outcome arrived as a banner. The read
+  the whole mechanic asks for is "which way has he gone, and did I beat him?", and that question is
+  now answered in the picture that asked it: the ball flies on the same canvas, into the net, the
+  keeper's dive, the post, or out to the man the pass picked, for under a second before the overlay
+  comes down. It spends time the match screen was already spending — the pause after a decision
+  absorbs it — and it reveals nothing new: the outcome is decided before the first frame draws.
+  Skipped under `prefers-reduced-motion`, with the banner and the sound cue carrying the same fact.
+  See [The resolution is animated](README.md#the-resolution-is-animated).
+
+- **The game was silent.** For a game about pressure in a two-second window, audio is the cheapest
+  tension there is, and there was none. There is a synthesized sound layer now — Web Audio,
+  generated at the moment of use, no files and nothing to 404: a crowd that is there for the whole
+  match and swells while a chance builds, a beat per line of story, the options' reveal, a clock you
+  can hear draining (never at the untimed pace — an audible clock is the pressure that setting
+  removes), the keeper's commit, and an outcome cue that lands on the animation's impact frame. A
+  goal roars once however many code paths notice it, because the engine debounces the crowd. Every
+  cue restates something already on screen, so the new Sound switch in settings (on by default,
+  saved like the rest) is genuinely binary: off loses atmosphere, never information.

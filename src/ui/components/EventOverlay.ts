@@ -1,6 +1,8 @@
-import type { ActionOption } from '../../core/events/types.ts';
+import type { ActionOption, OutcomeKind } from '../../core/events/types.ts';
 import type { InteractiveEvent } from '../../simulation/MatchEngine.ts';
 import { SituationRenderer } from '../../rendering/events/SituationRenderer.ts';
+import type { RenderState } from '../../rendering/events/SituationRenderer.ts';
+import { sound } from '../../audio/SoundEngine.ts';
 import type { InputController } from '../interaction/InputController.ts';
 import { LEGEND_ORDER, familyStyle } from '../actionFamilyStyle.ts';
 import { keeperStatus } from '../keeperStatus.ts';
@@ -73,6 +75,15 @@ export class EventOverlay {
   private beatsShown = 0;
   private active: InteractiveEvent | null = null;
   private settle: ((result: DecisionResult) => void) | null = null;
+  /** Half-second marks already ticked this window, so each sounds once. */
+  private lastTickIndex = -1;
+  /**
+   * The scene as it stood when the decision was made, kept so the resolution
+   * can be animated after the engine has resolved it. The event itself is
+   * gone by then — `finish` hands it back — but the picture is still owed an
+   * ending.
+   */
+  private resolutionScene: RenderState | null = null;
 
   /** Pace multiplier, applied to the reading phase as well as the timer. */
   paceScale = 1;
@@ -200,6 +211,9 @@ export class EventOverlay {
     this.buildUpTime = calculateBuildUpTime(event.buildUp, this.paceScale);
     this.scanTime = calculateScanTime(this.paceScale);
     this.countdownStarted = false;
+    this.lastTickIndex = -1;
+    // The crowd notices something is on before the player is asked anything.
+    sound.crowd(0.4);
     // Forced to redraw on the first frame of the new event, so a keeper who
     // happens to be doing what the last one was still gets announced.
     this.keeperShown = '';
@@ -250,6 +264,8 @@ export class EventOverlay {
     // --- phase 2: SCAN — options appear, clock still stopped ----------------
     if (!this.optionsRevealed) {
       this.optionsRevealed = true;
+      sound.reveal();
+      sound.crowd(0.7);
       // The final beat is the situation itself, and lands with the options.
       while (this.beatsShown < event.buildUp.length) {
         this.appendBeat(event.buildUp[this.beatsShown]!, true);
@@ -297,6 +313,14 @@ export class EventOverlay {
       // a screen, and the extra digit only made the number harder to glance at
       // in precisely the moment glancing is all there is time for.
       this.showTimer(remaining, 'seconds left');
+      // The clock, audibly: twice a second, weightier as it drains. Never at
+      // the untimed pace — a clock you can hear is the pressure that setting
+      // removes.
+      const tickIndex = Math.floor(elapsed * 2);
+      if (tickIndex > this.lastTickIndex) {
+        this.lastTickIndex = tickIndex;
+        if (tickIndex > 0) sound.clockTick(progress);
+      }
     }
 
     this.showKeeper(keeperInvolved ? keeperAction : null);
@@ -310,6 +334,7 @@ export class EventOverlay {
     });
 
     if (!this.untimed && remaining <= 0) {
+      sound.expire();
       this.finish(null, window_);
       return;
     }
@@ -344,6 +369,11 @@ export class EventOverlay {
     this.keeperShown = action;
 
     const status = keeperStatus(action);
+    // The commit is the one change worth a sound of its own — same rule as the
+    // aria-live announcement this strip already makes.
+    if (status.committed && !this.keeperStrip.classList.contains('committed')) {
+      sound.keeperCommit();
+    }
     this.keeperState.textContent = status.label;
     this.keeperTell.textContent = status.tell;
     this.keeperStrip.classList.toggle('committed', status.committed);
@@ -354,6 +384,7 @@ export class EventOverlay {
     item.className = isSituation ? 'beat beat-situation' : 'beat';
     item.textContent = text;
     this.story.appendChild(item);
+    sound.beat();
   }
 
   private choose(slot: number): void {
@@ -370,6 +401,7 @@ export class EventOverlay {
       (performance.now() - this.shownAt) / 1000 - this.buildUpTime - this.scanTime,
     );
     this.buttons[slot - 1]?.classList.add('chosen');
+    sound.choose();
     this.finish(option, Math.min(elapsed, this.active.timer.seconds));
 
   }
@@ -378,10 +410,65 @@ export class EventOverlay {
     cancelAnimationFrame(this.frame);
     this.input.setSlotHandler(null);
     for (const button of this.buttons) button.disabled = true;
+    // "Now!" must not outlive the decision it was urging.
+    this.setLabel.textContent = '';
+    const event = this.active;
+    // The picture the resolution will animate over: keeper committed, because
+    // by the time an outcome exists he has moved whether or not the player
+    // waited to see it.
+    if (event) {
+      const keeperInvolved = event.template.goalkeeperInvolved;
+      this.resolutionScene = {
+        context: event.context,
+        progress: 1,
+        committed: keeperInvolved,
+        keeperAction: keeperInvolved ? event.context.goalkeeper.committedAction : 'set',
+        showGoalkeeper: keeperInvolved,
+      };
+    }
     const settle = this.settle;
     this.settle = null;
     this.active = null;
     settle?.({ option, timeUsed, untimed: this.untimed });
+  }
+
+  /**
+   * Animate how the moment resolved, on the same pitch it was read on.
+   *
+   * Called by the screen AFTER the engine has resolved the decision, because
+   * the ending cannot be drawn until it exists. Nothing about the animation is
+   * new information — the outcome is already decided — it is the answer shown
+   * in the picture that asked the question. The outcome cue sounds on the
+   * impact frame, so what is heard lands when what is seen does.
+   *
+   * Skipped (sound intact) when the browser asks for reduced motion, or when
+   * there is no scene to animate over — a resolution with no picture is the
+   * banner's job, exactly as before.
+   */
+  async playResolution(outcome: OutcomeKind, option: ActionOption | null): Promise<void> {
+    const scene = this.resolutionScene;
+    this.resolutionScene = null;
+    sound.crowd(0);
+    const reducedMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!scene || reducedMotion) {
+      sound.outcome(outcome);
+      return;
+    }
+    // The strip must agree with the picture: the canvas is about to show the
+    // keeper's committed dive, so the words say so too — even for a player who
+    // fired before waiting to see it.
+    if (scene.showGoalkeeper) this.showKeeper(scene.keeperAction);
+    await this.renderer.animateResolution(
+      scene,
+      {
+        outcome,
+        actionKind: option?.kind ?? 'shootCentre',
+        family: option?.family ?? 'shot',
+      },
+      () => sound.outcome(outcome),
+    );
   }
 
   hide(): void {

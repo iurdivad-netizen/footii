@@ -79,6 +79,18 @@ export class SettingsScreen {
             <p class="hint">How fast the simulated minutes tick by between your moments.</p>
           </div>
           <div class="field">
+            <label for="home-sound">Sound</label>
+            <select id="home-sound">
+              <option value="on" ${settings.sound ? 'selected' : ''}>On</option>
+              <option value="off" ${settings.sound ? '' : 'selected'}>Off</option>
+            </select>
+            <p class="hint">
+              The crowd, the clock, the keeper's commit and the outcome — all synthesized in the
+              browser, nothing downloaded. Everything audible is also on screen, so muting loses
+              nothing you need.
+            </p>
+          </div>
+          <div class="field">
             <label for="home-hub">Career hub</label>
             <select id="home-hub">
               ${HUB_LAYOUTS.map(
@@ -150,6 +162,11 @@ export class SettingsScreen {
       handlers.onSettingsChange({ pace: paceSelect.value as DecisionPace });
     });
     updatePaceNote();
+
+    const soundSelect = this.element.querySelector<HTMLSelectElement>('#home-sound')!;
+    soundSelect.addEventListener('change', () => {
+      handlers.onSettingsChange({ sound: soundSelect.value === 'on' });
+    });
 
     const hubSelect = this.element.querySelector<HTMLSelectElement>('#home-hub')!;
     hubSelect.addEventListener('change', () => {
