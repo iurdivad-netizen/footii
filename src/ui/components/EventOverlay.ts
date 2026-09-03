@@ -33,12 +33,23 @@ import {
  * moved. Drawn from the renderer's own palette rather than restated, because a
  * key in approximately the right colour is worse than no key.
  */
-const PITCH_KEY: readonly { colour: string; label: string }[] = [
+const PITCH_KEY: readonly { colour: string; label: string; hollow?: boolean }[] = [
   { colour: COLOURS.player, label: 'You' },
   { colour: COLOURS.ball, label: 'Ball' },
+  // Named separately and drawn hollow, matching the pitch: a key that showed a
+  // solid dot for a ring would be a key for a different picture.
+  { colour: COLOURS.teammate, label: 'Team-mate', hollow: true },
   { colour: COLOURS.defender, label: 'Defender' },
   { colour: COLOURS.keeper, label: 'Keeper' },
 ];
+
+/** Whether any of the six is a ball played to somebody else. */
+function hasReceiverOption(event: InteractiveEvent): boolean {
+  return (
+    event.context.teammates.length > 0 &&
+    event.options.some((option) => option.family === 'pass' || option.family === 'cross')
+  );
+}
 
 export interface DecisionResult {
   option: ActionOption | null;
@@ -80,6 +91,8 @@ export class EventOverlay {
   private settle: ((result: DecisionResult) => void) | null = null;
   /** Half-second marks already ticked this window, so each sounds once. */
   private lastTickIndex = -1;
+  /** Whether this moment has anybody to give it to. See hasReceiverOption. */
+  private showTeammates = false;
   /**
    * The scene as it stood when the decision was made, kept so the resolution
    * can be animated after the engine has resolved it. The event itself is
@@ -142,9 +155,7 @@ export class EventOverlay {
     this.keeperState = this.element.querySelector('.keeper-state')!;
     this.keeperTell = this.element.querySelector('.keeper-tell')!;
     this.pitchKey = this.element.querySelector('.pitch-key')!;
-    this.pitchKey.innerHTML = PITCH_KEY.map(
-      (entry) => `<span><i style="background:${entry.colour}"></i>${entry.label}</span>`,
-    ).join('');
+    this.renderPitchKey(false);
     this.legend = this.element.querySelector('.family-legend')!;
 
     for (let slot = 1; slot <= 6; slot++) {
@@ -230,6 +241,9 @@ export class EventOverlay {
     // happens to be doing what the last one was still gets announced.
     this.keeperShown = '';
     this.keeperStrip.classList.toggle('absent', !event.template.goalkeeperInvolved);
+    // Receivers are drawn only when giving it to one of them is on the table.
+    this.showTeammates = hasReceiverOption(event);
+    this.renderPitchKey(this.showTeammates);
     this.shownAt = performance.now();
     this.element.classList.add('setting');
 
@@ -268,6 +282,7 @@ export class EventOverlay {
         committed: false,
         keeperAction: 'set',
         showGoalkeeper: keeperInvolved,
+        showTeammates: this.showTeammates,
       });
       this.frame = requestAnimationFrame(this.loop);
       return;
@@ -343,6 +358,7 @@ export class EventOverlay {
       committed: keeperInvolved && committed,
       keeperAction: keeperInvolved ? keeperAction : 'set',
       showGoalkeeper: keeperInvolved,
+      showTeammates: this.showTeammates,
     });
 
     if (!this.untimed && remaining <= 0) {
@@ -353,6 +369,28 @@ export class EventOverlay {
 
     this.frame = requestAnimationFrame(this.loop);
   };
+
+  /**
+   * The key under the pitch.
+   *
+   * Rebuilt per event rather than written once, because the team-mate entry
+   * only belongs there on the moments that draw one — a key naming a dot that
+   * is not on the picture is worse than a shorter key.
+   */
+  private renderPitchKey(withTeammates: boolean): void {
+    this.pitchKey.innerHTML = PITCH_KEY.filter(
+      (entry) => withTeammates || entry.label !== 'Team-mate',
+    )
+      .map(
+        (entry) =>
+          `<span><i style="${
+            entry.hollow
+              ? `border:2px solid ${entry.colour}`
+              : `background:${entry.colour}`
+          }"></i>${entry.label}</span>`,
+      )
+      .join('');
+  }
 
   /** The clock, and what it is a clock for. */
   private showTimer(seconds: number, caption: string): void {
@@ -436,6 +474,9 @@ export class EventOverlay {
         committed: keeperInvolved,
         keeperAction: keeperInvolved ? event.context.goalkeeper.committedAction : 'set',
         showGoalkeeper: keeperInvolved,
+        // Kept for the replay: the man the ball is flying to must still be on
+        // the pitch when it gets there.
+        showTeammates: this.showTeammates,
       };
     }
     const settle = this.settle;

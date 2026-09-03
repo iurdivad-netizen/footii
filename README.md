@@ -100,6 +100,25 @@ being unfair; it manufactures tension, because a chance you watch develop has
 more weight than one that simply appears; and it makes a team's tactical style
 legible in play rather than only in the ratings.
 
+#### What the pitch shows
+
+The picture is a diagram, not a simulation, but every mark on it means
+something. **The ball sits on the goal-facing side of the player**, on the line
+between him and the mouth — so a man out on the right has it angled infield and
+a man in the middle has it dead in front. It used to be pinned down and to the
+right of him regardless, which put it behind him in every situation the picture
+was about.
+
+**Team-mates are drawn when giving it to one of them is one of the six** — a
+pass or a cross among the options — and not otherwise, the same rule that hides
+the keeper on moments he takes no part in. They are hollow rings in a lighter
+shade of the player's own blue: same side, not you. Where each stands is read
+off the `zoneWeights` the situation generator already uses to decide where a
+position receives the ball, so a winger is wide and high and a centre back is
+central and deep, spread and staggered by index so four attackers do not line up
+into what looks like a defensive wall. A pass or cross in the replay flies to one
+of these men rather than to empty grass.
+
 #### The resolution is animated
 
 The decision has a fourth beat: once the engine has resolved it, the ball
@@ -116,10 +135,13 @@ on** — the banner behind the overlay cannot be read until the overlay is gone.
 Nothing about it is new information (the outcome is decided before the first
 frame), but the read the whole mechanic asks for is "which way has he gone, and
 did I beat him?", and that question deserves to be answered in the picture that
-asked it. Whether it plays is the **Replays** setting — *Follow my browser*, *Always* or
-*Never* — and the outcome banner and the sound cue carry the same fact either
-way, so turning it off loses movement and nothing else. It defaults to
-following `prefers-reduced-motion`, which used to be the only rule: a player
+asked it. Whether it plays is the **Replays** setting — *Always* (the default), *Follow my
+browser* or *Never* — and the outcome banner and the sound cue carry the same
+fact either way, so turning it off loses movement and nothing else. It defaults
+to *Always* because the replay is where the mechanic pays off: it is the answer
+to the question the decision was, and a player who never sees one has been shown
+a worse game than the one that was built. *Follow my browser* honours
+`prefers-reduced-motion`, which used to be the only rule: a player
 whose system asked for less movement got no replay, no way to turn it on, and
 nothing on screen saying why — a working feature and a broken one look
 identical when the reason is invisible. The settings note now reports which way

@@ -682,11 +682,14 @@ kbd {
 
 .pitch-key i {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   margin-right: 5px;
   border-radius: 50%;
   vertical-align: baseline;
+  /* So the hollow team-mate marker is the same size as the solid ones rather
+     than two pixels wider for its border. */
+  box-sizing: border-box;
 }
 
 /* The "set" phase: options readable, clock not yet running. */

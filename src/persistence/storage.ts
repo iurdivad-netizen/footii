@@ -104,10 +104,16 @@ export interface GameSettings {
    * Whether the ball's flight is animated when a decision resolves.
    *
    * Three values rather than a switch, because the browser's reduced-motion
-   * preference deserves to be honoured by DEFAULT and overridden by anyone who
-   * wants to: it used to be the only rule, silently, so a player whose system
-   * asked for less movement saw no replay and had nothing on screen telling him
-   * why. See ui/replay.ts.
+   * preference used to be the only rule, silently: a player whose system asked
+   * for less movement saw no replay and had nothing on screen telling him why.
+   *
+   * DEFAULTS TO ALWAYS. The replay is where the mechanic pays off — it is the
+   * answer to the question the whole decision was, and a first-time player who
+   * never sees one has been shown a worse game than the one that was built.
+   * `Follow my browser` is one selection away and says what it is doing, which
+   * is the part that was actually missing; the animation itself is under a
+   * second, has no flashing and no large-area motion, so it is a poor match
+   * for what the reduced-motion preference exists to prevent. See ui/replay.ts.
    */
   replay: ReplaySetting;
   /**
@@ -153,7 +159,7 @@ export function defaultSettings(): GameSettings {
     hubLayout: 'tabs',
     hubOpen: ['you'],
     sound: true,
-    replay: 'system',
+    replay: 'on',
     seenIntro: false,
   };
 }
