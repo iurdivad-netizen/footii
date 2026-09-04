@@ -128,6 +128,14 @@ travels in from where the move started, the player runs onto his spot, the
 defenders close, and the whole shape pushes up, all arriving together with the
 last beat and the options.
 
+**A dead ball does not develop.** A penalty and a direct free kick are the two
+moments where nothing is happening — the ball is on the spot, the players are
+arranged, the referee has finished, and all that is left is the decision. They
+open on the settled picture and stay there; the narration is still right, it was
+the movement that lied. A corner still animates, because there the taker is not
+the player and watching the ball come in is the whole of the moment
+(`standsOverTheBall`).
+
 Nothing is revealed early. The picture *ends* at exactly the situation it always
 showed — `develop` runs 0 to 1 and is absent (meaning 1) for every other caller,
 so the resolution replay and every static draw are untouched. It just gets there

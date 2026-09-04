@@ -722,3 +722,15 @@ Eight things that were not on either list, found by reading the code against wha
   match performing worse than choosing at random, which is the one thing that policy must never do.
   The mix shift exposed a `fit` mis-calibration in the edge-of-box and box-side situations that is a
   larger job than the weights themselves. Recorded rather than shipped.
+
+- **A penalty had a move developing over it.** The build-up animation — the ball travelling in from
+  deep, the defenders closing, the player running onto it — was playing over a dead ball, which
+  describes something that is not occurring: at a penalty and a direct free kick the ball is on the
+  spot, the players are arranged, the referee has finished, and all that is left is the decision.
+  Both now open on the settled picture and stay there. The narration was never wrong; it was the
+  movement.
+
+  Routed on `setPiece && !firstTime` rather than a list of two names, because that says WHY. A
+  corner is also a set piece and still animates: the taker is not the player, the ball genuinely is
+  delivered to him, and watching it come in is the whole of that moment. `firstTime` is exactly the
+  flag that already separated "it arrives at you" from "you are standing over it".

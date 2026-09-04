@@ -8,6 +8,11 @@ import {
   ballAlongPath,
 } from '../src/rendering/events/SituationRenderer.ts';
 import { OUTFIELD_POSITIONS } from '../src/core/player/positions.ts';
+import {
+  SITUATION_TEMPLATES,
+  SITUATION_TYPES,
+  standsOverTheBall,
+} from '../src/data/situations.ts';
 
 /**
  * THE PICTURE HAS TO AGREE WITH THE FOOTBALL.
@@ -148,7 +153,9 @@ describe('the build-up develops', () => {
   const overlay = read('../src/ui/components/EventOverlay.ts');
 
   it('is driven by how far through the narration the moment is', () => {
-    expect(overlay).toMatch(/develop: this\.buildUpTime > 0 \? sinceShown \/ this\.buildUpTime : 1/);
+    expect(overlay).toMatch(/sinceShown \/ this\.buildUpTime/);
+    // And guarded, so a build-up of zero length cannot divide by it.
+    expect(overlay).toMatch(/this\.buildUpTime <= 0/);
   });
 
   it('settles at the situation every other caller already drew', () => {
@@ -326,5 +333,45 @@ describe('the path a ball takes', () => {
     // off the pitch.
     expect(ballAlongPath(from, back, wall, 9)).toEqual(back);
     expect(ballAlongPath(from, back, wall, -9)).toEqual(from);
+  });
+});
+
+/**
+ * A DEAD BALL IS NOT A MOVE DEVELOPING.
+ *
+ * A penalty and a direct free kick are the two moments in this game where
+ * nothing is happening: the ball is on the spot, the players are arranged, the
+ * referee has finished, and all that is left is the decision. Playing the
+ * build-up animation over one — the ball travelling in from deep, the defenders
+ * closing, the player running onto it — describes something that is not
+ * occurring. The narration is still right; it was the movement that lied.
+ */
+describe('standing over the ball', () => {
+  it('names the penalty and the direct free kick, and only those', () => {
+    const standing = SITUATION_TYPES.filter((type) =>
+      standsOverTheBall(SITUATION_TEMPLATES[type]),
+    );
+    expect(standing.sort()).toEqual(['freeKickDirect', 'penalty']);
+  });
+
+  it('leaves the corner animating, because the ball really is delivered to him', () => {
+    // He is not the taker. Watching it come in is the whole of that moment.
+    expect(standsOverTheBall(SITUATION_TEMPLATES.cornerAttack)).toBe(false);
+    expect(SITUATION_TEMPLATES.cornerAttack.setPiece).toBe(true);
+  });
+
+  it('never claims a moment from open play', () => {
+    for (const type of SITUATION_TYPES) {
+      if (SITUATION_TEMPLATES[type].setPiece) continue;
+      expect(standsOverTheBall(SITUATION_TEMPLATES[type])).toBe(false);
+    }
+  });
+
+  it('is what the overlay checks before developing the picture', () => {
+    const overlay = readFileSync(
+      new URL('../src/ui/components/EventOverlay.ts', import.meta.url),
+      'utf8',
+    );
+    expect(overlay).toMatch(/standsOverTheBall\(event\.template\)/);
   });
 });

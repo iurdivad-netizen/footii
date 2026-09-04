@@ -526,6 +526,28 @@ export const SITUATION_TEMPLATES: Record<SituationType, SituationTemplate> = {
 
 export const SITUATION_TYPES = Object.keys(SITUATION_TEMPLATES) as SituationType[];
 
+/**
+ * IS HE STANDING OVER A STATIONARY BALL?
+ *
+ * A penalty and a direct free kick are the two moments in this game where
+ * nothing is happening: the ball is on the spot, the players are arranged, the
+ * referee has finished, and the only thing left is the decision. The build-up
+ * animation — the ball travelling in from deep, the defenders closing, the
+ * player running onto it — is a picture of a move developing, and playing it
+ * over a dead ball describes something that is not occurring. The narration is
+ * still right ("the wall is set, and the referee steps it back"); it is the
+ * movement that is a lie.
+ *
+ * `setPiece && !firstTime` is the discriminator rather than a list of two
+ * names, because it says WHY. A corner is also a set piece and does animate:
+ * the taker is not the player, the ball genuinely is delivered to him, and
+ * watching it come in is the whole of that moment. `firstTime` is exactly the
+ * flag that separates "it arrives at you" from "you are standing over it".
+ */
+export function standsOverTheBall(template: SituationTemplate): boolean {
+  return template.setPiece && !template.firstTime;
+}
+
 export function getSituationTemplate(type: SituationType): SituationTemplate {
   return SITUATION_TEMPLATES[type];
 }
