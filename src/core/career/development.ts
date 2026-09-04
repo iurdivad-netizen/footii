@@ -210,6 +210,36 @@ function spend(rng: Rng, attributes: Attributes, weights: Map<AttributeKey, numb
  */
 export const EXPERIENCE_PERFORMANCE = 0.32;
 
+/**
+ * HOW STEEPLY ATTRIBUTE GROWTH FOLLOWS THE RATING.
+ *
+ * The intercept and the slope are separate on purpose, and only the SLOPE has
+ * been changed: `GROWTH_AT_PAR` is where a league-average 6.5 lands, so a
+ * career of unremarkable performances develops exactly as it always did. What
+ * moves is the spread around it — a season played well is now worth
+ * substantially more than the same season skipped, where before the difference
+ * was about one and a half points of ability across thirty-eight matches, which
+ * is a rounding error in a fifteen-year career.
+ *
+ * NOT THE CONVERSION SLOPE THE ROADMAP WARNS ABOUT. That one is the engine's
+ * shot-to-goal curve (9.6% of attempts at ability 55 against 29.1% at 85) and
+ * nothing here touches it. This is development reading a rating the engine has
+ * already produced.
+ *
+ * FLOORED rather than allowed to reach zero. A run of poor ratings should slow
+ * a young player down, not stop him: he is precisely the footballer who will
+ * have them, and a season that taught him nothing at all would be a harsher
+ * verdict than football passes on eighteen-year-olds.
+ */
+export const GROWTH_AT_PAR = 0.55;
+export const GROWTH_SLOPE = 0.78;
+export const GROWTH_FLOOR = 0.12;
+
+/** The growth multiplier for a performance term. See GROWTH_SLOPE. */
+export function growthQuality(performance: number): number {
+  return Math.max(GROWTH_FLOOR, GROWTH_AT_PAR + performance * GROWTH_SLOPE);
+}
+
 /** The experience multiplier for a performance term, floored so it is never punitive. */
 export function experienceQuality(performance: number): number {
   return Math.max(0.75, 1 + performance * EXPERIENCE_PERFORMANCE);
@@ -242,7 +272,7 @@ export function developAfterMatch(
       age *
       headroomFactor *
       playingTime *
-      (0.55 + performance * 0.45) *
+      growthQuality(performance) *
       (0.7 + coaching * 0.6) *
       effort;
     growth = Math.max(0, growth);

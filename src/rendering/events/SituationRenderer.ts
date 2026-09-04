@@ -6,6 +6,7 @@ import type {
   SituationContext,
 } from '../../core/events/types.ts';
 import type { Channel, Third } from '../../core/events/zones.ts';
+import { clamp01 } from '../../core/util/math.ts';
 import { POSITION_PROFILES } from '../../core/player/positions.ts';
 import type { Position } from '../../core/player/positions.ts';
 
@@ -71,6 +72,20 @@ export interface RenderState {
    * labels name them, and until now the pitch did not show them.
    */
   showTeammates?: boolean;
+  /**
+   * HOW FAR THROUGH THE MOVE THIS FRAME IS — 0 at the first narration beat, 1
+   * at the situation as it will be decided. Absent means 1, so every caller
+   * that does not care about the build-up keeps the settled picture.
+   *
+   * The build-up tells the story of the chance a beat at a time, and the pitch
+   * used to sit perfectly still through all of it: three sentences describing a
+   * move developing over a photograph. Now the ball travels from where the move
+   * started, the defenders close, the shape pushes up, and it all arrives
+   * together with the last beat and the options. Nothing is revealed early —
+   * the picture ENDS at the same situation it always showed, it just gets there
+   * rather than starting there.
+   */
+  develop?: number;
 }
 
 /**
@@ -260,6 +275,44 @@ export class SituationRenderer {
     }));
   }
 
+  /**
+   * Where the move came from.
+   *
+   * The deepest man on the picture when there is one — somebody played it to
+   * him, and it should come from a person rather than from the edge of the
+   * frame — and deep and central otherwise, which is where a chance that names
+   * nobody has come from anyway.
+   */
+  private moveOrigin(state: RenderState): Point {
+    const { width: w, height: h } = this;
+    const player = { x: this.channelX(state) * w, y: this.depthY(state) * h };
+    if (state.showTeammates) {
+      const spots = this.teammateSpots(state).map((entry) => entry.spot);
+      const deepest = spots.reduce<Point | null>(
+        (best, spot) => (best === null || spot.y > best.y ? spot : best),
+        null,
+      );
+      // Only if he is far enough away to READ as a pass. A team-mate standing
+      // a few pixels from the player is a truthful origin and a useless one:
+      // the ball would arrive before the eye noticed it had set off, which is
+      // the static picture this exists to replace.
+      if (deepest && Math.hypot(deepest.x - player.x, deepest.y - player.y) > h * 0.28) {
+        return deepest;
+      }
+    }
+    // Nobody named: it still has to come from somewhere he is not already
+    // standing. Straight down the pitch is the obvious answer and the wrong
+    // one — a man already deep and central would have the ball spawn on his own
+    // feet and never appear to travel at all. So it comes from BEHIND AND
+    // ACROSS, off the opposite flank, which is both a real way a chance starts
+    // and the one origin guaranteed to be visibly somewhere else.
+    const side = Math.sign(player.x - w / 2) || 1;
+    return {
+      x: Math.min(w - 14, Math.max(14, w / 2 - side * w * 0.32)),
+      y: Math.min(h - 10, player.y + h * 0.24),
+    };
+  }
+
   /** The ball at this player's feet, on the side facing the goal. */
   private ballAtFeet(playerX: number, playerY: number): Point {
     return ballAtFeet({ x: playerX, y: playerY }, this.goalMouth());
@@ -270,6 +323,7 @@ export class SituationRenderer {
     hidden: { ball?: boolean; player?: boolean; keeper?: boolean } = {},
   ): void {
     const { ctx, width: w, height: h } = this;
+    const develop = clamp01(state.develop ?? 1);
     ctx.clearRect(0, 0, w, h);
 
     // --- pitch ---
@@ -329,14 +383,32 @@ export class SituationRenderer {
       }
     }
 
-    // --- defenders ---
-    const playerX = this.channelX(state) * w;
-    const playerY = this.depthY(state) * h;
+    // --- the player, wherever he has got to ---
+    //
+    // He starts the move deeper and arrives on his spot, which is what "runs
+    // onto it" or "gets into the box" actually looks like.
+    const settledX = this.channelX(state) * w;
+    const settledY = this.depthY(state) * h;
+    const playerX = settledX;
+    // Clamped into the picture: a man who ends the move in his own half starts
+    // it below the bottom edge otherwise, and vanishes for the first beat.
+    const playerY = Math.min(h - 14, settledY + (1 - develop) * h * 0.18);
+
+    // --- defenders, closing ---
+    //
+    // They begin the move further off him and converge as it develops, so the
+    // number of bodies nearby reads as pressure ARRIVING rather than as
+    // furniture that was always there.
     ctx.fillStyle = COLOURS.defender;
     for (let i = 0; i < state.context.nearbyDefenders; i++) {
       const spread = (i - (state.context.nearbyDefenders - 1) / 2) * (w * 0.13);
-      const dx = playerX + spread * 0.9;
-      const dy = playerY - h * (0.1 + (i % 2) * 0.07);
+      const finalX = settledX + spread * 0.9;
+      const finalY = settledY - h * (0.1 + (i % 2) * 0.07);
+      // Twice the distance out at the start of the move, clamped so nobody is
+      // pushed off the picture on a wide chance.
+      const loose = 1 + (1 - develop) * 1.0;
+      const dx = Math.min(w - 8, Math.max(8, playerX + (finalX - settledX) * loose));
+      const dy = Math.min(h - 8, Math.max(8, playerY + (finalY - settledY) * loose));
       ctx.beginPath();
       ctx.arc(dx, dy, 7, 0, Math.PI * 2);
       ctx.fill();
@@ -351,8 +423,10 @@ export class SituationRenderer {
       ctx.lineWidth = 2;
       ctx.strokeStyle = COLOURS.teammate;
       for (const { spot } of this.teammateSpots(state)) {
+        // The whole shape pushes up with the move rather than standing still
+        // while the ball comes forward past it.
         ctx.beginPath();
-        ctx.arc(spot.x, spot.y, 7, 0, Math.PI * 2);
+        ctx.arc(spot.x, spot.y + (1 - develop) * h * 0.1, 7, 0, Math.PI * 2);
         ctx.stroke();
       }
     }
@@ -365,7 +439,38 @@ export class SituationRenderer {
       ctx.fill();
     }
     if (!hidden.ball) {
-      const ball = this.ballAtFeet(playerX, playerY);
+      const settled = this.ballAtFeet(playerX, playerY);
+      // THE BALL COMES TO HIM. It starts where the move started — the deepest
+      // man on the pitch, or deep and central when nobody is named — and
+      // arrives at his feet a little BEFORE the last beat, so it is under
+      // control by the time the options appear rather than still rolling.
+      const arrival = clamp01(develop / 0.82);
+      const eased = 1 - (1 - arrival) * (1 - arrival);
+      const origin = this.moveOrigin(state);
+      const ball = {
+        x: origin.x + (settled.x - origin.x) * eased,
+        y: origin.y + (settled.y - origin.y) * eased,
+      };
+      // A short trail while it is travelling, for the same reason the
+      // resolution has one: a four-pixel dot crossing a small pitch is a thing
+      // you have to already be looking at to see.
+      if (arrival < 1) {
+        for (let i = 1; i <= 4; i++) {
+          const back = Math.max(0, eased - i * 0.06);
+          ctx.globalAlpha = (1 - i / 5) * 0.35;
+          ctx.fillStyle = COLOURS.ball;
+          ctx.beginPath();
+          ctx.arc(
+            origin.x + (settled.x - origin.x) * back,
+            origin.y + (settled.y - origin.y) * back,
+            3.5 * (1 - i / 7),
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
       ctx.fillStyle = COLOURS.ball;
       ctx.beginPath();
       ctx.arc(ball.x, ball.y, 3.5, 0, Math.PI * 2);

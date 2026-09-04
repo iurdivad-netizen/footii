@@ -291,6 +291,10 @@ export class EventOverlay {
       this.setLabel.textContent = 'Watch it develop…';
       this.showKeeper(keeperInvolved ? 'set' : null);
       // The keeper has not moved and gives nothing away yet.
+      // The move develops under the narration rather than sitting still beneath
+      // it: the ball travels in, the defenders close, the shape pushes up, and
+      // the picture arrives at the situation exactly as the last beat and the
+      // options do. See RenderState.develop.
       this.renderer.draw({
         context: event.context,
         progress: 0,
@@ -298,6 +302,7 @@ export class EventOverlay {
         keeperAction: 'set',
         showGoalkeeper: keeperInvolved,
         showTeammates: this.showTeammates,
+        develop: this.buildUpTime > 0 ? sinceShown / this.buildUpTime : 1,
       });
       this.frame = requestAnimationFrame(this.loop);
       return;

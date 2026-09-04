@@ -430,7 +430,19 @@ describe('a week changes the season it is in', () => {
     play(worked);
     play(idle);
 
-    expect(worked.development.pool).toBeGreaterThan(idle.development.pool);
+    // TOTAL growth, not the leftover.
+    //
+    // This used to compare `development.pool` alone, which is only the
+    // FRACTION left after whole points have been spent on attributes — so the
+    // moment the harder-working player crossed a point boundary his remainder
+    // wrapped below the idle one's and the test failed while the code was
+    // right. Spent points plus the remainder is the number the assertion was
+    // always reaching for.
+    const totalGrowth = (state: CareerState) =>
+      Object.values(state.player.attributes).reduce((sum, value) => sum + value, 0) +
+      state.development.pool;
+
+    expect(totalGrowth(worked)).toBeGreaterThan(totalGrowth(idle));
   });
 
   it('does not survive the summer that ends the season it was made in', () => {
