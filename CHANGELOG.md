@@ -568,3 +568,34 @@ Eight things that were not on either list, found by reading the code against wha
   it cost, which is the same hole the Leave button had; one line under it now says he plays it
   properly and the result stands, but that he reads the game less well and both what he learns and
   how fast he improves follow how it went.
+
+- **A well-played season was barely worth more than a skipped one.** Measured: about one and a half
+  points of ability across thirty-eight matches, which is a rounding error in a fifteen-year career
+  and far too little to make the decision mechanic the whole game is built around feel like it
+  mattered. The growth curve's slope is steeper now and its INTERCEPT is untouched — a par 6.5
+  rating still multiplies growth by exactly 0.55, so a league-average career develops as it always
+  did and only the spread around it widens. Re-measured: +2 to +3 ability a season between skipping
+  and playing. Floored rather than allowed to reach zero, for the same reason experience is: a young
+  player is precisely the one who will post poor ratings, and a season that taught him nothing would
+  be a harsher verdict than football passes on eighteen-year-olds. This is not the conversion slope
+  the roadmap warns about — that one is the engine's shot-to-goal curve, and nothing here goes near
+  it.
+
+  One existing test failed and was right to: it compared `development.pool`, the FRACTION left after
+  whole points are spent on attributes, so the moment the harder-working player crossed a point
+  boundary his remainder wrapped below the idle one's. It measures spent points plus the remainder
+  now, which is the number it was always reaching for.
+
+- **The pitch sat still while the story described a move.** Three sentences of build-up narrating a
+  chance developing, over a photograph. It develops now: the ball travels in from where the move
+  started, the player runs onto his spot, the defenders close, and the shape pushes up — all
+  arriving together with the last beat and the options. Nothing is revealed early, because the
+  picture ENDS at exactly the situation it always showed; `develop` runs 0 to 1 and is absent
+  (meaning 1) everywhere else, so the resolution replay and every static draw are untouched.
+
+  Two things had to be got right or the effect was worse than nothing. The player is clamped inside
+  the frame — a man who ends the move in his own half started it below the bottom edge and vanished
+  for the first beat. And the ball's origin is the deepest team-mate only when he is far enough away
+  to READ as a pass, behind-and-across off the opposite flank otherwise: a receiver standing a few
+  pixels from the player is a truthful origin and a useless one, because the ball would arrive
+  before the eye noticed it had set off, which is the static picture this exists to replace.

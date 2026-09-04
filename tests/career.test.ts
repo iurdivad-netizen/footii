@@ -26,6 +26,8 @@ import {
   createDevelopmentState,
   developAfterMatch,
   experienceQuality,
+  growthQuality,
+  GROWTH_AT_PAR,
   driftPotential,
 } from '../src/core/career/development.ts';
 import {
@@ -760,5 +762,75 @@ describe('experience follows the performance, not just the clock', () => {
     const played = run(8.7);
     expect(played.growth).toBe(skipped.growth);
     expect(played.experienceGained).toBeGreaterThan(skipped.experienceGained);
+  });
+});
+
+/**
+ * HOW STEEPLY GROWTH FOLLOWS THE RATING.
+ *
+ * Measured before this was changed: a full 38-match season played well against
+ * the same season skipped was worth about one and a half points of ability —
+ * a rounding error across a fifteen-year career, and far too little to make
+ * the decision mechanic the game is built around feel like it mattered.
+ *
+ * The fix is a steeper SLOPE with the intercept untouched, which is the same
+ * discipline the experience multiplier follows: a league-average career
+ * develops exactly as it always did, and the spread around it widens.
+ */
+describe('the rating a match earns, and what it is worth', () => {
+  it('leaves a par performance exactly where it was', () => {
+    // The old expression was (0.55 + performance * 0.45). At performance 0 it
+    // is 0.55, and it must still be 0.55 — otherwise this is a balance change
+    // to every career in existence wearing a feature's clothes.
+    expect(growthQuality(0)).toBe(GROWTH_AT_PAR);
+    expect(GROWTH_AT_PAR).toBe(0.55);
+  });
+
+  it('is steeper than it was, in both directions', () => {
+    const old = (performance: number) => 0.55 + performance * 0.45;
+    expect(growthQuality(1.2)).toBeGreaterThan(old(1.2));
+    expect(growthQuality(-0.6)).toBeLessThan(old(-0.6));
+  });
+
+  it('never stops a young player developing entirely', () => {
+    // He is precisely the footballer who will post poor ratings. A season that
+    // taught him nothing would be a harsher verdict than football passes on
+    // eighteen-year-olds.
+    expect(growthQuality(-0.8)).toBeGreaterThan(0);
+    expect(growthQuality(-100)).toBe(0.12);
+  });
+
+  it('turns a season of good ratings into more ability than a season of poor ones', () => {
+    const seasonAbility = (rating: number): number => {
+      const player = prospect();
+      const before = currentAbility(player);
+      const state = createDevelopmentState();
+      const rng = new Rng('slope');
+      for (let i = 0; i < 38; i++) {
+        developAfterMatch(rng, state, { player, rating, minutes: 90, coaching: 0.5 });
+      }
+      return currentAbility(player) - before;
+    };
+    // Roughly the ratings auto-play and a good read actually produce for a
+    // prospect — see the measured table in the README.
+    const skipped = seasonAbility(5.9);
+    const played = seasonAbility(6.7);
+    expect(played - skipped).toBeGreaterThanOrEqual(2);
+  });
+
+  it('still reads both halves of the development model', () => {
+    // The slope is one term among several; steepening it must not have
+    // swallowed the others.
+    const run = (opts: { rating: number; minutes?: number; coaching?: number }) => {
+      const state = createDevelopmentState();
+      return developAfterMatch(new Rng('terms'), state, {
+        player: prospect(),
+        rating: opts.rating,
+        minutes: opts.minutes ?? 90,
+        coaching: opts.coaching ?? 0.5,
+      }).growth;
+    };
+    expect(run({ rating: 7.5, minutes: 30 })).toBeLessThan(run({ rating: 7.5 }));
+    expect(run({ rating: 7.5, coaching: 0.1 })).toBeLessThan(run({ rating: 7.5, coaching: 1 }));
   });
 });

@@ -119,6 +119,26 @@ central and deep, spread and staggered by index so four attackers do not line up
 into what looks like a defensive wall. A pass or cross in the replay flies to one
 of these men rather than to empty grass.
 
+#### The move develops as it is told
+
+The build-up narrates the chance a beat at a time, and the pitch used to sit
+perfectly still through all of it — three sentences describing a move
+developing, over a photograph. It now **develops under the narration**: the ball
+travels in from where the move started, the player runs onto his spot, the
+defenders close, and the whole shape pushes up, all arriving together with the
+last beat and the options.
+
+Nothing is revealed early. The picture *ends* at exactly the situation it always
+showed — `develop` runs 0 to 1 and is absent (meaning 1) for every other caller,
+so the resolution replay and every static draw are untouched. It just gets there
+rather than starting there.
+
+Where the ball comes from is the deepest team-mate on the picture **when he is
+far enough away to read as a pass**, and behind-and-across off the opposite
+flank otherwise. A receiver standing a few pixels from the player is a truthful
+origin and a useless one: the ball would arrive before the eye noticed it had
+set off, which is the static picture this replaces.
+
 #### The crowd has an opinion
 
 The ground reacts to how the moment ended: a **goal** brings an ovation, gold
@@ -2526,6 +2546,25 @@ becomes the parent's before the fixture list is built, and he actually moves bac
 year at Club Espinela to Castleford Royals — which is exactly what the test that caught it now
 guards.
 
+### What a match is worth
+
+Attribute growth scales with the rating, and the **slope** of that — how much
+better a well-played season is than a skipped one — was measured at about **one
+and a half points of ability across thirty-eight matches**. That is a rounding
+error in a fifteen-year career, and far too little to make the decision mechanic
+the game is built around feel like it mattered.
+
+The slope is steeper now, with the **intercept untouched**: `GROWTH_AT_PAR`
+stays at 0.55, so a league-average career develops exactly as it always did and
+what widens is the spread around it. Measured after: **+2 to +3 ability a
+season** between a skipped season and a played one, with a floor so a run of
+poor ratings slows a young player rather than stopping him — he is precisely the
+footballer who will have them.
+
+This is **not** the conversion slope [the roadmap warns about](ROADMAP.md); that
+one is the engine's shot-to-goal curve, and nothing here touches it. This is
+development reading a rating the engine has already produced.
+
 ### What a match teaches
 
 Experience is a term in the decision window — the thing you feel every match — and it used to be a
@@ -2582,6 +2621,9 @@ Measured over three full 38-match seasons per policy:
 | --- | --- | --- |
 | Young prospect | rating 5.7-6.2, **+4 to +5 ability**, 44-46 experience | rating 6.5-6.9, **+6 ability**, 48-49 experience |
 | Player at his ceiling | rating 7.9-8.1, +0 ability, 29 experience | rating 8.4-9.0, +0 ability, 31-32 experience |
+
+*(Ability figures above were measured before the growth slope was steepened; see
+[What a match is worth](#what-a-match-is-worth). The gap is now +2 to +3.)*
 
 The second row is why experience has to read the rating at all. A player at his potential gains no
 attributes whatever he does, so if experience followed only the clock — as it did until this was

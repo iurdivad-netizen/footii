@@ -122,3 +122,44 @@ describe('when receivers are drawn at all', () => {
     expect(overlay).toMatch(/showTeammates: this\.showTeammates/);
   });
 });
+
+/**
+ * THE MOVE HAS TO DEVELOP, NOT JUST EXIST.
+ *
+ * The build-up tells the story of a chance a beat at a time, and the pitch used
+ * to sit perfectly still through all of it — three sentences describing a move
+ * developing, over a photograph. The picture now arrives at the same situation
+ * it always showed instead of starting there, which reveals nothing early and
+ * is the whole point: `develop` ends at 1, where the old static frame was.
+ *
+ * The geometry itself is verified by eye (it is a canvas, and the node test
+ * environment has none); what is pinned here is that nothing can quietly stop
+ * feeding it, and the guards that keep men inside the frame.
+ */
+describe('the build-up develops', () => {
+  const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+  const renderer = read('../src/rendering/events/SituationRenderer.ts');
+  const overlay = read('../src/ui/components/EventOverlay.ts');
+
+  it('is driven by how far through the narration the moment is', () => {
+    expect(overlay).toMatch(/develop: this\.buildUpTime > 0 \? sinceShown \/ this\.buildUpTime : 1/);
+  });
+
+  it('settles at the situation every other caller already drew', () => {
+    // Absent means 1, so the resolution replay and every static draw keep the
+    // finished picture without knowing this feature exists.
+    expect(renderer).toMatch(/clamp01\(state\.develop \?\? 1\)/);
+  });
+
+  it('keeps the player inside the picture at the start of his run', () => {
+    // He ends some moves in his own half; dropping him back unclamped puts him
+    // below the bottom edge and he vanishes for the first beat.
+    expect(renderer).toMatch(/Math\.min\(h - 14, settledY \+ \(1 - develop\)/);
+  });
+
+  it('refuses an origin too close to read as a pass', () => {
+    // A team-mate standing a few pixels away is a truthful origin and a useless
+    // one: the ball would arrive before the eye noticed it had set off.
+    expect(renderer).toMatch(/> h \* 0\.28/);
+  });
+});
