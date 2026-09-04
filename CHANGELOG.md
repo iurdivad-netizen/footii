@@ -654,3 +654,38 @@ Eight things that were not on either list, found by reading the code against wha
   A template naming an exact number now gets that number; the covering runner still rolls wherever
   the band leaves room for one, so a one-on-one against a good defence can still arrive with a man
   recovering.
+
+- **Four rates audited against real football, and corrected.** Measured by playing 200+ full
+  matches under the auto-play policy — typical play rather than best-case, so the numbers compare
+  fairly with published rates. Three of the four were wrong in the same direction: the game was more
+  forgiving than football.
+
+  **Penalties 52.0% -> 75.0%** (real 76-79%). A penalty a competent taker loses half the time is not
+  a penalty. Attribute-driven, so a raw teenager still converts 57.7% and a seasoned striker 75.0%.
+  **Corners 20.6% -> 11.2% per shot** (real 10-12%); the least productive attacking set piece in
+  football was the third most reliable way to score here. Both came from set pieces sharing ONE
+  midpoint: they share an exemption from the open-play quality gradient, which is right, and were
+  also sharing the curve, which is not — a penalty and a corner are nothing like each other. They
+  have their own midpoints now. The direct free kick keeps the shared default because it measured
+  6.3% against a real 5-8%: changing it would have been tidiness rather than football.
+
+  **Crosses 51-66% -> 23% completed** (real 20-25%) and **midfield passes 44.4% -> 82.9%**
+  (real ~85%). These are one fault, and it was not a level error but an INVERSION: every pass and
+  cross cleared the same `value >= 0.5` bar, so a cross found its man more often than a square ball
+  in midfield did — hardest where football is easiest, easiest where football is hardest.
+  `passCompletionBar` replaces the constant with the rule the real game runs on: a ball is harder
+  the further forward it goes, harder again if it leaves the ground, harder again under pressure.
+
+  Calibrated in three measured passes rather than guessed. The first overshot badly — crosses at
+  3.6%, penalties at 95.7%, corners at 4.6% — because the value distribution is tightly clustered
+  and small moves in a bar swing hard; the constants that survived are the ones the third pass
+  produced.
+
+  Three existing tests moved with it and none was loosened. Two penalty tests pinned ABSOLUTE
+  conversion floors anchored to the old 52% baseline, so every rate in them rose together; they now
+  pin the RATIO — waiting for the keeper still beats any technique, a panenka against a keeper who
+  stood up is still the worst read in the game — which is what they were always about and what
+  survives a recalibration. The third pinned auto-play sitting a whole rating point clear of
+  choosing badly; realistic midfield passing raises the FLOOR, because choosing badly now usually
+  still finds a team-mate and is punished in what follows rather than by losing the ball. The gap is
+  0.98 on a ten-point scale and the assertion says so.

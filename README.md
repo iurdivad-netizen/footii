@@ -2629,6 +2629,41 @@ It now carries a performance multiplier, `experienceQuality`, and the shape of i
   experience never stops accruing, so a multiplier that ran wide would compound across fifteen years
   in a way growth structurally cannot.
 
+### Calibrated against real football
+
+Every situation was audited by playing 200+ full matches under the auto-play
+policy — typical play rather than best-case, so the rates compare fairly with
+published ones. Four were wrong, and three of the four in the same direction:
+the game was more forgiving than football.
+
+| | before | after | real world |
+| --- | --- | --- | --- |
+| Penalty | 52.0% | **75.0%** | 76-79% |
+| Corner, per shot | 20.6% | **11.2%** | 10-12% |
+| Crosses completed | 51-66% | **23%** | 20-25% |
+| Midfield passes completed | 44.4% | **82.9%** | ~85% |
+| One-on-one | 31.0% | 28.7% | 33-40% |
+| Through-ball run | 22.7% | 20.2% | 25-30% |
+| Shot from the edge | 3.2% | 2.9% | 3-5% |
+| Direct free kick | 6.3% | 6.3% | 5-8% |
+
+Two structural findings came out of it.
+
+**Set pieces were one thing and are three.** They share an exemption from the
+open-play quality gradient — a named, fixed situation has no "how good was this
+chance" to read — but they were also sharing a single midpoint, so a penalty and
+a corner were being converted off the same curve. They now have their own
+(`SET_PIECE_MIDPOINTS`). The direct free kick keeps the shared default because
+it was measured correct, and changing it would have been tidiness rather than
+football.
+
+**Passing was not merely mis-levelled, it was inverted** — hardest where football
+is easiest and easiest where football is hardest. Every pass and cross cleared
+the same bar, so a cross found its man more often than a square ball in midfield
+did. `passCompletionBar` replaces it with the rule the real game runs on: a ball
+gets harder the further forward it goes, harder again if it leaves the ground,
+and harder again under pressure.
+
 ### Skipping a match
 
 A season is up to forty-seven matches across five competitions. Playing every one of them is a
