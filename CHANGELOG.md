@@ -644,3 +644,13 @@ Eight things that were not on either list, found by reading the code against wha
   arrives and leaves again rather than gliding through the man as though he were not there. The ball
   and its trail are sampled from one function, because a trail walking a straight line from start to
   finish drew ghosts along a shortcut the ball never took.
+
+- **A defender could stand in front of a penalty.** Found while auditing every situation's defender
+  band against what the engine actually produces. The generator draws from the template's band and
+  then gives a good defence a chance of adding a covering runner — and that roll was applied to
+  every situation alike, including the penalty, which declares `[0, 0]` because that is what a
+  penalty IS: the taker, the goalkeeper, and nobody in between. Measured at 4 of 39 penalties
+  arriving with a defender, whom the pitch then duly drew standing between the player and the goal.
+  A template naming an exact number now gets that number; the covering runner still rolls wherever
+  the band leaves room for one, so a one-on-one against a good defence can still arrive with a man
+  recovering.

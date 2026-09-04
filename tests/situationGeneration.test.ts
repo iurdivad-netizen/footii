@@ -292,3 +292,56 @@ describe('involvement', () => {
     }
   });
 });
+
+/**
+ * A FIXED DEFENDER BAND IS A STATEMENT OF FACT.
+ *
+ * The generator draws from the template's band and then gives a good defence a
+ * chance of adding a covering runner. That roll was applied to every situation
+ * alike — including the penalty, which declares [0, 0] because that is what a
+ * penalty IS: the taker, the goalkeeper, and nobody in between. Measured at 4
+ * of 39 penalties arriving with a defender, whom the pitch then duly drew
+ * standing between the player and the goal.
+ */
+describe('a template that names an exact number gets it', () => {
+  // `team()` spreads over a full ratings block, so overriding one rating means
+  // rebuilding the block rather than replacing it with a partial.
+  const against = (defence: number) => {
+    const base = team();
+    return team({ ratings: { ...base.ratings, defence, defensiveIntensity: defence } });
+  };
+
+  it('never puts a defender in front of a penalty, however good the defence', () => {
+    for (const defence of [40, 60, 80, 95]) {
+      for (let i = 0; i < 250; i++) {
+        const { context } = generateSituation(new Rng(`pen-${defence}-${i}`), {
+          player: playerAt('ST'),
+          attackingTeam: team(),
+          defendingTeam: against(defence),
+          goalkeeper: keeper(),
+          minute: 40,
+          forceType: 'penalty',
+        });
+        expect(context.nearbyDefenders).toBe(0);
+      }
+    }
+  });
+
+  it('still lets a good defence add a covering runner where the band allows one', () => {
+    // The roll is not removed, only stopped from overruling an exact count.
+    const counts = new Set<number>();
+    for (let i = 0; i < 600; i++) {
+      const { context } = generateSituation(new Rng(`open-${i}`), {
+        player: playerAt('ST'),
+        attackingTeam: team(),
+        defendingTeam: against(95),
+        goalkeeper: keeper(),
+        minute: 40,
+        forceType: 'oneOnOne',
+      });
+      counts.add(context.nearbyDefenders);
+    }
+    // oneOnOne declares [0, 1]; with the covering runner it can reach 2.
+    expect(Math.max(...counts)).toBeGreaterThan(1);
+  });
+});
