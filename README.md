@@ -133,7 +133,19 @@ showed — `develop` runs 0 to 1 and is absent (meaning 1) for every other calle
 so the resolution replay and every static draw are untouched. It just gets there
 rather than starting there.
 
-**How many receivers are drawn depends on how crowded he is.** A career names
+**At most three receivers are ever drawn, and the cap is about odds rather than
+layout.** A moment with nobody near the player converts at **26.6%** (measured
+over 218 such chances) — good football odds for a man against a goalkeeper. Draw
+five team-mates around him and the picture reads as a five-against-one that
+ought to be scored nine times in ten, so it was writing a cheque the simulation
+had never agreed to cash and an ordinary miss looked broken rather than unlucky.
+The engine finds exactly **one** receiver when a pass comes off; three is the
+most that can be shown without implying an overload it does not model, and it is
+what a real chance looks like — a runner or two in support, not a forward line.
+The fix belongs in the picture, not the conversion rate: 26.6% is defensible
+football, five men in an empty box is not.
+
+**Below that cap, how many are drawn depends on how crowded he is.** A career names
 five men the player passes to, and the picture used to draw all five on every
 moment that offered a pass — measured at 180 of 341 interactive events — while
 the defender count ran from none to four. A chance narrated as *"bodies
@@ -143,12 +155,12 @@ he was surrounded.
 
 The five are who he passes to *in general*; who is available in *this* moment is
 fewer the more bodies are around him, because a defender close enough to press
-is close enough to sit in a passing lane. So the count thins — five with nobody
-near him, four, three, and two once three defenders have arrived — and the ones
+is close enough to sit in a passing lane. So the count thins — three with nobody
+near him, two once a couple have arrived, one under four — and the ones
 kept are the most advanced, since "cut it back", "the far post" and "square ball
 across" are all balls played forward or level. It is tied to `nearbyDefenders`,
 the number already drawn on the pitch, so the two halves of the picture cannot
-disagree; and it never falls below two while any exist, because a picture with
+disagree; and it never falls below one while any exist, because a picture with
 nobody to pass to under an option labelled "square ball across" would be a worse
 contradiction than the one it fixes.
 
@@ -157,6 +169,21 @@ far enough away to read as a pass**, and behind-and-across off the opposite
 flank otherwise. A receiver standing a few pixels from the player is a truthful
 origin and a useless one: the ball would arrive before the eye noticed it had
 set off, which is the static picture this replaces.
+
+#### A one-two is two passes and a run
+
+The one-two is the only action where the ball leaves the player and comes back
+to him, and it was drawn as a single ball to a team-mate and nothing else —
+which is a plain pass, and made the two indistinguishable in the one place the
+game explains itself. It now plays out properly: the ball goes **out to the
+wall**, the player **runs past him into space**, and the ball **comes back** to
+where he has got to.
+
+The flight is eased *within* each leg rather than across both, so the ball
+arrives and leaves again instead of gliding smoothly through a man as though he
+were not there. Ball and trail are sampled from one function (`ballAlongPath`),
+because a trail that walked a straight line from start to finish would draw
+ghosts along a shortcut the ball never took.
 
 #### The crowd has an opinion
 

@@ -619,3 +619,28 @@ Eight things that were not on either list, found by reading the code against wha
   none rather than conjuring phantoms. Positions are computed for the whole named squad and filtered
   afterwards, so a man stands in the same place whether two are drawn or five — a spread that
   reshuffled with the count would have team-mates jumping sideways as defenders arrived.
+
+- **Five men against a goalkeeper, and a miss that looked broken.** Raised as: a picture showing
+  five attackers against the keeper ought to be scored nine times in ten, and is not. Measured, and
+  the report was right about the feeling and wrong about where the fault was — a moment with nobody
+  near the player converts at **26.6%** over 218 such chances, which is perfectly good football odds
+  for a man against a goalkeeper. What was wrong was the picture: drawing all five named receivers
+  in an empty box reads as an overload the engine has never modelled, since a completed pass finds
+  exactly ONE of them. So the drawing was writing a cheque the simulation had not agreed to cash,
+  and an ordinary miss looked like a bug.
+
+  Fixed where the fault was. Receivers are capped at THREE — the most that can be shown without
+  implying a rout, and what a real chance looks like: a runner or two in support, not a forward
+  line. The conversion rate is untouched, deliberately: 26.6% is defensible, five men in an empty
+  box is not. The thinning rule stands on top of the cap — three with nobody near him, two once a
+  couple have arrived, one under four — and the floor drops from two to one, because one outlet
+  under heavy pressure is honest and none would contradict an option labelled "square ball across".
+
+- **A one-two was drawn as an ordinary pass.** It is the only action in the game where the ball
+  leaves the player and comes back to him, and the picture showed a single ball to a team-mate and
+  nothing else — which made the two options indistinguishable in the one place the game explains
+  itself. It plays out properly now: out to the wall, the player runs past him into space, and the
+  ball comes back to where he has got to. Eased WITHIN each leg rather than across both, so the ball
+  arrives and leaves again rather than gliding through the man as though he were not there. The ball
+  and its trail are sampled from one function, because a trail walking a straight line from start to
+  finish drew ghosts along a shortcut the ball never took.
