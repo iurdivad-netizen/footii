@@ -10,6 +10,7 @@ import { getCountry, leagueName } from './countries.ts';
 import type { CupKind } from './cups.ts';
 import type { EuropeanTier } from './europe.ts';
 import { europeanCompetition } from './europe.ts';
+import { caseSummary, madeHisCase } from './awardCase.ts';
 
 /**
  * AWARDS AND HONOURS
@@ -302,7 +303,6 @@ export function evaluateHonours(input: HonoursInput): HonoursResult {
   const played =
     input.seasonLength > 0 ? stats.matches / input.seasonLength : 0;
   const rating = averageRating(stats);
-  const contributions = stats.goals + stats.assists;
 
   if (played >= AWARD_MINIMUM_SHARE) {
     if (stats.goals > 0 && stats.goals >= input.benchmark.goldenBoot) {
@@ -315,15 +315,23 @@ export function evaluateHonours(input: HonoursInput): HonoursResult {
       );
     }
 
-    const outplayedTheDivision =
-      rating >= input.benchmark.bestRating && contributions >= input.benchmark.bestContributions;
+    // JUDGED IN HIS OWN POSITION'S CURRENCY. The rating bar is common to all
+    // three and unchanged; what a season has to SHOW beyond it is measured in
+    // what that position actually produces — see core/career/awardCase.ts.
+    const madeTheCase = madeHisCase({
+      position: player.position,
+      stats,
+      benchmark: input.benchmark,
+      played,
+    });
+    const outplayedTheDivision = rating >= input.benchmark.bestRating && madeTheCase;
     const wonSeniorAward = outplayedTheDivision && input.position <= 4;
     if (wonSeniorAward) {
       honours.push(
         at(
           'playerOfTheSeason',
           `${info.adjective} player of the season`,
-          `A ${rating.toFixed(2)} average rating and ${contributions} goal contributions.`,
+          caseSummary(player.position, stats),
         ),
       );
     }
@@ -332,11 +340,26 @@ export function evaluateHonours(input: HonoursInput): HonoursResult {
     // Gated on the SENIOR AWARD rather than on the benchmark: a young player
     // who cleared both bars at a club that finished nowhere used to win
     // nothing at all, while a strictly worse season won the young player award.
+    const madeYoungCase = madeHisCase({
+      position: player.position,
+      stats,
+      // Six-tenths of the division's standard, applied to whichever currency
+      // his position is judged in.
+      benchmark: {
+        ...input.benchmark,
+        bestContributions: input.benchmark.bestContributions * 0.6,
+      },
+      played,
+    });
     if (
       player.age <= 21 &&
       !wonSeniorAward &&
       rating >= input.benchmark.bestRating - 0.35 &&
-      contributions >= input.benchmark.bestContributions * 0.6
+      // The young award follows the senior one into the same currency: a
+      // nineteen-year-old centre back was previously being asked for a
+      // striker's numbers at 60% of a striker's bar, which is still a bar he
+      // plays no part of the game near.
+      madeYoungCase
     ) {
       honours.push(
         at(

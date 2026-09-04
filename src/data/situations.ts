@@ -176,7 +176,17 @@ export const SITUATION_TEMPLATES: Record<SituationType, SituationTemplate> = {
     baseTime: 1.7,
     difficulty: 0.55,
     qualityRange: [0.3, 0.6],
-    positionWeights: { ST: 3, AM: 4, CM: 3, LW: 2, RW: 2, DM: 1.5, LB: 0.6, RB: 0.6, CB: 0.4 },
+    /*
+     * A CENTRE BACK DOES NOT SHOOT FROM TWENTY YARDS.
+     *
+     * Measured across 100 matches per position, the attacking/defensive split
+     * already does most of this work — a centre back takes 0.93 shots a match
+     * against a striker's 4.98, and scores 4.6 in a season against 39. What was
+     * left was the shape of his remaining attacking moments: a shot from the
+     * edge weighted at 0.4 put him there about as often as it put a full-back,
+     * and neither of them is the man the ball drops to on the edge of the box.
+     */
+    positionWeights: { ST: 3, AM: 4, CM: 3, LW: 2, RW: 2, DM: 1, LB: 0.5, RB: 0.5, CB: 0.2 },
     defensive: false,
     setPiece: false,
     goalkeeperInvolved: true,

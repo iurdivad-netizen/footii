@@ -689,3 +689,36 @@ Eight things that were not on either list, found by reading the code against wha
   choosing badly; realistic midfield passing raises the FLOOR, because choosing badly now usually
   still finds a team-mate and is punished in what follows rather than by losing the ball. The gap is
   0.98 on a ten-point scale and the assertion says so.
+
+- **A centre back could never be player of the season.** Not rarely — never. The award asked for
+  `goals + assists` against the division's leading attacker, whatever shirt you wore, which is a bar
+  a defender plays no part of the game near. A strange thing for a game that lets you be a centre
+  back to say. The rating bar is common to all three and unchanged; what differs now is the second
+  requirement, measured in the currency the position actually deals in — a forward's goals, a
+  midfielder's assists and key passes, a defender's tackles and interceptions. Nobody gets an easier
+  award: the defensive bar sits above what a season actually produces (a centre back records ~87
+  tackles and interceptions across 38 matches; the bar is 95) and scales with the division exactly
+  as the striker's does. Goals and assists still count for a defender, so an overlapping full-back's
+  end product is part of his case rather than the whole of it. The young player award follows the
+  senior one into the same currency, at six-tenths of the standard.
+
+- **Crossing was still being recommended at its old odds.** Found by the auto-play suite, which is
+  the point of it: crosses were calibrated from 51-66% completion down to the real 23%, and
+  `crossBaseFit` — how good an idea a cross IS, which is what auto-play and the player both read —
+  was left at the number it had when they came off two thirds of the time. Auto-play crossed 13% of
+  the time against random's 9%, and the extra four points came straight off its rating. Lowered to
+  match the odds the action now carries.
+
+- **A centre back shot from twenty yards about as often as a full-back.** The attacking/defensive
+  split already does most of the work of telling positions apart — measured over 100 matches per
+  position, a centre back takes 0.93 shots a match against a striker's 4.98 and scores 4.6 in a
+  season against 39, with 72% of his moments defensive against the striker's 8%. What was left was
+  the shape of his remaining attacking moments, and the edge-of-box weight is trimmed for centre
+  backs, defensive midfielders and full-backs.
+
+  **The striker's 39 goals a season is the real outlier** — elite is 25-30 — and it is a volume
+  problem rather than a conversion one: 42% of his moments are premium chances. Rebalancing the
+  weights brought it to 31.9 and was BACKED OUT, because the auto-play suite then caught skipping a
+  match performing worse than choosing at random, which is the one thing that policy must never do.
+  The mix shift exposed a `fit` mis-calibration in the edge-of-box and box-side situations that is a
+  larger job than the weights themselves. Recorded rather than shipped.
