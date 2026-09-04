@@ -1147,9 +1147,25 @@ function throughBallFit(context: SituationContext, side: 'left' | 'centre' | 'ri
   return clamp01(value);
 }
 
+/**
+ * HOW GOOD AN IDEA A CROSS IS, GIVEN THAT MOST OF THEM DO NOT COME OFF.
+ *
+ * The base was 0.4 when a cross found its man 51-66% of the time. Completion
+ * has since been calibrated to the real 23%, and this number was left behind:
+ * every reading of the game — the player's, and auto-play's, which chooses on
+ * fit — was still being told crossing was as good an option as it used to be.
+ *
+ * It showed up as auto-play losing to CHOOSING AT RANDOM, which is the one
+ * thing the skip policy must never do. Random crossed 9% of the time and
+ * auto-play 13%, and the extra four points were coming straight off its rating.
+ *
+ * Lowered to match the odds the action now actually carries. A cross out wide
+ * with a good crosser in a wide-playing side is still a fine idea; it is simply
+ * no longer a better one than shooting from a position you could shoot from.
+ */
 function crossBaseFit(context: SituationContext): number {
   const { attackingTeam } = context;
-  let value = 0.4;
+  let value = 0.28;
   value += unit(attackingTeam.ratings.crossing) * 0.2;
   value += unit(attackingTeam.ratings.width) * 0.1;
   if (attackingTeam.style === 'widePlay') value += 0.15;

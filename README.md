@@ -2664,6 +2664,50 @@ did. `passCompletionBar` replaces it with the rule the real game runs on: a ball
 gets harder the further forward it goes, harder again if it leaves the ground,
 and harder again under pressure.
 
+### Player of the season, in your own position
+
+The award used to have one currency: `goals + assists` against the division's
+leading attacker, whatever shirt you wore. A centre back could therefore never
+win it — not rarely, **never**, since the bar was a striker's output and he
+plays a game that does not produce it. A strange thing for a game that lets you
+be a centre back to say.
+
+The rating bar is common to all three and unchanged; every position must still
+out-rate the division and play most of the season. What differs is the second
+requirement, measured in the currency that position actually deals in:
+
+| | judged on |
+| --- | --- |
+| **Forward** (ST, LW, RW) | goals + assists against the division's best — the bar that did not move |
+| **Midfielder** (AM, CM, DM) | assists + key passes + goals, or a forward's contributions if he scored like one |
+| **Defender** (LB, RB, CB) | tackles + interceptions, or a forward's contributions — an overlapping full-back's end product still counts |
+
+Nobody gets an easier award. The defensive bar is set above what a season
+actually produces (a centre back records ~87 tackles and interceptions across
+38 matches; the bar is 95) and scales with the division exactly as the
+striker's does. See `core/career/awardCase.ts`.
+
+### How much of the game each position gets
+
+Measured over 100 matches per position, at the same ability:
+
+| | events/match | shots/match | goals/season | tackles + int. | defensive moments |
+| --- | --- | --- | --- | --- | --- |
+| ST | 8.2 | 4.98 | 39.1 | 11 | 8% |
+| AM | 7.4 | 3.22 | 22.4 | 19 | 15% |
+| CM | 7.3 | 1.66 | 14.1 | 51 | 38% |
+| DM | 7.0 | 0.67 | 3.0 | 80 | 60% |
+| LB | 7.0 | 0.90 | 5.7 | 71 | 50% |
+| CB | 5.9 | 0.93 | 4.2 | 87 | 72% |
+
+The gradient is what it should be, and most of it comes from the
+attacking/defending split rather than from the situation weights: a centre back
+spends 72% of his moments defending and takes a fifth of a striker's shots.
+**The striker's 39 goals a season is the outlier** — real elite is 25-30 — and
+it comes from 42% of his moments being premium chances (one-on-ones and
+through-balls) rather than from conversion, which is measured correct. See
+[the record](ROADMAP.md) for the attempt at that and why it was backed out.
+
 ### Skipping a match
 
 A season is up to forty-seven matches across five competitions. Playing every one of them is a
