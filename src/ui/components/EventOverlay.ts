@@ -11,6 +11,7 @@ import type { ReplaySetting } from '../replay.ts';
 import type { InputController } from '../interaction/InputController.ts';
 import { LEGEND_ORDER, familyStyle } from '../actionFamilyStyle.ts';
 import { keeperStatus } from '../keeperStatus.ts';
+import { standsOverTheBall } from '../../data/situations.ts';
 import type { GoalkeeperAction } from '../../core/goalkeeper/goalkeeper.ts';
 import { COLOURS } from '../../rendering/events/SituationRenderer.ts';
 import {
@@ -295,6 +296,11 @@ export class EventOverlay {
       // it: the ball travels in, the defenders close, the shape pushes up, and
       // the picture arrives at the situation exactly as the last beat and the
       // options do. See RenderState.develop.
+      //
+      // EXCEPT over a dead ball. A penalty and a direct free kick have nothing
+      // developing — he is standing over a stationary ball with everyone
+      // arranged — so they open on the settled picture and stay there. See
+      // data/situations.ts:standsOverTheBall.
       this.renderer.draw({
         context: event.context,
         progress: 0,
@@ -302,7 +308,10 @@ export class EventOverlay {
         keeperAction: 'set',
         showGoalkeeper: keeperInvolved,
         showTeammates: this.showTeammates,
-        develop: this.buildUpTime > 0 ? sinceShown / this.buildUpTime : 1,
+        develop:
+          standsOverTheBall(event.template) || this.buildUpTime <= 0
+            ? 1
+            : sinceShown / this.buildUpTime,
       });
       this.frame = requestAnimationFrame(this.loop);
       return;
