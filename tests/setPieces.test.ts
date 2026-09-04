@@ -64,6 +64,18 @@ describe('penalties', () => {
     expect(rate).toBeLessThan(0.88);
   });
 
+  /*
+   * THE ABSOLUTE BOUNDS BELOW MOVED WITH THE PENALTY RECALIBRATION, and the
+   * ratios did not. That is the whole point of how they are now written.
+   *
+   * Penalties converted 52% before they were measured against real football and
+   * corrected to 75%, so every rate in this block rose with the baseline —
+   * including the ones for reading it badly. What must not change, and has not,
+   * is the GAP: waiting for the keeper is still worth far more than any
+   * technique, and a panenka against a keeper who stood up is still the worst
+   * thing you can do. Pinning the ratio rather than the level is what lets this
+   * suite survive a calibration without being quietly loosened by one.
+   */
   it('rewards waiting for the keeper far more than any technique does', () => {
     // The same action, the same player: the only difference is whether the
     // keeper had already committed when the decision was made.
@@ -71,7 +83,9 @@ describe('penalties', () => {
     const guessed = conversionRate('penaltyOpenBody', penaltyContext('set'));
 
     expect(waited).toBeGreaterThan(0.7);
-    expect(guessed).toBeLessThan(0.5);
+    // Guessing is a coin-flip against a keeper who has not moved, never the
+    // near-certainty that reading him correctly is.
+    expect(guessed).toBeLessThan(0.6);
     expect(waited).toBeGreaterThan(guessed * 1.6);
   });
 
@@ -80,7 +94,10 @@ describe('penalties', () => {
     const stoodUp = conversionRate('penaltyPanenka', penaltyContext('holdingLine'));
 
     expect(gone).toBeGreaterThan(0.6);
-    expect(stoodUp).toBeLessThan(0.35);
+    expect(stoodUp).toBeLessThan(0.45);
+    // The real claim: chipping it down the middle at a keeper who never left
+    // his line is the single worst read in the game.
+    expect(gone).toBeGreaterThan(stoodUp * 1.5);
   });
 
   it('is a big chance, so getting it wrong costs the rating', () => {

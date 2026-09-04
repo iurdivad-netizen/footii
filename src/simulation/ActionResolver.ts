@@ -11,6 +11,7 @@ import type {
   SituationContext,
   SituationType,
 } from '../core/events/types.ts';
+import type { Third } from '../core/events/zones.ts';
 import { getAction } from '../data/actionCatalogue.ts';
 import { receiverOf } from '../core/career/squad.ts';
 import { DEFAULT_MATCH_IMPORTANCE } from '../core/career/confidence.ts';
@@ -382,6 +383,29 @@ export const SET_PIECE_SITUATIONS: readonly SituationType[] = [
 export const SET_PIECE_MIDPOINT = 0.64;
 
 /**
+ * WHERE THE CURVE SITS FOR EACH SET PIECE, MEASURED AGAINST REAL FOOTBALL.
+ *
+ * One shared midpoint could not serve all three, because the three are nothing
+ * like each other and the audit showed exactly how far apart they had drifted:
+ *
+ *   penalty       52.0% measured against 76-79% in the real game — a penalty
+ *                 that a competent taker loses half the time is not a penalty.
+ *   cornerAttack  20.6% measured against 10-12% for a shot from a corner. A
+ *                 corner is the least productive attacking set piece there is,
+ *                 and it was the third most reliable way to score in this game.
+ *   freeKickDirect 6.3% against a real 5-8% — already right, so it keeps the
+ *                 shared midpoint and is untouched.
+ *
+ * A lower midpoint is an easier chance. These are the only three situations the
+ * gradient exempts, so this table is complete: everything else is open play and
+ * reads GOAL_CURVE.midpoint.
+ */
+export const SET_PIECE_MIDPOINTS: Partial<Record<SituationType, number>> = {
+  penalty: 0.57,
+  cornerAttack: 0.735,
+};
+
+/**
  * The chance a shot goes in.
  *
  * `quality` and `situation` are both optional so the curve can still be
@@ -396,9 +420,57 @@ export function shotGoalProbability(
 ): number {
   const exempt = situation !== undefined && SET_PIECE_SITUATIONS.includes(situation);
   const adjusted = exempt ? value : value + SHOT_QUALITY * (quality - 0.5);
-  const midpoint = exempt ? SET_PIECE_MIDPOINT : GOAL_CURVE.midpoint;
+  const midpoint = exempt
+    ? (SET_PIECE_MIDPOINTS[situation!] ?? SET_PIECE_MIDPOINT)
+    : GOAL_CURVE.midpoint;
   const raw = 1 / (1 + Math.exp(-(adjusted - midpoint) * GOAL_CURVE.steepness));
   return clamp01(Math.min(GOAL_CURVE.max, Math.max(GOAL_CURVE.min, raw)));
+}
+
+/**
+ * HOW GOOD A BALL HAS TO BE TO FIND ITS MAN.
+ *
+ * Every pass and every cross used to clear the same bar — `value >= 0.5` — and
+ * the audit showed what that costs. A cross found a team-mate 51-66% of the
+ * time against a real 20-25%, while a ball played in midfield completed 44%
+ * against a real ~85%. The model was not merely mis-levelled, it was INVERTED:
+ * hardest where football is easiest, easiest where football is hardest.
+ *
+ * One rule fixes both, and it is the rule real football runs on — a pass gets
+ * harder the further forward it goes and harder again if it leaves the ground:
+ *
+ *   A CROSS is the hardest ball in the game. It is long, it is airborne, it is
+ *   contested by defenders facing their own goal, and most of them do not come
+ *   off. It carries by far the biggest penalty here.
+ *
+ *   THE FINAL THIRD is where defences are compact and the passing lanes are
+ *   short. A little harder than neutral.
+ *
+ *   MIDFIELD AND BEHIND is where a professional footballer completes almost
+ *   everything he tries. Substantially easier, which is what turns a
+ *   midfielder from a man who loses the ball every other touch into one who
+ *   keeps it.
+ *
+ * Pressure counts on top, because a marked man plays a worse ball than a free
+ * one — and because it makes the bar something the player's own reading of the
+ * situation can move.
+ */
+export const PASS_BAR = {
+  base: 0.5,
+  cross: 0.08,
+  attackingThird: 0.0,
+  ownHalfOrMidfield: -0.2,
+  pressure: 0.04,
+} as const;
+
+export function passCompletionBar(isCross: boolean, third: Third, defensivePressure: number): number {
+  const zone = third === 'attacking' ? PASS_BAR.attackingThird : PASS_BAR.ownHalfOrMidfield;
+  return clamp01(
+    PASS_BAR.base +
+      (isCross ? PASS_BAR.cross : 0) +
+      zone +
+      clamp01(defensivePressure) * PASS_BAR.pressure,
+  );
 }
 
 /** Chance a completed pass into the final third actually creates something. */
@@ -571,10 +643,13 @@ function resolvePassOrCross(
   definition: ActionDefinition,
 ): EventOutcome {
   const isCross = definition.family === 'cross';
-  const completed = value >= 0.5;
+  const bar = passCompletionBar(isCross, context.zone.third, context.defensivePressure);
+  const completed = value >= bar;
 
   if (!completed) {
-    if (value >= 0.4) {
+    // "Cut out" rather than "given away" is a near miss, so it scales with the
+    // bar the ball actually had to clear instead of a fixed 0.4.
+    if (value >= bar - 0.1) {
       return outcome(
         isCross ? 'crossCleared' : 'passIntercepted',
         isCross

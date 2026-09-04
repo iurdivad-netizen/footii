@@ -245,7 +245,14 @@ export function generateSituation(rng: Rng, request: SituationRequest): Generate
   const [minDefenders, maxDefenders] = template.defenders;
   const defenceQuality = unit(request.defendingTeam.ratings.defence);
   let defenders = Math.floor(rng.range(minDefenders, maxDefenders + 1));
-  if (rng.chance((defenceQuality - 0.5) * 0.8)) defenders += 1;
+  // A FIXED BAND IS A STATEMENT OF FACT, not a suggestion the covering runner
+  // may overrule. A penalty declares [0, 0] because that is what a penalty IS:
+  // the taker, the goalkeeper, and nobody in between. The roll above was
+  // applied to every situation alike, so a good defence put a man in front of
+  // the spot on about one penalty in ten — measured at 4 of 39 — and the pitch
+  // duly drew a defender standing between the player and the goal. Whenever a
+  // template names an exact number, it gets that number.
+  if (minDefenders !== maxDefenders && rng.chance((defenceQuality - 0.5) * 0.8)) defenders += 1;
   const clampedDefenders = Math.max(0, Math.min(4, defenders));
 
   const intensity = unit(request.defendingTeam.ratings.defensiveIntensity);
