@@ -134,6 +134,17 @@ interface ResolutionPlan {
   netFlash: boolean;
   /** True moves the player's own dot with the ball — a carry, not a strike. */
   movePlayer: boolean;
+  /**
+   * THE WALL, for a one-two: the man it goes to on the way.
+   *
+   * A one-two is the only action in the game where the ball leaves the player
+   * and comes back to him, and it used to be drawn as a single flight to a
+   * team-mate and nothing else — which is a pass, not a one-two, and made the
+   * two options indistinguishable in the picture.
+   */
+  via?: Point;
+  /** Where he has run to by the time the return arrives. Only used with `via`. */
+  playerRunsTo?: Point;
 }
 
 export interface Point {
@@ -214,6 +225,27 @@ export function teammateSpot(
 }
 
 /**
+ * The most receivers the picture will ever draw.
+ *
+ * THREE, not the five a career names, and this is a promise about odds rather
+ * than a layout preference. A moment with nobody near him converts at 26.6%
+ * (measured over 218 such chances) — good football odds for a man against a
+ * goalkeeper. Drawing five team-mates around him reads as a five-against-one
+ * that ought to be scored nine times in ten, so the picture was writing a
+ * cheque the simulation had never agreed to cash, and the miss looked broken
+ * rather than unlucky.
+ *
+ * The engine finds exactly ONE receiver when a pass comes off. Three is the
+ * most that can be shown without implying an overload it does not model, and
+ * it is also what a real chance looks like: a runner or two in support, not a
+ * whole forward line.
+ *
+ * The fix belongs here and not in the conversion rate. 26.6% is defensible
+ * football; five men in an empty box is not.
+ */
+export const MAX_RECEIVERS_DRAWN = 3;
+
+/**
  * HOW MANY OF THE NAMED RECEIVERS ARE ACTUALLY OPTIONS RIGHT NOW.
  *
  * A career names five men the player would pass to, and the picture drew all
@@ -229,13 +261,40 @@ export function teammateSpot(
  * to the pressure scalar on purpose: that is the number the player can see on
  * the pitch, so the two halves of the picture can never disagree.
  *
- * NEVER BELOW TWO. The receivers are only drawn at all when a pass or a cross
- * is among the six, and a picture showing nobody to pass to under an option
- * labelled "square ball across" would be a worse contradiction than the one
- * this fixes.
+ * NEVER BELOW ONE while one exists. The receivers are only drawn at all when a
+ * pass or a cross is among the six, and a picture showing nobody to pass to
+ * under an option labelled "square ball across" would be a worse contradiction
+ * than the one this fixes.
  */
 export function visibleReceiverCount(named: number, nearbyDefenders: number): number {
-  return Math.max(Math.min(2, named), Math.min(named, named - nearbyDefenders));
+  const room = MAX_RECEIVERS_DRAWN - Math.floor(Math.max(0, nearbyDefenders) / 2);
+  return Math.min(named, Math.max(Math.min(1, named), room));
+}
+
+/**
+ * WHERE THE BALL IS AT A GIVEN FRACTION OF ITS FLIGHT.
+ *
+ * One place, so the ball and its trail can never disagree: the trail used to
+ * walk a straight line from `from` to `to`, which on a two-legged flight drew
+ * ghosts along a shortcut the ball never took.
+ *
+ * With `via` — a ONE-TWO, the only action where the ball leaves the player and
+ * comes back — the path is two legs with the turn at the halfway mark, eased
+ * WITHIN each leg rather than across both. Easing across both would glide the
+ * ball smoothly through the wall as though he were not there; easing each leg
+ * makes it arrive and leave again, which is what a one-two looks like.
+ */
+export function ballAlongPath(from: Point, to: Point, via: Point | undefined, progress: number): Point {
+  const p = clamp01(progress);
+  const lerp = (a: Point, b: Point, t: number): Point => ({
+    x: a.x + (b.x - a.x) * t,
+    y: a.y + (b.y - a.y) * t,
+  });
+  const easeOut = (t: number): number => 1 - (1 - t) * (1 - t);
+  if (!via) return lerp(from, to, easeOut(p));
+  const firstLeg = p < 0.5;
+  const half = firstLeg ? p * 2 : (p - 0.5) * 2;
+  return lerp(firstLeg ? from : via, firstLeg ? via : to, easeOut(half));
 }
 
 export class SituationRenderer {
@@ -667,11 +726,29 @@ export class SituationRenderer {
       case 'passIntercepted':
         return plan(this.nearestDefender(state, w, h), COLOURS.defender, { flight: 0.6 });
       case 'chanceCreated':
-      case 'passCompleted':
+      case 'passCompleted': {
+        // A ONE-TWO IS TWO PASSES AND A RUN. Give it, go past him, take it
+        // back — which is the whole reason to pick it over a plain pass, and
+        // the picture drew it as a plain pass.
+        if (cue.actionKind === 'oneTwo') {
+          const wall = this.receiver(state, playerY);
+          const runsTo = {
+            x: playerX + (goalCentre - playerX) * 0.25,
+            y: Math.max(h * 0.24, playerY - h * 0.22),
+          };
+          return plan(this.ballAtFeet(runsTo.x, runsTo.y), '#4ade80', {
+            via: wall,
+            playerRunsTo: runsTo,
+            // Two legs and a run: it needs longer than a single ball.
+            flight: 1.15,
+            loft: 0.1,
+          });
+        }
         // To an actual man, and the same man the pitch has been showing for the
         // whole decision: a pass that lands on empty grass answers "did it
         // reach anybody" with a picture that says no.
         return plan(this.receiver(state, playerY), '#4ade80');
+      }
       case 'crossCompleted':
         return plan(this.receiver(state, playerY, true), '#4ade80');
       case 'crossCleared':
@@ -719,6 +796,17 @@ export class SituationRenderer {
       x: Math.min(this.width * 0.9, Math.max(this.width * 0.1, this.width * (0.5 - side * 0.32))),
       y: Math.max(14, playerY - this.height * 0.24),
     };
+  }
+
+  /**
+   * Where the ball is at a given fraction of its flight.
+   *
+   * One place so the ball and its trail can never disagree — the trail used to
+   * sample a straight line from `from` to `to`, which for a one-two drew a
+   * ghost shortcut straight through the middle of a path the ball never took.
+   */
+  private ballAt(planned: ResolutionPlan, progress: number): Point {
+    return ballAlongPath(planned.from, planned.to, planned.via, progress);
   }
 
   /**
@@ -814,15 +902,14 @@ export class SituationRenderer {
         // Ease-out: struck hard, arriving spent — the way a ball actually moves.
         const eased = 1 - (1 - progress) * (1 - progress);
 
-        const x = planned.from.x + (planned.to.x - planned.from.x) * eased;
-        const y = planned.from.y + (planned.to.y - planned.from.y) * eased;
+        const { x, y } = this.ballAt(planned, progress);
         // Loft is faked with size: a ball above the turf reads bigger.
         const rise = Math.sin(eased * Math.PI) * planned.loft;
         const radius = 4.5 * (1 + rise * 1.6);
 
         this.draw(
           { ...state, progress: 1 },
-          { ball: true, player: planned.movePlayer, keeper: true },
+          { ball: true, player: planned.movePlayer || !!planned.playerRunsTo, keeper: true },
         );
 
         const ctx = this.ctx;
@@ -851,6 +938,21 @@ export class SituationRenderer {
           ctx.beginPath();
           ctx.arc(x - 10, y - 8, 9, 0, Math.PI * 2);
           ctx.fill();
+        } else if (planned.playerRunsTo) {
+          // He sets off the moment he has played it and is already there when
+          // it comes back — the run IS the action, and a man standing still
+          // waiting for a return pass has not played a one-two.
+          const run = Math.min(1, progress / 0.75);
+          ctx.fillStyle = COLOURS.player;
+          ctx.beginPath();
+          ctx.arc(
+            planned.from.x + (planned.playerRunsTo.x - planned.from.x) * run,
+            planned.from.y + (planned.playerRunsTo.y - planned.from.y) * run,
+            9,
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
         }
 
         // A TRAIL, because a four-pixel dot crossing a small pitch in under a
@@ -858,17 +960,12 @@ export class SituationRenderer {
         // fading ghosts along the path it has taken turn it into a line, which
         // is legible at a glance and reads as speed rather than decoration.
         for (let i = 1; i <= 5; i++) {
-          const back = Math.max(0, eased - i * 0.055);
+          const back = Math.max(0, progress - i * 0.045);
           ctx.globalAlpha = (1 - i / 6) * 0.4 * (progress < 1 ? 1 : 1 - Math.min(1, (t - planned.flight) / 0.2));
           ctx.fillStyle = COLOURS.ball;
+          const ghost = this.ballAt(planned, back);
           ctx.beginPath();
-          ctx.arc(
-            planned.from.x + (planned.to.x - planned.from.x) * back,
-            planned.from.y + (planned.to.y - planned.from.y) * back,
-            radius * (1 - i / 8),
-            0,
-            Math.PI * 2,
-          );
+          ctx.arc(ghost.x, ghost.y, radius * (1 - i / 8), 0, Math.PI * 2);
           ctx.fill();
         }
         ctx.globalAlpha = 1;

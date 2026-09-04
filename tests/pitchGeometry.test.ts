@@ -4,6 +4,8 @@ import {
   ballAtFeet,
   teammateSpot,
   visibleReceiverCount,
+  MAX_RECEIVERS_DRAWN,
+  ballAlongPath,
 } from '../src/rendering/events/SituationRenderer.ts';
 import { OUTFIELD_POSITIONS } from '../src/core/player/positions.ts';
 
@@ -181,30 +183,42 @@ describe('the build-up develops', () => {
 describe('how many receivers are actually options', () => {
   const NAMED = 5;
 
+  it('never draws more than a chance can honestly support', () => {
+    // THE ODDS ARE THE REASON FOR THIS CAP. A moment with nobody near him
+    // converts at 26.6%, measured over 218 such chances — good football odds
+    // for a man against a goalkeeper. Five team-mates around him reads as a
+    // five-against-one that ought to be scored nine times in ten, so the
+    // picture was writing a cheque the simulation had never agreed to cash and
+    // the miss looked broken rather than unlucky.
+    expect(MAX_RECEIVERS_DRAWN).toBe(3);
+    expect(visibleReceiverCount(NAMED, 0)).toBe(3);
+  });
+
   it('thins out as the bodies arrive', () => {
-    expect(visibleReceiverCount(NAMED, 0)).toBe(5);
-    expect(visibleReceiverCount(NAMED, 1)).toBe(4);
-    expect(visibleReceiverCount(NAMED, 2)).toBe(3);
+    expect(visibleReceiverCount(NAMED, 1)).toBe(3);
+    expect(visibleReceiverCount(NAMED, 2)).toBe(2);
     expect(visibleReceiverCount(NAMED, 3)).toBe(2);
+    expect(visibleReceiverCount(NAMED, 4)).toBe(1);
   });
 
   it('never leaves him with nobody to pass to', () => {
     // They are only drawn when a pass or a cross is among the six. A picture
     // showing no receivers under an option labelled "square ball across" would
-    // be a worse contradiction than the one this fixes.
-    for (let defenders = 0; defenders <= 8; defenders++) {
-      expect(visibleReceiverCount(NAMED, defenders)).toBeGreaterThanOrEqual(2);
+    // be a worse contradiction than the one this fixes. One outlet under heavy
+    // pressure is honest; none is not.
+    for (let defenders = 0; defenders <= 12; defenders++) {
+      expect(visibleReceiverCount(NAMED, defenders)).toBeGreaterThanOrEqual(1);
     }
   });
 
   it('never invents a man who is not in the squad', () => {
-    // The floor is a floor on what EXISTS, not a promise of two: a career from
-    // before team-mates were named carries none, and one carrying a single
-    // receiver must not be drawn with a phantom beside him.
+    // The floor is a floor on what EXISTS, not a promise of one: a career from
+    // before team-mates were named carries none and must be drawn with none.
     expect(visibleReceiverCount(0, 0)).toBe(0);
     expect(visibleReceiverCount(0, 4)).toBe(0);
     expect(visibleReceiverCount(1, 4)).toBe(1);
-    expect(visibleReceiverCount(2, 9)).toBe(2);
+    expect(visibleReceiverCount(2, 9)).toBe(1);
+    expect(visibleReceiverCount(2, 0)).toBe(2);
   });
 
   it('never grows with pressure', () => {
@@ -234,5 +248,83 @@ describe('how many receivers are actually options', () => {
       'utf8',
     );
     expect(renderer).toMatch(/teammateSpot\(mate\.position, index, mates\.length/);
+  });
+});
+
+/**
+ * A ONE-TWO IS TWO PASSES AND A RUN.
+ *
+ * It was drawn as a single ball to a team-mate and nothing else — which is a
+ * plain pass, and made the two options indistinguishable in the one place the
+ * game explains itself. Give it, go past him, take it back.
+ */
+describe('the one-two', () => {
+  const renderer = readFileSync(
+    new URL('../src/rendering/events/SituationRenderer.ts', import.meta.url),
+    'utf8',
+  );
+
+  it('goes out to a man and comes back', () => {
+    expect(renderer).toMatch(/cue\.actionKind === 'oneTwo'/);
+    expect(renderer).toMatch(/via: wall/);
+  });
+
+  it('sends the player on a run while the ball is away', () => {
+    // A man standing still waiting for a return pass has not played a one-two.
+    expect(renderer).toMatch(/playerRunsTo: runsTo/);
+    expect(renderer).toMatch(/planned\.playerRunsTo/);
+  });
+
+  it('samples the ball and its trail from one path', () => {
+    // The trail used to walk a straight line from `from` to `to`, which on a
+    // two-legged flight draws ghosts along a shortcut the ball never took.
+    expect(renderer).toMatch(/const ghost = this\.ballAt\(planned, back\)/);
+  });
+});
+
+describe('the path a ball takes', () => {
+  const from = { x: 100, y: 200 };
+  const wall = { x: 260, y: 120 };
+  const back = { x: 150, y: 90 };
+
+  it('starts where it was struck and ends where it was going', () => {
+    for (const via of [undefined, wall]) {
+      expect(ballAlongPath(from, back, via, 0)).toEqual(from);
+      expect(ballAlongPath(from, back, via, 1)).toEqual(back);
+    }
+  });
+
+  it('actually visits the wall on a one-two, halfway through', () => {
+    // The whole claim: it goes OUT to a man and comes BACK. A single flight
+    // would pass nowhere near him.
+    expect(ballAlongPath(from, back, wall, 0.5)).toEqual(wall);
+  });
+
+  it('is nowhere near the wall when there is no wall', () => {
+    const straight = ballAlongPath(from, back, undefined, 0.5);
+    expect(Math.hypot(straight.x - wall.x, straight.y - wall.y)).toBeGreaterThan(50);
+  });
+
+  it('travels outward first and homeward second', () => {
+    // Distance from the striker rises to the turn, then falls back.
+    const away = (t: number) => {
+      const p = ballAlongPath(from, back, wall, t);
+      return Math.hypot(p.x - from.x, p.y - from.y);
+    };
+    expect(away(0.25)).toBeGreaterThan(away(0));
+    expect(away(0.5)).toBeGreaterThan(away(0.25));
+    expect(away(0.75)).toBeLessThan(away(0.5));
+  });
+
+  it('never leaves the path, however odd the progress', () => {
+    for (const t of [-3, 0, 0.5, 1, 4, Number.NaN]) {
+      const p = ballAlongPath(from, back, wall, Number.isNaN(t) ? 0 : t);
+      expect(Number.isFinite(p.x)).toBe(true);
+      expect(Number.isFinite(p.y)).toBe(true);
+    }
+    // Clamped rather than extrapolated: a late frame must not fling the ball
+    // off the pitch.
+    expect(ballAlongPath(from, back, wall, 9)).toEqual(back);
+    expect(ballAlongPath(from, back, wall, -9)).toEqual(from);
   });
 });
