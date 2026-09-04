@@ -599,3 +599,23 @@ Eight things that were not on either list, found by reading the code against wha
   to READ as a pass, behind-and-across off the opposite flank otherwise: a receiver standing a few
   pixels from the player is a truthful origin and a useless one, because the ball would arrive
   before the eye noticed it had set off, which is the static picture this exists to replace.
+
+- **Every chance showed five team-mates, however crowded it was.** A career names five men the
+  player passes to, and the picture drew all five on every moment offering a pass — measured at 180
+  of 341 interactive events — while the defender count ran from none to four. So a chance narrated
+  as "bodies everywhere in the box · 3 defenders nearby" was drawn as five free team-mates against
+  three opponents: a picture claiming a 5v3 overload underneath a sentence saying he was surrounded.
+
+  The five are who he passes to IN GENERAL. Who is available in THIS moment is fewer the more bodies
+  are around him, because a defender close enough to press is close enough to sit in a passing lane:
+  five with nobody near him, then four, three, and two once three have arrived. The ones kept are
+  the most advanced, since "cut it back", "the far post" and "square ball across" are all balls
+  played forward or level. Tied to `nearbyDefenders` — the number already drawn on the pitch —
+  rather than to the pressure scalar, so the two halves of the picture cannot disagree.
+
+  Two guards. It never falls below two while two exist, because a picture with nobody to pass to
+  under an option labelled "square ball across" would be a worse contradiction than the one this
+  fixes; and it never exceeds the squad, so a career from before team-mates were named still draws
+  none rather than conjuring phantoms. Positions are computed for the whole named squad and filtered
+  afterwards, so a man stands in the same place whether two are drawn or five — a spread that
+  reshuffled with the count would have team-mates jumping sideways as defenders arrived.

@@ -213,6 +213,31 @@ export function teammateSpot(
   };
 }
 
+/**
+ * HOW MANY OF THE NAMED RECEIVERS ARE ACTUALLY OPTIONS RIGHT NOW.
+ *
+ * A career names five men the player would pass to, and the picture drew all
+ * five on every moment that offered a pass — measured at 53% of interactive
+ * events. The defender count, meanwhile, varies from none to four. So a chance
+ * narrated as "bodies everywhere in the box, three defenders nearby" was drawn
+ * as five free team-mates against three opponents: a picture claiming a 5v3
+ * overload underneath a sentence saying he was crowded.
+ *
+ * The five are who he passes to IN GENERAL. Who is available in THIS moment is
+ * fewer the more bodies are around him — a defender close enough to press is
+ * close enough to sit in a passing lane. Tied to `nearbyDefenders` rather than
+ * to the pressure scalar on purpose: that is the number the player can see on
+ * the pitch, so the two halves of the picture can never disagree.
+ *
+ * NEVER BELOW TWO. The receivers are only drawn at all when a pass or a cross
+ * is among the six, and a picture showing nobody to pass to under an option
+ * labelled "square ball across" would be a worse contradiction than the one
+ * this fixes.
+ */
+export function visibleReceiverCount(named: number, nearbyDefenders: number): number {
+  return Math.max(Math.min(2, named), Math.min(named, named - nearbyDefenders));
+}
+
 export class SituationRenderer {
   private readonly ctx: CanvasRenderingContext2D;
   private width = 0;
@@ -266,13 +291,27 @@ export class SituationRenderer {
     return { x: this.width / 2, y: 6 };
   }
 
-  /** Every named receiver, in the order the options name them. */
+  /**
+   * The receivers actually on the picture.
+   *
+   * Positions are computed for the WHOLE named squad and only then filtered, so
+   * a given man stands in the same place whether two of them are drawn or five
+   * — a spread that reshuffled with the count would have team-mates jumping
+   * sideways as defenders arrive.
+   *
+   * The ones kept are the most advanced, because that is who the option labels
+   * are talking about: "cut it back", "the far post", "square ball across" are
+   * all balls played forward or level. See visibleReceiverCount.
+   */
   private teammateSpots(state: RenderState): { spot: Point; name: string }[] {
     const mates = state.context.teammates;
-    return mates.map((mate, index) => ({
+    const all = mates.map((mate, index) => ({
       spot: teammateSpot(mate.position, index, mates.length, this.width, this.height),
       name: mate.name,
     }));
+    const keep = visibleReceiverCount(all.length, state.context.nearbyDefenders);
+    // Nearest the goal is the smallest y.
+    return [...all].sort((a, b) => a.spot.y - b.spot.y).slice(0, keep);
   }
 
   /**
