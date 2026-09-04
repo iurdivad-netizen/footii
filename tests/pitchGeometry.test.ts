@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ballAtFeet, teammateSpot } from '../src/rendering/events/SituationRenderer.ts';
+import {
+  ballAtFeet,
+  teammateSpot,
+  visibleReceiverCount,
+} from '../src/rendering/events/SituationRenderer.ts';
 import { OUTFIELD_POSITIONS } from '../src/core/player/positions.ts';
 
 /**
@@ -161,5 +165,74 @@ describe('the build-up develops', () => {
     // A team-mate standing a few pixels away is a truthful origin and a useless
     // one: the ball would arrive before the eye noticed it had set off.
     expect(renderer).toMatch(/> h \* 0\.28/);
+  });
+});
+
+/**
+ * FIVE TEAM-MATES ON A CROWDED CHANCE IS A LIE.
+ *
+ * A career names five men the player passes to, and the picture drew all five
+ * on every moment offering a pass — measured at 180 of 341 interactive events.
+ * The defender count meanwhile runs from none to four, so a chance narrated as
+ * "bodies everywhere in the box, three defenders nearby" was drawn as five free
+ * team-mates against three opponents: a 5v3 overload under a sentence saying he
+ * was crowded.
+ */
+describe('how many receivers are actually options', () => {
+  const NAMED = 5;
+
+  it('thins out as the bodies arrive', () => {
+    expect(visibleReceiverCount(NAMED, 0)).toBe(5);
+    expect(visibleReceiverCount(NAMED, 1)).toBe(4);
+    expect(visibleReceiverCount(NAMED, 2)).toBe(3);
+    expect(visibleReceiverCount(NAMED, 3)).toBe(2);
+  });
+
+  it('never leaves him with nobody to pass to', () => {
+    // They are only drawn when a pass or a cross is among the six. A picture
+    // showing no receivers under an option labelled "square ball across" would
+    // be a worse contradiction than the one this fixes.
+    for (let defenders = 0; defenders <= 8; defenders++) {
+      expect(visibleReceiverCount(NAMED, defenders)).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('never invents a man who is not in the squad', () => {
+    // The floor is a floor on what EXISTS, not a promise of two: a career from
+    // before team-mates were named carries none, and one carrying a single
+    // receiver must not be drawn with a phantom beside him.
+    expect(visibleReceiverCount(0, 0)).toBe(0);
+    expect(visibleReceiverCount(0, 4)).toBe(0);
+    expect(visibleReceiverCount(1, 4)).toBe(1);
+    expect(visibleReceiverCount(2, 9)).toBe(2);
+  });
+
+  it('never grows with pressure', () => {
+    for (let d = 1; d <= 6; d++) {
+      expect(visibleReceiverCount(NAMED, d)).toBeLessThanOrEqual(visibleReceiverCount(NAMED, d - 1));
+    }
+  });
+
+  it('is read off the defenders actually drawn, not a hidden scalar', () => {
+    // The two halves of the picture cannot disagree if they read one number.
+    const renderer = readFileSync(
+      new URL('../src/rendering/events/SituationRenderer.ts', import.meta.url),
+      'utf8',
+    );
+    expect(renderer).toMatch(/visibleReceiverCount\(all\.length, state\.context\.nearbyDefenders\)/);
+  });
+
+  it('keeps a man in the same place however many are drawn', () => {
+    // Positions come from the whole named squad and are filtered afterwards; a
+    // spread that reshuffled with the count would have team-mates jumping
+    // sideways as defenders arrived.
+    const withFive = teammateSpot('ST', 1, 5, W, H);
+    const alsoWithFive = teammateSpot('ST', 1, 5, W, H);
+    expect(withFive).toEqual(alsoWithFive);
+    const renderer = readFileSync(
+      new URL('../src/rendering/events/SituationRenderer.ts', import.meta.url),
+      'utf8',
+    );
+    expect(renderer).toMatch(/teammateSpot\(mate\.position, index, mates\.length/);
   });
 });

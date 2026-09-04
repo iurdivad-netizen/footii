@@ -133,6 +133,25 @@ showed — `develop` runs 0 to 1 and is absent (meaning 1) for every other calle
 so the resolution replay and every static draw are untouched. It just gets there
 rather than starting there.
 
+**How many receivers are drawn depends on how crowded he is.** A career names
+five men the player passes to, and the picture used to draw all five on every
+moment that offered a pass — measured at 180 of 341 interactive events — while
+the defender count ran from none to four. A chance narrated as *"bodies
+everywhere in the box · 3 defenders nearby"* was therefore drawn as five free
+team-mates against three opponents: a 5v3 overload underneath a sentence saying
+he was surrounded.
+
+The five are who he passes to *in general*; who is available in *this* moment is
+fewer the more bodies are around him, because a defender close enough to press
+is close enough to sit in a passing lane. So the count thins — five with nobody
+near him, four, three, and two once three defenders have arrived — and the ones
+kept are the most advanced, since "cut it back", "the far post" and "square ball
+across" are all balls played forward or level. It is tied to `nearbyDefenders`,
+the number already drawn on the pitch, so the two halves of the picture cannot
+disagree; and it never falls below two while any exist, because a picture with
+nobody to pass to under an option labelled "square ball across" would be a worse
+contradiction than the one it fixes.
+
 Where the ball comes from is the deepest team-mate on the picture **when he is
 far enough away to read as a pass**, and behind-and-across off the opposite
 flank otherwise. A receiver standing a few pixels from the player is a truthful
