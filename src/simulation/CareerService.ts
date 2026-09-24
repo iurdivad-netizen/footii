@@ -5,7 +5,7 @@ import { currentAbility } from '../core/player/player.ts';
 import { ATTRIBUTE_LABELS } from '../core/player/attributes.ts';
 import type { SeasonProgress } from '../core/career/training.ts';
 import { calculateTrainingPoints, summariseProgress } from '../core/career/training.ts';
-import { benchmarkDecisionWindow } from './DecisionBenchmark.ts';
+import { windowSinceSeasonStart } from './DecisionBenchmark.ts';
 import type { Team } from '../core/team/team.ts';
 import type { CareerState, SeasonRecord } from '../core/career/career.ts';
 import {
@@ -2346,17 +2346,14 @@ export function endSeason(state: CareerState, lookup: TeamLookup): SeasonEnd {
   const champion = finalStandings[0] ?? state.clubId;
 
   // Captured BEFORE advanceSeason re-baselines the snapshot and ages the player.
+  const decisionWindow = windowSinceSeasonStart(state);
   const progress: SeasonProgress = {
     abilityBefore: state.seasonStartAbility,
     abilityAfter: currentAbility(state.player),
     experienceBefore: state.seasonStartExperience,
     experienceAfter: state.player.experience,
-    windowBefore: benchmarkDecisionWindow({
-      ...state.player,
-      attributes: state.seasonStartAttributes,
-      experience: state.seasonStartExperience,
-    }),
-    windowAfter: benchmarkDecisionWindow(state.player),
+    windowBefore: decisionWindow.before,
+    windowAfter: decisionWindow.now,
     changes: summariseProgress(
       state.seasonStartAttributes,
       state.player.attributes,

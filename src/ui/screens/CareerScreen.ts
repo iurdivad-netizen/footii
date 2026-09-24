@@ -16,6 +16,7 @@ import {
 import { applyClubPalette } from '../clubColour.ts';
 import type { CompetitionKind } from '../../core/career/calendar.ts';
 import { currentAbility } from '../../core/player/player.ts';
+import { windowSinceSeasonStart } from '../../simulation/DecisionBenchmark.ts';
 import {
   POSITION_PROFILES,
   keyAttributesFor,
@@ -545,11 +546,43 @@ export class CareerScreen {
           </div>`;
       })
       .join('');
-    return `<div class="attr-list">${rows}</div>
+    return `${this.renderDecisionWindow()}
+      <div class="attr-list">${rows}</div>
       <p class="hint">
         Marked <em>key</em> for a ${POSITION_PROFILES[position].label.toLowerCase()}. Awareness,
         Composure and Decision Making set your decision window whoever you are.
       </p>`;
+  }
+
+  /**
+   * THE DECISION WINDOW, ALL SEASON.
+   *
+   * DecisionBenchmark calls this the single most meaningful progress number in
+   * the game — it is the one a player feels at the keyboard — and it used to be
+   * shown twice a year: on the pre-season training screen and in the June
+   * review. Between those it moved every match, with experience as well as
+   * attributes, and nothing said so.
+   *
+   * It heads the attribute card because the hint beneath that card already
+   * names the three attributes that set it. The change is measured from the
+   * start of the season, the same baseline the review settles against, so the
+   * figure watched here is the figure June confirms.
+   */
+  private renderDecisionWindow(): string {
+    const { before, now } = windowSinceSeasonStart(this.state);
+    const delta = now - before;
+    // Hundredths, because that is what the review prints: a change that rounds
+    // to nothing there is not a change here either.
+    const moved = Math.abs(delta) >= 0.005;
+    return `<div class="window-headline">
+        <span class="window-value">${now.toFixed(2)}s</span>
+        <span class="window-label">Decision window in a standard one-on-one</span>
+        ${
+          moved
+            ? `<span class="window-delta ${delta > 0 ? 'good' : 'bad'}">${delta > 0 ? '+' : '−'}${Math.abs(delta).toFixed(2)}s this season</span>`
+            : ''
+        }
+      </div>`;
   }
 
   /**

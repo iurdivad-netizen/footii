@@ -1008,6 +1008,115 @@ kbd {
   color: var(--text-dim);
 }
 
+/*
+ * YOUR DECISIONS. One row per moment. The read carries the colour — accent for
+ * the right one, warn for a clear miss — because that is the part of the row
+ * the player can do something about next time; the outcome keeps the match's
+ * own tones so a goal is still the only yellow on the screen.
+ */
+.ft-decisions {
+  margin: 0 0 26px;
+}
+
+.ft-decisions h2 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+.decision-summary {
+  margin: 0 0 12px;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.decision-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.decision {
+  display: grid;
+  grid-template-columns: 3.2em minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  border-radius: 8px;
+}
+
+.decision.read-best {
+  border-left-color: var(--accent);
+}
+.decision.read-better,
+.decision.read-expired {
+  border-left-color: var(--warn);
+}
+
+.decision-minute {
+  font-family: var(--mono);
+  color: var(--text-dim);
+}
+
+.decision-body p {
+  margin: 0;
+}
+
+.decision-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.decision-situation {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.decision-outcome {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.decision-outcome.tone-goal {
+  color: var(--goal);
+}
+.decision-outcome.tone-good {
+  color: var(--accent);
+}
+.decision-outcome.tone-bad {
+  color: #fca5a5;
+}
+
+.decision-read {
+  font-size: 0.92rem;
+}
+.read-best .decision-read {
+  color: var(--accent);
+}
+.read-better .decision-read,
+.read-expired .decision-read {
+  color: var(--warn);
+}
+
+.decision-detail,
+.decision-why {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
+
+.decision-detail {
+  font-family: var(--mono);
+}
+
 /* -------------------------------------------------------------- debug --- */
 
 .debug-panel {
@@ -1268,6 +1377,36 @@ kbd {
 .league-table tr.own td {
   color: var(--accent);
   background: rgba(74, 222, 128, 0.08);
+}
+
+.window-headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin-bottom: 12px;
+}
+
+.window-value {
+  font-family: var(--mono);
+  font-size: 1.4rem;
+  color: var(--text);
+}
+
+.window-label {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.window-delta {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+.window-delta.good {
+  color: var(--accent);
+}
+.window-delta.bad {
+  color: #fca5a5;
 }
 
 .attr-list {

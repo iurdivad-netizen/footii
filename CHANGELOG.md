@@ -224,6 +224,21 @@ is exposure, not risk. Resting lifts mean fitness at full time from 53 to 63 and
 started below 80, and the count holds level only because a fitter player is available for more
 matches (35.0 played against 33.4).
 
+**15. Nothing tells you whether your decisions were any good.** ✅ **Done.** Raised in a design
+review rather than a bug report, and the defect was structural: the whole game is built around the
+choice made in a few seconds, and the only reader of why each one went the way it did was the debug
+panel. Every resolved moment now leaves a record, and the full-time screen reads it back — the read,
+the time taken, the keeper, and what set the moment apart. See [What your decisions were](README.md#what-your-decisions-were).
+
+Two things inside it turned out differently from the first attempt. The threshold for naming a
+better option began at a gap of 0.15 and named one on half of all moments; it is 0.28 now, measured,
+and a test holds it between 8% and 30% of auto-played moments. And "what decided it" first named
+the largest raw term, which printed the same two reasons on nearly every row; it is judged against
+the rest of the match now, so it names what was different.
+
+The same pass put the benchmark decision window on the hub, where it had been shown only at the two
+ends of a season. See [The decision window, all season](README.md#the-decision-window-all-season).
+
 ## Found while reviewing, and fixed
 
 Eight things that were not on either list, found by reading the code against what it claimed:
