@@ -53,3 +53,25 @@ export function benchmarkDecisionWindow(player: Player, paceScale = 1): number {
   };
   return calculateDecisionTime(context, template, paceScale).seconds;
 }
+
+/**
+ * The benchmark window now and at the start of the season.
+ *
+ * Shared by the hub, which shows it all season, and the season review, which
+ * settles it in June — one calculation, so the number a player watched move on
+ * the hub cannot disagree with the one the review hands him.
+ */
+export function windowSinceSeasonStart(career: {
+  player: Player;
+  seasonStartAttributes: Player['attributes'];
+  seasonStartExperience: number;
+}): { before: number; now: number } {
+  return {
+    before: benchmarkDecisionWindow({
+      ...career.player,
+      attributes: career.seasonStartAttributes,
+      experience: career.seasonStartExperience,
+    }),
+    now: benchmarkDecisionWindow(career.player),
+  };
+}

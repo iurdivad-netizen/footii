@@ -2,6 +2,7 @@ import { passCompletionRate } from '../../core/match/matchStats.ts';
 import { matchResult } from '../../core/match/matchState.ts';
 import type { MatchEngine } from '../../simulation/MatchEngine.ts';
 import type { AttributeChange } from '../../core/career/development.ts';
+import { renderDecisionReview } from '../decisionReview.ts';
 
 /**
  * The totals panel shown beside the match statistics.
@@ -67,6 +68,8 @@ export class FullTimeScreen {
       </div>
 
       ${renderDevelopment(options.development)}
+
+      ${renderDecisionReview(state.decisions)}
 
       <div class="ft-columns">
         <div>

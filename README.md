@@ -406,6 +406,48 @@ shows **one decimal instead of two**. Nobody has ever read a hundredth of a seco
 the extra digit only made it harder to glance at in the one moment glancing is all there is time
 for.
 
+### What your decisions were
+
+At full time, every moment you were pulled into is read back to you, in order: what you did and
+what came of it, **whether it was the right read**, how long you took against the window you had,
+whether a shot went **before or after the keeper committed**, and what set that moment apart.
+
+It exists because nothing else did. The game is built around one decision, and the resolver has
+always worked out exactly why each one went the way it did — every term of it — and told only the
+debug panel. The full-time screen reported goals and pass completion, which is the vocabulary of a
+stats table rather than of a decision game. A player could go a season without learning whether his
+choices were any good, or that the keeper was what he should have been watching.
+
+Three decisions shape what it says.
+
+**It never ranks the six.** A read is one of three words — *the right read*, *a sound read*, or *a
+better ball was on*, and only that last one names an alternative. Telling somebody "the best option
+was 4" after every moment turns a reading game into a lookup table. The threshold for naming one
+was measured rather than picked: the first guess named an alternative on half of all moments, which
+is a nag. Where it sits now:
+
+| | right read | sound | clear miss |
+|---|---|---|---|
+| veteran striker, choosing at random | 25% | 47% | 28% |
+| veteran striker, auto-play | 36% | 47% | 18% |
+| centre back, auto-play | 51% | 44% | 5% |
+
+**The read is judged when you chose, not when the moment opened**, because fit is re-evaluated
+against the keeper's current action. Measured, a policy that always takes the best option *as the
+moment opens* still gets a clear miss on 8% of moments — the keeper then committed and changed which
+option was best. That is the mechanic showing up in the review exactly where it should.
+
+**"What decided it" is judged against the rest of the match, not against zero.** The first version
+named the largest term outright, and on a real match printed *Helped: clean execution · Hurt: the
+pressure on you* on nine rows out of ten — a good player's execution is always positive, and
+pressure can only subtract. Against the match's own average it names what was different about
+*this* moment: the one taken early, the one where the space closed. Decision fit is never named,
+because the read line already covers it, and a review that blamed every outcome on the choice
+would teach the one thing it exists to correct.
+
+Recording it touches no random numbers, so every match plays exactly as it did before it existed.
+See `simulation/DecisionReview.ts`.
+
 ### Set pieces
 
 Three of the thirteen archetypes are dead balls, and they exist because they are the moments where
@@ -1199,6 +1241,18 @@ who has not scored yet is *permanently* within range of his "1st goal" — which
 means the strip repeats that line after every match for twenty matches. The countdown starts at the
 **second** milestone now. Nothing is lost: the firsts were never this feature's to report, because
 the moments already announce them properly, at the moment they happen.
+
+### The decision window, all season
+
+The **Key attributes** card opens with the number `DecisionBenchmark` calls the most meaningful
+progress figure in the game: your decision window in a fixed, neutral one-on-one, and how far it
+has moved since the season began. It is the one number you actually feel at the keyboard.
+
+It used to appear twice a year, on the pre-season training screen and in the June review, while
+moving every match in between — experience is a term in it, so it moves even when no attribute
+does. The hub and the review now share one calculation against the same season-start baseline,
+so the figure you watch move is the figure June confirms. A change that rounds to nothing in
+hundredths is not shown at all.
 
 ### The season so far
 

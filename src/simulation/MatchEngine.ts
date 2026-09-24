@@ -17,6 +17,7 @@ import { generateSituation, involvementChance } from './SituationGenerator.ts';
 import { chooseInstinctiveAction } from './InstinctiveAction.ts';
 import type { DecisionInput, ResolutionResult } from './ActionResolver.ts';
 import { resolveAction } from './ActionResolver.ts';
+import { readBeforeResolution, recordDecision } from './DecisionReview.ts';
 
 /**
  * MATCH ENGINE
@@ -268,8 +269,25 @@ export class MatchEngine {
       untimed: submission.untimed ?? false,
     };
 
+    // Read before resolving: the resolver can move the context, and the read
+    // is judged against the picture he chose from. Touches no RNG.
+    const before = readBeforeResolution(event, option, submission.timeUsed);
     const result = resolveAction(this.rng, event.context, decision);
     this.applyOutcome(result, event);
+    this.state.decisions.push(
+      recordDecision(
+        event,
+        before,
+        {
+          option,
+          timeUsed: submission.timeUsed,
+          expired,
+          untimed: decision.untimed ?? false,
+          ...(instinctReason ? { instinctReason } : {}),
+        },
+        result,
+      ),
+    );
 
     this.pendingEvent = null;
     return { result, option, instinctReason };
