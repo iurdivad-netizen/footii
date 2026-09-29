@@ -55,6 +55,28 @@ export function benchmarkDecisionWindow(player: Player, paceScale = 1): number {
 }
 
 /**
+ * The benchmark window at each of a list of points in a career.
+ *
+ * Each point is a footballer's attributes and experience at a moment, and the
+ * window is a pure function of both — so a whole career's worth is one map. It
+ * is what the development view plots for the number the game calls the most
+ * meaningful progress figure: it moves with experience as well as attributes,
+ * which means it can grow in a season where no attribute did.
+ */
+export function windowAcross(
+  player: Player,
+  points: readonly { attributes: Player['attributes']; experience: number }[],
+): number[] {
+  return points.map((point) =>
+    benchmarkDecisionWindow({
+      ...player,
+      attributes: point.attributes,
+      experience: point.experience,
+    }),
+  );
+}
+
+/**
  * The benchmark window now and at the start of the season.
  *
  * Shared by the hub, which shows it all season, and the season review, which

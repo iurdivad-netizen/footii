@@ -505,6 +505,13 @@ export function startCareer(options: StartCareerOptions): CareerState {
     seasonStartAttributes: { ...options.player.attributes },
     seasonStartAbility: currentAbility(options.player),
     seasonStartExperience: options.player.experience,
+    // The first point of every development chart this career will ever draw.
+    origin: {
+      attributes: { ...options.player.attributes },
+      ability: currentAbility(options.player),
+      age: options.player.age,
+      experience: options.player.experience,
+    },
     trainingPoints: 0,
     preferences: defaultPreferences(),
     transferRequest: null,

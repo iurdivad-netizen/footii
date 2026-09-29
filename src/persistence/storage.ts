@@ -39,7 +39,7 @@ import { rankLegacies } from '../core/career/legacy.ts';
  */
 
 export const STORAGE_KEY = 'footii.save.v1';
-export const SAVE_VERSION = 30;
+export const SAVE_VERSION = 31;
 
 export interface CareerRecord {
   matches: number;
@@ -980,6 +980,38 @@ export function migrate(parsed: Partial<SaveData> & { version?: number }): SaveD
         career.seasonResults ??= [];
         career.lastChanges ??= [];
       }
+    }
+  }
+
+  if (save.version === 30) {
+    // v30 -> v31: a career remembers what its footballer was, not only what he did.
+    //
+    // WHAT CAN AND CANNOT BE RECOVERED, precisely, because this is the step where
+    // it would be tempting to be generous.
+    //
+    // A career that has not finished a season has an exact starting point: the
+    // season-start snapshot IS the first day, because training points only arrive
+    // after a season closes and nothing has been trained. So its `origin` is real.
+    //
+    // A career that HAS finished seasons has lost its first day. The seasons it
+    // archived carry no attributes and nothing anywhere can put them back;
+    // inventing a start from today's numbers would draw a flat line across a
+    // career of growth, which is the one chart worse than no chart. Its `origin`
+    // is null, its old seasons stay without attributes, and the development view
+    // says plainly where the record begins. From the next season close on it is
+    // whole, exactly as `seasonInjuredMisses` was.
+    save = { ...save, version: 31 };
+    for (const career of save.careers ?? []) {
+      if (!career) continue;
+      career.origin ??=
+        (career.history ?? []).length === 0
+          ? {
+              attributes: { ...career.seasonStartAttributes },
+              ability: career.seasonStartAbility,
+              age: career.player.age,
+              experience: career.seasonStartExperience,
+            }
+          : null;
     }
   }
 
