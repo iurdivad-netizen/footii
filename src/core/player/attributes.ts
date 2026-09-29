@@ -106,6 +106,32 @@ export const ATTRIBUTE_LABELS: Record<AttributeKey, string> = {
  * depends on. Weights are expected to sum to 1 (asserted in tests) so that the
  * resulting execution score stays on a common 0-1 scale across all actions.
  */
+/**
+ * The twenty attributes, in the four families a footballer is described by.
+ *
+ * One answer in one place: the development view groups by these, and a list of
+ * twenty rows in creation order reads as noise where four headed lists read as a
+ * player. Every attribute belongs to exactly one family, and a test holds that.
+ */
+export const ATTRIBUTE_GROUPS: readonly {
+  id: 'attacking' | 'physical' | 'mental' | 'defending';
+  label: string;
+  keys: readonly AttributeKey[];
+}[] = [
+  {
+    id: 'attacking',
+    label: 'Attacking',
+    keys: ['shooting', 'finishing', 'passing', 'crossing', 'dribbling', 'ballControl', 'technique', 'heading'],
+  },
+  { id: 'physical', label: 'Physical', keys: ['pace', 'acceleration', 'strength', 'stamina'] },
+  {
+    id: 'mental',
+    label: 'Mental',
+    keys: ['positioning', 'movement', 'awareness', 'decisionMaking', 'composure', 'anticipation'],
+  },
+  { id: 'defending', label: 'Defending', keys: ['tackling', 'defensiveAwareness'] },
+];
+
 export type AttributeWeights = Partial<Record<AttributeKey, number>>;
 
 export function createAttributes(base: number, overrides: Partial<Attributes> = {}): Attributes {

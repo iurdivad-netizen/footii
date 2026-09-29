@@ -89,6 +89,37 @@ export interface SeasonRecord {
   europeanTier: EuropeanTier | null;
   /** True when the club won it. */
   wonEurope: boolean;
+  /**
+   * WHAT HE WAS AT THE END OF IT.
+   *
+   * `history` used to store statistics and nothing about the footballer, which
+   * meant a career recorded every goal and none of how the man scoring them had
+   * changed — the only snapshot was the current season's, thrown away each summer.
+   * These three are taken at the close of the season, before ageing and before the
+   * summer's training, so the training shows up as growth in the season it
+   * belongs to.
+   *
+   * Optional, because a season archived before the game kept them cannot be
+   * reconstructed and inventing one would be a career he never had. See
+   * core/career/attributeTimeline.ts for how a view lives with the gap.
+   */
+  attributes?: Attributes;
+  ability?: number;
+  experience?: number;
+}
+
+/**
+ * WHAT HE WAS WHEN THE CAREER BEGAN. The first point of every development chart.
+ *
+ * Null on a career old enough to have played a season before this was recorded:
+ * there is no honest way to reconstruct it, and a start point guessed from
+ * today's attributes would draw a flat line where a career of growth happened.
+ */
+export interface CareerOrigin {
+  attributes: Attributes;
+  ability: number;
+  age: number;
+  experience: number;
 }
 
 export interface CareerState {
@@ -135,6 +166,8 @@ export interface CareerState {
   seasonStartAttributes: Attributes;
   seasonStartAbility: number;
   seasonStartExperience: number;
+  /** The footballer on the first day of the career, or null when that was lost. */
+  origin?: CareerOrigin | null;
   /** Unspent pre-season training points. */
   trainingPoints: number;
   /**
@@ -1234,6 +1267,10 @@ export function advanceSeason(
     cupsWon: CUP_KINDS.filter((kind) => state.cups?.[kind]?.winnerId === state.clubId),
     europeanTier: state.europe?.kind ?? null,
     wonEurope: europeanWinner(state.europe) === state.clubId,
+    // Before `age` goes up and before the summer's training: see SeasonRecord.
+    attributes: { ...state.player.attributes },
+    ability: currentAbility(state.player),
+    experience: state.player.experience,
   };
   state.history.push(record);
 

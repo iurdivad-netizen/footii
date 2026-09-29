@@ -1,4 +1,5 @@
 import { ATTRIBUTE_LABELS } from '../../core/player/attributes.ts';
+import { DevelopmentPanel } from '../components/DevelopmentPanel.ts';
 import { requestStands } from '../../core/career/transferRequest.ts';
 import { CONFIDENCE_NEUTRAL, confidenceTier } from '../../core/career/confidence.ts';
 import { TRAITS } from '../../core/player/traits.ts';
@@ -188,6 +189,9 @@ export class CareerScreen {
     this.element
       .querySelector<HTMLButtonElement>('#transfer-preferences')
       ?.addEventListener('click', handlers.onPreferences);
+    this.element
+      .querySelector<HTMLButtonElement>('#open-development')
+      ?.addEventListener('click', () => this.openDevelopment());
     this.element
       .querySelector<HTMLButtonElement>('#end-season')
       ?.addEventListener('click', handlers.onEndSeason);
@@ -515,6 +519,48 @@ export class CareerScreen {
   }
 
   /**
+   * THE CARD THAT OPENS.
+   *
+   * "Key attributes" showed eight numbers and stopped, which is a footballer as
+   * he is today and nothing about how he got there. The whole card is now the way
+   * in to the full picture: every attribute, and the whole career behind it.
+   *
+   * ONE TAB STOP, and it is the heading. The button is stretched over the card in
+   * CSS, so a click anywhere on the card opens it while a keyboard or a screen
+   * reader meets a single ordinary button — the alternative, a clickable div, has
+   * no keyboard story at all, and a card with a button in the corner makes the
+   * eight rows a dead zone.
+   */
+  private renderAttributesCard(): string {
+    return `<div class="career-card card-openable">
+        <h2>
+          <button type="button" class="card-open" id="open-development" aria-haspopup="dialog">
+            Key attributes<span class="visually-hidden"> — open the full development detail</span>
+            <span class="card-open-hint" aria-hidden="true">Full detail ›</span>
+          </button>
+        </h2>
+        ${this.renderAttributes()}
+      </div>`;
+  }
+
+  /** Open the development view over the hub. It closes itself and hands focus back. */
+  private openDevelopment(): void {
+    new DevelopmentPanel({
+      state: this.state,
+      // A club id the data file has never heard of falls back to the id rather
+      // than taking the whole panel down over one row of a table.
+      clubName: (id) => {
+        try {
+          return this.club(id).name;
+        } catch {
+          return id;
+        }
+      },
+      onClose: () => undefined,
+    }).open();
+  }
+
+  /**
    * KEY ATTRIBUTES, FOR THE POSITION HE ACTUALLY PLAYS.
    *
    * This card is titled "Key attributes" and showed the same eight for
@@ -725,7 +771,7 @@ export class CareerScreen {
               <div><dt>Best rating</dt><dd>${stats.bestRating ? stats.bestRating.toFixed(1) : '—'}</dd></div>
             </dl>`,
           )}
-          ${card('Key attributes', this.renderAttributes())}
+          ${this.renderAttributesCard()}
           ${this.renderRecords()}
         </div>`,
       },

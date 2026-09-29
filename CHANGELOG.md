@@ -288,6 +288,27 @@ yellow flash with a nearly transparent fill, it showed as a thin line. It was on
 magnifying the goal mouth, because at the size the pitch is normally seen the flash and the
 confetti hide everything else — which is also why "the tests pass" was not evidence that it worked.
 
+**20. The key attributes card should open to a full detail, showing development across the career.** ✅ **Done.**
+The request assumed the data existed. It did not: `history` stored statistics and nothing about the
+footballer, and the only attribute snapshot was the current season's, replaced every summer. So this
+was a recording change before it was a view — every season's close now stores what he was (attributes,
+ability, experience), and a career stores its first day — behind a save migration that states exactly
+what an older save can and cannot recover. The card is the way in to a dialog: two stat tiles, an
+ability line, all twenty attributes as dumbbells in four families with a key-only filter, a table view
+of every value, and a season-by-season table. See
+[The whole career, in one card](README.md#the-whole-career-in-one-card).
+
+For a career begun before this existed the record starts where it can, and the view says so. It does
+not guess a start: a line drawn from today's attributes would be flat across a career of growth.
+
+Four defects were found only by looking at it, each of them past every unit test: the card opened only
+when its *title* was clicked (the global `button:active` transform collapsed the stretched overlay
+that made the whole card clickable); the chart's text was half-size on a phone (SVG text scales with
+its viewBox); the season table hid the decision window off the edge of a phone; and two font sizes
+were under the project's floor. The first is the kind of bug worth remembering: it needed a real click
+on the real card, and the probe that showed it was the pointer-up landing on a different element from
+the pointer-down.
+
 ## Found while reviewing, and fixed
 
 Eight things that were not on either list, found by reading the code against what it claimed:

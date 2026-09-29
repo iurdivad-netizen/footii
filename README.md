@@ -1370,6 +1370,73 @@ does. The hub and the review now share one calculation against the same season-s
 so the figure you watch move is the figure June confirms. A change that rounds to nothing in
 hundredths is not shown at all.
 
+### The whole career, in one card
+
+The hub's **Key attributes** card showed a footballer as he is today, and every June's review showed
+how he moved in the season just finished. Nothing showed the whole arc — because nothing recorded
+it. `history` stored statistics: the game could say how many goals a season produced and not how the
+man scoring them had changed, and the only attribute snapshot was the current season's, replaced
+every summer.
+
+The card now opens. **Click anywhere on it** (or Tab to its heading and press Enter) and a dialog
+shows the career:
+
+- **Two stat tiles** — overall ability and the decision window, each with its change since the
+  career began. The window has a sparkline of its own.
+- **Overall ability by season**, a line with one marker per recorded moment. Hover or use the
+  arrow keys to read a season: the ability, the age, the window and the club.
+- **Every attribute, career start to now**, in four families (attacking, physical, mental,
+  defending) as **dumbbells**: a hollow ring where he started, a filled dot where he is, and the
+  distance between, on one shared 0–99 scale so Pace can be read against Finishing. Above them, in
+  words, the biggest gains and what slipped. A switch narrows it to the attributes that are key for
+  his position, and another swaps the whole thing for a **table** with every value at every point.
+- **The seasons**, one row each: age, club, ability and what it changed by, and the window.
+
+**Why these forms.** Ability over time is a line. The window is *not* drawn on that line: it is
+seconds and ability is a rating, so one plot would need two y-axes and two axes let a chart invent a
+relationship by where it draws them; it gets its own tile. Twenty attributes are "before and after,
+per item", which is a dumbbell and not twenty overlapping lines nobody could read. Start and now are
+told apart by **shape as well as colour** — they are two greens, and under colour blindness two
+greens are nearly one.
+
+**What is recorded, and what cannot be.** Each season's close now stores the footballer as he was:
+attributes, ability and experience, taken *before* ageing and before the summer's training, so
+training shows up as growth in the season it belongs to. A career stores its first day too. For
+careers that began before this existed the record cannot be reconstructed, and the game does not
+pretend otherwise:
+
+| the save | what it gets |
+|---|---|
+| no season finished yet | its exact first day — the season-start snapshot *is* the first day, because nothing has been trained |
+| seasons finished, none recorded | no first day. It draws the start of the season in progress and *now*, and says where the record begins and that earlier development cannot be recovered |
+| recorded from here on | whole again from its next season close |
+
+A start guessed from today's attributes would draw a flat line across a career of growth, which is
+worse than no line. A season with no attributes is skipped rather than drawn as a hole.
+
+**Four things found by looking, not by testing** — each passed every unit test that existed:
+
+- **The card only opened when you clicked its title.** The button is stretched over the whole card
+  with `::after`, and the global `button:active` nudges a pressed button with a `transform` — which
+  makes it the containing block for its own `::after`, so the overlay collapsed onto the heading at
+  the moment of the click and the release landed on the paragraph beneath. It was invisible until a
+  real browser clicked the card body. The same global rules gave the heading a hover background.
+- **The chart's text was half-size on a phone.** SVG text is sized in the units of its viewBox, so a
+  chart drawn 640 wide and shown 320 wide has 11px labels at 5.5px. There is a second, compact chart
+  drawn at roughly the width it will be shown, chosen by the browser's own media query and redrawn if
+  the phone is turned.
+- **The season table ran off the edge of a phone**, hiding the decision window — the one number the
+  view is about. It now fits: short row names, no age column (it is on the chart's axis), and a
+  club name allowed to wrap.
+- **Two font sizes were under the project's floor of 0.7rem**, caught by an existing test.
+
+It is a dialog rather than a screen because it is a look at the same career and not a place to go:
+focus moves in, Tab cannot leave, Escape and the backdrop close it, focus goes back to the card, and
+the page behind stops scrolling. Tooltips enhance and never gate — every value is also in a row's
+spoken label or the table — and are written with `textContent`, because a club or a player's name is
+data. See `core/career/attributeTimeline.ts`, `ui/developmentView.ts` and
+`ui/components/DevelopmentPanel.ts`.
+
 ### The season so far
 
 The hub could say what happened last Saturday and nothing about the shape of the year around it. A
