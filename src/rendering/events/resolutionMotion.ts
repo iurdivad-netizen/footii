@@ -181,3 +181,130 @@ function stepIn(input: ReactionInput, share: number): Reaction {
   );
   return { opponentTo: to, ballTo: to };
 }
+
+// ------------------------------------------------------------------ saves ---
+
+/**
+ * IS THIS SAVE A PARRY?
+ *
+ * The engine already decides. `resolveShot` rolls the keeper's handling and, when
+ * he cannot hold it, writes "he can only parry it!" and marks the outcome as
+ * retaining possession; otherwise it writes "saves". The replay never read that
+ * and drew every save as the ball stopping dead in his hands, so a line of
+ * commentary said one thing and the picture said the other — the same fault as
+ * the keeper diving to the wrong post, in the one animation the mechanic is
+ * about.
+ *
+ * So the picture is told, rather than choosing. Nothing here is invented, which
+ * is why it needs no randomness and cannot disagree with the text: the only
+ * source of a parry is the engine's own roll.
+ */
+export function isParry(outcome: { kind: OutcomeKind; retainedPossession: boolean }): boolean {
+  return outcome.kind === 'saved' && outcome.retainedPossession;
+}
+
+export interface ReboundInput {
+  /** Where the keeper is when he gets a hand to it. */
+  keeper: Point;
+  /** Which side the shot was aimed at: -1 left, +1 right, 0 down the middle. */
+  aim: -1 | 0 | 1;
+  /** Which side the shooter is on, for a shot with no side of its own. */
+  shooterSide: -1 | 1;
+  goalCentre: number;
+  goalW: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Where a parried ball ends up.
+ *
+ * Pushed WIDE, on the side it was aimed at, and out into the box: a keeper who
+ * can only parry it is putting it away from goal rather than back across it,
+ * which is also why a parry is a loose ball in front of goal and not a corner.
+ * A shot down the middle goes to the shooter's side, which is the side he will
+ * be able to get to it from. Deterministic — the same shot always rebounds the
+ * same way — because a replay that varied between viewings would be a replay of
+ * something that did not happen.
+ */
+export function reboundPoint(input: ReboundInput): Point {
+  const { keeper, goalCentre, goalW, width, height } = input;
+  const dir = input.aim || input.shooterSide;
+  return {
+    x: Math.min(width - 10, Math.max(10, goalCentre + dir * goalW * 0.85)),
+    // Out into play but never past the penalty spot's depth: still in the box.
+    y: Math.min(height * 0.42, keeper.y + height * 0.2),
+  };
+}
+
+/** How long a keeper takes to gather a ball he has caught, in seconds. */
+export const GATHER_SECONDS = 0.35;
+
+/**
+ * The keeper's size as he gathers a caught ball, 1 before and after.
+ *
+ * A catch used to be a ball that stopped, and nothing about the man who stopped
+ * it: no difference at all between a keeper who took it and a wall. A brief
+ * swell as he closes on it is what a catch looks like from above, and it is the
+ * difference on screen from a parry, where he does not close on it at all and
+ * the ball goes on.
+ */
+export function gatherScale(sinceTouch: number): number {
+  if (sinceTouch <= 0) return 1;
+  const share = Math.min(1, sinceTouch / GATHER_SECONDS);
+  return 1 + 0.3 * Math.sin(Math.PI * share);
+}
+
+// -------------------------------------------------------------------- net ---
+
+/**
+ * THE NET, WHEN THE BALL HITS IT.
+ *
+ * A goal ended with the ball vanishing at the goal line and a yellow flash over
+ * the frame: a result with no object in it. What a goal looks like is a net that
+ * takes the ball — a ripple that starts where it landed and travels out to both
+ * posts, and dies away.
+ *
+ * A TRAVELLING WAVE, NOT A WOBBLE. Every column moving in unison would be the
+ * whole net bouncing on a spring; a net is a surface, and the disturbance has to
+ * take time to reach the far post. So each column starts moving when the front
+ * arrives, and moves as a damped oscillation from then on.
+ */
+
+/** Pixels per second the disturbance travels along the net. */
+export const NET_WAVE_SPEED = 260;
+/** How far the net bulges at the point of impact, in pixels. */
+export const NET_AMPLITUDE = 10;
+/** How fast the oscillation dies away, per second. */
+export const NET_DAMPING = 3.2;
+/** Oscillations per second, in radians. */
+export const NET_FREQUENCY = 2 * Math.PI * 3.2;
+/** How much of it is lost per pixel of distance from the impact. */
+export const NET_SPREAD_LOSS = 0.012;
+
+/**
+ * How far the net at column `x` is pushed, `since` seconds after the ball hit
+ * at `impactX`. Positive is into the pitch, the way the ball is pushing it.
+ * Zero until the wave arrives, and zero again in effect a second or so later.
+ */
+export function netDisplacement(
+  x: number,
+  impactX: number,
+  since: number,
+  amplitude = NET_AMPLITUDE,
+): number {
+  if (since <= 0) return 0;
+  const distance = Math.abs(x - impactX);
+  const age = since - distance / NET_WAVE_SPEED;
+  // The front has not reached this column yet.
+  if (age <= 0) return 0;
+  // A damped sine starts at zero and rises, which is exactly a wavefront
+  // arriving: no discontinuity to smooth over, and the first half-cycle is the
+  // push into the pitch.
+  return (
+    amplitude *
+    Math.exp(-age * NET_DAMPING) *
+    Math.exp(-distance * NET_SPREAD_LOSS) *
+    Math.sin(age * NET_FREQUENCY)
+  );
+}

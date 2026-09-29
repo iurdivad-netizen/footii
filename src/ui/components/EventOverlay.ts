@@ -528,7 +528,17 @@ export class EventOverlay {
    * see ui/replay.ts — or when there is no scene to animate over. A resolution
    * with no picture is the banner's job, exactly as before.
    */
-  async playResolution(outcome: OutcomeKind, option: ActionOption | null): Promise<void> {
+  async playResolution(
+    outcome: OutcomeKind,
+    option: ActionOption | null,
+    /**
+     * What the engine knows about the outcome that its kind does not say. Only
+     * `parried` today: a save is a catch or a parry, and the engine has already
+     * decided which. Optional, because a shootout kick has no such detail and
+     * its saves stay a catch.
+     */
+    detail: { parried?: boolean } = {},
+  ): Promise<void> {
     const scene = this.resolutionScene;
     this.resolutionScene = null;
     sound.crowd(0);
@@ -550,6 +560,7 @@ export class EventOverlay {
         actionKind: option?.kind ?? 'shootCentre',
         family: option?.family ?? 'shot',
         celebration: celebrationSize(reaction.mood),
+        ...(detail.parried ? { parried: true } : {}),
       },
       () => {
         this.showOutcomeLabel(outcome);

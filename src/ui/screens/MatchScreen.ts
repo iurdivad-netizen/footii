@@ -7,6 +7,7 @@ import type { DebugPanel } from '../components/DebugPanel.ts';
 import { MATCH_SPEEDS, clampSpeedIndex } from './matchSpeeds.ts';
 import { sound } from '../../audio/SoundEngine.ts';
 import { newLineCount, scoreChange } from '../matchFeedback.ts';
+import { isParry } from '../../rendering/events/resolutionMotion.ts';
 import type { MatchCommentaryLine } from '../../core/match/matchState.ts';
 
 /**
@@ -231,7 +232,9 @@ export class MatchScreen {
       this.debug.recordResolution(resolution);
       // The ending, shown where the question was asked, before the overlay
       // comes down. See EventOverlay.playResolution.
-      await this.overlay.playResolution(resolution.result.outcome.kind, resolution.option);
+      await this.overlay.playResolution(resolution.result.outcome.kind, resolution.option, {
+        parried: isParry(resolution.result.outcome),
+      });
       this.overlay.hide();
 
       this.showOutcome(resolution.result.outcome.kind, resolution.instinctReason);
