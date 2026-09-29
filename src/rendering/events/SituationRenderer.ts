@@ -9,12 +9,24 @@ import type { Channel, Third } from '../../core/events/zones.ts';
 import { clamp01 } from '../../core/util/math.ts';
 import { POSITION_PROFILES } from '../../core/player/positions.ts';
 import type { Position } from '../../core/player/positions.ts';
+import {
+  PITCH,
+  defendingDepth,
+  keeperX,
+  nearSide,
+  opponentCount,
+  opponentGap,
+  ownGoalInView,
+} from './pitchLayout.ts';
 
 /**
  * SITUATION RENDERER
  *
- * Minimalist canvas view of the moment, drawn from the attacker's perspective:
- * goal at the top, the player at the bottom, defenders between.
+ * Minimalist canvas view of the moment. Attacking, the goal is at the top, the
+ * player at the bottom, defenders between. Defending in his own third it is the
+ * other way up — his goal behind him at the bottom, the opposition coming down
+ * the pitch from the top — see pitchLayout.ts:ownGoalInView. Either way the team
+ * plays UP the picture, so "forward" is a smaller y in both.
  *
  * Its only job is to make the goalkeeper's behaviour READABLE — the player has
  * to be able to see him commit, because that is the information the decision
@@ -340,6 +352,7 @@ export class SituationRenderer {
   /** Vertical position (0-1, 0 = goal line) implied by the zone. */
   private depthY(state: RenderState): number {
     const { zone } = state.context;
+    if (ownGoalInView(state.context)) return defendingDepth(zone.box);
     if (zone.box === 'inside') return 0.55;
     if (zone.box === 'edge') return 0.7;
     return zone.third === 'attacking' ? 0.8 : 0.9;
@@ -348,6 +361,25 @@ export class SituationRenderer {
   /** Where the goal is aimed at: the centre of the mouth, on the goal line. */
   private goalMouth(): Point {
     return { x: this.width / 2, y: 6 };
+  }
+
+  /** The goal he is defending, at the bottom of the picture. */
+  private ownGoalMouth(): Point {
+    return { x: this.width / 2, y: this.height - 6 };
+  }
+
+  /**
+   * Where the ball is when the picture settles.
+   *
+   * At his own feet when he is attacking, on the side facing the goal. When he
+   * is defending it is not his: it is at the feet of the man he is up against,
+   * on the side facing the goal that man is attacking.
+   */
+  private ballSpot(state: RenderState, playerX: number, playerY: number): Point {
+    if (ownGoalInView(state.context)) {
+      return ballAtFeet(this.nearestDefender(state, this.width, this.height), this.ownGoalMouth());
+    }
+    return this.ballAtFeet(playerX, playerY);
   }
 
   /**
@@ -384,6 +416,16 @@ export class SituationRenderer {
   private moveOrigin(state: RenderState): Point {
     const { width: w, height: h } = this;
     const player = { x: this.channelX(state) * w, y: this.depthY(state) * h };
+    if (ownGoalInView(state.context)) {
+      // It comes down the pitch to the man he is defending against: from the
+      // top and across, the mirror of the attacking fallback below.
+      const carrier = this.nearestDefender(state, w, h);
+      const side = Math.sign(carrier.x - w / 2) || 1;
+      return {
+        x: Math.min(w - 14, Math.max(14, w / 2 - side * w * 0.32)),
+        y: Math.max(10, carrier.y - h * 0.24),
+      };
+    }
     if (state.showTeammates) {
       const spots = this.teammateSpots(state).map((entry) => entry.spot);
       const deepest = spots.reduce<Point | null>(
@@ -432,24 +474,34 @@ export class SituationRenderer {
       ctx.fillRect(0, (i / 6) * h, w, h / 6);
     }
 
-    // --- penalty area & six-yard box ---
+    // --- penalty area, six-yard box, goal and keeper ---
+    //
+    // Drawn in goal-line-at-the-top coordinates and turned over when the goal in
+    // view is the one he is defending. Everything in it is symmetrical about
+    // its own centre line, so the flip changes where it is and nothing else.
+    const flipped = ownGoalInView(state.context);
+    ctx.save();
+    if (flipped) {
+      ctx.translate(0, h);
+      ctx.scale(1, -1);
+    }
     ctx.strokeStyle = COLOURS.line;
     ctx.lineWidth = 2;
-    const boxW = w * 0.62;
-    const boxH = h * 0.46;
+    const boxW = w * PITCH.boxW;
+    const boxH = h * PITCH.boxH;
     ctx.strokeRect((w - boxW) / 2, 0, boxW, boxH);
-    const sixW = w * 0.3;
-    const sixH = h * 0.2;
+    const sixW = w * PITCH.sixW;
+    const sixH = h * PITCH.sixH;
     ctx.strokeRect((w - sixW) / 2, 0, sixW, sixH);
 
     // penalty spot
     ctx.fillStyle = COLOURS.line;
     ctx.beginPath();
-    ctx.arc(w / 2, h * 0.34, 2.5, 0, Math.PI * 2);
+    ctx.arc(w / 2, h * PITCH.spotY, 2.5, 0, Math.PI * 2);
     ctx.fill();
 
     // --- goal ---
-    const goalW = w * 0.34;
+    const goalW = w * PITCH.goalW;
     const goalX = (w - goalW) / 2;
     ctx.fillStyle = COLOURS.goal;
     ctx.fillRect(goalX, 0, goalW, 8);
@@ -464,7 +516,7 @@ export class SituationRenderer {
 
     // --- goalkeeper ---
     if (state.showGoalkeeper && !hidden.keeper) {
-      const keeper = this.keeperPosition(state, w, h, goalX, goalW);
+      const keeper = this.keeperPosition(state, h, goalX, goalW);
       ctx.fillStyle = state.committed ? COLOURS.keeperCommitted : COLOURS.keeper;
       ctx.beginPath();
       ctx.ellipse(keeper.x, keeper.y, keeper.rx, keeper.ry, 0, 0, Math.PI * 2);
@@ -480,6 +532,7 @@ export class SituationRenderer {
         ctx.stroke();
       }
     }
+    ctx.restore();
 
     // --- the player, wherever he has got to ---
     //
@@ -498,10 +551,12 @@ export class SituationRenderer {
     // number of bodies nearby reads as pressure ARRIVING rather than as
     // furniture that was always there.
     ctx.fillStyle = COLOURS.defender;
-    for (let i = 0; i < state.context.nearbyDefenders; i++) {
-      const spread = (i - (state.context.nearbyDefenders - 1) / 2) * (w * 0.13);
+    const opponents = opponentCount(state.context.nearbyDefenders, flipped);
+    const gap = opponentGap(flipped);
+    for (let i = 0; i < opponents; i++) {
+      const spread = (i - (opponents - 1) / 2) * (w * 0.13);
       const finalX = settledX + spread * 0.9;
-      const finalY = settledY - h * (0.1 + (i % 2) * 0.07);
+      const finalY = settledY - h * (gap + (i % 2) * 0.07);
       // Twice the distance out at the start of the move, clamped so nobody is
       // pushed off the picture on a wide chance.
       const loose = 1 + (1 - develop) * 1.0;
@@ -537,8 +592,9 @@ export class SituationRenderer {
       ctx.fill();
     }
     if (!hidden.ball) {
-      const settled = this.ballAtFeet(playerX, playerY);
-      // THE BALL COMES TO HIM. It starts where the move started — the deepest
+      const settled = this.ballSpot(state, playerX, playerY);
+      // THE BALL COMES TO HIM — or, defending, to the man he is up against. It
+      // starts where the move started — the deepest
       // man on the pitch, or deep and central when nobody is named — and
       // arrives at his feet a little BEFORE the last beat, so it is under
       // control by the time the options appear rather than still rolling.
@@ -587,14 +643,12 @@ export class SituationRenderer {
 
   private keeperPosition(
     state: RenderState,
-    w: number,
     h: number,
     goalX: number,
     goalW: number,
   ): { x: number; y: number; rx: number; ry: number } {
     const centre = goalX + goalW / 2;
     const depth = state.context.goalkeeper.startingDepth;
-    let x = centre;
     let y = h * (0.06 + depth * 0.12);
     let rx = 9;
     let ry = 11;
@@ -609,12 +663,7 @@ export class SituationRenderer {
         y = h * 0.2;
         break;
       case 'divingNear':
-        x = centre - goalW * 0.3;
-        rx = 14;
-        ry = 8;
-        break;
       case 'divingFar':
-        x = centre + goalW * 0.3;
         rx = 14;
         ry = 8;
         break;
@@ -630,9 +679,8 @@ export class SituationRenderer {
         break;
     }
 
-    // Drift the keeper toward the ball's channel so angles read correctly.
-    const bias = (this.channelX(state) - 0.5) * w * 0.25;
-    return { x: x + bias, y, rx, ry };
+    // Near and far are the player's, not the picture's: see pitchLayout.ts.
+    return { x: keeperX(state.keeperAction, this.channelX(state), centre, goalW), y, rx, ry };
   }
 
   // ------------------------------------------------------------ resolution ---
@@ -643,9 +691,9 @@ export class SituationRenderer {
    * why this needs the state and not just the action's name.
    */
   private aimDirection(state: RenderState, kind: ActionKind): number {
-    const side = Math.sign(this.channelX(state) - 0.5);
-    if (kind.includes('NearPost')) return side || -1;
-    if (kind.includes('FarPost') || kind.includes('AcrossGoal')) return -(side || 1);
+    const near = nearSide(this.channelX(state));
+    if (kind.includes('NearPost')) return near;
+    if (kind.includes('FarPost') || kind.includes('AcrossGoal')) return -near;
     if (kind.includes('Left')) return -1;
     if (kind.includes('Right')) return 1;
     return 0;
@@ -655,11 +703,13 @@ export class SituationRenderer {
   private nearestDefender(state: RenderState, w: number, h: number): { x: number; y: number } {
     const playerX = this.channelX(state) * w;
     const playerY = this.depthY(state) * h;
-    const n = state.context.nearbyDefenders;
+    const flipped = ownGoalInView(state.context);
+    const n = opponentCount(state.context.nearbyDefenders, flipped);
+    const gap = opponentGap(flipped);
     if (n === 0) return { x: playerX, y: playerY - h * 0.18 };
     const i = Math.floor((n - 1) / 2);
     const spread = (i - (n - 1) / 2) * (w * 0.13);
-    return { x: playerX + spread * 0.9, y: playerY - h * (0.1 + (i % 2) * 0.07) };
+    return { x: playerX + spread * 0.9, y: playerY - h * (gap + (i % 2) * 0.07) };
   }
 
   /**
@@ -675,7 +725,7 @@ export class SituationRenderer {
     // The ball leaves from where it was drawn at his feet, not from a corner of
     // him: a flight that starts somewhere the ball never was reads as a jump.
     const from = this.ballAtFeet(playerX, playerY);
-    const goalW = w * 0.34;
+    const goalW = w * PITCH.goalW;
     const goalCentre = w / 2;
     const dir = this.aimDirection(state, cue.actionKind);
     const side = Math.sign(this.channelX(state) - 0.5) || 1;
@@ -709,7 +759,7 @@ export class SituationRenderer {
           flight: 0.75,
         });
       case 'saved': {
-        const keeper = this.keeperPosition(state, w, h, goalCentre - goalW / 2, goalW);
+        const keeper = this.keeperPosition(state, h, goalCentre - goalW / 2, goalW);
         return plan({ x: keeper.x, y: keeper.y }, COLOURS.keeperCommitted, { flight: 0.75 });
       }
       case 'post':
@@ -878,17 +928,15 @@ export class SituationRenderer {
     // where he was standing to where he ends up.
     const keeperFrom = this.keeperPosition(
       { ...state, keeperAction: 'set' },
-      this.width,
       this.height,
-      (this.width - this.width * 0.34) / 2,
-      this.width * 0.34,
+      (this.width - this.width * PITCH.goalW) / 2,
+      this.width * PITCH.goalW,
     );
     const keeperTo = this.keeperPosition(
       state,
-      this.width,
       this.height,
-      (this.width - this.width * 0.34) / 2,
-      this.width * 0.34,
+      (this.width - this.width * PITCH.goalW) / 2,
+      this.width * PITCH.goalW,
     );
 
     return new Promise((resolve) => {
@@ -993,8 +1041,10 @@ export class SituationRenderer {
             ctx.stroke();
             ctx.globalAlpha = 1;
           }
-          if (planned.netFlash) {
-            const goalW = this.width * 0.34;
+          // Only where the goal is drawn at the top: a defender's own goal is at
+          // the bottom, and a flash on empty turf would celebrate nothing.
+          if (planned.netFlash && !ownGoalInView(state.context)) {
+            const goalW = this.width * PITCH.goalW;
             ctx.fillStyle = '#facc15';
             ctx.globalAlpha = (1 - after) * 0.8;
             ctx.fillRect((this.width - goalW) / 2, 0, goalW, 10);

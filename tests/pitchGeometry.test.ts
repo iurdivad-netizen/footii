@@ -7,6 +7,18 @@ import {
   MAX_RECEIVERS_DRAWN,
   ballAlongPath,
 } from '../src/rendering/events/SituationRenderer.ts';
+import {
+  PITCH,
+  defendingDepth,
+  keeperX,
+  opponentCount,
+  opponentGap,
+  ownGoalInView,
+} from '../src/rendering/events/pitchLayout.ts';
+import { zoneSide } from '../src/core/events/zones.ts';
+import type { Third, Zone } from '../src/core/events/zones.ts';
+import type { SituationType } from '../src/core/events/types.ts';
+import { context } from './helpers.ts';
 import { OUTFIELD_POSITIONS } from '../src/core/player/positions.ts';
 import {
   SITUATION_TEMPLATES,
@@ -373,5 +385,157 @@ describe('standing over the ball', () => {
       'utf8',
     );
     expect(overlay).toMatch(/standsOverTheBall\(event\.template\)/);
+  });
+});
+
+/**
+ * THE KEEPER DIVES THE WAY THE TEXT SAYS, THE GOAL IS THE RIGHT SIZE, AND A
+ * DEFENDER IS NOT DRAWN ATTACKING.
+ *
+ * Three reports from players. The near-post option said "(right)" and the
+ * keeper was drawn going left; the six-yard box was drawn narrower than the
+ * goal it is meant to surround; and a centre back in his own third was shown
+ * shooting at the opposition's goal.
+ */
+describe('the keeper dives where the text says', () => {
+  const centre = 240;
+  const goalW = 96;
+
+  it('sends the near-post dive to the SHOOTER\'s side, on both wings', () => {
+    // From the right the near post is the right post; from the left, the left.
+    expect(keeperX('divingNear', 0.84, centre, goalW)).toBeGreaterThan(centre);
+    expect(keeperX('divingNear', 0.16, centre, goalW)).toBeLessThan(centre);
+    expect(keeperX('divingNear', 0.66, centre, goalW)).toBeGreaterThan(centre);
+    expect(keeperX('divingNear', 0.34, centre, goalW)).toBeLessThan(centre);
+  });
+
+  it('sends the far-post dive to the other one', () => {
+    expect(keeperX('divingFar', 0.84, centre, goalW)).toBeLessThan(centre);
+    expect(keeperX('divingFar', 0.16, centre, goalW)).toBeGreaterThan(centre);
+  });
+
+  it('never lets near and far mean the same post, even from the middle', () => {
+    // They did: for a central player both resolved to the left.
+    const near = keeperX('divingNear', 0.5, centre, goalW);
+    const far = keeperX('divingFar', 0.5, centre, goalW);
+    expect(near).not.toBe(far);
+    expect(Math.sign(near - centre)).toBe(-Math.sign(far - centre));
+  });
+
+  it('agrees with the option labels about which side is near', () => {
+    // The label is built from zoneSide(); the picture from the channel's x. If
+    // the two ever disagreed the text would name one post and the keeper go to
+    // the other, which is the bug. Every channel, both words.
+    const channels = { left: 0.16, leftHalf: 0.34, central: 0.5, rightHalf: 0.66, right: 0.84 };
+    for (const [channel, x] of Object.entries(channels)) {
+      const side = zoneSide({ third: 'attacking', channel, box: 'inside' } as Zone);
+      if (side === 'centre') continue;
+      const near = keeperX('divingNear', x, centre, goalW);
+      expect(near > centre ? 'right' : 'left').toBe(side);
+    }
+  });
+
+  it('keeps every keeper position inside the posts', () => {
+    const actions = ['set', 'advancing', 'rushing', 'divingNear', 'divingFar', 'goingToGround', 'holdingLine'] as const;
+    for (const action of actions) {
+      for (const x of [0.16, 0.34, 0.5, 0.66, 0.84]) {
+        const kx = keeperX(action, x, centre, goalW);
+        expect(kx).toBeGreaterThanOrEqual(centre - goalW / 2);
+        expect(kx).toBeLessThanOrEqual(centre + goalW / 2);
+      }
+    }
+  });
+
+  it('makes a dive a clearly visible move, not a shuffle', () => {
+    expect(Math.abs(keeperX('divingNear', 0.84, centre, goalW) - centre)).toBeGreaterThan(goalW * 0.25);
+  });
+});
+
+describe('the goal is narrower than the boxes around it', () => {
+  it('draws the six-yard box wider than the goal, and the penalty area wider than both', () => {
+    expect(PITCH.sixW).toBeGreaterThan(PITCH.goalW);
+    expect(PITCH.boxW).toBeGreaterThan(PITCH.sixW);
+  });
+
+  it('keeps them in a believable ratio to a real pitch', () => {
+    // Real: goal : six-yard is 1 : 2.5. Allowed to be squarer than that for the
+    // keeper's sake, but a box only just wider than the goal reads as a mistake.
+    expect(PITCH.sixW / PITCH.goalW).toBeGreaterThan(1.4);
+    expect(PITCH.sixW / PITCH.goalW).toBeLessThan(2.6);
+  });
+
+  it('keeps the six-yard box inside the penalty area, and both shallower than the pitch', () => {
+    expect(PITCH.sixH).toBeLessThan(PITCH.spotY);
+    expect(PITCH.spotY).toBeLessThan(PITCH.boxH);
+    expect(PITCH.boxH).toBeLessThan(1);
+  });
+
+  it('has no stray copy of the old goal width in the renderer', () => {
+    const renderer = readFileSync(
+      new URL('../src/rendering/events/SituationRenderer.ts', import.meta.url),
+      'utf8',
+    );
+    expect(renderer).not.toMatch(/w\s*\*\s*0\.34|width\s*\*\s*0\.34/);
+  });
+});
+
+describe('a defender is not drawn attacking', () => {
+  const at = (situation: SituationType, third: Third, box: 'inside' | 'edge' | 'outside') =>
+    context({ situation, zone: { third, box } });
+
+  it('turns the pitch over for a defensive moment in his own third', () => {
+    expect(ownGoalInView(at('defensiveDuel', 'defensive', 'edge'))).toBe(true);
+    expect(ownGoalInView(at('aerialDuel', 'defensive', 'inside'))).toBe(true);
+  });
+
+  it('leaves an attacking moment the way up it always was', () => {
+    for (const type of SITUATION_TYPES) {
+      if (SITUATION_TEMPLATES[type].defensive) continue;
+      expect(ownGoalInView(at(type, 'attacking', 'inside'))).toBe(false);
+    }
+  });
+
+  it('does not flip the pressing trap, whose top goal is the opposition\'s', () => {
+    expect(ownGoalInView(at('pressingTrap', 'attacking', 'outside'))).toBe(false);
+    expect(ownGoalInView(at('pressingTrap', 'middle', 'outside'))).toBe(false);
+  });
+
+  it('puts a defender between the opposition and his own goal', () => {
+    // Own goal at the bottom, so a defender is BELOW the man he faces, which
+    // means the man he faces has the smaller y. The three depths it can be.
+    for (const box of ['inside', 'edge', 'outside'] as const) {
+      const playerY = defendingDepth(box);
+      const opponentY = playerY - opponentGap(true);
+      expect(opponentY).toBeLessThan(playerY);
+      expect(playerY).toBeLessThan(1);
+    }
+  });
+
+  it('stands a man in the box lower on the picture than one outside it', () => {
+    expect(defendingDepth('inside')).toBeGreaterThan(defendingDepth('edge'));
+    expect(defendingDepth('edge')).toBeGreaterThan(defendingDepth('outside'));
+  });
+
+  it('puts an inside-the-box defender inside the penalty area that is drawn', () => {
+    // The area's top line is at 1 - boxH once the pitch is turned over.
+    expect(defendingDepth('inside')).toBeGreaterThan(1 - PITCH.boxH);
+    expect(defendingDepth('outside')).toBeLessThan(1 - PITCH.boxH);
+  });
+
+  it('always draws the man he is defending against', () => {
+    // "The last line of resistance" is a sentence about somebody.
+    expect(opponentCount(0, true)).toBe(1);
+    expect(opponentCount(2, true)).toBe(2);
+    // Attacking, none is none.
+    expect(opponentCount(0, false)).toBe(0);
+  });
+
+  it('keeps the ball clear of a defender\'s own disc when it is at the attacker\'s feet', () => {
+    const player = { x: 240, y: defendingDepth('edge') * H };
+    const attacker = { x: 240, y: player.y - opponentGap(true) * H };
+    const ball = ballAtFeet(attacker, { x: W / 2, y: H - 6 });
+    expect(Math.hypot(ball.x - player.x, ball.y - player.y)).toBeGreaterThan(9 + 3.5);
+    // and on the side facing the goal he is attacking, i.e. towards the defender
+    expect(ball.y).toBeGreaterThan(attacker.y);
   });
 });
