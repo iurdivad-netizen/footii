@@ -239,6 +239,19 @@ the rest of the match now, so it names what was different.
 The same pass put the benchmark decision window on the hub, where it had been shown only at the two
 ends of a season. See [The decision window, all season](README.md#the-decision-window-all-season).
 
+**16. The keeper dives the wrong way, the goal is wider than its box, and defenders attack.** ✅ **Done.**
+Three player reports, one file, and one cause: the picture and the text beside it had never been
+checked against each other. *Near post* was drawn on the left for everybody, so the label and the
+keeper disagreed for every player on the right; the goal was drawn at three times a real pitch's
+proportion to the boxes around it, in five separate literals; and there was no such thing as a
+defensive orientation, so a defender in his own third was shown attacking the opposition's goal. See
+[Three things the pitch got wrong](README.md#three-things-the-pitch-got-wrong).
+
+Found on the way and left alone: an attacking moment described as *inside the box* is drawn about
+twenty pixels **below** the penalty area's line (depth 0.55 against a box that ends at 0.46). Moving
+him up puts him on top of a keeper who has rushed out, so it wants its own look rather than a
+passing edit.
+
 ## Found while reviewing, and fixed
 
 Eight things that were not on either list, found by reading the code against what it claimed:

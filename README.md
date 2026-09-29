@@ -388,6 +388,37 @@ That creates the central tension:
 
 There is no universally optimal button. That's the point.
 
+#### Three things the pitch got wrong
+
+Reported by players, and all three were the picture disagreeing with the text beside it.
+
+**The keeper dived the wrong way.** The options say *near post* and *far post* relative to where you
+are standing — from the right, the near post is the right post — and the keeper was drawn with
+*near* always on the left. For anybody on the right wing the text named one post and the picture
+showed the other, which is exactly the contradiction the keeper strip exists to remove. He now goes
+to your side for near and the opposite side for far, and a test checks the picture against the
+label for every channel. A central player has no near post, so the left is called near; the two
+words used to resolve to the *same* post there.
+
+**The goal was wider than the six-yard box.** It was drawn at 0.34 of the pitch's width against a box
+of 0.30, on a real pitch where the box is two and a half times the goal. The goal was the one thing
+at the wrong scale, and it was written as a literal in five places. It is a single constant now, at
+0.20, with the boxes at 0.34 and 0.66. The ratio is deliberately squarer than a real pitch's
+(1 : 1.7 rather than 1 : 2.5): the dive is the read the game is built on, and at true scale it would
+be a twelve-pixel movement on a phone.
+
+**A defender was drawn attacking.** Every scene had a goal at the top with the player below it and
+the opposition between the two, so a centre back in his own third looked like he was shooting at the
+wrong goal. When you are defending in your own third the pitch is now the other way up: your goal
+behind you at the bottom, the man with the ball coming down at you from the top, and the ball at
+*his* feet rather than yours. The team still plays up the picture either way, so "forward" is the
+same direction in both.
+
+The **pressing trap** is deliberately not turned over. You are the first man closing down a team
+playing out from the back, in their half, and the goal at the top of that picture is theirs — where
+it belongs. Flipping it would draw your own goal sixty metres closer than it is. See
+`rendering/events/pitchLayout.ts`.
+
 #### Reading the rest of it
 
 Two smaller things around that strip, both of which had been quietly wrong since the overlay was
