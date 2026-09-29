@@ -1,16 +1,22 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  GATHER_SECONDS,
   INTERCEPT_AT,
   MAX_SPARK_STEP,
   SPARK_GRAVITY,
+  gatherScale,
+  isParry,
   opponentReaction,
+  reboundPoint,
   stepSpark,
 } from '../src/rendering/events/resolutionMotion.ts';
 import type { ReactionInput, Spark } from '../src/rendering/events/resolutionMotion.ts';
 import { SituationRenderer } from '../src/rendering/events/SituationRenderer.ts';
 import type { RenderState, ResolutionCue } from '../src/rendering/events/SituationRenderer.ts';
 import { newLineCount, scoreChange } from '../src/ui/matchFeedback.ts';
+import { MatchEngine } from '../src/simulation/MatchEngine.ts';
+import { getGoalkeeperForTeam, getPreset, getTeam } from '../src/data/gameData.ts';
 import { context, goalkeeperState } from './helpers.ts';
 
 /**
@@ -379,5 +385,210 @@ describe('the match screen and stylesheet carry it', () => {
   it('does not flash on a match opened part-way through', () => {
     expect(screen).toMatch(/this\.shownScore = \{/);
     expect(screen).toMatch(/this\.lastLine = engine\.state\.commentary/);
+  });
+});
+
+// ------------------------------------------------------------------ saves ---
+
+describe('a save is a catch or a parry, as the engine decided', () => {
+  const goalCentre = W / 2;
+  const goalW = W * 0.2;
+  const keeper = { x: goalCentre + 20, y: 30 };
+  const rebound = (over: Partial<Parameters<typeof reboundPoint>[0]> = {}) =>
+    reboundPoint({
+      keeper,
+      aim: 1,
+      shooterSide: 1,
+      goalCentre,
+      goalW,
+      width: W,
+      height: H,
+      ...over,
+    });
+
+  it('is a parry exactly when the engine said it saved and kept possession', () => {
+    expect(isParry({ kind: 'saved', retainedPossession: true })).toBe(true);
+    expect(isParry({ kind: 'saved', retainedPossession: false })).toBe(false);
+    // Retaining possession means nothing on an outcome that was not a save.
+    expect(isParry({ kind: 'passCompleted', retainedPossession: true })).toBe(false);
+    expect(isParry({ kind: 'goal', retainedPossession: true })).toBe(false);
+  });
+
+  it('pushes the ball wide of the post, on the side it was aimed at', () => {
+    expect(rebound({ aim: 1 }).x).toBeGreaterThan(goalCentre + goalW / 2);
+    expect(rebound({ aim: -1 }).x).toBeLessThan(goalCentre - goalW / 2);
+  });
+
+  it('sends a shot down the middle to the shooter\'s side', () => {
+    expect(rebound({ aim: 0, shooterSide: 1 }).x).toBeGreaterThan(goalCentre);
+    expect(rebound({ aim: 0, shooterSide: -1 }).x).toBeLessThan(goalCentre);
+  });
+
+  it('keeps it in play in front of goal, not past the goal line and not out of the box', () => {
+    const point = rebound();
+    expect(point.y).toBeGreaterThan(keeper.y);
+    expect(point.y).toBeLessThanOrEqual(H * 0.42);
+  });
+
+  it('moves it a clearly visible distance from the keeper', () => {
+    const point = rebound();
+    expect(Math.hypot(point.x - keeper.x, point.y - keeper.y)).toBeGreaterThan(goalW * 0.5);
+  });
+
+  it('never leaves the canvas, even from a keeper at the edge', () => {
+    for (const aim of [-1, 1] as const) {
+      const point = rebound({ aim, goalCentre: aim * 400 + W / 2, keeper: { x: 5, y: 200 } });
+      expect(point.x).toBeGreaterThanOrEqual(10);
+      expect(point.x).toBeLessThanOrEqual(W - 10);
+    }
+  });
+
+  it('rebounds the same way every time it is replayed', () => {
+    expect(rebound()).toEqual(rebound());
+  });
+
+  it('has the keeper swell as he gathers a catch, and be back to normal after', () => {
+    expect(gatherScale(-1)).toBe(1);
+    expect(gatherScale(0)).toBe(1);
+    expect(gatherScale(GATHER_SECONDS / 2)).toBeCloseTo(1.3, 6);
+    expect(gatherScale(GATHER_SECONDS)).toBeCloseTo(1, 6);
+    expect(gatherScale(10)).toBe(1);
+  });
+});
+
+describe('the replay draws the save the engine made', () => {
+  const noop = new Proxy(() => undefined, { get: () => noop, apply: () => undefined });
+  const ctx = new Proxy({} as Record<string, unknown>, {
+    get: (_t, key) => (key === 'canvas' ? undefined : noop),
+    set: () => true,
+  });
+  const canvas = {
+    getContext: () => ctx,
+    getBoundingClientRect: () => ({ width: W, height: H }),
+    width: 0,
+    height: 0,
+  } as unknown as HTMLCanvasElement;
+  const globals = globalThis as { window?: unknown };
+  let saved: unknown;
+  beforeEach(() => {
+    saved = globals.window;
+    globals.window = { devicePixelRatio: 1 };
+  });
+  afterEach(() => {
+    globals.window = saved;
+  });
+
+  const shot: RenderState = {
+    context: context({
+      situation: 'boxSideAttack',
+      zone: { channel: 'right', box: 'inside' },
+      nearbyDefenders: 1,
+      goalkeeper: goalkeeperState(undefined, { committedAction: 'divingNear' }),
+    }),
+    progress: 1,
+    committed: true,
+    keeperAction: 'divingNear',
+    showGoalkeeper: true,
+  };
+  const plan = (cue: Partial<ResolutionCue>) =>
+    (
+      new SituationRenderer(canvas) as unknown as {
+        resolutionPlan: (s: RenderState, c: ResolutionCue) => Record<string, unknown>;
+      }
+    ).resolutionPlan(shot, {
+      outcome: 'saved',
+      actionKind: 'shootNearPost',
+      family: 'shot',
+      ...cue,
+    });
+
+  it('stops a caught ball with the keeper, and touches it at the end of its flight', () => {
+    const p = plan({});
+    expect(p.via).toBeUndefined();
+    expect(p.impactAt).toBeUndefined();
+    expect(p.impact).toBeUndefined();
+  });
+
+  it('sends a parried ball on through the keeper and away, touching it half way', () => {
+    const p = plan({ parried: true }) as {
+      via: { x: number; y: number };
+      to: { x: number; y: number };
+      impactAt: number;
+      impact: { x: number; y: number };
+    };
+    expect(p.via).toBeDefined();
+    expect(p.impactAt).toBe(0.5);
+    // The touch is at the keeper, and the ball finishes somewhere else.
+    expect(p.impact).toEqual(p.via);
+    expect(Math.hypot(p.to.x - p.via.x, p.to.y - p.via.y)).toBeGreaterThan(20);
+  });
+
+  it('sends it wide on the side the shot was aimed at', () => {
+    // From the right, a near-post shot is aimed at the right post.
+    const p = plan({ parried: true }) as { to: { x: number } };
+    expect(p.to.x).toBeGreaterThan(W / 2 + W * 0.1);
+  });
+
+  it('gives a parry a longer flight than a catch, since it is two legs', () => {
+    expect((plan({ parried: true }) as { flight: number }).flight).toBeGreaterThan(
+      (plan({}) as { flight: number }).flight,
+    );
+  });
+
+  it('does not turn any other outcome into a parry', () => {
+    const p = plan({ outcome: 'missed', parried: true });
+    expect(p.via).toBeUndefined();
+    expect(p.impactAt).toBeUndefined();
+  });
+});
+
+describe('the engine and the replay agree about every save in a real match', () => {
+  const engineFor = (seed: string): MatchEngine => {
+    const playerTeam = getTeam('vale-park');
+    const opponent = getTeam('northport-city');
+    return new MatchEngine(
+      {
+        player: getPreset('veteran-striker').create(),
+        playerTeam,
+        opponent,
+        opponentGoalkeeper: getGoalkeeperForTeam(opponent.id),
+        ownGoalkeeper: getGoalkeeperForTeam(playerTeam.id),
+        length: 90,
+        playerTeamIsHome: true,
+        paceScale: 1,
+      },
+      seed,
+    );
+  };
+
+  it('draws a parry exactly where the commentary says he could only parry it', () => {
+    let catches = 0;
+    let parries = 0;
+    for (let i = 0; i < 150; i++) {
+      const engine = engineFor(`save-${i}`);
+      for (let n = 0; n < 10000; n++) {
+        const update = engine.step();
+        if (update.kind === 'finished') break;
+        if (update.kind !== 'interactive') continue;
+        const option = update.event.options.find((o) => o.family === 'shot') ?? update.event.options[0]!;
+        const { result } = engine.submitDecision({ option, timeUsed: update.event.timer.seconds * 0.6 });
+        if (result.outcome.kind !== 'saved') continue;
+        const said = /parry/i.test(result.outcome.commentary);
+        expect(isParry(result.outcome)).toBe(said);
+        if (said) parries += 1;
+        else catches += 1;
+      }
+    }
+    // Both have to occur for the agreement above to mean anything.
+    expect(catches).toBeGreaterThan(5);
+    expect(parries).toBeGreaterThan(5);
+  });
+
+  it('is told about a parry by the match screen', () => {
+    const screen = readFileSync(
+      new URL('../src/ui/screens/MatchScreen.ts', import.meta.url),
+      'utf8',
+    );
+    expect(screen).toMatch(/parried:\s*isParry\(resolution\.result\.outcome\)/);
   });
 });

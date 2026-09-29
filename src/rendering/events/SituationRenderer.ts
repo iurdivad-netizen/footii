@@ -18,7 +18,7 @@ import {
   opponentGap,
   ownGoalInView,
 } from './pitchLayout.ts';
-import { opponentReaction, stepSpark } from './resolutionMotion.ts';
+import { gatherScale, opponentReaction, reboundPoint, stepSpark } from './resolutionMotion.ts';
 import type { Spark } from './resolutionMotion.ts';
 
 /**
@@ -120,6 +120,13 @@ export interface ResolutionCue {
    * file has no business knowing what a jeer is.
    */
   celebration?: 'big' | 'small' | 'none';
+  /**
+   * For a save: the keeper could only parry it, and the ball goes on.
+   *
+   * Absent or false is a catch — the ball stops with him. Told by the engine
+   * (see resolutionMotion.ts:isParry) and never worked out here.
+   */
+  parried?: boolean;
 }
 
 /** The colours a celebration is thrown in: the goal's own yellow, and joy. */
@@ -158,6 +165,16 @@ interface ResolutionPlan {
    */
   opponentFrom?: Point;
   opponentTo?: Point;
+  /**
+   * WHEN THE BALL TOUCHES SOMETHING, as a share of the flight, and where.
+   *
+   * Both default to the end of the flight, which is right for a ball that stops
+   * where it arrives. A parry is the exception: the ball hits the keeper half
+   * way through its flight and carries on, so the impact — the ring, the sound,
+   * the outcome label — has to land at the touch and not at the finish.
+   */
+  impactAt?: number;
+  impact?: Point;
 }
 
 export interface Point {
@@ -815,7 +832,28 @@ export class SituationRenderer {
         });
       case 'saved': {
         const keeper = this.keeperPosition(state, h, goalCentre - goalW / 2, goalW);
-        return plan({ x: keeper.x, y: keeper.y }, COLOURS.keeperCommitted, { flight: 0.75 });
+        const hands = { x: keeper.x, y: keeper.y };
+        // A catch: it arrives and stops, and he gathers it.
+        if (!cue.parried) return plan(hands, COLOURS.keeperCommitted, { flight: 0.75 });
+        // A parry: it reaches him, and goes on. Two legs with the turn at the
+        // touch, and a longer flight so each leg is as long as a whole shot
+        // used to be.
+        const out = reboundPoint({
+          keeper: hands,
+          aim: dir as -1 | 0 | 1,
+          shooterSide: side as -1 | 1,
+          goalCentre,
+          goalW,
+          width: w,
+          height: h,
+        });
+        return plan(out, COLOURS.keeperCommitted, {
+          flight: 1.1,
+          loft: 0.3,
+          via: hands,
+          impactAt: 0.5,
+          impact: hands,
+        });
       }
       case 'post':
         return plan({ x: goalCentre + (dir || side) * (goalW / 2), y: 6 }, COLOURS.goal, {
@@ -977,6 +1015,7 @@ export class SituationRenderer {
     // The time the previous frame drew at, so the confetti can move by what
     // actually elapsed and not by how many frames happened to fit.
     let lastFrameAt = 0;
+    const isCatch = cue.outcome === 'saved' && !cue.parried;
     // The nearest opponent is drawn by this loop rather than by the base scene
     // when the outcome moves him, so it can be told which one to leave out.
     const movingOpponent =
@@ -1057,13 +1096,15 @@ export class SituationRenderer {
         // has already gone one way or the other.
         if (state.showGoalkeeper) {
           const k = Math.min(1, eased * 1.6);
+          // He closes on a ball he has caught. Not on one he has only parried.
+          const gather = isCatch ? gatherScale(t - planned.flight) : 1;
           ctx.fillStyle = state.committed ? COLOURS.keeperCommitted : COLOURS.keeper;
           ctx.beginPath();
           ctx.ellipse(
             keeperFrom.x + (keeperTo.x - keeperFrom.x) * k,
             keeperFrom.y + (keeperTo.y - keeperFrom.y) * k,
-            keeperFrom.rx + (keeperTo.rx - keeperFrom.rx) * k,
-            keeperFrom.ry + (keeperTo.ry - keeperFrom.ry) * k,
+            (keeperFrom.rx + (keeperTo.rx - keeperFrom.rx) * k) * gather,
+            (keeperFrom.ry + (keeperTo.ry - keeperFrom.ry) * k) * gather,
             0,
             0,
             Math.PI * 2,
@@ -1113,21 +1154,26 @@ export class SituationRenderer {
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
 
-        if (progress >= 1) {
+        // The ball touches something at `impactAt` of its flight: the end for
+        // nearly everything, half way for a parry. The ring, the confetti and
+        // the sound belong to the touch, so they are measured from it.
+        const touch = planned.flight * (planned.impactAt ?? 1);
+        const impact = planned.impact ?? planned.to;
+        if (t >= touch) {
           if (!impactFired) {
             impactFired = true;
             onImpact?.();
-            // Thrown from where the ball finished, so the celebration comes out
+            // Thrown from where the ball touched, so the celebration comes out
             // of the moment rather than being pasted over it.
-            sparks = this.throwSparks(planned.to, celebration);
+            sparks = this.throwSparks(impact, celebration);
           }
-          const after = Math.min(1, (t - planned.flight) / hold);
+          const after = Math.min(1, (t - touch) / hold);
           if (planned.ringColour) {
             ctx.strokeStyle = planned.ringColour;
             ctx.globalAlpha = 1 - after;
             ctx.lineWidth = 4;
             ctx.beginPath();
-            ctx.arc(planned.to.x, planned.to.y, 8 + after * 34, 0, Math.PI * 2);
+            ctx.arc(impact.x, impact.y, 8 + after * 34, 0, Math.PI * 2);
             ctx.stroke();
             ctx.globalAlpha = 1;
           }
@@ -1155,7 +1201,10 @@ export class SituationRenderer {
             ctx.globalAlpha = 1;
           }
 
-          if (after >= 1) {
+          // Done when the celebration has faded AND the ball has finished going
+          // wherever it is going — a parry's ball is still travelling when its
+          // ring has already been and gone.
+          if (after >= 1 && progress >= 1) {
             resolve();
             return;
           }

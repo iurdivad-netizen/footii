@@ -452,6 +452,29 @@ goal had a roar and a line of commentary and no visible event. It now enlarges a
 second, in the goal yellow for yours and the danger red for one against. It is an animation with no
 resting state, so with reduced motion the score simply changes, as before.
 
+**A save was always a catch.** The engine has always decided. `resolveShot` rolls the keeper's
+handling and, when he cannot hold it, writes *"he can only parry it!"* and marks the outcome as
+keeping possession; otherwise it writes *"saves"*. The replay never read that and drew every save as
+the ball stopping dead in his hands, so the commentary said one thing and the picture the other —
+the same fault as the keeper diving at the wrong post, in the one animation the mechanic is about.
+It is told now, not left to choose:
+
+- **A catch** is the ball arriving and stopping, and the keeper swelling briefly as he gathers it.
+- **A parry** is the ball reaching him **half way through its flight** and going on: pushed wide of
+  the post on the side it was aimed at (a shot down the middle goes to the shooter's side) and left
+  loose in the box. The ring, the sound and the outcome label all land at the touch rather than at
+  the end, which needed the impact to become a moment of its own instead of the last frame.
+
+Over 150 played matches there were 1,140 shots, 298 caught and 90 parried — about one save in four
+is a parry — and a test checks that in every one of them the picture agrees with the commentary. A
+parry is deterministic (the same shot always rebounds the same way), because a replay that varied
+between viewings would be a replay of something that did not happen.
+
+One thing worth knowing: **the engine writes the parry down and nothing reads it.** `retainedPossession`
+is set on a spilled save and consumed by no code, so a parry is a picture and a line of commentary
+and not yet a rebound chance. That is a decision about the match rather than about the replay, and
+it is left alone here.
+
 **The commentary could not animate.** It is rebuilt whole every minute, so an animation on the list
 would replay on all fourteen lines every time. The screen now works out which lines are *new* — by
 identity rather than length, because the feed is a rolling buffer whose length stops changing long

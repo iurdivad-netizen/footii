@@ -261,9 +261,21 @@ wrong-footed, an intercepted pass is met on the lane); and the score and the com
 goal and a new line, which needed the screen to know what was *new* rather than rebuild everything.
 See [The replay, and the match screen around it](README.md#the-replay-and-the-match-screen-around-it).
 
-Deliberately not done, from the same review: distinct **catch and parry** saves and a tilted diving
-keeper, and a **net ripple** on goals. Both are real and both are a larger change to the keeper's
-drawing than to anything here.
+Deliberately not done, from the same review: a tilted diving keeper and a **net ripple** on goals.
+(The catch and parry saves that were on this list followed in item 18.)
+
+**18. Every save was drawn as a catch.** ✅ **Done.** The engine already decides whether a keeper
+holds a shot or can only parry it — it rolls his handling and writes either *"saves"* or *"he can
+only parry it!"* — and the replay ignored that and stopped the ball dead in his hands every time. A
+parry is now the ball touching him half way through its flight and going on, wide of the post on the
+shot's side; a catch is the ball stopping with him, and him gathering it. The picture is told what
+the engine decided rather than choosing, so it cannot disagree with the commentary, and a test holds
+that across 150 played matches (298 caught, 90 parried). See
+[The replay, and the match screen around it](README.md#the-replay-and-the-match-screen-around-it).
+
+The same pass found that `retainedPossession`, which marks the parry, is **read by nothing**: a
+parry is currently a picture and a sentence, not a loose ball anybody can score from. That is a
+match-engine decision and was left alone.
 
 ## Found while reviewing, and fixed
 
