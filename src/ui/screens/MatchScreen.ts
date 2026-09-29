@@ -6,6 +6,8 @@ import type { DebugPanel } from '../components/DebugPanel.ts';
 
 import { MATCH_SPEEDS, clampSpeedIndex } from './matchSpeeds.ts';
 import { sound } from '../../audio/SoundEngine.ts';
+import { newLineCount, scoreChange } from '../matchFeedback.ts';
+import type { MatchCommentaryLine } from '../../core/match/matchState.ts';
 
 /**
  * The match screen. Drives the engine loop, renders the running state, and
@@ -22,6 +24,13 @@ export class MatchScreen {
   /** The last commentary line announced, so it is never announced twice. */
   private announced = '';
   private readonly onSpeedChange: ((index: number) => void) | undefined;
+  /**
+   * The newest commentary line already drawn, and the score already shown.
+   * Seeded from the engine so a screen opened on a match in progress does not
+   * announce everything already in it. See matchFeedback.ts.
+   */
+  private lastLine: MatchCommentaryLine | null = null;
+  private shownScore = { own: 0, opponent: 0 };
 
   constructor(
     private readonly engine: MatchEngine,
@@ -40,6 +49,11 @@ export class MatchScreen {
       onLeave?: () => void;
     } = {},
   ) {
+    this.lastLine = engine.state.commentary[engine.state.commentary.length - 1] ?? null;
+    this.shownScore = {
+      own: engine.state.playerTeamScore,
+      opponent: engine.state.opponentScore,
+    };
     this.speedIndex = clampSpeedIndex(options.speedIndex ?? 1);
     this.onSpeedChange = options.onSpeedChange;
     this.element = document.createElement('section');
@@ -245,12 +259,32 @@ export class MatchScreen {
     this.element.querySelector<HTMLElement>('#minute')!.textContent = String(
       Math.min(state.minute, this.engine.setup.length),
     );
-    this.element.querySelector<HTMLElement>('#score')!.textContent = this.engine.scoreline();
+    const scoreEl = this.element.querySelector<HTMLElement>('#score')!;
+    scoreEl.textContent = this.engine.scoreline();
+    // A goal moves the score and used to do nothing else on screen: the text
+    // simply changed. A background goal had a roar and a line of commentary and
+    // no visible event at all. The class is removed and a reflow forced so the
+    // same animation can play twice in a row, which two quick goals need.
+    const nextScore = { own: state.playerTeamScore, opponent: state.opponentScore };
+    const flash = scoreChange(this.shownScore, nextScore);
+    this.shownScore = nextScore;
+    if (flash) {
+      scoreEl.classList.remove('flash-for', 'flash-against');
+      void scoreEl.offsetWidth;
+      scoreEl.classList.add(flash === 'for' ? 'flash-for' : 'flash-against');
+    }
 
     const feed = this.element.querySelector<HTMLElement>('#commentary')!;
     const recent = state.commentary.slice(-14).reverse();
+    // Only what is new comes in. The list is rebuilt whole each frame, so an
+    // animation on every line would replay on all fourteen every minute.
+    const fresh = newLineCount(state.commentary, this.lastLine);
+    this.lastLine = state.commentary[state.commentary.length - 1] ?? null;
     feed.innerHTML = recent
-      .map((line) => `<li class="tone-${line.tone}"><span>${line.minute}'</span> ${line.text}</li>`)
+      .map(
+        (line, index) =>
+          `<li class="tone-${line.tone}${index < fresh ? ' entering' : ''}"><span>${line.minute}'</span> ${line.text}</li>`,
+      )
       .join('');
 
     // Announce the newest line, once. Compared against what was last announced

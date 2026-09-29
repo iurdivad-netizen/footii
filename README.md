@@ -419,6 +419,46 @@ playing out from the back, in their half, and the goal at the top of that pictur
 it belongs. Flipping it would draw your own goal sixty metres closer than it is. See
 `rendering/events/pitchLayout.ts`.
 
+#### The replay, and the match screen around it
+
+Captured frame by frame rather than read, which is the only way these showed up.
+
+**The confetti ran at the speed of the screen.** It advanced a fixed step per *rendered frame*, under
+a comment saying that made it behave the same on a 60Hz screen and a 144Hz one. It does the
+opposite: the hold that ends the celebration is measured in seconds, so a faster screen fitted 2.4
+times as many frames into it and the burst flew 2.4 times as far, off the top of the canvas — most
+of why a goal's celebration looked thin. It integrates the time that actually passed now, capped so
+a tab returning from the background is a pause and not a burst thrown off the screen. Captured at
+both refresh rates, the two match.
+
+**The opponents were props.** The ball moved and the player moved and everybody else stood where
+they had been standing: a man was tackled and the one who lost the ball did not flinch. The nearest
+opponent now answers for how it ended:
+
+| outcome | what he does |
+|---|---|
+| ball won | recoils from the man who took it |
+| dribble beaten | wrong-footed the way you did *not* go, and left behind |
+| pass intercepted | meets the ball **on the passing lane** — it used to fly straight to a man standing beside the passer, which is a pass to the wrong player, not an interception |
+| dribble failed, foul | steps in and takes it |
+| defending, duel lost | the attacker goes **past** the defender towards the goal behind him |
+| shot, block, deflection | stays put — those are settled by where the ball goes |
+
+He is only animated if he was drawn: with nobody counted nearby there is nobody to move, and one
+appearing from nothing would be worse than a still picture.
+
+**A goal only changed a number.** The score was a text node overwritten in place, so a background
+goal had a roar and a line of commentary and no visible event. It now enlarges and glows for one
+second, in the goal yellow for yours and the danger red for one against. It is an animation with no
+resting state, so with reduced motion the score simply changes, as before.
+
+**The commentary could not animate.** It is rebuilt whole every minute, so an animation on the list
+would replay on all fourteen lines every time. The screen now works out which lines are *new* — by
+identity rather than length, because the feed is a rolling buffer whose length stops changing long
+before the match does — and only those come in. Measured over a whole match: 16 lines animated
+across 98 redraws, never more than one at a time. See `ui/matchFeedback.ts` and
+`rendering/events/resolutionMotion.ts`.
+
 #### Reading the rest of it
 
 Two smaller things around that strip, both of which had been quietly wrong since the overlay was
