@@ -252,6 +252,19 @@ twenty pixels **below** the penalty area's line (depth 0.55 against a box that e
 him up puts him on top of a keeper who has rushed out, so it wants its own look rather than a
 passing edit.
 
+**17. The replay's opponents stood still, the confetti ran at the speed of the screen, and a goal only changed a number.** ✅ **Done.**
+Found by capturing the animations frame by frame after being asked to review them, which is why none
+of it had been noticed: every frame was individually fine. The confetti advanced per rendered
+frame under a comment claiming it was screen-independent, so a 144Hz screen threw it 2.4 times as
+far; the nearest opponent now reacts to the outcome (a tackled man recoils, a beaten defender is
+wrong-footed, an intercepted pass is met on the lane); and the score and the commentary now show a
+goal and a new line, which needed the screen to know what was *new* rather than rebuild everything.
+See [The replay, and the match screen around it](README.md#the-replay-and-the-match-screen-around-it).
+
+Deliberately not done, from the same review: distinct **catch and parry** saves and a tilted diving
+keeper, and a **net ripple** on goals. Both are real and both are a larger change to the keeper's
+drawing than to anything here.
+
 ## Found while reviewing, and fixed
 
 Eight things that were not on either list, found by reading the code against what it claimed:

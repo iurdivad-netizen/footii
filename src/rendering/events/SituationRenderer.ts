@@ -18,6 +18,8 @@ import {
   opponentGap,
   ownGoalInView,
 } from './pitchLayout.ts';
+import { opponentReaction, stepSpark } from './resolutionMotion.ts';
+import type { Spark } from './resolutionMotion.ts';
 
 /**
  * SITUATION RENDERER
@@ -120,15 +122,6 @@ export interface ResolutionCue {
   celebration?: 'big' | 'small' | 'none';
 }
 
-/** One piece of confetti, in flight. */
-interface Spark {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  colour: string;
-}
-
 /** The colours a celebration is thrown in: the goal's own yellow, and joy. */
 const SPARK_COLOURS = ['#facc15', '#4ade80', '#ffffff'];
 
@@ -157,6 +150,14 @@ interface ResolutionPlan {
   via?: Point;
   /** Where he has run to by the time the return arrives. Only used with `via`. */
   playerRunsTo?: Point;
+  /**
+   * THE NEAREST OPPONENT'S OWN MOVE. See resolutionMotion.ts:opponentReaction.
+   *
+   * Absent means he stays where the settled picture put him, which is right for
+   * a shot: those are decided by where the ball goes.
+   */
+  opponentFrom?: Point;
+  opponentTo?: Point;
 }
 
 export interface Point {
@@ -460,7 +461,7 @@ export class SituationRenderer {
 
   draw(
     state: RenderState,
-    hidden: { ball?: boolean; player?: boolean; keeper?: boolean } = {},
+    hidden: { ball?: boolean; player?: boolean; keeper?: boolean; opponent?: number } = {},
   ): void {
     const { ctx, width: w, height: h } = this;
     const develop = clamp01(state.develop ?? 1);
@@ -554,6 +555,8 @@ export class SituationRenderer {
     const opponents = opponentCount(state.context.nearbyDefenders, flipped);
     const gap = opponentGap(flipped);
     for (let i = 0; i < opponents; i++) {
+      // One of them is being animated elsewhere: the resolution moves him.
+      if (hidden.opponent === i) continue;
       const spread = (i - (opponents - 1) / 2) * (w * 0.13);
       const finalX = settledX + spread * 0.9;
       const finalY = settledY - h * (gap + (i % 2) * 0.07);
@@ -707,9 +710,25 @@ export class SituationRenderer {
     const n = opponentCount(state.context.nearbyDefenders, flipped);
     const gap = opponentGap(flipped);
     if (n === 0) return { x: playerX, y: playerY - h * 0.18 };
-    const i = Math.floor((n - 1) / 2);
+    const i = this.nearestOpponentIndex(n);
     const spread = (i - (n - 1) / 2) * (w * 0.13);
     return { x: playerX + spread * 0.9, y: playerY - h * (gap + (i % 2) * 0.07) };
+  }
+
+  /** Which of the drawn opponents is the nearest, given how many there are. */
+  private nearestOpponentIndex(count: number): number {
+    return Math.floor((count - 1) / 2);
+  }
+
+  /**
+   * Whether there is an opponent on the picture to animate at all.
+   *
+   * Attacking with nobody near him there really is nobody, and `nearestDefender`
+   * still answers with a point so a blocked ball has somewhere to go. Animating
+   * a man who was never drawn would have him appear from nothing.
+   */
+  private hasOpponent(state: RenderState): boolean {
+    return opponentCount(state.context.nearbyDefenders, ownGoalInView(state.context)) > 0;
   }
 
   /**
@@ -719,6 +738,42 @@ export class SituationRenderer {
    * before the first frame — it is the same fact, shown instead of stated.
    */
   private resolutionPlan(state: RenderState, cue: ResolutionCue): ResolutionPlan {
+    const base = this.ballPlan(state, cue);
+    if (!this.hasOpponent(state)) return base;
+
+    const { width: w, height: h } = this;
+    const opponent = this.nearestDefender(state, w, h);
+    const player = { x: this.channelX(state) * w, y: this.depthY(state) * h };
+    const reaction = opponentReaction({
+      outcome: cue.outcome,
+      actionKind: cue.actionKind,
+      opponent,
+      player,
+      ballFrom: base.from,
+      // Only looked up for the one outcome that needs it: it is a search over
+      // the team-mates and nothing else here wants the answer.
+      ...(cue.outcome === 'passIntercepted'
+        ? { receiver: this.receiver(state, player.y) }
+        : {}),
+      side: (Math.sign(this.channelX(state) - 0.5) || 1) as -1 | 1,
+      width: w,
+      height: h,
+      defendingOwnGoal: ownGoalInView(state.context),
+    });
+    if (!reaction.opponentTo) return base;
+    return {
+      ...base,
+      ...(reaction.ballTo ? { to: reaction.ballTo } : {}),
+      opponentFrom: opponent,
+      opponentTo: reaction.opponentTo,
+    };
+  }
+
+  /**
+   * WHERE THE BALL GOES, for each outcome. The opponent's own move is layered
+   * on top of this by `resolutionPlan`.
+   */
+  private ballPlan(state: RenderState, cue: ResolutionCue): ResolutionPlan {
     const { width: w, height: h } = this;
     const playerX = this.channelX(state) * w;
     const playerY = this.depthY(state) * h;
@@ -919,6 +974,17 @@ export class SituationRenderer {
     const started = performance.now();
     let impactFired = false;
     let sparks: Spark[] = [];
+    // The time the previous frame drew at, so the confetti can move by what
+    // actually elapsed and not by how many frames happened to fit.
+    let lastFrameAt = 0;
+    // The nearest opponent is drawn by this loop rather than by the base scene
+    // when the outcome moves him, so it can be told which one to leave out.
+    const movingOpponent =
+      planned.opponentTo && planned.opponentFrom
+        ? this.nearestOpponentIndex(
+            opponentCount(state.context.nearbyDefenders, ownGoalInView(state.context)),
+          )
+        : undefined;
 
     // The keeper DIVES rather than teleporting. He used to be painted at his
     // committed position from the first frame, which is the one thing the
@@ -955,12 +1021,36 @@ export class SituationRenderer {
         const rise = Math.sin(eased * Math.PI) * planned.loft;
         const radius = 4.5 * (1 + rise * 1.6);
 
+        const dt = t - lastFrameAt;
+        lastFrameAt = t;
+
         this.draw(
           { ...state, progress: 1 },
-          { ball: true, player: planned.movePlayer || !!planned.playerRunsTo, keeper: true },
+          {
+            ball: true,
+            player: planned.movePlayer || !!planned.playerRunsTo,
+            keeper: true,
+            ...(movingOpponent !== undefined ? { opponent: movingOpponent } : {}),
+          },
         );
 
         const ctx = this.ctx;
+
+        // The opponent's own move, on the ball's timing: he lunges as it goes,
+        // recoils as it leaves him, is beaten as the player passes. Clamped to
+        // the picture the same way the base scene clamps him.
+        if (planned.opponentFrom && planned.opponentTo) {
+          ctx.fillStyle = COLOURS.defender;
+          ctx.beginPath();
+          ctx.arc(
+            planned.opponentFrom.x + (planned.opponentTo.x - planned.opponentFrom.x) * eased,
+            planned.opponentFrom.y + (planned.opponentTo.y - planned.opponentFrom.y) * eased,
+            7,
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
+        }
 
         // The keeper, mid-dive. He commits FASTER than the ball travels, which
         // is what makes the read worth having: by the time it reaches him he
@@ -1050,14 +1140,13 @@ export class SituationRenderer {
             ctx.fillRect((this.width - goalW) / 2, 0, goalW, 10);
             ctx.globalAlpha = 1;
           }
-          // The confetti, integrated per frame at a fixed step so it behaves
-          // the same on a 60Hz screen and a 144Hz one.
+          // The confetti, integrated by the time that passed since the last
+          // frame. It used to advance a fixed step per frame under a comment
+          // claiming that made it screen-independent; see resolutionMotion.ts.
           if (sparks.length > 0) {
             ctx.globalAlpha = Math.max(0, 1 - after);
             for (const spark of sparks) {
-              spark.x += spark.vx * 0.016;
-              spark.y += spark.vy * 0.016;
-              spark.vy += 260 * 0.016;
+              stepSpark(spark, dt);
               ctx.fillStyle = spark.colour;
               ctx.beginPath();
               ctx.arc(spark.x, spark.y, 2.4, 0, Math.PI * 2);
