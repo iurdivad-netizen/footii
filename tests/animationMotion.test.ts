@@ -4,9 +4,12 @@ import {
   GATHER_SECONDS,
   INTERCEPT_AT,
   MAX_SPARK_STEP,
+  NET_AMPLITUDE,
+  NET_WAVE_SPEED,
   SPARK_GRAVITY,
   gatherScale,
   isParry,
+  netDisplacement,
   opponentReaction,
   reboundPoint,
   stepSpark,
@@ -17,6 +20,7 @@ import type { RenderState, ResolutionCue } from '../src/rendering/events/Situati
 import { newLineCount, scoreChange } from '../src/ui/matchFeedback.ts';
 import { MatchEngine } from '../src/simulation/MatchEngine.ts';
 import { getGoalkeeperForTeam, getPreset, getTeam } from '../src/data/gameData.ts';
+import { DIVE_TILT, diveDirection, keeperTilt, keeperX } from '../src/rendering/events/pitchLayout.ts';
 import { context, goalkeeperState } from './helpers.ts';
 
 /**
@@ -590,5 +594,168 @@ describe('the engine and the replay agree about every save in a real match', () 
       'utf8',
     );
     expect(screen).toMatch(/parried:\s*isParry\(resolution\.result\.outcome\)/);
+  });
+});
+
+// -------------------------------------------------------- the net, the dive ---
+
+describe('the net takes the ball', () => {
+  const impactX = 240;
+  const at = (x: number, since: number) => netDisplacement(x, impactX, since);
+  const samples = Array.from({ length: 200 }, (_, i) => i * 0.01);
+
+  it('is perfectly still until the ball arrives', () => {
+    for (const x of [200, 240, 280]) expect(at(x, 0)).toBe(0);
+    expect(at(240, -1)).toBe(0);
+  });
+
+  it('is a wave that TRAVELS: the far post moves later than the impact point', () => {
+    // A net that moved in unison would be a spring, not a surface.
+    const firstMove = (x: number) => samples.find((t) => at(x, t) !== 0)!;
+    expect(firstMove(impactX + 48)).toBeGreaterThan(firstMove(impactX));
+    // Sampled every 0.01s, so the first moving sample is the first one past the
+    // true arrival time, never before it and never a whole step after.
+    const arrival = 48 / NET_WAVE_SPEED;
+    expect(firstMove(impactX + 48)).toBeGreaterThanOrEqual(arrival);
+    expect(firstMove(impactX + 48)).toBeLessThan(arrival + 0.011);
+  });
+
+  it('is the same either side of where it landed', () => {
+    for (const t of [0.05, 0.1, 0.3, 0.6]) {
+      expect(at(impactX + 30, t)).toBeCloseTo(at(impactX - 30, t), 10);
+    }
+  });
+
+  it('bulges into the pitch first, and never further than its amplitude', () => {
+    const peak = Math.max(...samples.map((t) => at(impactX, t)));
+    expect(peak).toBeGreaterThan(NET_AMPLITUDE * 0.5);
+    expect(peak).toBeLessThanOrEqual(NET_AMPLITUDE);
+    // The first thing it does is push, not recoil.
+    const first = samples.find((t) => at(impactX, t) !== 0)!;
+    expect(at(impactX, first + 0.02)).toBeGreaterThan(0);
+  });
+
+  it('loses strength with distance, so the posts move less than the middle', () => {
+    const peakAt = (x: number) => Math.max(...samples.map((t) => Math.abs(at(x, t))));
+    expect(peakAt(impactX + 48)).toBeLessThan(peakAt(impactX));
+  });
+
+  it('dies away: barely moving after the hold a goal is given', () => {
+    // A big celebration holds 1.1s. By the time it has faded the net is still.
+    for (const x of [impactX, impactX + 30]) {
+      expect(Math.abs(at(x, 1.1))).toBeLessThan(NET_AMPLITUDE * 0.06);
+    }
+    expect(Math.abs(at(impactX, 3))).toBeLessThan(0.001);
+  });
+
+  it('scales with the amplitude it is given', () => {
+    const t = 0.08;
+    expect(netDisplacement(impactX, impactX, t, NET_AMPLITUDE / 2)).toBeCloseTo(
+      at(impactX, t) / 2,
+      10,
+    );
+  });
+
+  it('only draws where the goal in view is the one being scored at', () => {
+    const renderer = readFileSync(
+      new URL('../src/rendering/events/SituationRenderer.ts', import.meta.url),
+      'utf8',
+    );
+    expect(renderer).toMatch(/planned\.netFlash && !ownGoalInView\(state\.context\)/);
+    expect(renderer).toMatch(/if \(rippling\) this\.drawNet\(impact\.x, t - touch, netAmplitude\)/);
+  });
+});
+
+describe('a diving keeper leans into the dive', () => {
+  const centre = 240;
+  const goalW = 96;
+
+  it('raises the leading end: a right dive is a negative angle, a left dive positive', () => {
+    // Canvas angles run clockwise and y runs down the picture.
+    expect(keeperTilt('divingNear', 0.84)).toBeLessThan(0);
+    expect(keeperTilt('divingFar', 0.84)).toBeGreaterThan(0);
+    expect(keeperTilt('divingNear', 0.16)).toBeGreaterThan(0);
+    expect(keeperTilt('divingFar', 0.16)).toBeLessThan(0);
+  });
+
+  it('leans towards the way he has gone, from every channel and both dives', () => {
+    for (const x of [0.16, 0.34, 0.5, 0.66, 0.84]) {
+      for (const action of ['divingNear', 'divingFar'] as const) {
+        const went = Math.sign(keeperX(action, x, centre, goalW) - centre);
+        expect(went).toBe(diveDirection(action, x));
+        // Leading end up means the angle is opposite in sign to the direction.
+        expect(Math.sign(keeperTilt(action, x))).toBe(-went);
+      }
+    }
+  });
+
+  it('does not lean for anything that is not a dive', () => {
+    for (const action of ['set', 'advancing', 'rushing', 'goingToGround', 'holdingLine'] as const) {
+      for (const x of [0.16, 0.5, 0.84]) {
+        expect(keeperTilt(action, x)).toBe(0);
+        expect(diveDirection(action, x)).toBe(0);
+      }
+    }
+  });
+
+  it('leans by a believable amount: visible, and still a keeper', () => {
+    expect(Math.abs(keeperTilt('divingNear', 0.84))).toBe(DIVE_TILT);
+    expect(DIVE_TILT).toBeGreaterThan(0.25);
+    expect(DIVE_TILT).toBeLessThan(0.8);
+  });
+
+  it('is what the renderer actually draws, for a dive and for a stand', () => {
+    const noop = new Proxy(() => undefined, { get: () => noop, apply: () => undefined });
+    const ctx = new Proxy({} as Record<string, unknown>, {
+      get: (_t, key) => (key === 'canvas' ? undefined : noop),
+      set: () => true,
+    });
+    const canvas = {
+      getContext: () => ctx,
+      getBoundingClientRect: () => ({ width: W, height: H }),
+      width: 0,
+      height: 0,
+    } as unknown as HTMLCanvasElement;
+    const g = globalThis as { window?: unknown };
+    const before = g.window;
+    g.window = { devicePixelRatio: 1 };
+    try {
+      const renderer = new SituationRenderer(canvas) as unknown as {
+        keeperPosition: (
+          s: RenderState,
+          h: number,
+          goalX: number,
+          goalW: number,
+        ) => { x: number; tilt: number };
+      };
+      const stateFor = (action: RenderState['keeperAction']): RenderState => ({
+        context: context({
+          situation: 'boxSideAttack',
+          zone: { channel: 'right', box: 'inside' },
+          goalkeeper: goalkeeperState(),
+        }),
+        progress: 1,
+        committed: true,
+        keeperAction: action,
+        showGoalkeeper: true,
+      });
+      const goalX = (W - W * 0.2) / 2;
+      const dive = renderer.keeperPosition(stateFor('divingNear'), H, goalX, W * 0.2);
+      const stand = renderer.keeperPosition(stateFor('set'), H, goalX, W * 0.2);
+      expect(dive.tilt).toBe(keeperTilt('divingNear', 0.84));
+      expect(dive.tilt).not.toBe(0);
+      expect(stand.tilt).toBe(0);
+    } finally {
+      g.window = before;
+    }
+  });
+
+  it('is passed to the canvas in both places the keeper is drawn', () => {
+    const renderer = readFileSync(
+      new URL('../src/rendering/events/SituationRenderer.ts', import.meta.url),
+      'utf8',
+    );
+    expect(renderer).toMatch(/keeper\.rx, keeper\.ry, keeper\.tilt/);
+    expect(renderer).toMatch(/keeperFrom\.tilt \+ \(keeperTo\.tilt - keeperFrom\.tilt\) \* k/);
   });
 });

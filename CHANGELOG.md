@@ -261,8 +261,8 @@ wrong-footed, an intercepted pass is met on the lane); and the score and the com
 goal and a new line, which needed the screen to know what was *new* rather than rebuild everything.
 See [The replay, and the match screen around it](README.md#the-replay-and-the-match-screen-around-it).
 
-Deliberately not done, from the same review: a tilted diving keeper and a **net ripple** on goals.
-(The catch and parry saves that were on this list followed in item 18.)
+Deliberately not done at the time, from the same review: catch and parry saves (item 18), and a tilted
+diving keeper and a net ripple on goals (item 19). All three have since been done.
 
 **18. Every save was drawn as a catch.** ✅ **Done.** The engine already decides whether a keeper
 holds a shot or can only parry it — it rolls his handling and writes either *"saves"* or *"he can
@@ -276,6 +276,17 @@ that across 150 played matches (298 caught, 90 parried). See
 The same pass found that `retainedPossession`, which marks the parry, is **read by nothing**: a
 parry is currently a picture and a sentence, not a loose ball anybody can score from. That is a
 match-engine decision and was left alone.
+
+**19. A dive was a shuffle, and a goal was a result with no object in it.** ✅ **Done.** The last two
+items from the animation review. A diving keeper now leans into the dive, from one direction rule
+shared with where he ends up, so the lean and the position cannot disagree. A goal now ends in a net
+that takes the ball: a wave that travels from the point of impact to both posts and dies away. See
+[The replay, and the match screen around it](README.md#the-replay-and-the-match-screen-around-it).
+
+The net was worth building twice. The first version was correct and invisible: drawn under the
+yellow flash with a nearly transparent fill, it showed as a thin line. It was only found by
+magnifying the goal mouth, because at the size the pitch is normally seen the flash and the
+confetti hide everything else — which is also why "the tests pass" was not evidence that it worked.
 
 ## Found while reviewing, and fixed
 

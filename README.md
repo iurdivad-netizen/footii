@@ -475,6 +475,28 @@ is set on a spilled save and consumed by no code, so a parry is a picture and a 
 and not yet a rebound chance. That is a decision about the match rather than about the replay, and
 it is left alone here.
 
+**A dive was a shuffle.** A diving keeper was the same ellipse as a standing one, flattened and moved
+sideways, which is a keeper who has stepped rather than one who has thrown himself at the corner. He
+now leans into it: the leading end up the picture and the trailing end down, about twenty-six
+degrees, growing as he goes rather than snapping on. Where he ends up and which way he leans come
+from one rule (`diveDirection` in `pitchLayout.ts`), so the two cannot disagree — the same class of
+fault as the near and far post. Only a dive leans: a keeper going to ground or rushing out is
+symmetrical about his own axis and has nothing to lean into.
+
+**A goal was a result with no object in it.** The ball vanished at the goal line under a yellow
+flash. The net now takes it: a wave starts where it landed and **travels** out to both posts,
+reaching the far one after about a fifth of a second, losing strength with distance and dying away
+within the second a big celebration is held for. A wave rather than the whole net bouncing on a
+spring, because a net is a surface and the disturbance has to take time to get to the far post. The
+ball rests against the bulge it made and rides it out, and the net is drawn over the ball — the ball
+is behind the netting.
+
+The first version of the net was there and could not be seen. Magnified, it was a thin curved line
+under the flash band: the band was drawn over the top of it and the skirt was nearly transparent.
+It is drawn over the flash now, with a stronger fill, cross-threads that follow the bulge so it
+reads as mesh, and a larger amplitude. It is only drawn where the goal in the picture is the one
+being scored at, so a defender's own goal at the bottom does not ripple.
+
 **The commentary could not animate.** It is rebuilt whole every minute, so an animation on the list
 would replay on all fourteen lines every time. The screen now works out which lines are *new* — by
 identity rather than length, because the feed is a rolling buffer whose length stops changing long

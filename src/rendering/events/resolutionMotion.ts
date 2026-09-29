@@ -254,3 +254,57 @@ export function gatherScale(sinceTouch: number): number {
   const share = Math.min(1, sinceTouch / GATHER_SECONDS);
   return 1 + 0.3 * Math.sin(Math.PI * share);
 }
+
+// -------------------------------------------------------------------- net ---
+
+/**
+ * THE NET, WHEN THE BALL HITS IT.
+ *
+ * A goal ended with the ball vanishing at the goal line and a yellow flash over
+ * the frame: a result with no object in it. What a goal looks like is a net that
+ * takes the ball — a ripple that starts where it landed and travels out to both
+ * posts, and dies away.
+ *
+ * A TRAVELLING WAVE, NOT A WOBBLE. Every column moving in unison would be the
+ * whole net bouncing on a spring; a net is a surface, and the disturbance has to
+ * take time to reach the far post. So each column starts moving when the front
+ * arrives, and moves as a damped oscillation from then on.
+ */
+
+/** Pixels per second the disturbance travels along the net. */
+export const NET_WAVE_SPEED = 260;
+/** How far the net bulges at the point of impact, in pixels. */
+export const NET_AMPLITUDE = 10;
+/** How fast the oscillation dies away, per second. */
+export const NET_DAMPING = 3.2;
+/** Oscillations per second, in radians. */
+export const NET_FREQUENCY = 2 * Math.PI * 3.2;
+/** How much of it is lost per pixel of distance from the impact. */
+export const NET_SPREAD_LOSS = 0.012;
+
+/**
+ * How far the net at column `x` is pushed, `since` seconds after the ball hit
+ * at `impactX`. Positive is into the pitch, the way the ball is pushing it.
+ * Zero until the wave arrives, and zero again in effect a second or so later.
+ */
+export function netDisplacement(
+  x: number,
+  impactX: number,
+  since: number,
+  amplitude = NET_AMPLITUDE,
+): number {
+  if (since <= 0) return 0;
+  const distance = Math.abs(x - impactX);
+  const age = since - distance / NET_WAVE_SPEED;
+  // The front has not reached this column yet.
+  if (age <= 0) return 0;
+  // A damped sine starts at zero and rises, which is exactly a wavefront
+  // arriving: no discontinuity to smooth over, and the first half-cycle is the
+  // push into the pitch.
+  return (
+    amplitude *
+    Math.exp(-age * NET_DAMPING) *
+    Math.exp(-distance * NET_SPREAD_LOSS) *
+    Math.sin(age * NET_FREQUENCY)
+  );
+}

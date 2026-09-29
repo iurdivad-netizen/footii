@@ -61,6 +61,45 @@ export function nearSide(channelX: number): -1 | 1 {
   return channelX > 0.5 ? 1 : -1;
 }
 
+/**
+ * Which way a keeper's dive goes: -1 left, +1 right, 0 when he is not diving.
+ *
+ * ONE RULE for both where he ends up and which way he leans, so the two cannot
+ * disagree. Near is the shooter's side and far is the other (see `nearSide`).
+ */
+export function diveDirection(action: GoalkeeperAction, channelX: number): -1 | 0 | 1 {
+  const near = nearSide(channelX);
+  if (action === 'divingNear') return near;
+  if (action === 'divingFar') return near === 1 ? -1 : 1;
+  return 0;
+}
+
+/**
+ * How far a diving keeper's body leans, in radians.
+ *
+ * A dive used to be the same ellipse as a stand, flattened and moved sideways,
+ * which is a keeper who has shuffled rather than one who has launched himself.
+ * Leaning the leading end UP the picture and letting the trailing end drop is
+ * what a body thrown at the corner looks like from above. About twenty-six
+ * degrees: past that the ellipse stops reading as a keeper and starts reading
+ * as a diagonal line.
+ */
+export const DIVE_TILT = 0.45;
+
+/**
+ * The rotation to draw a keeper at, for canvas `ellipse`.
+ *
+ * Canvas angles run clockwise and y runs DOWN the picture, so raising the right
+ * end for a dive to the right is a NEGATIVE angle, and the mirror image for the
+ * left. Zero for everything that is not a dive: a keeper going to ground or
+ * rushing out is symmetrical about his own axis and has nothing to lean into.
+ */
+export function keeperTilt(action: GoalkeeperAction, channelX: number): number {
+  const dive = diveDirection(action, channelX);
+  // A real zero rather than the -0 that negating one would give.
+  return dive === 0 ? 0 : -dive * DIVE_TILT;
+}
+
 /** Horizontal position of the keeper for a given action, in canvas units. */
 export function keeperX(
   action: GoalkeeperAction,
@@ -68,9 +107,8 @@ export function keeperX(
   centre: number,
   goalW: number,
 ): number {
-  const near = nearSide(channelX);
-  if (action === 'divingNear') return centre + near * goalW * DIVE_REACH;
-  if (action === 'divingFar') return centre - near * goalW * DIVE_REACH;
+  const dive = diveDirection(action, channelX);
+  if (dive !== 0) return centre + dive * goalW * DIVE_REACH;
   // Everything else shades towards the ball, but by a share of the GOAL rather
   // than of the canvas: the goal is narrower than it was, and a shade sized for
   // the old goal pushed him onto the post for anybody out wide.

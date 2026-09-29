@@ -12,13 +12,21 @@ import type { Position } from '../../core/player/positions.ts';
 import {
   PITCH,
   defendingDepth,
+  keeperTilt,
   keeperX,
   nearSide,
   opponentCount,
   opponentGap,
   ownGoalInView,
 } from './pitchLayout.ts';
-import { gatherScale, opponentReaction, reboundPoint, stepSpark } from './resolutionMotion.ts';
+import {
+  NET_AMPLITUDE,
+  gatherScale,
+  netDisplacement,
+  opponentReaction,
+  reboundPoint,
+  stepSpark,
+} from './resolutionMotion.ts';
 import type { Spark } from './resolutionMotion.ts';
 
 /**
@@ -537,7 +545,7 @@ export class SituationRenderer {
       const keeper = this.keeperPosition(state, h, goalX, goalW);
       ctx.fillStyle = state.committed ? COLOURS.keeperCommitted : COLOURS.keeper;
       ctx.beginPath();
-      ctx.ellipse(keeper.x, keeper.y, keeper.rx, keeper.ry, 0, 0, Math.PI * 2);
+      ctx.ellipse(keeper.x, keeper.y, keeper.rx, keeper.ry, keeper.tilt, 0, Math.PI * 2);
       ctx.fill();
 
       // A ring pulses on the keeper the instant he commits, so the change is
@@ -666,7 +674,7 @@ export class SituationRenderer {
     h: number,
     goalX: number,
     goalW: number,
-  ): { x: number; y: number; rx: number; ry: number } {
+  ): { x: number; y: number; rx: number; ry: number; tilt: number } {
     const centre = goalX + goalW / 2;
     const depth = state.context.goalkeeper.startingDepth;
     let y = h * (0.06 + depth * 0.12);
@@ -700,7 +708,15 @@ export class SituationRenderer {
     }
 
     // Near and far are the player's, not the picture's: see pitchLayout.ts.
-    return { x: keeperX(state.keeperAction, this.channelX(state), centre, goalW), y, rx, ry };
+    const channelX = this.channelX(state);
+    return {
+      x: keeperX(state.keeperAction, channelX, centre, goalW),
+      y,
+      rx,
+      ry,
+      // A dive leans; everything else is symmetrical. See pitchLayout.ts.
+      tilt: keeperTilt(state.keeperAction, channelX),
+    };
   }
 
   // ------------------------------------------------------------ resolution ---
@@ -985,6 +1001,67 @@ export class SituationRenderer {
   }
 
   /**
+   * The net, bulging where the ball hit it and rippling out to the posts.
+   *
+   * The goal is an eight-pixel band on the goal line, and the net is what
+   * hangs from it: a translucent skirt whose lower edge is pushed into the
+   * pitch by the wave in `netDisplacement`. Only the push INTO the pitch is
+   * drawn — the recoil would put the edge back inside the band, where it is
+   * white on white — so what the eye sees is the net pulsing out and settling.
+   */
+  private drawNet(impactX: number, since: number, amplitude: number): void {
+    const { ctx, width: w } = this;
+    const goalW = w * PITCH.goalW;
+    const goalX = (w - goalW) / 2;
+    const columns = 28;
+    const step = goalW / columns;
+    const lower = (x: number): number =>
+      8 + Math.max(0, netDisplacement(x, impactX, since, amplitude));
+
+    ctx.beginPath();
+    ctx.moveTo(goalX, 8);
+    for (let i = 0; i <= columns; i++) {
+      const x = goalX + i * step;
+      ctx.lineTo(x, lower(x));
+    }
+    ctx.lineTo(goalX + goalW, 8);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,255,255,0.34)';
+    ctx.fill();
+
+    // The mesh, so it reads as a net and not a shadow: the uprights, and two
+    // cross-threads that follow the bulge at a share of its depth.
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 1;
+    for (let x = goalX; x <= goalX + goalW + 0.5; x += 10) {
+      ctx.beginPath();
+      ctx.moveTo(x, 8);
+      ctx.lineTo(x, lower(x));
+      ctx.stroke();
+    }
+    for (const share of [0.4, 0.75]) {
+      ctx.beginPath();
+      ctx.moveTo(goalX, 8);
+      for (let i = 0; i <= columns; i++) {
+        const x = goalX + i * step;
+        ctx.lineTo(x, 8 + (lower(x) - 8) * share);
+      }
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(goalX, 8);
+    for (let i = 0; i <= columns; i++) {
+      const x = goalX + i * step;
+      ctx.lineTo(x, lower(x));
+    }
+    ctx.lineTo(goalX + goalW, 8);
+    ctx.stroke();
+  }
+
+  /**
    * THE FOURTH PHASE: the resolution, animated.
    *
    * The three phases before a decision build tension a beat at a time — and
@@ -1075,6 +1152,17 @@ export class SituationRenderer {
 
         const ctx = this.ctx;
 
+        // The ball touches something at `impactAt` of its flight: the end for
+        // nearly everything, half way for a parry. The ring, the confetti, the
+        // net and the sound belong to the touch, so they are measured from it.
+        const touch = planned.flight * (planned.impactAt ?? 1);
+        const impact = planned.impact ?? planned.to;
+
+        // Only where the goal in the picture is the one being scored at — see
+        // pitchLayout.ts:ownGoalInView. Drawn later, over the flash and the ball.
+        const netAmplitude = celebration === 'big' ? NET_AMPLITUDE : NET_AMPLITUDE * 0.7;
+        const rippling = planned.netFlash && !ownGoalInView(state.context);
+
         // The opponent's own move, on the ball's timing: he lunges as it goes,
         // recoils as it leaves him, is beaten as the player passes. Clamped to
         // the picture the same way the base scene clamps him.
@@ -1105,7 +1193,8 @@ export class SituationRenderer {
             keeperFrom.y + (keeperTo.y - keeperFrom.y) * k,
             (keeperFrom.rx + (keeperTo.rx - keeperFrom.rx) * k) * gather,
             (keeperFrom.ry + (keeperTo.ry - keeperFrom.ry) * k) * gather,
-            0,
+            // He leans into the dive as he goes rather than snapping to it.
+            keeperFrom.tilt + (keeperTo.tilt - keeperFrom.tilt) * k,
             0,
             Math.PI * 2,
           );
@@ -1149,16 +1238,16 @@ export class SituationRenderer {
         }
         ctx.globalAlpha = 1;
 
+        // A ball in the net sits against the bulge it made and rides it out.
+        const restsIn =
+          rippling && t >= touch
+            ? Math.max(0, netDisplacement(impact.x, impact.x, t - touch, netAmplitude))
+            : 0;
         ctx.fillStyle = COLOURS.ball;
         ctx.beginPath();
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.arc(x, y + restsIn, radius, 0, Math.PI * 2);
         ctx.fill();
 
-        // The ball touches something at `impactAt` of its flight: the end for
-        // nearly everything, half way for a parry. The ring, the confetti and
-        // the sound belong to the touch, so they are measured from it.
-        const touch = planned.flight * (planned.impactAt ?? 1);
-        const impact = planned.impact ?? planned.to;
         if (t >= touch) {
           if (!impactFired) {
             impactFired = true;
@@ -1186,6 +1275,10 @@ export class SituationRenderer {
             ctx.fillRect((this.width - goalW) / 2, 0, goalW, 10);
             ctx.globalAlpha = 1;
           }
+          // The net, over the flash and over the ball: the ball is BEHIND the
+          // netting, and drawn under it the bulge reads as the net taking it.
+          // Before the confetti, which is thrown in front of everything.
+          if (rippling) this.drawNet(impact.x, t - touch, netAmplitude);
           // The confetti, integrated by the time that passed since the last
           // frame. It used to advance a fixed step per frame under a comment
           // claiming that made it screen-independent; see resolutionMotion.ts.
