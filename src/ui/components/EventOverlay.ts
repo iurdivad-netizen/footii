@@ -385,6 +385,12 @@ export class EventOverlay {
       progress,
       committed: keeperInvolved && committed,
       keeperAction: keeperInvolved ? keeperAction : 'set',
+      // How long ago he committed, so he is drawn MOVING to where he has gone
+      // rather than appearing there. The commit itself is still at `commitAt`,
+      // and the strip above still names it on that very frame.
+      ...(keeperInvolved && committed
+        ? { keeperSince: elapsed - event.context.goalkeeper.commitAt }
+        : {}),
       showGoalkeeper: keeperInvolved,
       showTeammates: this.showTeammates,
     });
@@ -505,6 +511,11 @@ export class EventOverlay {
         // instead of starting him over. Read here, before the engine applies the
         // commit, by the same rule the decision loop drew him with.
         keeperBefore: keeperInvolved ? keeperOnScreenAt(event.context.goalkeeper, timeUsed) : 'set',
+        // And how far along his move he had got: a choice made while he is still
+        // moving has to be picked up by the replay mid-move.
+        ...(keeperInvolved && timeUsed >= event.context.goalkeeper.commitAt
+          ? { keeperBeforeSince: timeUsed - event.context.goalkeeper.commitAt }
+          : {}),
         showGoalkeeper: keeperInvolved,
         // Kept for the replay: the man the ball is flying to must still be on
         // the pitch when it gets there.

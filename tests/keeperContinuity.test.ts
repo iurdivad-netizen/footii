@@ -2,7 +2,14 @@ import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SituationRenderer } from '../src/rendering/events/SituationRenderer.ts';
 import type { RenderState, ResolutionCue } from '../src/rendering/events/SituationRenderer.ts';
-import { PITCH, keeperOnScreenAt, keeperX } from '../src/rendering/events/pitchLayout.ts';
+import {
+  COMMIT_SECONDS,
+  PITCH,
+  blendPose,
+  commitProgress,
+  keeperOnScreenAt,
+  keeperX,
+} from '../src/rendering/events/pitchLayout.ts';
 import type { GoalkeeperAction } from '../src/core/goalkeeper/goalkeeper.ts';
 import { COLOURS } from '../src/rendering/events/SituationRenderer.ts';
 import { MatchEngine } from '../src/simulation/MatchEngine.ts';
@@ -256,5 +263,228 @@ describe('what was on screen is one rule, shared', () => {
     // The scene is built before `settle` hands the decision to the engine.
     expect(finish.indexOf('keeperBefore:')).toBeGreaterThan(-1);
     expect(finish.indexOf('keeperBefore:')).toBeLessThan(finish.indexOf('settle?.('));
+  });
+});
+
+// ------------------------------------------------------ the commit is a move ---
+
+describe('the commit is a move, not a jump', () => {
+  const calls: { x: number; y: number; rotation: number }[] = [];
+  const queue: (() => void)[] = [];
+  let now = 0;
+  const g = globalThis as Record<string, unknown>;
+  let saved: Record<string, unknown> = {};
+
+  beforeEach(() => {
+    calls.length = 0;
+    queue.length = 0;
+    now = 0;
+    saved = {
+      window: g.window,
+      requestAnimationFrame: g.requestAnimationFrame,
+      cancelAnimationFrame: g.cancelAnimationFrame,
+    };
+    g.window = { devicePixelRatio: 1 };
+    g.requestAnimationFrame = (callback: () => void) => queue.push(callback);
+    g.cancelAnimationFrame = () => undefined;
+    vi.spyOn(performance, 'now').mockImplementation(() => now * 1000);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    g.window = saved.window;
+    g.requestAnimationFrame = saved.requestAnimationFrame;
+    g.cancelAnimationFrame = saved.cancelAnimationFrame;
+  });
+
+  function canvas(): HTMLCanvasElement {
+    const noop = new Proxy(() => undefined, { get: () => noop, apply: () => undefined });
+    const store: Record<string, unknown> = {};
+    const ctx = new Proxy(store, {
+      get: (target, key) =>
+        key === 'ellipse'
+          ? (x: number, y: number, _rx: number, _ry: number, rotation: number) =>
+              calls.push({ x, y, rotation })
+          : key in target
+            ? target[key as string]
+            : noop,
+      set: (target, key, value) => {
+        target[key as string] = value;
+        return true;
+      },
+    });
+    return {
+      getContext: () => ctx,
+      getBoundingClientRect: () => ({ width: W, height: H }),
+      width: 0,
+      height: 0,
+    } as unknown as HTMLCanvasElement;
+  }
+
+  const dived = (over: Partial<RenderState> = {}): RenderState => ({
+    context: context({
+      situation: 'boxSideAttack',
+      zone: { channel: 'right', box: 'inside' },
+      nearbyDefenders: 1,
+      goalkeeper: goalkeeperState(undefined, { committedAction: 'divingNear' }),
+    }),
+    progress: 1,
+    committed: true,
+    keeperAction: 'divingNear',
+    showGoalkeeper: true,
+    ...over,
+  });
+
+  /** The keeper as the decision screen draws him, `since` seconds after the commit. */
+  function drawnAt(since: number | undefined, over: Partial<RenderState> = {}) {
+    calls.length = 0;
+    new SituationRenderer(canvas()).draw(
+      dived({ ...(since === undefined ? {} : { keeperSince: since }), ...over }),
+    );
+    return calls[calls.length - 1]!;
+  }
+
+  const centre = W / 2;
+  const goalW = W * PITCH.goalW;
+  const stance = keeperX('set', 0.84, centre, goalW);
+  const dive = keeperX('divingNear', 0.84, centre, goalW);
+
+  it('eases out, reaching the end in a quarter of a second and staying there', () => {
+    expect(commitProgress(undefined)).toBe(0);
+    expect(commitProgress(0)).toBe(0);
+    expect(commitProgress(-1)).toBe(0);
+    expect(commitProgress(COMMIT_SECONDS)).toBe(1);
+    expect(commitProgress(COMMIT_SECONDS * 4)).toBe(1);
+    // Eased OUT: most of the distance is in the first part of it.
+    expect(commitProgress(COMMIT_SECONDS / 2)).toBeGreaterThan(0.75);
+    let last = 0;
+    for (let t = 0; t <= COMMIT_SECONDS; t += 0.01) {
+      const p = commitProgress(t);
+      expect(p).toBeGreaterThanOrEqual(last);
+      expect(p).toBeLessThanOrEqual(1);
+      last = p;
+    }
+  });
+
+  it('blends every part of a pose together, and clamps', () => {
+    const a = { x: 0, y: 0, rx: 9, ry: 11, tilt: 0 };
+    const b = { x: 100, y: 40, rx: 14, ry: 8, tilt: -0.45 };
+    expect(blendPose(a, b, 0)).toEqual(a);
+    expect(blendPose(a, b, 1)).toEqual(b);
+    expect(blendPose(a, b, 0.5)).toEqual({ x: 50, y: 20, rx: 11.5, ry: 9.5, tilt: -0.225 });
+    expect(blendPose(a, b, -3)).toEqual(a);
+    expect(blendPose(a, b, 9)).toEqual(b);
+  });
+
+  it('draws him at his stance on the commit itself, and at the dive once it is over', () => {
+    expect(drawnAt(0).x).toBeCloseTo(stance, 6);
+    expect(drawnAt(COMMIT_SECONDS).x).toBeCloseTo(dive, 6);
+    expect(drawnAt(1).x).toBeCloseTo(dive, 6);
+  });
+
+  it('moves him across the gap in between, one way, without overshooting', () => {
+    const xs = [0, 0.02, 0.05, 0.09, 0.14, 0.2, 0.25].map((t) => drawnAt(t).x);
+    for (let i = 1; i < xs.length; i++) expect(xs[i]!).toBeGreaterThanOrEqual(xs[i - 1]! - 1e-9);
+    for (const x of xs) {
+      expect(x).toBeGreaterThanOrEqual(stance - 1e-9);
+      expect(x).toBeLessThanOrEqual(dive + 1e-9);
+    }
+    // Several distinct positions, which is what "a move" means to the eye: the
+    // jump it replaces was exactly two.
+    expect(new Set(xs.map((x) => x.toFixed(2))).size).toBeGreaterThanOrEqual(5);
+  });
+
+  it('leans into the dive as he goes, from upright to the full lean', () => {
+    expect(drawnAt(0).rotation).toBeCloseTo(0, 9);
+    const mid = drawnAt(0.05).rotation;
+    const full = drawnAt(COMMIT_SECONDS).rotation;
+    expect(full).toBeLessThan(0);
+    expect(mid).toBeLessThan(0);
+    expect(mid).toBeGreaterThan(full);
+  });
+
+  it('does not make the player wait to see WHICH WAY: he has moved by the next frame', () => {
+    // The commit has to stay as early a read as it was. A smoothed move that hid
+    // the direction for a quarter second would be a slower keeper, not a nicer one.
+    const oneFrame = drawnAt(1 / 60).x;
+    expect(oneFrame - stance).toBeGreaterThan(0.5);
+    expect(Math.sign(oneFrame - stance)).toBe(Math.sign(dive - stance));
+  });
+
+  it('draws a keeper who was not told when he committed where he ends up, as he always did', () => {
+    expect(drawnAt(undefined).x).toBeCloseTo(dive, 6);
+  });
+
+  it('does not move a keeper who has not committed, however long it has been', () => {
+    const still = drawnAt(0.1, { keeperAction: 'set', committed: false });
+    expect(still.x).toBeCloseTo(stance, 6);
+  });
+
+  it('moves a rushing keeper out over the same quarter second', () => {
+    const rush = (since: number) =>
+      drawnAt(since, {
+        context: context({
+          situation: 'oneOnOne',
+          zone: { channel: 'central', box: 'inside' },
+          nearbyDefenders: 1,
+          goalkeeper: goalkeeperState(undefined, { committedAction: 'rushing' }),
+        }),
+        keeperAction: 'rushing',
+      }).y;
+    const ys = [0, 0.04, 0.1, 0.2, 0.25].map(rush);
+    for (let i = 1; i < ys.length; i++) expect(ys[i]!).toBeGreaterThanOrEqual(ys[i - 1]!);
+    expect(ys[ys.length - 1]! - ys[0]!).toBeGreaterThan(H * 0.15);
+    expect(new Set(ys.map((y) => y.toFixed(1))).size).toBeGreaterThanOrEqual(4);
+  });
+
+  it('hands the replay a keeper who is still moving from where he had got to, not from the end', () => {
+    // The player chose 0.05s after the commit, while he was mid-move.
+    const since = 0.05;
+    const midX = drawnAt(since).x;
+    expect(midX).toBeGreaterThan(stance + 1);
+    expect(midX).toBeLessThan(dive - 1);
+
+    calls.length = 0;
+    queue.length = 0;
+    now = 0;
+    const renderer = new SituationRenderer(canvas());
+    void renderer.animateResolution(
+      dived({ keeperBefore: 'divingNear', keeperBeforeSince: since }),
+      { outcome: 'saved', actionKind: 'shootNearPost', family: 'shot' },
+    );
+    const xs: number[] = [];
+    for (let i = 0; i < 30; i++) {
+      now += 1 / 60;
+      const run = queue.splice(0);
+      for (const frame of run) frame();
+      xs.push(calls[calls.length - 1]!.x);
+    }
+    // The first frame is where he was on screen a moment ago, give or take the
+    // one frame the replay has already advanced...
+    expect(Math.abs(xs[0]! - midX)).toBeLessThan((dive - stance) * 0.25);
+    expect(xs[0]!).toBeGreaterThan(stance + 1);
+    // ...he carries on to the end, and is never sent back.
+    for (let i = 1; i < xs.length; i++) expect(xs[i]!).toBeGreaterThanOrEqual(xs[i - 1]! - 1e-6);
+    expect(xs[xs.length - 1]!).toBeCloseTo(dive, 1);
+  });
+
+  it('is passed from the decision loop, and the moment he was chosen against to the replay', () => {
+    const overlay = readFileSync(
+      new URL('../src/ui/components/EventOverlay.ts', import.meta.url),
+      'utf8',
+    );
+    expect(overlay).toMatch(/keeperSince: elapsed - event\.context\.goalkeeper\.commitAt/);
+    expect(overlay).toMatch(/keeperBeforeSince: timeUsed - event\.context\.goalkeeper\.commitAt/);
+  });
+
+  it('leaves what the engine knows about the commit exactly where it was', () => {
+    // Drawing is the only thing that moved. The commit is still applied at
+    // `commitAt` by the engine, so the read is neither earlier nor later.
+    const engine = readFileSync(
+      new URL('../src/simulation/MatchEngine.ts', import.meta.url),
+      'utf8',
+    );
+    expect(engine).toMatch(/submission\.timeUsed >= event\.context\.goalkeeper\.commitAt/);
+    expect(engine).not.toMatch(/COMMIT_SECONDS/);
   });
 });

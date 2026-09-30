@@ -515,6 +515,23 @@ fix the same three cases move 0.0px. Every function involved had been individual
 why no unit test caught it; the regression test drives the real animation frame by frame through a
 recording canvas, and was checked to fail with the bug put back.
 
+**The commit was a jump.** The other half of the same oddity: in the decision phase the keeper was in
+one place on one frame and somewhere else on the next — a cut, not a man moving. He now moves to his
+committed position over a quarter of a second, eased out (a dive is an explosion and then a settle),
+leaning into it as he goes. Measured on the real canvas, an "Advancing" keeper went 25 → 35.5 → 40.3 →
+41.7px and settled in about 200ms; a keeper going to ground covered 24px over five distinct positions.
+
+**It is deliberately no slower a read.** The commit is still applied at `commitAt`, the ring still
+pulses and the keeper strip still names what he did on that very frame — only the *drawing* of his
+arrival is spread over the quarter second, and he has already moved towards the side by the next frame.
+A smoothing that hid the direction for a quarter second would have been a slower keeper and not a nicer
+one, and a test holds that he is visibly on his way after a single frame. The engine is untouched.
+
+**A choice made mid-move is picked up mid-move.** Choose in that quarter second and the replay starts
+from how far along he had got (`keeperBeforeSince`), not from the end of the move — otherwise the
+reset fixed above would come back as a smaller jump. Checked in the real game by choosing 45ms after
+the commit: the replay carries on to his final spot with no step away from it.
+
 **The commentary could not animate.** It is rebuilt whole every minute, so an animation on the list
 would replay on all fourteen lines every time. The screen now works out which lines are *new* — by
 identity rather than length, because the feed is a rolling buffer whose length stops changing long
