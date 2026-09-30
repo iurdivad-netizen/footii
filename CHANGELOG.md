@@ -317,10 +317,19 @@ was on screen that the overlay, the replay and the engine all agree on. Reproduc
 first (a keeper snapped 21–24px back), and the same trace after the fix moves 0.0px. See
 [The replay, and the match screen around it](README.md#the-replay-and-the-match-screen-around-it).
 
-Not done, noticed on the way: the keeper still *snaps* to his committed position at the instant he
-commits, in the decision phase, rather than moving there. It is a smaller oddity than the reset (it is
-one jump, where the reset was a jump and a second dive) and it was not what was reported; smoothing it
-is an animation of the commit over a fraction of a second and touches the decision loop.
+Noticed on the way and left for the next item: the keeper still *snapped* to his committed position at
+the instant he committed, in the decision phase. It was not what was reported, and smoothing it touches
+the decision loop.
+
+**22. The keeper jumps to his committed position instead of moving there.** ✅ **Done.** The other half
+of item 21. In the decision phase he was in one place on one frame and somewhere else on the next. He now
+moves there over a quarter of a second, eased out and leaning into a dive, drawn from the time since he
+committed. The commit is applied at the same instant and the strip names it on the same frame, so the
+read is no slower — a test holds that he has visibly started by the next frame. A choice made while he
+is still moving is handed to the replay mid-move, so the fix in item 21 does not come back as a smaller
+jump. Verified on the real canvas (a keeper moved 25 → 35.5 → 40.3 → 41.7px, settling in ~200ms) and by
+choosing 45ms after the commit; the new behaviour tests were checked to fail with the smoothing disabled.
+See [The replay, and the match screen around it](README.md#the-replay-and-the-match-screen-around-it).
 
 ## Found while reviewing, and fixed
 

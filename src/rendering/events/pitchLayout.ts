@@ -80,6 +80,54 @@ export function keeperOnScreenAt(
 }
 
 /**
+ * HOW LONG A KEEPER TAKES TO GET TO WHERE HE HAS COMMITTED, in seconds.
+ *
+ * He used to be somewhere different on the very next frame after the commit: one
+ * jump from his stance to a dive or a rush, which reads as a cut and not as a
+ * man moving. It is a quarter of a second now. That is fast enough that nothing
+ * is held back — the commit still happens at `commitAt`, the ring still pulses
+ * and the strip still names what he did on that frame, so the READ is exactly as
+ * early as it was — and slow enough for the eye to see which way he went.
+ */
+export const COMMIT_SECONDS = 0.25;
+
+/**
+ * How far along his move a keeper is, `since` seconds after committing: 0 before
+ * and at the commit, 1 from `COMMIT_SECONDS` on.
+ *
+ * Eased out, because a dive is an explosion and then a settle: most of the
+ * distance is covered in the first part of it, and a straight line would look
+ * like a keeper walking to the post.
+ */
+export function commitProgress(since: number | undefined): number {
+  if (since === undefined || since <= 0) return 0;
+  const share = Math.min(1, since / COMMIT_SECONDS);
+  return 1 - (1 - share) ** 3;
+}
+
+/** Where a keeper is drawn and how: position, size and lean. */
+export interface KeeperPose {
+  x: number;
+  y: number;
+  rx: number;
+  ry: number;
+  tilt: number;
+}
+
+/** A pose part of the way from one to another. Every part moves together. */
+export function blendPose(from: KeeperPose, to: KeeperPose, t: number): KeeperPose {
+  const at = Math.min(1, Math.max(0, t));
+  const mix = (a: number, b: number) => a + (b - a) * at;
+  return {
+    x: mix(from.x, to.x),
+    y: mix(from.y, to.y),
+    rx: mix(from.rx, to.rx),
+    ry: mix(from.ry, to.ry),
+    tilt: mix(from.tilt, to.tilt),
+  };
+}
+
+/**
  * Which way a keeper's dive goes: -1 left, +1 right, 0 when he is not diving.
  *
  * ONE RULE for both where he ends up and which way he leans, so the two cannot

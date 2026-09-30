@@ -11,6 +11,8 @@ import { POSITION_PROFILES } from '../../core/player/positions.ts';
 import type { Position } from '../../core/player/positions.ts';
 import {
   PITCH,
+  blendPose,
+  commitProgress,
   defendingDepth,
   keeperTilt,
   keeperX,
@@ -27,6 +29,7 @@ import {
   reboundPoint,
   stepSpark,
 } from './resolutionMotion.ts';
+import type { KeeperPose } from './pitchLayout.ts';
 import type { Spark } from './resolutionMotion.ts';
 
 /**
@@ -89,6 +92,20 @@ export interface RenderState {
    * this field meant.
    */
   keeperBefore?: GoalkeeperAction;
+  /**
+   * SECONDS SINCE THE KEEPER COMMITTED, so the move can be drawn as a move.
+   *
+   * Absent means he has not (or that the caller does not care), and he is drawn
+   * at `keeperAction`'s position in full, as he always was. Present, he is drawn
+   * part of the way there — see pitchLayout.ts:commitProgress.
+   */
+  keeperSince?: number;
+  /**
+   * The same, for where he had got to when the player chose: a choice made in the
+   * quarter second the keeper is still moving has to be picked up by the replay
+   * mid-move, not from the end of it.
+   */
+  keeperBeforeSince?: number;
   /**
    * False for situations the keeper takes no part in (midfield build-up, a
    * defensive duel). Drawing him there would advertise information that has no
@@ -553,7 +570,7 @@ export class SituationRenderer {
 
     // --- goalkeeper ---
     if (state.showGoalkeeper && !hidden.keeper) {
-      const keeper = this.keeperPosition(state, h, goalX, goalW);
+      const keeper = this.keeperPose(state, h, goalX, goalW);
       ctx.fillStyle = state.committed ? COLOURS.keeperCommitted : COLOURS.keeper;
       ctx.beginPath();
       ctx.ellipse(keeper.x, keeper.y, keeper.rx, keeper.ry, keeper.tilt, 0, Math.PI * 2);
@@ -680,12 +697,23 @@ export class SituationRenderer {
     // has gone. Saying it twice would only make both quieter.
   }
 
-  private keeperPosition(
-    state: RenderState,
-    h: number,
-    goalX: number,
-    goalW: number,
-  ): { x: number; y: number; rx: number; ry: number; tilt: number } {
+  /**
+   * Where the keeper is drawn RIGHT NOW: on his way to where he has committed,
+   * or there.
+   *
+   * `keeperPosition` answers where an action ENDS UP; this answers where he is
+   * `keeperSince` seconds into getting there. The two used to be the same
+   * function, which is why a commit was a single jump. Everything that needs the
+   * end — the save, the replay's destination — still asks `keeperPosition`.
+   */
+  private keeperPose(state: RenderState, h: number, goalX: number, goalW: number): KeeperPose {
+    const target = this.keeperPosition(state, h, goalX, goalW);
+    if (state.keeperSince === undefined || state.keeperAction === 'set') return target;
+    const stance = this.keeperPosition({ ...state, keeperAction: 'set' }, h, goalX, goalW);
+    return blendPose(stance, target, commitProgress(state.keeperSince));
+  }
+
+  private keeperPosition(state: RenderState, h: number, goalX: number, goalW: number): KeeperPose {
     const centre = goalX + goalW / 2;
     const depth = state.context.goalkeeper.startingDepth;
     let y = h * (0.06 + depth * 0.12);
@@ -1123,8 +1151,16 @@ export class SituationRenderer {
     // FROM WHERE HE WAS, not from where he started. He used to begin every replay
     // at the standing position, which for a keeper the player had already watched
     // commit meant a snap back to the middle of the goal and a second dive.
-    const keeperFrom = this.keeperPosition(
-      { ...state, keeperAction: state.keeperBefore ?? 'set' },
+    //
+    // AND HOW FAR ALONG HIS MOVE HE WAS. A choice made in the quarter second he is
+    // still moving (see COMMIT_SECONDS) has to be picked up mid-move, or the
+    // replay would jump him to the end of it and then carry on.
+    const keeperFrom = this.keeperPose(
+      {
+        ...state,
+        keeperAction: state.keeperBefore ?? 'set',
+        ...(state.keeperBeforeSince !== undefined ? { keeperSince: state.keeperBeforeSince } : {}),
+      },
       this.height,
       (this.width - this.width * PITCH.goalW) / 2,
       this.width * PITCH.goalW,
