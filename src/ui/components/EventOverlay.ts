@@ -11,6 +11,7 @@ import type { ReplaySetting } from '../replay.ts';
 import type { InputController } from '../interaction/InputController.ts';
 import { LEGEND_ORDER, familyStyle } from '../actionFamilyStyle.ts';
 import { keeperStatus } from '../keeperStatus.ts';
+import { keeperOnScreenAt } from '../../rendering/events/pitchLayout.ts';
 import { standsOverTheBall } from '../../data/situations.ts';
 import type { GoalkeeperAction } from '../../core/goalkeeper/goalkeeper.ts';
 import { COLOURS } from '../../rendering/events/SituationRenderer.ts';
@@ -351,9 +352,7 @@ export class EventOverlay {
     const progress = window_ > 0 ? Math.min(1, elapsed / window_) : 1;
 
     const committed = elapsed >= event.context.goalkeeper.commitAt;
-    const keeperAction = committed
-      ? event.context.goalkeeper.committedAction
-      : event.context.goalkeeper.action;
+    const keeperAction = keeperOnScreenAt(event.context.goalkeeper, elapsed);
 
     if (this.untimed) {
       // Show elapsed time rather than a countdown: there is nothing to run out.
@@ -502,6 +501,10 @@ export class EventOverlay {
         progress: 1,
         committed: keeperInvolved,
         keeperAction: keeperInvolved ? event.context.goalkeeper.committedAction : 'set',
+        // Where he WAS when the player chose, so the replay carries on from there
+        // instead of starting him over. Read here, before the engine applies the
+        // commit, by the same rule the decision loop drew him with.
+        keeperBefore: keeperInvolved ? keeperOnScreenAt(event.context.goalkeeper, timeUsed) : 'set',
         showGoalkeeper: keeperInvolved,
         // Kept for the replay: the man the ball is flying to must still be on
         // the pitch when it gets there.

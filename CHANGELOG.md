@@ -309,6 +309,19 @@ were under the project's floor. The first is the kind of bug worth remembering: 
 on the real card, and the probe that showed it was the pointer-up landing on a different element from
 the pointer-down.
 
+**21. The keeper resets to his starting position after you choose.** ✅ **Done.** Reported from playing:
+he commits (rushes out, dives), you pick an option, and the replay sends him back and moves him again.
+The replay began every keeper from the standing position whatever the player had just watched him do.
+It is now told where he was when you chose and carries on from there, from one shared rule for what
+was on screen that the overlay, the replay and the engine all agree on. Reproduced in the real game
+first (a keeper snapped 21–24px back), and the same trace after the fix moves 0.0px. See
+[The replay, and the match screen around it](README.md#the-replay-and-the-match-screen-around-it).
+
+Not done, noticed on the way: the keeper still *snaps* to his committed position at the instant he
+commits, in the decision phase, rather than moving there. It is a smaller oddity than the reset (it is
+one jump, where the reset was a jump and a second dive) and it was not what was reported; smoothing it
+is an animation of the commit over a fraction of a second and touches the decision loop.
+
 ## Found while reviewing, and fixed
 
 Eight things that were not on either list, found by reading the code against what it claimed:

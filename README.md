@@ -497,6 +497,24 @@ It is drawn over the flash now, with a stronger fill, cross-threads that follow 
 reads as mesh, and a larger amplitude. It is only drawn where the goal in the picture is the one
 being scored at, so a defender's own goal at the bottom does not ripple.
 
+**The keeper reset when you chose.** Reported from playing: the keeper commits — rushes out, dives —
+you pick an option, and the replay sends him back to where he started and moves him again. The
+overlay had handed the replay a scene with the keeper already in his final position, and the renderer
+started him from the *standing* position regardless, so anybody who waited to read the commit saw him
+snap back and go a second time. The replay is now told where he **was** when you chose
+(`keeperBefore`) and carries on from there. The rule for "what was on screen" is written once
+(`keeperOnScreenAt`) and shared by the decision loop that draws him, the overlay that hands over the
+scene, and — as a test holds — the engine, which applies his commit by the same comparison; it is
+read before the engine applies it. A player who chose *before* he moved still sees him set off from
+his stance, and stays yellow until he does: the replay used to paint every keeper orange from its
+first frame.
+
+Reproduced in the real game before fixing, by reading the keeper off the actual canvas: a keeper
+shown "Advancing" snapped 21px back to his line, one "Down at your feet" snapped 24px, and after the
+fix the same three cases move 0.0px. Every function involved had been individually correct, which is
+why no unit test caught it; the regression test drives the real animation frame by frame through a
+recording canvas, and was checked to fail with the bug put back.
+
 **The commentary could not animate.** It is rebuilt whole every minute, so an animation on the list
 would replay on all fourteen lines every time. The screen now works out which lines are *new* — by
 identity rather than length, because the feed is a rolling buffer whose length stops changing long
