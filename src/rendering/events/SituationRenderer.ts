@@ -79,6 +79,17 @@ export interface RenderState {
   committed: boolean;
   keeperAction: GoalkeeperAction;
   /**
+   * WHERE THE KEEPER WAS WHEN THE PLAYER DECIDED — for the replay only.
+   *
+   * `keeperAction` is where he ends up; this is where he had got to. Without it
+   * the replay has to assume he had not moved, and starts every keeper from the
+   * standing position: a player who waited, watched him rush out or dive, and
+   * then chose saw him go back to the middle of the goal and set off again.
+   * Absent means he had not committed, which is also what a caller that predates
+   * this field meant.
+   */
+  keeperBefore?: GoalkeeperAction;
+  /**
    * False for situations the keeper takes no part in (midfield build-up, a
    * defensive duel). Drawing him there would advertise information that has no
    * bearing on the decision, which is worse than drawing nothing.
@@ -1108,8 +1119,12 @@ export class SituationRenderer {
     // who decided before the commit saw him simply appear somewhere else. So
     // the base scene is drawn without him and he is interpolated here, from
     // where he was standing to where he ends up.
+    //
+    // FROM WHERE HE WAS, not from where he started. He used to begin every replay
+    // at the standing position, which for a keeper the player had already watched
+    // commit meant a snap back to the middle of the goal and a second dive.
     const keeperFrom = this.keeperPosition(
-      { ...state, keeperAction: 'set' },
+      { ...state, keeperAction: state.keeperBefore ?? 'set' },
       this.height,
       (this.width - this.width * PITCH.goalW) / 2,
       this.width * PITCH.goalW,
@@ -1186,7 +1201,12 @@ export class SituationRenderer {
           const k = Math.min(1, eased * 1.6);
           // He closes on a ball he has caught. Not on one he has only parried.
           const gather = isCatch ? gatherScale(t - planned.flight) : 1;
-          ctx.fillStyle = state.committed ? COLOURS.keeperCommitted : COLOURS.keeper;
+          // Orange means he has committed. A keeper the player saw still standing
+          // stays yellow until he actually sets off, instead of turning orange
+          // in the replay's first frame while he has not moved.
+          const showsCommitted =
+            state.committed && ((state.keeperBefore ?? 'set') !== 'set' || k > 0.15);
+          ctx.fillStyle = showsCommitted ? COLOURS.keeperCommitted : COLOURS.keeper;
           ctx.beginPath();
           ctx.ellipse(
             keeperFrom.x + (keeperTo.x - keeperFrom.x) * k,

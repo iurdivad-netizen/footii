@@ -62,6 +62,24 @@ export function nearSide(channelX: number): -1 | 1 {
 }
 
 /**
+ * WHAT THE KEEPER IS DOING ON SCREEN, `seconds` into the decision window.
+ *
+ * One rule for three readers, because it used to be written three slightly
+ * different ways: the decision loop draws him by it, the engine applies his
+ * commit by it (`timeUsed >= commitAt`), and the replay has to START him from it.
+ * The third is the one that was missing. The replay began every keeper from the
+ * standing position whatever he had been seen doing, so a player who waited,
+ * watched him rush out or dive, and then chose saw him snapped back to the middle
+ * of the goal and sent off again.
+ */
+export function keeperOnScreenAt(
+  keeper: { action: GoalkeeperAction; committedAction: GoalkeeperAction; commitAt: number },
+  seconds: number,
+): GoalkeeperAction {
+  return seconds >= keeper.commitAt ? keeper.committedAction : keeper.action;
+}
+
+/**
  * Which way a keeper's dive goes: -1 left, +1 right, 0 when he is not diving.
  *
  * ONE RULE for both where he ends up and which way he leans, so the two cannot
